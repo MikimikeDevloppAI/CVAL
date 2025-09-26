@@ -14,16 +14,502 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      absences: {
+        Row: {
+          created_at: string
+          date_debut: string
+          date_fin: string
+          id: string
+          motif: string | null
+          profile_id: string
+          statut: Database["public"]["Enums"]["statut_absence"]
+          type: Database["public"]["Enums"]["type_absence"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_debut: string
+          date_fin: string
+          id?: string
+          motif?: string | null
+          profile_id: string
+          statut?: Database["public"]["Enums"]["statut_absence"]
+          type: Database["public"]["Enums"]["type_absence"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_debut?: string
+          date_fin?: string
+          id?: string
+          motif?: string | null
+          profile_id?: string
+          statut?: Database["public"]["Enums"]["statut_absence"]
+          type?: Database["public"]["Enums"]["type_absence"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      besoins_secretaires_par_medecin: {
+        Row: {
+          actif: boolean
+          created_at: string
+          facteur_ajustement: number
+          id: string
+          medecin_id: string
+          nombre_secretaires_requis: number
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          facteur_ajustement?: number
+          id?: string
+          medecin_id: string
+          nombre_secretaires_requis?: number
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          facteur_ajustement?: number
+          id?: string
+          medecin_id?: string
+          nombre_secretaires_requis?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "besoins_secretaires_par_medecin_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      besoins_sites: {
+        Row: {
+          actif: boolean
+          created_at: string
+          id: string
+          nombre_medecins_requis: number
+          priorite: Database["public"]["Enums"]["priorite_besoin"]
+          site_id: string
+          specialite_id: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          nombre_medecins_requis: number
+          priorite?: Database["public"]["Enums"]["priorite_besoin"]
+          site_id: string
+          specialite_id: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          nombre_medecins_requis?: number
+          priorite?: Database["public"]["Enums"]["priorite_besoin"]
+          site_id?: string
+          specialite_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "besoins_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "besoins_sites_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      horaires_base_medecins: {
+        Row: {
+          actif: boolean
+          created_at: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          jour_semaine: number
+          medecin_id: string
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          jour_semaine: number
+          medecin_id: string
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          jour_semaine?: number
+          medecin_id?: string
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horaires_base_medecins_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_base_medecins_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      horaires_base_secretaires: {
+        Row: {
+          actif: boolean
+          created_at: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          jour_semaine: number
+          secretaire_id: string
+          site_id: string
+          type: Database["public"]["Enums"]["type_horaire"]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          jour_semaine: number
+          secretaire_id: string
+          site_id: string
+          type?: Database["public"]["Enums"]["type_horaire"]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          jour_semaine?: number
+          secretaire_id?: string
+          site_id?: string
+          type?: Database["public"]["Enums"]["type_horaire"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horaires_base_secretaires_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_base_secretaires_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medecins: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          site_preferentiel_id: string | null
+          specialite_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          site_preferentiel_id?: string | null
+          specialite_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          site_preferentiel_id?: string | null
+          specialite_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medecins_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medecins_site_preferentiel_id_fkey"
+            columns: ["site_preferentiel_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medecins_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planning_genere: {
+        Row: {
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          medecin_id: string | null
+          secretaire_id: string | null
+          site_id: string
+          statut: Database["public"]["Enums"]["statut_planning"]
+          type: Database["public"]["Enums"]["type_planning"]
+          updated_at: string
+          version_planning: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          medecin_id?: string | null
+          secretaire_id?: string | null
+          site_id: string
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type: Database["public"]["Enums"]["type_planning"]
+          updated_at?: string
+          version_planning?: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          medecin_id?: string | null
+          secretaire_id?: string | null
+          site_id?: string
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type?: Database["public"]["Enums"]["type_planning"]
+          updated_at?: string
+          version_planning?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nom: string
+          prenom: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          nom: string
+          prenom: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nom?: string
+          prenom?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      secretaires: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          site_preferentiel_id: string | null
+          specialites: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          site_preferentiel_id?: string | null
+          specialites?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          site_preferentiel_id?: string | null
+          specialites?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secretaires_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secretaires_site_preferentiel_id_fkey"
+            columns: ["site_preferentiel_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sites: {
+        Row: {
+          adresse: string
+          capacite_max_medecins: number
+          created_at: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          adresse: string
+          capacite_max_medecins?: number
+          created_at?: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          adresse?: string
+          capacite_max_medecins?: number
+          created_at?: string
+          id?: string
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      specialites: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      priorite_besoin: "haute" | "moyenne" | "basse"
+      statut_absence: "en_attente" | "approuve" | "refuse"
+      statut_planning: "planifie" | "confirme" | "absent"
+      type_absence: "conges" | "maladie" | "formation" | "autre"
+      type_horaire: "fixe" | "disponible"
+      type_planning: "medecin" | "secretaire"
+      user_role: "admin" | "medecin" | "secretaire"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +636,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      priorite_besoin: ["haute", "moyenne", "basse"],
+      statut_absence: ["en_attente", "approuve", "refuse"],
+      statut_planning: ["planifie", "confirme", "absent"],
+      type_absence: ["conges", "maladie", "formation", "autre"],
+      type_horaire: ["fixe", "disponible"],
+      type_planning: ["medecin", "secretaire"],
+      user_role: ["admin", "medecin", "secretaire"],
+    },
   },
 } as const
