@@ -11,10 +11,10 @@ import {
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { name: 'Vue d\'ensemble', href: '#', icon: LayoutDashboard, current: false },
-  { name: 'Planning', href: '#', icon: Calendar, current: true },
-  { name: 'Médecins', href: '#', icon: Users, current: false },
-  { name: 'Secrétaires', href: '#', icon: UserPlus, current: false },
+  { name: 'Vue d\'ensemble', href: '/', icon: LayoutDashboard, current: false },
+  { name: 'Planning', href: '/', icon: Calendar, current: true },
+  { name: 'Médecins', href: '/medecins', icon: Users, current: false },
+  { name: 'Secrétaires', href: '/secretaires', icon: UserPlus, current: false },
   { name: 'Sites', href: '#', icon: Building2, current: false },
   { name: 'Horaires', href: '#', icon: Clock, current: false },
   { name: 'Statistiques', href: '#', icon: BarChart3, current: false },
