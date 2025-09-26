@@ -8,20 +8,23 @@ import {
   UserPlus,
   Settings
 } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { name: 'Vue d\'ensemble', href: '/', icon: LayoutDashboard, current: false },
-  { name: 'Planning', href: '/', icon: Calendar, current: true },
-  { name: 'Médecins', href: '/medecins', icon: Users, current: false },
-  { name: 'Secrétaires', href: '/secretaires', icon: UserPlus, current: false },
-  { name: 'Sites', href: '#', icon: Building2, current: false },
-  { name: 'Horaires', href: '#', icon: Clock, current: false },
-  { name: 'Statistiques', href: '#', icon: BarChart3, current: false },
-  { name: 'Paramètres', href: '#', icon: Settings, current: false },
+  { name: 'Vue d\'ensemble', href: '/', icon: LayoutDashboard },
+  { name: 'Planning', href: '/', icon: Calendar },
+  { name: 'Médecins', href: '/medecins', icon: Users },
+  { name: 'Secrétaires', href: '/secretaires', icon: UserPlus },
+  { name: 'Sites', href: '#', icon: Building2 },
+  { name: 'Horaires', href: '#', icon: Clock },
+  { name: 'Statistiques', href: '#', icon: BarChart3 },
+  { name: 'Paramètres', href: '#', icon: Settings },
 ];
 
 export const Sidebar = () => {
+  const location = useLocation();
+
   return (
     <div className="flex h-full w-64 flex-col bg-white border-r border-border">
       {/* Logo */}
@@ -37,27 +40,30 @@ export const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex flex-1 flex-col px-3 py-4">
         <ul role="list" className="flex flex-1 flex-col gap-y-1">
-          {navigation.map((item) => (
-            <li key={item.name}>
-              <a
-                href={item.href}
-                className={cn(
-                  'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  item.current
-                    ? 'bg-primary text-white'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <item.icon
+          {navigation.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <li key={item.name}>
+                <Link
+                  to={item.href}
                   className={cn(
-                    'h-4 w-4 shrink-0 transition-colors',
-                    item.current ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'
+                    'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-white'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
-                />
-                {item.name}
-              </a>
-            </li>
-          ))}
+                >
+                  <item.icon
+                    className={cn(
+                      'h-4 w-4 shrink-0 transition-colors',
+                      isActive ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         {/* Brand section */}

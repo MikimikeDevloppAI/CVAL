@@ -22,6 +22,8 @@ interface Secretaire {
   };
 }
 
+import { Layout } from '@/components/layout/Layout';
+
 export default function SecretairesPage() {
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,113 +113,115 @@ export default function SecretairesPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
-              <Plus className="h-4 w-4" />
-              Ajouter un secrétaire
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedSecretaire ? 'Modifier le secrétaire' : 'Ajouter un secrétaire'}
-              </DialogTitle>
-            </DialogHeader>
-            <SecretaireForm 
-              secretaire={selectedSecretaire} 
-              onSuccess={handleFormSuccess}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un secrétaire..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+    <Layout>
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
+                <Plus className="h-4 w-4" />
+                Ajouter un secrétaire
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedSecretaire ? 'Modifier le secrétaire' : 'Ajouter un secrétaire'}
+                </DialogTitle>
+              </DialogHeader>
+              <SecretaireForm 
+                secretaire={selectedSecretaire} 
+                onSuccess={handleFormSuccess}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
-      </div>
 
-      {/* Secrétaires Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSecretaires.map((secretaire) => (
-          <Card key={secretaire.id} className="hover:shadow-soft transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">
-                    {secretaire.profiles?.prenom} {secretaire.profiles?.nom}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {secretaire.profiles?.email}
-                  </p>
+        {/* Search */}
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un secrétaire..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        {/* Secrétaires Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSecretaires.map((secretaire) => (
+            <Card key={secretaire.id} className="hover:shadow-soft transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">
+                      {secretaire.profiles?.prenom} {secretaire.profiles?.nom}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {secretaire.profiles?.email}
+                    </p>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSecretaire(secretaire);
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(secretaire.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedSecretaire(secretaire);
-                      setIsDialogOpen(true);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(secretaire.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-1">
-                  {secretaire.specialites?.length > 0 ? (
-                    secretaire.specialites.map((spec, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {spec}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {secretaire.specialites?.length > 0 ? (
+                      secretaire.specialites.map((spec, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          {spec}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        Aucune spécialité
                       </Badge>
-                    ))
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      Aucune spécialité
-                    </Badge>
+                    )}
+                  </div>
+                  {secretaire.sites && (
+                    <p className="text-sm text-muted-foreground">
+                      Site préférentiel: {secretaire.sites.nom}
+                    </p>
                   )}
                 </div>
-                {secretaire.sites && (
-                  <p className="text-sm text-muted-foreground">
-                    Site préférentiel: {secretaire.sites.nom}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredSecretaires.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? 'Aucun secrétaire trouvé pour cette recherche' : 'Aucun secrétaire enregistré'}
-          </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      )}
-    </div>
+
+        {filteredSecretaires.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchTerm ? 'Aucun secrétaire trouvé pour cette recherche' : 'Aucun secrétaire enregistré'}
+            </p>
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 }

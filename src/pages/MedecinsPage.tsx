@@ -25,6 +25,8 @@ interface Medecin {
   };
 }
 
+import { Layout } from '@/components/layout/Layout';
+
 export default function MedecinsPage() {
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,103 +120,105 @@ export default function MedecinsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
-              <Plus className="h-4 w-4" />
-              Ajouter un médecin
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
-              </DialogTitle>
-            </DialogHeader>
-            <MedecinForm 
-              medecin={selectedMedecin} 
-              onSuccess={handleFormSuccess}
+    <Layout>
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
+                <Plus className="h-4 w-4" />
+                Ajouter un médecin
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
+                </DialogTitle>
+              </DialogHeader>
+              <MedecinForm 
+                medecin={selectedMedecin} 
+                onSuccess={handleFormSuccess}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un médecin..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
             />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un médecin..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+          </div>
         </div>
-      </div>
 
-      {/* Médecins Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredMedecins.map((medecin) => (
-          <Card key={medecin.id} className="hover:shadow-soft transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">
-                    Dr. {medecin.profiles?.prenom} {medecin.profiles?.nom}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {medecin.profiles?.email}
-                  </p>
+        {/* Médecins Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMedecins.map((medecin) => (
+            <Card key={medecin.id} className="hover:shadow-soft transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">
+                      Dr. {medecin.profiles?.prenom} {medecin.profiles?.nom}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {medecin.profiles?.email}
+                    </p>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMedecin(medecin);
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(medecin.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMedecin(medecin);
-                      setIsDialogOpen(true);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(medecin.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Badge variant="secondary">
+                    {medecin.specialites?.nom}
+                  </Badge>
+                  {medecin.sites && (
+                    <p className="text-sm text-muted-foreground">
+                      Site préférentiel: {medecin.sites.nom}
+                    </p>
+                  )}
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Badge variant="secondary">
-                  {medecin.specialites?.nom}
-                </Badge>
-                {medecin.sites && (
-                  <p className="text-sm text-muted-foreground">
-                    Site préférentiel: {medecin.sites.nom}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredMedecins.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? 'Aucun médecin trouvé pour cette recherche' : 'Aucun médecin enregistré'}
-          </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      )}
-    </div>
+
+        {filteredMedecins.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchTerm ? 'Aucun médecin trouvé pour cette recherche' : 'Aucun médecin enregistré'}
+            </p>
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 }
