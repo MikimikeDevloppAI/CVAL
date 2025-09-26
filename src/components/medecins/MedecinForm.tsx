@@ -228,7 +228,6 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Aucun site</SelectItem>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
                       {site.nom}
