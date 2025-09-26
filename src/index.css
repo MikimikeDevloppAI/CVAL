@@ -2,71 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Medical Planning Design System - Inspired by modern calendar interfaces */
+/* Clean Minimal Calendar Design System */
 
 @layer base {
   :root {
-    /* Base colors - Clean medical theme */
-    --background: 0 0% 98%;
-    --foreground: 222 15% 15%;
+    /* Base colors - Minimal clean theme */
+    --background: 0 0% 99%;
+    --foreground: 220 13% 18%;
 
     /* Card system */
     --card: 0 0% 100%;
-    --card-foreground: 222 15% 15%;
+    --card-foreground: 220 13% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 15% 15%;
+    --popover-foreground: 220 13% 18%;
 
-    /* Primary - Medical purple/violet theme */
-    --primary: 262 70% 55%;
+    /* Primary - Subtle blue accent */
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 262 70% 50%;
-    --primary-light: 262 50% 95%;
+    --primary-hover: 221 83% 48%;
+    --primary-light: 221 83% 98%;
 
-    /* Secondary - Soft grays */
-    --secondary: 220 15% 96%;
-    --secondary-foreground: 220 15% 25%;
-    --secondary-hover: 220 15% 92%;
+    /* Secondary - Clean grays */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 9% 46%;
+    --secondary-hover: 220 14% 93%;
 
-    /* Medical accent colors */
-    --accent: 262 50% 95%;
-    --accent-foreground: 262 70% 35%;
+    /* Subtle accent colors */
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 13% 18%;
     
-    /* Status colors for medical planning */
-    --success: 142 70% 45%;
+    /* Status colors - Subtle */
+    --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 100% 55%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --destructive: 0 70% 55%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
     /* UI elements */
-    --muted: 220 15% 96%;
-    --muted-foreground: 220 15% 55%;
-    --border: 220 15% 90%;
-    --input: 220 15% 90%;
-    --ring: 262 70% 55%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
 
-    /* Planning specific colors */
-    --planning-event-blue: 210 85% 60%;
-    --planning-event-green: 142 70% 45%;
-    --planning-event-orange: 25 95% 60%;
-    --planning-event-purple: 280 70% 65%;
-    --planning-event-teal: 170 70% 50%;
+    /* Event colors - Subtle and clean */
+    --planning-event-blue: 221 83% 53%;
+    --planning-event-green: 142 76% 36%;
+    --planning-event-orange: 25 95% 53%;
+    --planning-event-purple: 262 83% 58%;
+    --planning-event-teal: 173 80% 40%;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(262 70% 55%), hsl(280 70% 65%));
-    --gradient-accent: linear-gradient(135deg, hsl(210 85% 60%), hsl(262 70% 55%));
-    --gradient-subtle: linear-gradient(180deg, hsl(262 50% 98%), hsl(262 50% 95%));
-
-    /* Shadows */
-    --shadow-soft: 0 4px 20px -2px hsl(262 70% 55% / 0.1);
-    --shadow-medium: 0 10px 30px -5px hsl(262 70% 55% / 0.15);
-    --shadow-strong: 0 20px 40px -10px hsl(262 70% 55% / 0.25);
+    /* Minimal shadows */
+    --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-medium: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 
     /* Animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-smooth: all 0.15s ease;
+    --transition-bounce: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --radius: 0.5rem;
 

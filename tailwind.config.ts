@@ -76,15 +76,10 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
-      backgroundImage: {
-        "gradient-primary": "var(--gradient-primary)",
-        "gradient-accent": "var(--gradient-accent)",
-        "gradient-subtle": "var(--gradient-subtle)",
-      },
       boxShadow: {
+        "subtle": "var(--shadow-subtle)",
         "soft": "var(--shadow-soft)",
-        "medium": "var(--shadow-medium)", 
-        "strong": "var(--shadow-strong)",
+        "medium": "var(--shadow-medium)",
       },
       transitionTimingFunction: {
         "smooth": "var(--transition-smooth)",

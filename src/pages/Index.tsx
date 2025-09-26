@@ -1,6 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
-import { PlanningGrid } from '@/components/planning/PlanningGrid';
+import { TimelineView } from '@/components/planning/TimelineView';
 
 const Index = () => {
   return (
@@ -11,7 +11,7 @@ const Index = () => {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
-        <PlanningGrid />
+        <TimelineView />
       </div>
     </div>
   );
