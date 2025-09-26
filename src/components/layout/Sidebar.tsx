@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import cliniqueLogoImg from '@/assets/clinique-logo.png';
 
 const navigation = [
   { name: 'Vue d\'ensemble', href: '/', icon: LayoutDashboard },
@@ -26,14 +27,15 @@ export const Sidebar = () => {
   const location = useLocation();
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r border-border">
+    <div className="flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
-      <div className="flex h-16 shrink-0 items-center px-6 border-b border-border">
+      <div className="flex h-16 shrink-0 items-center px-6 border-b border-sidebar-border border-opacity-30">
         <div className="flex items-center space-x-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Calendar className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-semibold text-foreground">Calendar</span>
+          <img 
+            src={cliniqueLogoImg} 
+            alt="Clinique La Vallée" 
+            className="h-10 w-auto"
+          />
         </div>
       </div>
 
@@ -44,19 +46,19 @@ export const Sidebar = () => {
             const isActive = location.pathname === item.href;
             return (
               <li key={item.name}>
-                <Link
+                  <Link
                   to={item.href}
                   className={cn(
                     'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary text-white'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
                   )}
                 >
                   <item.icon
                     className={cn(
                       'h-4 w-4 shrink-0 transition-colors',
-                      isActive ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'
+                      isActive ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
                     )}
                   />
                   {item.name}
@@ -66,13 +68,16 @@ export const Sidebar = () => {
           })}
         </ul>
 
-        {/* Brand section */}
-        <div className="mt-6 rounded-lg bg-muted p-4">
-          <div className="flex items-center justify-center">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
-              <span className="text-lg">🌟</span>
+        {/* User Profile section */}
+        <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
+          <div className="flex items-center">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
+              <span className="text-sm font-medium text-sidebar-primary-foreground">JA</span>
             </div>
-            <span className="ml-2 text-sm font-medium text-foreground">Odyssey</span>
+            <div className="ml-3 flex flex-col">
+              <span className="text-sm font-medium text-sidebar-foreground">Dr. Jean Anders</span>
+              <span className="text-xs text-sidebar-foreground text-opacity-70">Administrateur</span>
+            </div>
           </div>
         </div>
       </nav>

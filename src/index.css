@@ -17,16 +17,16 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 13% 18%;
 
-    /* Primary - Subtle blue accent */
-    --primary: 221 83% 53%;
+    /* Primary - Clinique blue */
+    --primary: 199 89% 48%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 221 83% 48%;
-    --primary-light: 221 83% 98%;
+    --primary-hover: 199 89% 42%;
+    --primary-light: 199 89% 95%;
 
-    /* Secondary - Clean grays */
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 9% 46%;
-    --secondary-hover: 220 14% 93%;
+    /* Secondary - Clinique green */
+    --secondary: 160 84% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 160 84% 35%;
 
     /* Subtle accent colors */
     --accent: 220 14% 96%;
@@ -65,17 +65,17 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 199 89% 48%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-foreground: 0 0% 100%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary: 0 0% 100%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary-foreground: 199 89% 48%;
 
-    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent: 199 89% 55%;
 
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-accent-foreground: 0 0% 100%;
 
     --sidebar-border: 220 13% 91%;
 

@@ -19,7 +19,7 @@ export const Header = () => {
           />
           <span className="text-sm font-medium text-foreground">John Anders</span>
         </div>
-        <h1 className="text-xl font-semibold text-foreground ml-8">Calendar</h1>
+        <h1 className="text-xl font-semibold text-foreground ml-8">Clinique La Vallée</h1>
       </div>
 
       {/* Right section - User avatars */}
