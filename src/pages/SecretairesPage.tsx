@@ -125,7 +125,7 @@ export default function SecretairesPage() {
                 Ajouter un secrétaire
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {selectedSecretaire ? 'Modifier le secrétaire' : 'Ajouter un secrétaire'}
