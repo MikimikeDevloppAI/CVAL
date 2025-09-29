@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -191,29 +191,37 @@ export default function SecretairesPage() {
           </div>
         </div>
 
-        {/* Secrétaires Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSecretaires.map((secretaire) => (
-            <Card key={secretaire.id} className="hover:shadow-soft transition-shadow">
-              <CardHeader>
+            <ModernCard key={secretaire.id}>
+              <ModernCardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">
+                  <div className="flex-1 min-w-0">
+                    <ModernCardTitle>
                       {secretaire.first_name && secretaire.name ? 
                         `${secretaire.first_name} ${secretaire.name}` : 
                         `Secrétaire ${secretaire.id.slice(0, 8)}`
                       }
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      📧 {secretaire.email || 'Pas d\'email'}
-                    </p>
-                    {secretaire.phone_number && (
-                      <p className="text-sm text-muted-foreground">
-                        📞 {secretaire.phone_number}
-                      </p>
-                    )}
+                    </ModernCardTitle>
+                    
+                    <div className="space-y-2 mt-3">
+                      {secretaire.email && (
+                        <ContactInfo 
+                          icon={<Mail />} 
+                          text={secretaire.email} 
+                        />
+                      )}
+                      
+                      {secretaire.phone_number && (
+                        <ContactInfo 
+                          icon={<Phone />} 
+                          text={secretaire.phone_number} 
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex space-x-1">
+                  
+                  <div className="flex space-x-1 ml-3">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -221,6 +229,7 @@ export default function SecretairesPage() {
                         setSelectedSecretaire(secretaire);
                         setIsDialogOpen(true);
                       }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -228,33 +237,42 @@ export default function SecretairesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(secretaire.id)}
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {secretaire.specialites_details && secretaire.specialites_details.length > 0 ? (
-                      secretaire.specialites_details.map((spec, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {spec.nom}
+              </ModernCardHeader>
+              
+              <ModernCardContent>
+                <div className="space-y-3">
+                  {/* Spécialités */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Spécialités
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {secretaire.specialites_details && secretaire.specialites_details.length > 0 ? (
+                        secretaire.specialites_details.map((spec, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {spec.nom}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Aucune spécialité
                         </Badge>
-                      ))
-                    ) : (
-                      <Badge variant="outline" className="text-xs">
-                        Aucune spécialité
-                      </Badge>
-                    )}
+                      )}
+                    </div>
                   </div>
                   
                   {/* Jours de travail */}
                   {secretaire.horaires_base_secretaires && secretaire.horaires_base_secretaires.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm text-muted-foreground mb-1">Jours de travail:</p>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Jours de travail
+                      </p>
                       <div className="flex flex-wrap gap-1">
                         {secretaire.horaires_base_secretaires.map((horaire, index) => {
                           const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -268,14 +286,20 @@ export default function SecretairesPage() {
                     </div>
                   )}
                   
+                  {/* Site préférentiel */}
                   {secretaire.sites && (
-                    <p className="text-sm text-muted-foreground">
-                      Site préférentiel: {secretaire.sites.nom}
-                    </p>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                        Site préférentiel
+                      </p>
+                      <p className="text-sm text-foreground">
+                        {secretaire.sites.nom}
+                      </p>
+                    </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </ModernCardContent>
+            </ModernCard>
           ))}
         </div>
 
