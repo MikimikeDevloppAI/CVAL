@@ -6,10 +6,10 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="flex h-screen w-full bg-background">
+    <div className="flex h-screen w-full bg-muted/30">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-muted/30">
           {children}
         </main>
       </div>

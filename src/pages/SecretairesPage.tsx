@@ -204,7 +204,7 @@ export default function SecretairesPage() {
                       }
                     </ModernCardTitle>
                     
-                    <div className="space-y-2 mt-3">
+                    <div className="space-y-3 mt-4">
                       {secretaire.email && (
                         <ContactInfo 
                           icon={<Mail />} 
@@ -246,13 +246,13 @@ export default function SecretairesPage() {
               </ModernCardHeader>
               
               <ModernCardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {/* Spécialités */}
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                       Spécialités
                     </p>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-2">
                       {secretaire.specialites_details && secretaire.specialites_details.length > 0 ? (
                         secretaire.specialites_details.map((spec, index) => (
                           <Badge key={index} variant="secondary" className="text-xs">
@@ -273,7 +273,7 @@ export default function SecretairesPage() {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                         Jours de travail
                       </p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-2">
                         {secretaire.horaires_base_secretaires.map((horaire, index) => {
                           const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                           return (
