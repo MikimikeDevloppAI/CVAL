@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Mail, Phone, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
@@ -145,31 +144,6 @@ export default function SecretairesPage() {
     fetchSecretaires();
   }, []);
 
-  const handleDelete = async (secretaireId: string) => {
-    try {
-      const { error } = await supabase
-        .from('secretaires')
-        .delete()
-        .eq('id', secretaireId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Succès",
-        description: "Secrétaire supprimé avec succès",
-      });
-      
-      fetchSecretaires();
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer le secrétaire",
-        variant: "destructive",
-      });
-    }
-  };
-
   const toggleSecretaireStatus = async (secretaireId: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
@@ -299,17 +273,18 @@ export default function SecretairesPage() {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-1 ml-3">
+                  <div className="flex space-x-2 ml-3">
                     <Button
-                      variant="ghost"
+                      variant={secretaire.actif === false ? "outline" : "default"}
                       size="sm"
                       onClick={() => toggleSecretaireStatus(secretaire.id, secretaire.actif !== false)}
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                        secretaire.actif === false ? 'text-muted-foreground hover:text-primary' : 'text-primary hover:text-muted-foreground'
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity text-xs ${
+                        secretaire.actif === false 
+                          ? 'border-muted-foreground text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary' 
+                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
                       }`}
-                      title={secretaire.actif === false ? 'Activer' : 'Désactiver'}
                     >
-                      {secretaire.actif === false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                      {secretaire.actif === false ? 'Inactif' : 'Actif'}
                     </Button>
                     <Button
                       variant="ghost"
@@ -322,34 +297,6 @@ export default function SecretairesPage() {
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Êtes-vous sûr de vouloir supprimer ce secrétaire ? Cette action est irréversible.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Annuler</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDelete(secretaire.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Supprimer
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
                   </div>
                 </div>
               </ModernCardHeader>
