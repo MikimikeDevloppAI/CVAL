@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Mail, Phone, Power, PowerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
@@ -24,6 +25,7 @@ interface Secretaire {
   prefere_port_en_truie?: boolean;
   flexible_jours_supplementaires?: boolean;
   nombre_jours_supplementaires?: number;
+  actif?: boolean;
   sites?: {
     nom: string;
   } | null;
@@ -56,6 +58,7 @@ export default function SecretairesPage() {
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
+          actif,
           sites (
             nom
           ),
@@ -167,6 +170,31 @@ export default function SecretairesPage() {
     }
   };
 
+  const toggleSecretaireStatus = async (secretaireId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('secretaires')
+        .update({ actif: !currentStatus })
+        .eq('id', secretaireId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: `Secrétaire ${!currentStatus ? 'activé' : 'désactivé'} avec succès`,
+      });
+      
+      fetchSecretaires();
+    } catch (error) {
+      console.error('Erreur lors de la modification du statut:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le statut du secrétaire",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredSecretaires = secretaires.filter(secretaire => {
     const prenom = secretaire.first_name || '';
     const nom = secretaire.name || '';
@@ -236,16 +264,23 @@ export default function SecretairesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSecretaires.map((secretaire) => (
-            <ModernCard key={secretaire.id}>
+            <ModernCard key={secretaire.id} className={secretaire.actif === false ? 'opacity-60' : ''}>
               <ModernCardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <ModernCardTitle>
-                      {secretaire.first_name && secretaire.name ? 
-                        `${secretaire.first_name} ${secretaire.name}` : 
-                        `Secrétaire ${secretaire.id.slice(0, 8)}`
-                      }
-                    </ModernCardTitle>
+                    <div className="flex items-center gap-2">
+                      <ModernCardTitle>
+                        {secretaire.first_name && secretaire.name ? 
+                          `${secretaire.first_name} ${secretaire.name}` : 
+                          `Secrétaire ${secretaire.id.slice(0, 8)}`
+                        }
+                      </ModernCardTitle>
+                      {secretaire.actif === false && (
+                        <Badge variant="secondary" className="text-xs">
+                          Inactif
+                        </Badge>
+                      )}
+                    </div>
                     
                     <div className="space-y-3 mt-4">
                       {secretaire.email && (
@@ -268,6 +303,17 @@ export default function SecretairesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => toggleSecretaireStatus(secretaire.id, secretaire.actif !== false)}
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+                        secretaire.actif === false ? 'text-muted-foreground hover:text-primary' : 'text-primary hover:text-muted-foreground'
+                      }`}
+                      title={secretaire.actif === false ? 'Activer' : 'Désactiver'}
+                    >
+                      {secretaire.actif === false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setSelectedSecretaire(secretaire);
                         setIsDialogOpen(true);
@@ -276,14 +322,34 @@ export default function SecretairesPage() {
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(secretaire.id)}
-                      className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Êtes-vous sûr de vouloir supprimer ce secrétaire ? Cette action est irréversible.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDelete(secretaire.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Supprimer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </ModernCardHeader>
