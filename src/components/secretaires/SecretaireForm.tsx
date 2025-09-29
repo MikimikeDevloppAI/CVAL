@@ -297,7 +297,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="w-full justify-between h-auto min-h-10"
+                      className="w-full justify-between h-auto min-h-[2.5rem] text-left font-normal"
                     >
                       <div className="flex flex-wrap gap-1">
                         {field.value && field.value.length > 0 ? (
