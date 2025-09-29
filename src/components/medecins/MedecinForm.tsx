@@ -11,9 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const medecinSchema = z.object({
-  prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
-  nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
+  first_name: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
+  name: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
+  phone_number: z.string().optional(),
   specialiteId: z.string().min(1, 'La spécialité est requise'),
   sitePreferentielId: z.string().optional(),
 });
@@ -44,9 +45,10 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
   const form = useForm<MedecinFormData>({
     resolver: zodResolver(medecinSchema),
     defaultValues: {
-      prenom: medecin?.profiles?.prenom || '',
-      nom: medecin?.profiles?.nom || '',
-      email: medecin?.profiles?.email || '',
+      first_name: medecin?.first_name || '',
+      name: medecin?.name || '',
+      email: medecin?.email || '',
+      phone_number: medecin?.phone_number || '',
       specialiteId: medecin?.specialite_id || '',
       sitePreferentielId: medecin?.site_preferentiel_id || '',
     },
@@ -75,20 +77,13 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
     try {
       if (medecin) {
         // Modification
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            prenom: data.prenom,
-            nom: data.nom,
-            email: data.email,
-          })
-          .eq('id', medecin.profile_id);
-
-        if (profileError) throw profileError;
-
         const { error: medecinError } = await supabase
           .from('medecins')
           .update({
+            first_name: data.first_name,
+            name: data.name,
+            email: data.email,
+            phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
             site_preferentiel_id: data.sitePreferentielId || null,
           })
@@ -101,25 +96,14 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           description: "Médecin modifié avec succès",
         });
       } else {
-        // Création - d'abord créer le profile
-        const profileId = crypto.randomUUID();
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: profileId,
-            prenom: data.prenom,
-            nom: data.nom,
-            email: data.email,
-            role: 'medecin',
-          });
-
-        if (profileError) throw profileError;
-
-        // Ensuite créer le médecin
+        // Création
         const { error: medecinError } = await supabase
           .from('medecins')
           .insert({
-            profile_id: profileId,
+            first_name: data.first_name,
+            name: data.name,
+            email: data.email,
+            phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
             site_preferentiel_id: data.sitePreferentielId || null,
           });
@@ -150,7 +134,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="prenom"
+          name="first_name"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Prénom</FormLabel>
@@ -164,7 +148,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         <FormField
           control={form.control}
-          name="nom"
+          name="name"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Nom</FormLabel>
@@ -184,6 +168,20 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" placeholder="email@example.com" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="phone_number"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Numéro de téléphone</FormLabel>
+              <FormControl>
+                <Input {...field} type="tel" placeholder="+33 1 23 45 67 89" />
               </FormControl>
               <FormMessage />
             </FormItem>

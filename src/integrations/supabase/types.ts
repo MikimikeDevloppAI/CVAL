@@ -242,24 +242,36 @@ export type Database = {
       medecins: {
         Row: {
           created_at: string
+          email: string | null
+          first_name: string | null
           id: string
-          profile_id: string
+          name: string | null
+          phone_number: string | null
+          profile_id: string | null
           site_preferentiel_id: string | null
           specialite_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           id?: string
-          profile_id: string
+          name?: string | null
+          phone_number?: string | null
+          profile_id?: string | null
           site_preferentiel_id?: string | null
           specialite_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           id?: string
-          profile_id?: string
+          name?: string | null
+          phone_number?: string | null
+          profile_id?: string | null
           site_preferentiel_id?: string | null
           specialite_id?: string
           updated_at?: string
@@ -388,9 +400,13 @@ export type Database = {
       secretaires: {
         Row: {
           created_at: string
+          email: string | null
+          first_name: string | null
           flexible_jours_supplementaires: boolean
           id: string
+          name: string | null
           nombre_jours_supplementaires: number | null
+          phone_number: string | null
           prefere_port_en_truie: boolean
           profile_id: string | null
           site_preferentiel_id: string | null
@@ -399,9 +415,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          name?: string | null
           nombre_jours_supplementaires?: number | null
+          phone_number?: string | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
@@ -410,9 +430,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          name?: string | null
           nombre_jours_supplementaires?: number | null
+          phone_number?: string | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null

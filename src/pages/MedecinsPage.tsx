@@ -11,11 +11,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface Medecin {
   id: string;
-  profiles: {
-    prenom: string;
-    nom: string;
-    email: string;
-  };
+  first_name: string;
+  name: string;
+  email: string;
+  phone_number: string;
   specialites: {
     nom: string;
     code: string;
@@ -41,11 +40,10 @@ export default function MedecinsPage() {
         .from('medecins')
         .select(`
           id,
-          profiles!medecins_profile_id_fkey (
-            prenom,
-            nom,
-            email
-          ),
+          first_name,
+          name,
+          email,
+          phone_number,
           specialites!medecins_specialite_id_fkey (
             nom,
             code
@@ -99,9 +97,9 @@ export default function MedecinsPage() {
   };
 
   const filteredMedecins = medecins.filter(medecin =>
-    medecin.profiles?.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    medecin.profiles?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    medecin.profiles?.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    medecin.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    medecin.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    medecin.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     medecin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -167,10 +165,10 @@ export default function MedecinsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-lg">
-                      Dr. {medecin.profiles?.prenom} {medecin.profiles?.nom}
+                      {medecin.first_name} {medecin.name}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {medecin.profiles?.email}
+                      {medecin.email}
                     </p>
                   </div>
                   <div className="flex space-x-1">
