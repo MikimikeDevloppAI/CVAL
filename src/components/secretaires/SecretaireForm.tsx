@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
+const horaireSchema = z.object({
+  jour: z.number().min(1).max(7),
+  heureDebut: z.string().min(1, 'Heure de début requise'),
+  heureFin: z.string().min(1, 'Heure de fin requise'),
+  siteId: z.string().min(1, 'Site requis'),
+  actif: z.boolean().default(true),
+});
 
 const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
@@ -16,6 +26,9 @@ const secretaireSchema = z.object({
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   specialites: z.array(z.string()).min(0, 'Au moins une spécialité doit être sélectionnée'),
   sitePreferentielId: z.string().optional(),
+  preferePortEnTruie: z.boolean().default(false),
+  flexibleJoursSupplementaires: z.boolean().default(false),
+  horaires: z.array(horaireSchema).min(1, 'Au moins un horaire doit être défini'),
 });
 
 type SecretaireFormData = z.infer<typeof secretaireSchema>;
@@ -49,7 +62,17 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.profiles?.email || '',
       specialites: secretaire?.specialites || [],
       sitePreferentielId: secretaire?.site_preferentiel_id || '',
+      preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
+      flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
+      horaires: secretaire?.horaires || [
+        { jour: 1, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true }
+      ],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'horaires',
   });
 
   useEffect(() => {
@@ -91,6 +114,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .update({
             specialites: data.specialites,
             site_preferentiel_id: data.sitePreferentielId || null,
+            prefere_port_en_truie: data.preferePortEnTruie,
+            flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
           })
           .eq('id', secretaire.id);
 
@@ -116,15 +141,37 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         if (profileError) throw profileError;
 
         // Ensuite créer le secrétaire
-        const { error: secretaireError } = await supabase
+        const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
             profile_id: profileId,
             specialites: data.specialites,
             site_preferentiel_id: data.sitePreferentielId || null,
-          });
+            prefere_port_en_truie: data.preferePortEnTruie,
+            flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
+          })
+          .select()
+          .single();
 
         if (secretaireError) throw secretaireError;
+
+        // Créer les horaires
+        if (secretaireData && data.horaires.length > 0) {
+          const horairesData = data.horaires.map(horaire => ({
+            secretaire_id: secretaireData.id,
+            jour_semaine: horaire.jour,
+            heure_debut: horaire.heureDebut,
+            heure_fin: horaire.heureFin,
+            site_id: horaire.siteId,
+            actif: horaire.actif,
+          }));
+
+          const { error: horairesError } = await supabase
+            .from('horaires_base_secretaires')
+            .insert(horairesData);
+
+          if (horairesError) throw horairesError;
+        }
 
         toast({
           title: "Succès",
@@ -246,6 +293,187 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="preferePortEnTruie"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>
+                  Préfère travailler à Port-en-truie
+                </FormLabel>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="flexibleJoursSupplementaires"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>
+                  Disponible pour des jours supplémentaires au besoin
+                </FormLabel>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        {/* Horaires */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <FormLabel className="text-base">Horaires de travail</FormLabel>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => append({ jour: 1, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true })}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un horaire
+            </Button>
+          </div>
+
+          {fields.map((field, index) => (
+            <Card key={field.id}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">
+                    Horaire {index + 1}
+                  </CardTitle>
+                  {fields.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <FormField
+                  control={form.control}
+                  name={`horaires.${index}.jour`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jour de la semaine</FormLabel>
+                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un jour" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="1">Lundi</SelectItem>
+                          <SelectItem value="2">Mardi</SelectItem>
+                          <SelectItem value="3">Mercredi</SelectItem>
+                          <SelectItem value="4">Jeudi</SelectItem>
+                          <SelectItem value="5">Vendredi</SelectItem>
+                          <SelectItem value="6">Samedi</SelectItem>
+                          <SelectItem value="7">Dimanche</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name={`horaires.${index}.heureDebut`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Heure de début</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="time" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`horaires.${index}.heureFin`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Heure de fin</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="time" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name={`horaires.${index}.siteId`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Site</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un site" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {sites.map((site) => (
+                            <SelectItem key={site.id} value={site.id}>
+                              {site.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`horaires.${index}.actif`}
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Horaire actif
+                        </FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="submit" disabled={loading}>

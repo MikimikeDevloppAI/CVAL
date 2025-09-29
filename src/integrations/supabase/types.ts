@@ -398,7 +398,9 @@ export type Database = {
       secretaires: {
         Row: {
           created_at: string
+          flexible_jours_supplementaires: boolean
           id: string
+          prefere_port_en_truie: boolean
           profile_id: string
           site_preferentiel_id: string | null
           specialites: string[]
@@ -406,7 +408,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          flexible_jours_supplementaires?: boolean
           id?: string
+          prefere_port_en_truie?: boolean
           profile_id: string
           site_preferentiel_id?: string | null
           specialites?: string[]
@@ -414,7 +418,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          flexible_jours_supplementaires?: boolean
           id?: string
+          prefere_port_en_truie?: boolean
           profile_id?: string
           site_preferentiel_id?: string | null
           specialites?: string[]
