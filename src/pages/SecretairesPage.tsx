@@ -12,14 +12,15 @@ import { useToast } from '@/hooks/use-toast';
 interface Secretaire {
   id: string;
   specialites: string[];
-  profiles: {
+  profile_id?: string;
+  profiles?: {
     prenom: string;
     nom: string;
     email: string;
-  };
+  } | null;
   sites?: {
     nom: string;
-  };
+  } | null;
 }
 
 import { Layout } from '@/components/layout/Layout';
@@ -38,13 +39,14 @@ export default function SecretairesPage() {
         .from('secretaires')
         .select(`
           id,
+          profile_id,
           specialites,
-          profiles!secretaires_profile_id_fkey (
+          profiles (
             prenom,
             nom,
             email
           ),
-          sites!secretaires_site_preferentiel_id_fkey (
+          sites (
             nom
           )
         `);
@@ -92,11 +94,16 @@ export default function SecretairesPage() {
     }
   };
 
-  const filteredSecretaires = secretaires.filter(secretaire =>
-    secretaire.profiles?.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    secretaire.profiles?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    secretaire.profiles?.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSecretaires = secretaires.filter(secretaire => {
+    const prenom = secretaire.profiles?.prenom || '';
+    const nom = secretaire.profiles?.nom || '';
+    const email = secretaire.profiles?.email || '';
+    
+    return prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           secretaire.id.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
@@ -160,10 +167,13 @@ export default function SecretairesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-lg">
-                      {secretaire.profiles?.prenom} {secretaire.profiles?.nom}
+                      {secretaire.profiles ? 
+                        `${secretaire.profiles.prenom} ${secretaire.profiles.nom}` : 
+                        `Secrétaire ${secretaire.id.slice(0, 8)}`
+                      }
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {secretaire.profiles?.email}
+                      {secretaire.profiles?.email || 'Pas de profil associé'}
                     </p>
                   </div>
                   <div className="flex space-x-1">
