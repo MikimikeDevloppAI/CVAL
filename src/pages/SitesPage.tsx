@@ -211,7 +211,16 @@ export default function SitesPage() {
                       <Edit className="h-4 w-4" />
                     </Button>
                     
-                    {site.fermeture !== true ? (
+                    {site.fermeture === true ? (
+                      // Switch fermé - réouverture directe
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={false}
+                          onCheckedChange={() => handleToggleStatus(site.id, true, true)}
+                          className="data-[state=unchecked]:bg-muted"
+                        />
+                      </div>
+                    ) : (
                       // Switch ouvert - avec confirmation pour fermer
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -240,15 +249,6 @@ export default function SitesPage() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                    ) : (
-                      // Switch fermé - ouverture directe
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          checked={false}
-                          onCheckedChange={() => handleToggleStatus(site.id, true, true)}
-                          className="data-[state=unchecked]:bg-muted"
-                        />
-                      </div>
                     )}
                   </div>
                 </div>

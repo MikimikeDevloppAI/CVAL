@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 const siteSchema = z.object({
   nom: z.string().trim().min(1, 'Le nom est requis').max(100, 'Le nom est trop long'),
   adresse: z.string().trim().min(1, 'L\'adresse est requise').max(255, 'L\'adresse est trop longue'),
+  fermeture: z.boolean().default(false),
 });
 
 type SiteFormData = z.infer<typeof siteSchema>;
@@ -30,6 +32,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
     defaultValues: {
       nom: site?.nom || '',
       adresse: site?.adresse || '',
+      fermeture: site?.fermeture || false,
     },
   });
 
@@ -43,6 +46,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
           .update({
             nom: data.nom,
             adresse: data.adresse,
+            fermeture: data.fermeture,
           })
           .eq('id', site.id);
 
@@ -59,7 +63,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
           .insert({
             nom: data.nom,
             adresse: data.adresse,
-            fermeture: false, // Par défaut ouvert
+            fermeture: data.fermeture,
           });
 
         if (siteError) throw siteError;
@@ -116,6 +120,27 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Statut fermeture */}
+        <FormField
+          control={form.control}
+          name="fermeture"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>
+                  Site fermé
+                </FormLabel>
+              </div>
             </FormItem>
           )}
         />
