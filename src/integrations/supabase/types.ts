@@ -248,7 +248,6 @@ export type Database = {
           name: string | null
           phone_number: string | null
           profile_id: string | null
-          site_preferentiel_id: string | null
           specialite_id: string
           updated_at: string
         }
@@ -260,7 +259,6 @@ export type Database = {
           name?: string | null
           phone_number?: string | null
           profile_id?: string | null
-          site_preferentiel_id?: string | null
           specialite_id: string
           updated_at?: string
         }
@@ -272,7 +270,6 @@ export type Database = {
           name?: string | null
           phone_number?: string | null
           profile_id?: string | null
-          site_preferentiel_id?: string | null
           specialite_id?: string
           updated_at?: string
         }
@@ -282,13 +279,6 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "medecins_site_preferentiel_id_fkey"
-            columns: ["site_preferentiel_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
           {

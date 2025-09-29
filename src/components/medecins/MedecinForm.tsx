@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
+const horaireSchema = z.object({
+  jour: z.number().min(1).max(7),
+  jourTravaille: z.boolean().default(false),
+  heureDebut: z.string().optional(),
+  heureFin: z.string().optional(),
+  siteId: z.string().optional(),
+  actif: z.boolean().default(true),
+});
 
 const medecinSchema = z.object({
   first_name: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
@@ -16,7 +27,7 @@ const medecinSchema = z.object({
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   phone_number: z.string().optional(),
   specialiteId: z.string().min(1, 'La spécialité est requise'),
-  sitePreferentielId: z.string().optional(),
+  horaires: z.array(horaireSchema),
 });
 
 type MedecinFormData = z.infer<typeof medecinSchema>;
@@ -49,9 +60,20 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       name: medecin?.name || '',
       email: medecin?.email || '',
       phone_number: medecin?.phone_number || '',
-      specialiteId: medecin?.specialite_id || '',
-      sitePreferentielId: medecin?.site_preferentiel_id || '',
+      specialiteId: medecin?.specialites?.id || medecin?.specialite_id || '',
+      horaires: medecin?.horaires || [
+        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+      ],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'horaires',
   });
 
   useEffect(() => {
@@ -64,13 +86,48 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         if (specialitesRes.data) setSpecialites(specialitesRes.data);
         if (sitesRes.data) setSites(sitesRes.data);
+
+        // Si on modifie un médecin, récupérer ses horaires
+        if (medecin) {
+          const { data: horairesData } = await supabase
+            .from('horaires_base_medecins')
+            .select('*')
+            .eq('medecin_id', medecin.id);
+          
+          if (horairesData && horairesData.length > 0) {
+            const horaires = [];
+            for (let jour = 1; jour <= 5; jour++) {
+              const horaireExistant = horairesData.find(h => h.jour_semaine === jour);
+              if (horaireExistant) {
+                horaires.push({
+                  jour,
+                  jourTravaille: true,
+                  heureDebut: horaireExistant.heure_debut || '07:30',
+                  heureFin: horaireExistant.heure_fin || '17:00',
+                  siteId: horaireExistant.site_id || '',
+                  actif: horaireExistant.actif !== false
+                });
+              } else {
+                horaires.push({
+                  jour,
+                  jourTravaille: false,
+                  heureDebut: '07:30',
+                  heureFin: '17:00',
+                  siteId: '',
+                  actif: true
+                });
+              }
+            }
+            form.setValue('horaires', horaires);
+          }
+        }
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
       }
     };
 
     fetchData();
-  }, []);
+  }, [medecin, form]);
 
   const onSubmit = async (data: MedecinFormData) => {
     setLoading(true);
@@ -85,11 +142,42 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             email: data.email,
             phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
-            site_preferentiel_id: data.sitePreferentielId || null,
           })
           .eq('id', medecin.id);
 
         if (medecinError) throw medecinError;
+
+        // Mettre à jour les horaires
+        // D'abord supprimer les anciens horaires
+        await supabase
+          .from('horaires_base_medecins')
+          .delete()
+          .eq('medecin_id', medecin.id);
+
+        // Puis insérer les nouveaux horaires actifs
+        const horairesActifs = data.horaires.filter(horaire => 
+          horaire.jourTravaille && 
+          horaire.heureDebut && 
+          horaire.heureFin &&
+          horaire.siteId
+        );
+
+        if (horairesActifs.length > 0) {
+          const horairesData = horairesActifs.map(horaire => ({
+            medecin_id: medecin.id,
+            jour_semaine: horaire.jour,
+            heure_debut: horaire.heureDebut,
+            heure_fin: horaire.heureFin,
+            site_id: horaire.siteId,
+            actif: horaire.actif,
+          }));
+
+          const { error: horairesError } = await supabase
+            .from('horaires_base_medecins')
+            .insert(horairesData);
+
+          if (horairesError) throw horairesError;
+        }
 
         toast({
           title: "Succès",
@@ -97,7 +185,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
         });
       } else {
         // Création
-        const { error: medecinError } = await supabase
+        const { data: medecinData, error: medecinError } = await supabase
           .from('medecins')
           .insert({
             first_name: data.first_name,
@@ -105,10 +193,38 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             email: data.email,
             phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
-            site_preferentiel_id: data.sitePreferentielId || null,
-          });
+          })
+          .select()
+          .single();
 
         if (medecinError) throw medecinError;
+
+        // Créer les horaires (seulement les jours travaillés)
+        if (medecinData) {
+          const horairesActifs = data.horaires.filter(horaire => 
+            horaire.jourTravaille && 
+            horaire.heureDebut && 
+            horaire.heureFin &&
+            horaire.siteId
+          );
+
+          if (horairesActifs.length > 0) {
+            const horairesData = horairesActifs.map(horaire => ({
+              medecin_id: medecinData.id,
+              jour_semaine: horaire.jour,
+              heure_debut: horaire.heureDebut,
+              heure_fin: horaire.heureFin,
+              site_id: horaire.siteId,
+              actif: horaire.actif,
+            }));
+
+            const { error: horairesError } = await supabase
+              .from('horaires_base_medecins')
+              .insert(horairesData);
+
+            if (horairesError) throw horairesError;
+          }
+        }
 
         toast({
           title: "Succès",
@@ -213,30 +329,109 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="sitePreferentielId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Site préférentiel (optionnel)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un site" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Horaires */}
+        <div className="space-y-4">
+          <FormLabel className="text-base">Horaires de travail par jour</FormLabel>
+
+          {fields.map((field, index) => {
+            const jourNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+            const jourTravaille = form.watch(`horaires.${index}.jourTravaille`);
+            
+            return (
+              <Card key={field.id}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">
+                    {jourNoms[field.jour]}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <FormField
+                    control={form.control}
+                    name={`horaires.${index}.jourTravaille`}
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Jour travaillé
+                          </FormLabel>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {jourTravaille ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.heureDebut`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Heure de début</FormLabel>
+                              <FormControl>
+                                <Input {...field} type="time" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.heureFin`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Heure de fin</FormLabel>
+                              <FormControl>
+                                <Input {...field} type="time" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name={`horaires.${index}.siteId`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Site associé</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sélectionner un site" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {sites.map((site) => (
+                                  <SelectItem key={site.id} value={site.id}>
+                                    {site.nom}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  ) : (
+                    <div className="text-muted-foreground text-sm py-4">
+                      Jour non travaillé
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="submit" disabled={loading}>

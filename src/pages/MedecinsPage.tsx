@@ -19,6 +19,8 @@ interface Medecin {
     nom: string;
     code: string;
   };
+  horaires?: any[];
+  horaires_base_medecins?: any[];
 }
 
 import { Layout } from '@/components/layout/Layout';
@@ -33,7 +35,8 @@ export default function MedecinsPage() {
 
   const fetchMedecins = async () => {
     try {
-      const { data, error } = await supabase
+      // D'abord récupérer les médecins avec leurs spécialités
+      const { data: medecinsData, error: medecinsError } = await supabase
         .from('medecins')
         .select(`
           id,
@@ -47,8 +50,64 @@ export default function MedecinsPage() {
           )
         `);
 
-      if (error) throw error;
-      setMedecins(data || []);
+      if (medecinsError) throw medecinsError;
+
+      // Ensuite enrichir avec les horaires pour chaque médecin
+      if (medecinsData && medecinsData.length > 0) {
+        const medecinsWithHoraires = await Promise.all(
+          medecinsData.map(async (medecin: any) => {
+            // Récupérer les horaires
+            const { data: horairesData } = await supabase
+              .from('horaires_base_medecins')
+              .select(`
+                jour_semaine,
+                heure_debut,
+                heure_fin,
+                site_id,
+                actif,
+                sites!horaires_base_medecins_site_id_fkey (
+                  nom
+                )
+              `)
+              .eq('medecin_id', medecin.id);
+
+            // Mapper les horaires pour le formulaire
+            const horaires = [];
+            for (let jour = 1; jour <= 5; jour++) {
+              const horaireExistant = horairesData?.find(h => h.jour_semaine === jour);
+              
+              if (horaireExistant) {
+                horaires.push({
+                  jour,
+                  jourTravaille: true,
+                  heureDebut: horaireExistant.heure_debut || '07:30',
+                  heureFin: horaireExistant.heure_fin || '17:00',
+                  siteId: horaireExistant.site_id || '',
+                  actif: horaireExistant.actif !== false
+                });
+              } else {
+                horaires.push({
+                  jour,
+                  jourTravaille: false,
+                  heureDebut: '07:30',
+                  heureFin: '17:00',
+                  siteId: '',
+                  actif: true
+                });
+              }
+            }
+
+            return {
+              ...medecin,
+              horaires,
+              horaires_base_medecins: horairesData || []
+            };
+          })
+        );
+        setMedecins(medecinsWithHoraires as Medecin[]);
+      } else {
+        setMedecins([]);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des médecins:', error);
       toast({
@@ -56,6 +115,7 @@ export default function MedecinsPage() {
         description: "Impossible de charger les médecins",
         variant: "destructive",
       });
+      setMedecins([]);
     } finally {
       setLoading(false);
     }
@@ -124,7 +184,7 @@ export default function MedecinsPage() {
                 Ajouter un médecin
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
@@ -214,6 +274,25 @@ export default function MedecinsPage() {
                       {medecin.specialites?.nom}
                     </Badge>
                   </div>
+
+                  {/* Jours de travail */}
+                  {medecin.horaires_base_medecins && medecin.horaires_base_medecins.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Jours de travail
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {medecin.horaires_base_medecins.map((horaire, index) => {
+                          const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                          return (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {jours[horaire.jour_semaine]} - {horaire.sites?.nom}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </ModernCardContent>
             </ModernCard>
