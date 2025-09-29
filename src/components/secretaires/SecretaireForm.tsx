@@ -24,6 +24,7 @@ const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
+  telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
   specialites: z.array(z.string()).min(0, 'Au moins une spécialité doit être sélectionnée'),
   sitePreferentielId: z.string().optional(),
   preferePortEnTruie: z.boolean().default(false),
@@ -58,9 +59,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const form = useForm<SecretaireFormData>({
     resolver: zodResolver(secretaireSchema),
     defaultValues: {
-      prenom: secretaire?.profiles?.prenom || '',
-      nom: secretaire?.profiles?.nom || '',
-      email: secretaire?.profiles?.email || '',
+      prenom: secretaire?.first_name || secretaire?.profiles?.prenom || '',
+      nom: secretaire?.name || secretaire?.profiles?.nom || '',
+      email: secretaire?.email || secretaire?.profiles?.email || '',
+      telephone: secretaire?.phone_number || '',
       specialites: secretaire?.specialites || [],
       sitePreferentielId: secretaire?.site_preferentiel_id || '',
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
@@ -120,6 +122,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         const { error: secretaireError } = await supabase
           .from('secretaires')
           .update({
+            first_name: data.prenom,
+            name: data.nom,
+            email: data.email,
+            phone_number: data.telephone,
             specialites: data.specialites,
             site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
@@ -139,6 +145,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
+            first_name: data.prenom,
+            name: data.nom,
+            email: data.email,
+            phone_number: data.telephone,
             profile_id: null, // Pas de profil associé
             specialites: data.specialites,
             site_preferentiel_id: data.sitePreferentielId || null,
@@ -234,6 +244,20 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" placeholder="email@example.com" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="telephone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Numéro de téléphone</FormLabel>
+              <FormControl>
+                <Input {...field} type="tel" placeholder="+33 1 23 45 67 89" />
               </FormControl>
               <FormMessage />
             </FormItem>

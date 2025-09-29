@@ -51,7 +51,10 @@ export default function SecretairesPage() {
           )
         `);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur de requête:', error);
+        throw error;
+      }
       setSecretaires(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des secrétaires:', error);
