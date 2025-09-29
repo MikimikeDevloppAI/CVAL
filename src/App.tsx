@@ -10,6 +10,7 @@ import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import MedecinsPage from "./pages/MedecinsPage";
 import SecretairesPage from "./pages/SecretairesPage";
+import SitesPage from "./pages/SitesPage";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,11 @@ const App = () => (
             <Route path="/secretaires" element={
               <ProtectedRoute>
                 <SecretairesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/sites" element={
+              <ProtectedRoute>
+                <SitesPage />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

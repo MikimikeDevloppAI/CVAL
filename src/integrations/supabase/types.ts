@@ -460,6 +460,7 @@ export type Database = {
         Row: {
           adresse: string
           created_at: string
+          fermeture: boolean
           id: string
           nom: string
           updated_at: string
@@ -467,6 +468,7 @@ export type Database = {
         Insert: {
           adresse: string
           created_at?: string
+          fermeture?: boolean
           id?: string
           nom: string
           updated_at?: string
@@ -474,6 +476,7 @@ export type Database = {
         Update: {
           adresse?: string
           created_at?: string
+          fermeture?: boolean
           id?: string
           nom?: string
           updated_at?: string
