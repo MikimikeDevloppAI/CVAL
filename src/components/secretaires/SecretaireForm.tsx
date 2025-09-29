@@ -17,7 +17,6 @@ const horaireSchema = z.object({
   jourTravaille: z.boolean().default(false),
   heureDebut: z.string().optional(),
   heureFin: z.string().optional(),
-  siteId: z.string().optional(),
   actif: z.boolean().default(true),
 });
 
@@ -66,13 +65,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       horaires: secretaire?.horaires || [
-        { jour: 1, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 2, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 3, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 4, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 5, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 6, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 7, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 1, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 2, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 3, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 4, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 5, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 6, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 7, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
       ],
     },
   });
@@ -167,8 +166,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           const horairesActifs = data.horaires.filter(horaire => 
             horaire.jourTravaille && 
             horaire.heureDebut && 
-            horaire.heureFin && 
-            horaire.siteId
+            horaire.heureFin
           );
 
           if (horairesActifs.length > 0) {
@@ -177,7 +175,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
               jour_semaine: horaire.jour,
               heure_debut: horaire.heureDebut,
               heure_fin: horaire.heureFin,
-              site_id: horaire.siteId,
+              site_id: null,
               actif: horaire.actif,
             }));
 
@@ -418,30 +416,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                         />
                       </div>
 
-                      <FormField
-                        control={form.control}
-                        name={`horaires.${index}.siteId`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Site</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Sélectionner un site" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {sites.map((site) => (
-                                  <SelectItem key={site.id} value={site.id}>
-                                    {site.nom}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </>
                   ) : (
                     <div className="text-muted-foreground text-sm py-4">
