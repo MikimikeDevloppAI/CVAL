@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2 } from 'lucide-react';
@@ -287,27 +291,80 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Spécialités</FormLabel>
-              <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
-                {specialites.map((specialite) => (
-                  <div key={specialite.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={specialite.id}
-                      checked={field.value?.includes(specialite.id)}
-                      onCheckedChange={(checked) => {
-                        const current = field.value || [];
-                        if (checked) {
-                          field.onChange([...current, specialite.id]);
-                        } else {
-                          field.onChange(current.filter((id) => id !== specialite.id));
-                        }
-                      }}
-                    />
-                    <label htmlFor={specialite.id} className="text-sm">
-                      {specialite.nom}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between h-auto min-h-10"
+                    >
+                      <div className="flex flex-wrap gap-1">
+                        {field.value && field.value.length > 0 ? (
+                          <>
+                            {field.value.slice(0, 2).map((specialiteId) => {
+                              const specialite = specialites.find(s => s.id === specialiteId);
+                              return specialite ? (
+                                <Badge key={specialite.id} variant="secondary" className="text-xs">
+                                  {specialite.nom}
+                                  <button
+                                    type="button"
+                                    className="ml-1 hover:bg-secondary-foreground/20 rounded-full"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const current = field.value || [];
+                                      field.onChange(current.filter((id) => id !== specialite.id));
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ) : null;
+                            })}
+                            {field.value.length > 2 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{field.value.length - 2} autres
+                              </Badge>
+                            )}
+                          </>
+                        ) : (
+                          "Sélectionner des spécialités"
+                        )}
+                      </div>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Rechercher une spécialité..." />
+                    <CommandEmpty>Aucune spécialité trouvée.</CommandEmpty>
+                    <CommandGroup className="max-h-60 overflow-auto">
+                      {specialites.map((specialite) => (
+                        <CommandItem
+                          value={specialite.nom}
+                          key={specialite.id}
+                          onSelect={() => {
+                            const current = field.value || [];
+                            if (current.includes(specialite.id)) {
+                              field.onChange(current.filter((id) => id !== specialite.id));
+                            } else {
+                              field.onChange([...current, specialite.id]);
+                            }
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${
+                              field.value?.includes(specialite.id) ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                          {specialite.nom}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
