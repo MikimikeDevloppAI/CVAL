@@ -241,6 +241,7 @@ export type Database = {
       }
       medecins: {
         Row: {
+          actif: boolean
           created_at: string
           email: string | null
           first_name: string | null
@@ -252,6 +253,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actif?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
@@ -263,6 +265,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actif?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
