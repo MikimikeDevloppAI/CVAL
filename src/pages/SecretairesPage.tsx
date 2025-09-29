@@ -11,13 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 
 interface Secretaire {
   id: string;
+  first_name?: string;
+  name?: string;
+  email?: string;
+  phone_number?: string;
   specialites: string[];
+  specialites_details?: { nom: string }[];
+  horaires_base_secretaires?: { jour_semaine: number }[];
   profile_id?: string;
-  profiles?: {
-    prenom: string;
-    nom: string;
-    email: string;
-  } | null;
   sites?: {
     nom: string;
   } | null;
@@ -35,27 +36,52 @@ export default function SecretairesPage() {
 
   const fetchSecretaires = async () => {
     try {
-      const { data, error } = await supabase
+      // D'abord récupérer les secrétaires avec leurs horaires de base
+      const { data: secretairesData, error: secretairesError } = await supabase
         .from('secretaires')
         .select(`
           id,
+          first_name,
+          name,
+          email,
+          phone_number,
           profile_id,
           specialites,
-          profiles (
-            prenom,
-            nom,
-            email
-          ),
           sites (
             nom
+          ),
+          horaires_base_secretaires (
+            jour_semaine
           )
         `);
 
-      if (error) {
-        console.error('Erreur de requête:', error);
-        throw error;
+      if (secretairesError) {
+        console.error('Erreur de requête secrétaires:', secretairesError);
+        throw secretairesError;
       }
-      setSecretaires(data || []);
+
+      // Ensuite enrichir avec les noms des spécialités
+      if (secretairesData && secretairesData.length > 0) {
+        const secretairesWithSpecialites = await Promise.all(
+          secretairesData.map(async (secretaire: any) => {
+            if (secretaire.specialites && secretaire.specialites.length > 0) {
+              const { data: specialitesData } = await supabase
+                .from('specialites')
+                .select('nom')
+                .in('id', secretaire.specialites);
+              
+              return {
+                ...secretaire,
+                specialites_details: specialitesData || []
+              };
+            }
+            return { ...secretaire, specialites_details: [] };
+          })
+        );
+        setSecretaires(secretairesWithSpecialites as Secretaire[]);
+      } else {
+        setSecretaires([]);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des secrétaires:', error);
       toast({
@@ -63,6 +89,7 @@ export default function SecretairesPage() {
         description: "Impossible de charger les secrétaires",
         variant: "destructive",
       });
+      setSecretaires([]);
     } finally {
       setLoading(false);
     }
@@ -98,13 +125,15 @@ export default function SecretairesPage() {
   };
 
   const filteredSecretaires = secretaires.filter(secretaire => {
-    const prenom = secretaire.profiles?.prenom || '';
-    const nom = secretaire.profiles?.nom || '';
-    const email = secretaire.profiles?.email || '';
+    const prenom = secretaire.first_name || '';
+    const nom = secretaire.name || '';
+    const email = secretaire.email || '';
+    const telephone = secretaire.phone_number || '';
     
     return prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
            nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
            email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           telephone.toLowerCase().includes(searchTerm.toLowerCase()) ||
            secretaire.id.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
@@ -170,14 +199,19 @@ export default function SecretairesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-lg">
-                      {secretaire.profiles ? 
-                        `${secretaire.profiles.prenom} ${secretaire.profiles.nom}` : 
+                      {secretaire.first_name && secretaire.name ? 
+                        `${secretaire.first_name} ${secretaire.name}` : 
                         `Secrétaire ${secretaire.id.slice(0, 8)}`
                       }
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {secretaire.profiles?.email || 'Pas de profil associé'}
+                      📧 {secretaire.email || 'Pas d\'email'}
                     </p>
+                    {secretaire.phone_number && (
+                      <p className="text-sm text-muted-foreground">
+                        📞 {secretaire.phone_number}
+                      </p>
+                    )}
                   </div>
                   <div className="flex space-x-1">
                     <Button
@@ -204,10 +238,10 @@ export default function SecretairesPage() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-1">
-                    {secretaire.specialites?.length > 0 ? (
-                      secretaire.specialites.map((spec, index) => (
+                    {secretaire.specialites_details && secretaire.specialites_details.length > 0 ? (
+                      secretaire.specialites_details.map((spec, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
-                          {spec}
+                          {spec.nom}
                         </Badge>
                       ))
                     ) : (
@@ -216,6 +250,24 @@ export default function SecretairesPage() {
                       </Badge>
                     )}
                   </div>
+                  
+                  {/* Jours de travail */}
+                  {secretaire.horaires_base_secretaires && secretaire.horaires_base_secretaires.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm text-muted-foreground mb-1">Jours de travail:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {secretaire.horaires_base_secretaires.map((horaire, index) => {
+                          const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                          return (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {jours[horaire.jour_semaine]}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
                   {secretaire.sites && (
                     <p className="text-sm text-muted-foreground">
                       Site préférentiel: {secretaire.sites.nom}
