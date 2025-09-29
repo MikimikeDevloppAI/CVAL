@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { MedecinForm } from '@/components/medecins/MedecinForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -18,9 +18,6 @@ interface Medecin {
   specialites: {
     nom: string;
     code: string;
-  };
-  sites?: {
-    nom: string;
   };
 }
 
@@ -47,9 +44,6 @@ export default function MedecinsPage() {
           specialites!medecins_specialite_id_fkey (
             nom,
             code
-          ),
-          sites!medecins_site_preferentiel_id_fkey (
-            nom
           )
         `);
 
@@ -160,18 +154,32 @@ export default function MedecinsPage() {
         {/* Médecins Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMedecins.map((medecin) => (
-            <Card key={medecin.id} className="hover:shadow-soft transition-shadow">
-              <CardHeader>
+            <ModernCard key={medecin.id}>
+              <ModernCardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">
+                  <div className="flex-1 min-w-0">
+                    <ModernCardTitle>
                       {medecin.first_name} {medecin.name}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {medecin.email}
-                    </p>
+                    </ModernCardTitle>
+                    
+                    <div className="space-y-3 mt-4">
+                      {medecin.email && (
+                        <ContactInfo 
+                          icon={<Mail />} 
+                          text={medecin.email} 
+                        />
+                      )}
+                      
+                      {medecin.phone_number && (
+                        <ContactInfo 
+                          icon={<Phone />} 
+                          text={medecin.phone_number} 
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex space-x-1">
+                  
+                  <div className="flex space-x-1 ml-3">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -179,6 +187,7 @@ export default function MedecinsPage() {
                         setSelectedMedecin(medecin);
                         setIsDialogOpen(true);
                       }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -186,26 +195,28 @@ export default function MedecinsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(medecin.id)}
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Badge variant="secondary">
-                    {medecin.specialites?.nom}
-                  </Badge>
-                  {medecin.sites && (
-                    <p className="text-sm text-muted-foreground">
-                      Site préférentiel: {medecin.sites.nom}
+              </ModernCardHeader>
+              
+              <ModernCardContent>
+                <div className="space-y-4">
+                  {/* Spécialité */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Spécialité
                     </p>
-                  )}
+                    <Badge variant="secondary" className="text-xs">
+                      {medecin.specialites?.nom}
+                    </Badge>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </ModernCardContent>
+            </ModernCard>
           ))}
         </div>
 
