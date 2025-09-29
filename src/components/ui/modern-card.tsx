@@ -74,7 +74,7 @@ export function ContactInfo({ icon, text, className }: ContactInfoProps) {
   return (
     <div className={cn("flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors", className)}>
       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-        <div className="w-3.5 h-3.5 text-primary">
+        <div className="w-3 h-3 text-primary flex items-center justify-center">
           {icon}
         </div>
       </div>
