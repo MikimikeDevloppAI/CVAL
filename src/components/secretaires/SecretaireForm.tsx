@@ -28,6 +28,7 @@ const secretaireSchema = z.object({
   sitePreferentielId: z.string().optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
+  nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
   horaires: z.array(horaireSchema),
 });
 
@@ -64,6 +65,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       sitePreferentielId: secretaire?.site_preferentiel_id || '',
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
+      nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
         { jour: 2, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
@@ -347,6 +349,29 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             </FormItem>
           )}
         />
+
+        {form.watch('flexibleJoursSupplementaires') && (
+          <FormField
+            control={form.control}
+            name="nombreJoursSupplementaires"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre de jours supplémentaires maximum</FormLabel>
+                <FormControl>
+                  <Input 
+                    {...field} 
+                    type="number" 
+                    min="1" 
+                    max="7" 
+                    placeholder="1"
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Horaires */}
         <div className="space-y-4">
