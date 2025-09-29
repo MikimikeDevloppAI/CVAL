@@ -52,6 +52,10 @@ export default function SecretairesPage() {
           phone_number,
           profile_id,
           specialites,
+          site_preferentiel_id,
+          prefere_port_en_truie,
+          flexible_jours_supplementaires,
+          nombre_jours_supplementaires,
           sites (
             nom
           ),
