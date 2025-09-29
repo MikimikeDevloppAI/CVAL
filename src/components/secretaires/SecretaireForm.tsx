@@ -343,7 +343,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                       </Button>
                     </FormControl>
                   </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                     <Command>
                       <CommandInput placeholder="Rechercher une spécialité..." />
                       <CommandEmpty>Aucune spécialité trouvée.</CommandEmpty>
