@@ -17,8 +17,13 @@ interface Secretaire {
   phone_number?: string;
   specialites: string[];
   specialites_details?: { nom: string }[];
-  horaires_base_secretaires?: { jour_semaine: number }[];
+  horaires_base_secretaires?: { jour_semaine: number; heure_debut?: string; heure_fin?: string; actif?: boolean }[];
+  horaires?: { jour: number; jourTravaille: boolean; heureDebut: string; heureFin: string; actif: boolean }[];
   profile_id?: string;
+  site_preferentiel_id?: string;
+  prefere_port_en_truie?: boolean;
+  flexible_jours_supplementaires?: boolean;
+  nombre_jours_supplementaires?: number;
   sites?: {
     nom: string;
   } | null;
@@ -51,7 +56,10 @@ export default function SecretairesPage() {
             nom
           ),
           horaires_base_secretaires (
-            jour_semaine
+            jour_semaine,
+            heure_debut,
+            heure_fin,
+            actif
           )
         `);
 
@@ -60,22 +68,53 @@ export default function SecretairesPage() {
         throw secretairesError;
       }
 
-      // Ensuite enrichir avec les noms des spécialités
+      // Ensuite enrichir avec les noms des spécialités et mapper les horaires
       if (secretairesData && secretairesData.length > 0) {
         const secretairesWithSpecialites = await Promise.all(
           secretairesData.map(async (secretaire: any) => {
+            let specialites_details = [];
+            
+            // Récupérer les noms des spécialités
             if (secretaire.specialites && secretaire.specialites.length > 0) {
               const { data: specialitesData } = await supabase
                 .from('specialites')
                 .select('nom')
                 .in('id', secretaire.specialites);
               
-              return {
-                ...secretaire,
-                specialites_details: specialitesData || []
-              };
+              specialites_details = specialitesData || [];
             }
-            return { ...secretaire, specialites_details: [] };
+
+            // Mapper les horaires pour le formulaire
+            const horaires = [];
+            for (let jour = 1; jour <= 5; jour++) {
+              const horaireExistant = secretaire.horaires_base_secretaires?.find(
+                (h: any) => h.jour_semaine === jour
+              );
+              
+              if (horaireExistant) {
+                horaires.push({
+                  jour,
+                  jourTravaille: true,
+                  heureDebut: horaireExistant.heure_debut || '07:30',
+                  heureFin: horaireExistant.heure_fin || '17:00',
+                  actif: horaireExistant.actif !== false
+                });
+              } else {
+                horaires.push({
+                  jour,
+                  jourTravaille: false,
+                  heureDebut: '07:30',
+                  heureFin: '17:00',
+                  actif: true
+                });
+              }
+            }
+            
+            return {
+              ...secretaire,
+              specialites_details,
+              horaires
+            };
           })
         );
         setSecretaires(secretairesWithSpecialites as Secretaire[]);

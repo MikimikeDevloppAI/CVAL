@@ -105,20 +105,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     setLoading(true);
     try {
       if (secretaire) {
-        // Modification - mettre à jour le profil seulement s'il existe
-        if (secretaire.profile_id) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              prenom: data.prenom,
-              nom: data.nom,
-              email: data.email,
-            })
-            .eq('id', secretaire.profile_id);
-
-          if (profileError) throw profileError;
-        }
-
+        // Modification - mettre à jour les données directement dans la table secretaires
         const { error: secretaireError } = await supabase
           .from('secretaires')
           .update({
@@ -135,6 +122,36 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .eq('id', secretaire.id);
 
         if (secretaireError) throw secretaireError;
+
+        // Mettre à jour les horaires
+        // D'abord supprimer les anciens horaires
+        await supabase
+          .from('horaires_base_secretaires')
+          .delete()
+          .eq('secretaire_id', secretaire.id);
+
+        // Puis insérer les nouveaux horaires actifs
+        const horairesActifs = data.horaires.filter(horaire => 
+          horaire.jourTravaille && 
+          horaire.heureDebut && 
+          horaire.heureFin
+        );
+
+        if (horairesActifs.length > 0) {
+          const horairesData = horairesActifs.map(horaire => ({
+            secretaire_id: secretaire.id,
+            jour_semaine: horaire.jour,
+            heure_debut: horaire.heureDebut,
+            heure_fin: horaire.heureFin,
+            actif: horaire.actif,
+          }));
+
+          const { error: horairesError } = await supabase
+            .from('horaires_base_secretaires')
+            .insert(horairesData);
+
+          if (horairesError) throw horairesError;
+        }
 
         toast({
           title: "Succès",
