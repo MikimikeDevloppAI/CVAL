@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
 import { supabase } from '@/integrations/supabase/client';
@@ -145,7 +146,13 @@ export default function SecretairesPage() {
     fetchSecretaires();
   }, []);
 
-  const toggleSecretaireStatus = async (secretaireId: string, currentStatus: boolean) => {
+  const handleToggleStatus = async (secretaireId: string, currentStatus: boolean, skipConfirmation: boolean = false) => {
+    // Si on désactive et qu'on n'a pas skip la confirmation, on ne fait rien ici
+    // La confirmation sera gérée par l'AlertDialog
+    if (currentStatus && !skipConfirmation) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('secretaires')
@@ -274,48 +281,7 @@ export default function SecretairesPage() {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2 ml-3">
-                    {secretaire.actif === false ? (
-                      // Bouton pour réactiver - pas de confirmation nécessaire
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleSecretaireStatus(secretaire.id, false)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-xs border-muted-foreground text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary"
-                      >
-                        Inactif
-                      </Button>
-                    ) : (
-                      // Bouton pour désactiver - avec confirmation
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-primary text-primary-foreground hover:bg-primary/90"
-                          >
-                            Actif
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Êtes-vous sûr de vouloir passer cette secrétaire en inactif ?
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={() => toggleSecretaireStatus(secretaire.id, true)}
-                              className="bg-muted text-muted-foreground hover:bg-muted/90"
-                            >
-                              Passer en inactif
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                  <div className="flex items-center space-x-3 ml-3">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -327,6 +293,46 @@ export default function SecretairesPage() {
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
+                    
+                    {secretaire.actif !== false ? (
+                      // Switch actif - avec confirmation pour désactiver
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={true}
+                              className="data-[state=checked]:bg-primary"
+                            />
+                          </div>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Êtes-vous sûr de vouloir passer cette secrétaire en inactif ?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleToggleStatus(secretaire.id, true, true)}
+                              className="bg-muted text-muted-foreground hover:bg-muted/90"
+                            >
+                              Passer en inactif
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : (
+                      // Switch inactif - activation directe
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={false}
+                          onCheckedChange={() => handleToggleStatus(secretaire.id, false, true)}
+                          className="data-[state=unchecked]:bg-muted"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </ModernCardHeader>
