@@ -229,171 +229,180 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="prenom"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Prénom</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="Prénom du secrétaire" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="nom"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nom</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="Nom du secrétaire" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input {...field} type="email" placeholder="email@example.com" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="telephone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Numéro de téléphone</FormLabel>
-              <FormControl>
-                <Input {...field} type="tel" placeholder="+33 1 23 45 67 89" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="specialites"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Spécialités</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between h-auto min-h-[2.5rem] text-left font-normal"
-                    >
-                      <div className="flex flex-wrap gap-1">
-                        {field.value && field.value.length > 0 ? (
-                          <>
-                            {field.value.slice(0, 2).map((specialiteId) => {
-                              const specialite = specialites.find(s => s.id === specialiteId);
-                              return specialite ? (
-                                <Badge key={specialite.id} variant="secondary" className="text-xs">
-                                  {specialite.nom}
-                                  <button
-                                    type="button"
-                                    className="ml-1 hover:bg-secondary-foreground/20 rounded-full"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const current = field.value || [];
-                                      field.onChange(current.filter((id) => id !== specialite.id));
-                                    }}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </Badge>
-                              ) : null;
-                            })}
-                            {field.value.length > 2 && (
-                              <Badge variant="secondary" className="text-xs">
-                                +{field.value.length - 2} autres
-                              </Badge>
-                            )}
-                          </>
-                        ) : (
-                          "Sélectionner des spécialités"
-                        )}
-                      </div>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Rechercher une spécialité..." />
-                    <CommandEmpty>Aucune spécialité trouvée.</CommandEmpty>
-                    <CommandGroup className="max-h-60 overflow-auto">
-                      {specialites.map((specialite) => (
-                        <CommandItem
-                          value={specialite.nom}
-                          key={specialite.id}
-                          onSelect={() => {
-                            const current = field.value || [];
-                            if (current.includes(specialite.id)) {
-                              field.onChange(current.filter((id) => id !== specialite.id));
-                            } else {
-                              field.onChange([...current, specialite.id]);
-                            }
-                          }}
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              field.value?.includes(specialite.id) ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                          {specialite.nom}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="sitePreferentielId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Site préférentiel (optionnel)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
+        {/* Prénom et Nom côte à côte */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="prenom"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Prénom</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un site" />
-                  </SelectTrigger>
+                  <Input {...field} placeholder="Prénom du secrétaire" />
                 </FormControl>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="nom"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nom</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Nom du secrétaire" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Email et Téléphone côte à côte */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input {...field} type="email" placeholder="email@example.com" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="telephone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Numéro de téléphone</FormLabel>
+                <FormControl>
+                  <Input {...field} type="tel" placeholder="+33 1 23 45 67 89" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Spécialités et Site préférentiel côte à côte */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="specialites"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Spécialités</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between h-auto min-h-[2.5rem] text-left font-normal"
+                      >
+                        <div className="flex flex-wrap gap-1">
+                          {field.value && field.value.length > 0 ? (
+                            <>
+                              {field.value.slice(0, 2).map((specialiteId) => {
+                                const specialite = specialites.find(s => s.id === specialiteId);
+                                return specialite ? (
+                                  <Badge key={specialite.id} variant="secondary" className="text-xs">
+                                    {specialite.nom}
+                                    <button
+                                      type="button"
+                                      className="ml-1 hover:bg-secondary-foreground/20 rounded-full"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const current = field.value || [];
+                                        field.onChange(current.filter((id) => id !== specialite.id));
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ) : null;
+                              })}
+                              {field.value.length > 2 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{field.value.length - 2} autres
+                                </Badge>
+                              )}
+                            </>
+                          ) : (
+                            "Sélectionner des spécialités"
+                          )}
+                        </div>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Rechercher une spécialité..." />
+                      <CommandEmpty>Aucune spécialité trouvée.</CommandEmpty>
+                      <CommandGroup className="max-h-60 overflow-auto">
+                        {specialites.map((specialite) => (
+                          <CommandItem
+                            value={specialite.nom}
+                            key={specialite.id}
+                            onSelect={() => {
+                              const current = field.value || [];
+                              if (current.includes(specialite.id)) {
+                                field.onChange(current.filter((id) => id !== specialite.id));
+                              } else {
+                                field.onChange([...current, specialite.id]);
+                              }
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                field.value?.includes(specialite.id) ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            {specialite.nom}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="sitePreferentielId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Site préférentiel (optionnel)</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un site" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
