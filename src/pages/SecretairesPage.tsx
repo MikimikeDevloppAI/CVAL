@@ -3,6 +3,7 @@ import { Plus, Edit, Search, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
@@ -274,18 +275,47 @@ export default function SecretairesPage() {
                   </div>
                   
                   <div className="flex space-x-2 ml-3">
-                    <Button
-                      variant={secretaire.actif === false ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => toggleSecretaireStatus(secretaire.id, secretaire.actif !== false)}
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity text-xs ${
-                        secretaire.actif === false 
-                          ? 'border-muted-foreground text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary' 
-                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      }`}
-                    >
-                      {secretaire.actif === false ? 'Inactif' : 'Actif'}
-                    </Button>
+                    {secretaire.actif === false ? (
+                      // Bouton pour réactiver - pas de confirmation nécessaire
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleSecretaireStatus(secretaire.id, false)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-xs border-muted-foreground text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                      >
+                        Inactif
+                      </Button>
+                    ) : (
+                      // Bouton pour désactiver - avec confirmation
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                          >
+                            Actif
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Êtes-vous sûr de vouloir passer cette secrétaire en inactif ?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => toggleSecretaireStatus(secretaire.id, true)}
+                              className="bg-muted text-muted-foreground hover:bg-muted/90"
+                            >
+                              Passer en inactif
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
