@@ -75,18 +75,10 @@ export const Sidebar = () => {
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
-                <span className="text-sm font-medium text-sidebar-primary-foreground">
-                  {user?.email?.[0]?.toUpperCase() || 'U'}
-                </span>
-              </div>
-              <div className="ml-3 flex flex-col">
-                <span className="text-sm font-medium text-sidebar-foreground">
-                  {user?.email}
-                </span>
-                <span className="text-xs text-sidebar-foreground text-opacity-70">Utilisateur</span>
-              </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
+              <span className="text-sm font-medium text-sidebar-primary-foreground">
+                {user?.email?.[0]?.toUpperCase() || 'U'}
+              </span>
             </div>
             <Button
               variant="ghost"
