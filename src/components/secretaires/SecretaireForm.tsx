@@ -30,7 +30,6 @@ const secretaireSchema = z.object({
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
   specialites: z.array(z.string()).min(0, 'Au moins une spécialité doit être sélectionnée'),
-  sitePreferentielId: z.string().optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
@@ -44,11 +43,6 @@ interface Specialite {
   nom: string;
 }
 
-interface Site {
-  id: string;
-  nom: string;
-}
-
 interface SecretaireFormProps {
   secretaire?: any;
   onSuccess: () => void;
@@ -56,7 +50,6 @@ interface SecretaireFormProps {
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -68,7 +61,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
       specialites: secretaire?.specialites || [],
-      sitePreferentielId: secretaire?.site_preferentiel_id || '',
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -90,13 +82,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [specialitesRes, sitesRes] = await Promise.all([
-          supabase.from('specialites').select('id, nom').order('nom'),
-          supabase.from('sites').select('id, nom').order('nom')
-        ]);
-
+        const specialitesRes = await supabase.from('specialites').select('id, nom').order('nom');
         if (specialitesRes.data) setSpecialites(specialitesRes.data);
-        if (sitesRes.data) setSites(sitesRes.data);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
       }
@@ -118,7 +105,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email,
             phone_number: data.telephone,
             specialites: data.specialites,
-            site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -172,7 +158,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             phone_number: data.telephone,
             profile_id: null, // Pas de profil associé
             specialites: data.specialites,
-            site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -291,7 +276,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           />
         </div>
 
-        {/* Spécialités et Site préférentiel côte à côte */}
+        {/* Spécialités et Préfère Port-en-truie côte à côte */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -380,49 +365,24 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
           <FormField
             control={form.control}
-            name="sitePreferentielId"
+            name="preferePortEnTruie"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Site préférentiel (optionnel)</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un site" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {sites.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mt-8">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>
+                    Préfère travailler à Port-en-truie
+                  </FormLabel>
+                </div>
               </FormItem>
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="preferePortEnTruie"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>
-                  Préfère travailler à Port-en-truie
-                </FormLabel>
-              </div>
-            </FormItem>
-          )}
-        />
 
         <FormField
           control={form.control}
