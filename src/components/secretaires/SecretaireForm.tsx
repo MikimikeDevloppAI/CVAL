@@ -122,6 +122,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
+            nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
           })
           .eq('id', secretaire.id);
 
@@ -155,6 +156,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
+            nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
           })
           .select()
           .single();

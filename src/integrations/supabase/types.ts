@@ -390,6 +390,7 @@ export type Database = {
           created_at: string
           flexible_jours_supplementaires: boolean
           id: string
+          nombre_jours_supplementaires: number | null
           prefere_port_en_truie: boolean
           profile_id: string
           site_preferentiel_id: string | null
@@ -400,6 +401,7 @@ export type Database = {
           created_at?: string
           flexible_jours_supplementaires?: boolean
           id?: string
+          nombre_jours_supplementaires?: number | null
           prefere_port_en_truie?: boolean
           profile_id: string
           site_preferentiel_id?: string | null
@@ -410,6 +412,7 @@ export type Database = {
           created_at?: string
           flexible_jours_supplementaires?: boolean
           id?: string
+          nombre_jours_supplementaires?: number | null
           prefere_port_en_truie?: boolean
           profile_id?: string
           site_preferentiel_id?: string | null
