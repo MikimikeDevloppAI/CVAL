@@ -67,13 +67,11 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaires: secretaire?.horaires || [
-        { jour: 1, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 2, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 3, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 4, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 5, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 6, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
-        { jour: 7, jourTravaille: false, heureDebut: '08:00', heureFin: '17:00', actif: true },
+        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
+        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
+        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
+        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
+        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
       ],
     },
   });
@@ -378,7 +376,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           <FormLabel className="text-base">Horaires de travail par jour</FormLabel>
 
           {fields.map((field, index) => {
-            const jourNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+            const jourNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
             const jourTravaille = form.watch(`horaires.${index}.jourTravaille`);
             
             return (
