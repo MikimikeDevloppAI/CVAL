@@ -392,7 +392,7 @@ export type Database = {
           id: string
           nombre_jours_supplementaires: number | null
           prefere_port_en_truie: boolean
-          profile_id: string
+          profile_id: string | null
           site_preferentiel_id: string | null
           specialites: string[]
           updated_at: string
@@ -403,7 +403,7 @@ export type Database = {
           id?: string
           nombre_jours_supplementaires?: number | null
           prefere_port_en_truie?: boolean
-          profile_id: string
+          profile_id?: string | null
           site_preferentiel_id?: string | null
           specialites?: string[]
           updated_at?: string
@@ -414,7 +414,7 @@ export type Database = {
           id?: string
           nombre_jours_supplementaires?: number | null
           prefere_port_en_truie?: boolean
-          profile_id?: string
+          profile_id?: string | null
           site_preferentiel_id?: string | null
           specialites?: string[]
           updated_at?: string

@@ -103,17 +103,19 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     setLoading(true);
     try {
       if (secretaire) {
-        // Modification
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            prenom: data.prenom,
-            nom: data.nom,
-            email: data.email,
-          })
-          .eq('id', secretaire.profile_id);
+        // Modification - mettre à jour le profil seulement s'il existe
+        if (secretaire.profile_id) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              prenom: data.prenom,
+              nom: data.nom,
+              email: data.email,
+            })
+            .eq('id', secretaire.profile_id);
 
-        if (profileError) throw profileError;
+          if (profileError) throw profileError;
+        }
 
         const { error: secretaireError } = await supabase
           .from('secretaires')
@@ -133,25 +135,11 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           description: "Secrétaire modifié avec succès",
         });
       } else {
-        // Création - d'abord créer le profile
-        const profileId = crypto.randomUUID();
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: profileId,
-            prenom: data.prenom,
-            nom: data.nom,
-            email: data.email,
-            role: 'secretaire',
-          });
-
-        if (profileError) throw profileError;
-
-        // Ensuite créer le secrétaire
+        // Création sans profil associé
         const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
-            profile_id: profileId,
+            profile_id: null, // Pas de profil associé
             specialites: data.specialites,
             site_preferentiel_id: data.sitePreferentielId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
@@ -177,7 +165,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
               jour_semaine: horaire.jour,
               heure_debut: horaire.heureDebut,
               heure_fin: horaire.heureFin,
-              site_id: null,
               actif: horaire.actif,
             }));
 
