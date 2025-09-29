@@ -38,6 +38,7 @@ export default function SecretairesPage() {
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [selectedSecretaire, setSelectedSecretaire] = useState<Secretaire | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -163,7 +164,7 @@ export default function SecretairesPage() {
 
       toast({
         title: "Succès",
-        description: `Secrétaire ${!currentStatus ? 'activé' : 'désactivé'} avec succès`,
+        description: `Secrétaire ${!currentStatus ? 'activée' : 'désactivée'} avec succès`,
       });
       
       fetchSecretaires();
@@ -171,7 +172,7 @@ export default function SecretairesPage() {
       console.error('Erreur lors de la modification du statut:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de modifier le statut du secrétaire",
+        description: "Impossible de modifier le statut de la secrétaire",
         variant: "destructive",
       });
     }
@@ -183,11 +184,15 @@ export default function SecretairesPage() {
     const email = secretaire.email || '';
     const telephone = secretaire.phone_number || '';
     
-    return prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
            nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
            email.toLowerCase().includes(searchTerm.toLowerCase()) ||
            telephone.toLowerCase().includes(searchTerm.toLowerCase()) ||
            secretaire.id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = showInactive ? secretaire.actif === false : secretaire.actif !== false;
+    
+    return matchesSearch && matchesStatus;
   });
 
   const handleFormSuccess = () => {
@@ -214,13 +219,13 @@ export default function SecretairesPage() {
             <DialogTrigger asChild>
               <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
                 <Plus className="h-4 w-4" />
-                Ajouter un secrétaire
+                Ajouter une secrétaire
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {selectedSecretaire ? 'Modifier le secrétaire' : 'Ajouter un secrétaire'}
+                  {selectedSecretaire ? 'Modifier la secrétaire' : 'Ajouter une secrétaire'}
                 </DialogTitle>
               </DialogHeader>
               <SecretaireForm 
@@ -231,16 +236,27 @@ export default function SecretairesPage() {
           </Dialog>
         </div>
 
-        {/* Search */}
-        <div className="flex items-center space-x-2">
+        {/* Search and Filter */}
+        <div className="flex items-center space-x-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Rechercher un secrétaire..."
+              placeholder="Rechercher une secrétaire..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={showInactive}
+              onCheckedChange={setShowInactive}
+              id="show-inactive"
+            />
+            <label htmlFor="show-inactive" className="text-sm font-medium cursor-pointer">
+              Montrer secrétaires inactives
+            </label>
           </div>
         </div>
 
@@ -398,7 +414,7 @@ export default function SecretairesPage() {
         {filteredSecretaires.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              {searchTerm ? 'Aucun secrétaire trouvé pour cette recherche' : 'Aucun secrétaire enregistré'}
+              {searchTerm ? 'Aucune secrétaire trouvée pour cette recherche' : showInactive ? 'Aucune secrétaire inactive' : 'Aucune secrétaire enregistrée'}
             </p>
           </div>
         )}
