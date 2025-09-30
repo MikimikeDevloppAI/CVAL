@@ -264,7 +264,7 @@ function convertToAssignmentResults(assignments: Assignment[]): AssignmentResult
       site_id: assignment.besoin.site_id,
       site_nom: assignment.besoin.site_nom,
       site_fermeture: assignment.besoin.site_fermeture,
-      medecins: [assignment.besoin.medecin_nom || 'Bloc opératoire'],
+      medecins: assignment.besoin.medecin_noms?.length > 0 ? assignment.besoin.medecin_noms : ['Bloc opératoire'],
       secretaires: assignment.capacites.map(c => ({
         id: c.secretaire_id || c.backup_id || '',
         nom: c.nom_complet,

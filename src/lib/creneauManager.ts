@@ -37,7 +37,8 @@ export function splitBesoinsEnCreneaux(
         specialite_id: besoin.specialite_id,
         nombre_secretaires_requis: besoin.nombre_secretaires_requis,
         type: besoin.type,
-        medecin_id: besoin.medecin_id,
+        medecin_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
+        medecin_noms: [],
         bloc_operatoire_besoin_id: besoin.bloc_operatoire_besoin_id,
         site_fermeture: site.fermeture || false,
       });
@@ -54,7 +55,8 @@ export function splitBesoinsEnCreneaux(
         specialite_id: besoin.specialite_id,
         nombre_secretaires_requis: besoin.nombre_secretaires_requis,
         type: besoin.type,
-        medecin_id: besoin.medecin_id,
+        medecin_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
+        medecin_noms: [],
         bloc_operatoire_besoin_id: besoin.bloc_operatoire_besoin_id,
         site_fermeture: site.fermeture || false,
       });
