@@ -17,6 +17,11 @@ interface Site {
   adresse: string;
   fermeture?: boolean;
   actif?: boolean;
+  specialite_id?: string;
+  specialite?: {
+    nom: string;
+    code: string;
+  };
   created_at?: string;
   updated_at?: string;
 }
@@ -40,6 +45,8 @@ export default function SitesPage() {
           adresse,
           fermeture,
           actif,
+          specialite_id,
+          specialite:specialites(nom, code),
           created_at,
           updated_at
         `)
@@ -255,6 +262,17 @@ export default function SitesPage() {
               
               <ModernCardContent>
                 <div className="space-y-4">
+                  {site.specialite && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Spécialité
+                      </p>
+                      <Badge variant="outline" className="text-xs">
+                        {site.specialite.nom} ({site.specialite.code})
+                      </Badge>
+                    </div>
+                  )}
+                  
                   {site.fermeture === true && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">

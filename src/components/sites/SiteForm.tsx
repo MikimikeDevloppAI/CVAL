@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,9 +15,16 @@ const siteSchema = z.object({
   nom: z.string().trim().min(1, 'Le nom est requis').max(100, 'Le nom est trop long'),
   adresse: z.string().trim().min(1, 'L\'adresse est requise').max(255, 'L\'adresse est trop longue'),
   fermeture: z.boolean().default(false),
+  specialite_id: z.string().uuid('Veuillez sélectionner une spécialité').optional(),
 });
 
 type SiteFormData = z.infer<typeof siteSchema>;
+
+interface Specialite {
+  id: string;
+  nom: string;
+  code: string;
+}
 
 interface SiteFormProps {
   site?: any;
@@ -25,6 +33,7 @@ interface SiteFormProps {
 
 export function SiteForm({ site, onSuccess }: SiteFormProps) {
   const [loading, setLoading] = useState(false);
+  const [specialites, setSpecialites] = useState<Specialite[]>([]);
   const { toast } = useToast();
 
   const form = useForm<SiteFormData>({
@@ -33,8 +42,27 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
       nom: site?.nom || '',
       adresse: site?.adresse || '',
       fermeture: site?.fermeture || false,
+      specialite_id: site?.specialite_id || undefined,
     },
   });
+
+  useEffect(() => {
+    fetchSpecialites();
+  }, []);
+
+  const fetchSpecialites = async () => {
+    const { data, error } = await supabase
+      .from('specialites')
+      .select('id, nom, code')
+      .order('nom');
+
+    if (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      return;
+    }
+
+    setSpecialites(data || []);
+  };
 
   const onSubmit = async (data: SiteFormData) => {
     setLoading(true);
@@ -47,6 +75,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
             nom: data.nom,
             adresse: data.adresse,
             fermeture: data.fermeture,
+            specialite_id: data.specialite_id || null,
           })
           .eq('id', site.id);
 
@@ -64,6 +93,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
             nom: data.nom,
             adresse: data.adresse,
             fermeture: data.fermeture,
+            specialite_id: data.specialite_id || null,
             actif: true, // Par défaut actif
           });
 
@@ -120,6 +150,35 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
                   rows={3}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Spécialité */}
+        <FormField
+          control={form.control}
+          name="specialite_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Spécialité</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une spécialité" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {specialites.map((spec) => (
+                    <SelectItem key={spec.id} value={spec.id}>
+                      {spec.nom} ({spec.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

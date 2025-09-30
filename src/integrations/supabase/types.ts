@@ -613,6 +613,7 @@ export type Database = {
           fermeture: boolean
           id: string
           nom: string
+          specialite_id: string | null
           updated_at: string
         }
         Insert: {
@@ -622,6 +623,7 @@ export type Database = {
           fermeture?: boolean
           id?: string
           nom: string
+          specialite_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -631,9 +633,18 @@ export type Database = {
           fermeture?: boolean
           id?: string
           nom?: string
+          specialite_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sites_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       specialites: {
         Row: {
