@@ -58,6 +58,42 @@ export type Database = {
           },
         ]
       }
+      backup: {
+        Row: {
+          actif: boolean
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          name: string | null
+          phone_number: string | null
+          specialites: string[]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          name?: string | null
+          phone_number?: string | null
+          specialites?: string[]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          name?: string | null
+          phone_number?: string | null
+          specialites?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       besoins_secretaires_par_medecin: {
         Row: {
           actif: boolean
