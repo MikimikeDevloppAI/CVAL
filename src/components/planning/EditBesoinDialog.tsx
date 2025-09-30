@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -101,6 +101,7 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
         description: "Jour supprimé avec succès",
       });
       setBesoinToDelete(null);
+      onSuccess();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -172,6 +173,7 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
       setNewDate('');
       setNewHeureDebut('07:30');
       setNewHeureFin('17:30');
+      onSuccess();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -246,6 +248,9 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
               <Calendar className="h-5 w-5" />
               Modifier les jours de présence
             </DialogTitle>
+            <DialogDescription>
+              Gérez les jours de présence par site: modifiez les horaires, supprimez ou ajoutez des jours.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
