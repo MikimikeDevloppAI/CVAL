@@ -85,7 +85,43 @@ export default function AbsencesPage() {
     fetchAbsences();
   }, []);
 
-  const filteredAbsences = absences.filter(absence => {
+  // Group consecutive absences together
+  const groupConsecutiveAbsences = (absences: Absence[]) => {
+    const grouped: Absence[] = [];
+    const sorted = [...absences].sort((a, b) => 
+      new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+    );
+
+    for (const absence of sorted) {
+      const lastGroup = grouped[grouped.length - 1];
+      
+      // Check if this absence can be merged with the last group
+      if (lastGroup && 
+          absence.type_personne === lastGroup.type_personne &&
+          absence.medecin_id === lastGroup.medecin_id &&
+          absence.secretaire_id === lastGroup.secretaire_id &&
+          absence.type === lastGroup.type &&
+          absence.statut === lastGroup.statut) {
+        
+        const lastEndDate = new Date(lastGroup.date_fin);
+        const currentStartDate = new Date(absence.date_debut);
+        const dayDiff = Math.floor((currentStartDate.getTime() - lastEndDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // If absences are consecutive (1 day apart), merge them
+        if (dayDiff === 1) {
+          lastGroup.date_fin = absence.date_fin;
+          continue;
+        }
+      }
+      
+      // Otherwise, add as a new group
+      grouped.push({ ...absence });
+    }
+    
+    return grouped;
+  };
+
+  const filteredAbsences = groupConsecutiveAbsences(absences).filter(absence => {
     const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
     if (!person) return false;
     
