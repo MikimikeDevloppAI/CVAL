@@ -94,6 +94,83 @@ export type Database = {
         }
         Relationships: []
       }
+      besoin_effectif: {
+        Row: {
+          actif: boolean
+          bloc_operatoire_besoin_id: string | null
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          medecin_id: string | null
+          nombre_secretaires_requis: number
+          site_id: string
+          specialite_id: string
+          type: Database["public"]["Enums"]["type_besoin"]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          bloc_operatoire_besoin_id?: string | null
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          medecin_id?: string | null
+          nombre_secretaires_requis?: number
+          site_id: string
+          specialite_id: string
+          type: Database["public"]["Enums"]["type_besoin"]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          bloc_operatoire_besoin_id?: string | null
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          medecin_id?: string | null
+          nombre_secretaires_requis?: number
+          site_id?: string
+          specialite_id?: string
+          type?: Database["public"]["Enums"]["type_besoin"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_bloc_operatoire_besoin_id_fkey"
+            columns: ["bloc_operatoire_besoin_id"]
+            isOneToOne: false
+            referencedRelation: "bloc_operatoire_besoins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "besoin_effectif_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "besoin_effectif_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       besoins_secretaires_par_medecin: {
         Row: {
           actif: boolean
@@ -220,6 +297,60 @@ export type Database = {
             columns: ["specialite_id"]
             isOneToOne: false
             referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capacite_effective: {
+        Row: {
+          actif: boolean
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          secretaire_id: string
+          site_id: string
+          specialites: string[]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          secretaire_id: string
+          site_id: string
+          specialites?: string[]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          secretaire_id?: string
+          site_id?: string
+          specialites?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capacite_effective_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -685,7 +816,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      generate_week_plus_5: {
+      generate_besoin_effectif: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      generate_capacite_effective: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
@@ -696,13 +831,6 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
-      }
-      regenerate_horaires_for_person: {
-        Args: {
-          p_personne_id: string
-          p_type_personne: Database["public"]["Enums"]["type_personne"]
-        }
-        Returns: undefined
       }
     }
     Enums: {
@@ -717,6 +845,7 @@ export type Database = {
         | "une_sur_deux"
         | "une_sur_trois"
         | "une_sur_quatre"
+      type_besoin: "medecin" | "bloc_operatoire"
       type_horaire: "fixe" | "disponible"
       type_personne: "medecin" | "secretaire"
       type_planning: "medecin" | "secretaire"
@@ -860,6 +989,7 @@ export const Constants = {
         "une_sur_trois",
         "une_sur_quatre",
       ],
+      type_besoin: ["medecin", "bloc_operatoire"],
       type_horaire: ["fixe", "disponible"],
       type_personne: ["medecin", "secretaire"],
       type_planning: ["medecin", "secretaire"],

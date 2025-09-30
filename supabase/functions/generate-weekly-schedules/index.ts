@@ -19,13 +19,12 @@ Deno.serve(async (req) => {
 
     console.log('Starting weekly schedule generation for week +5...');
 
-    // Call the database function to generate week +5
-    const { error } = await supabase.rpc('generate_week_plus_5');
-
-    if (error) {
-      console.error('Error generating schedules:', error);
+    // Call the database functions to generate besoin and capacite
+    const { error: besoinError } = await supabase.rpc('generate_besoin_effectif');
+    if (besoinError) {
+      console.error('Error generating besoin:', besoinError);
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ error: besoinError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -33,7 +32,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Successfully generated schedules for week +5');
+    const { error: capaciteError } = await supabase.rpc('generate_capacite_effective');
+    if (capaciteError) {
+      console.error('Error generating capacite:', capaciteError);
+      return new Response(
+        JSON.stringify({ error: capaciteError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Successfully generated besoin and capacite for week +5');
 
     return new Response(
       JSON.stringify({ 
