@@ -141,11 +141,21 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, onSuccess }:
       onSuccess();
       onOpenChange(false);
       form.reset();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur:', error);
+      
+      // Extraire le message d'erreur lisible
+      let errorMessage = "Erreur lors de l'ajout du besoin";
+      if (error?.message) {
+        // Chercher si c'est une erreur de chevauchement
+        if (error.message.includes('déjà attribué')) {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Erreur",
-        description: "Erreur lors de l'ajout du besoin",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
