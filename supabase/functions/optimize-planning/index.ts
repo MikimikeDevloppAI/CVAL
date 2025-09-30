@@ -59,6 +59,8 @@ interface Assignment {
   creneau_besoin: CreneauBesoin;
   capacites_assignees: Array<{
     id: string;
+    secretaire_id?: string;
+    backup_id?: string;
     nom_complet: string;
     is_backup: boolean;
     is_1r?: boolean;
@@ -155,7 +157,7 @@ serve(async (req) => {
         heure_fin: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].end,
         site_id: assignment.site_id,
         medecin_id: null,
-        secretaire_id: sec.is_backup ? null : sec.id,
+        secretaire_id: sec.secretaire_id || sec.backup_id,
         type: 'medecin' as const,
         statut: 'planifie' as const,
         version_planning: 1,
@@ -448,6 +450,8 @@ function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]
               // Assign this person to both AM (1R) and PM (2F)
               allAssignments.get(fermetureBesoin.id)!.capacites_assignees.push({
                 id: amCap.id,
+                secretaire_id: amCap.secretaire_id,
+                backup_id: amCap.backup_id,
                 nom_complet: amCap.nom_complet,
                 is_backup: !!amCap.backup_id,
                 is_1r: true,
@@ -455,6 +459,8 @@ function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]
               
               allAssignments.get(afternoonBesoin.id)!.capacites_assignees.push({
                 id: pmCap.id,
+                secretaire_id: pmCap.secretaire_id,
+                backup_id: pmCap.backup_id,
                 nom_complet: pmCap.nom_complet,
                 is_backup: !!pmCap.backup_id,
                 is_2f: true,
@@ -503,6 +509,8 @@ function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]
       
       assignment.capacites_assignees.push({
         id: cap.id,
+        secretaire_id: cap.secretaire_id,
+        backup_id: cap.backup_id,
         nom_complet: cap.nom_complet,
         is_backup: !!cap.backup_id,
         is_1r: false,
@@ -603,6 +611,8 @@ function convertToAssignmentResults(assignments: Assignment[]) {
       medecins: assignment.creneau_besoin.medecin_noms,
       secretaires: assignment.capacites_assignees.map(cap => ({
         id: cap.id,
+        secretaire_id: cap.secretaire_id,
+        backup_id: cap.backup_id,
         nom: cap.nom_complet,
         is_backup: cap.is_backup,
         is_1r: cap.is_1r,
