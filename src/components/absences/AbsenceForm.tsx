@@ -69,20 +69,22 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      // Fetch medecins
+      // Fetch medecins with profile_id only
       const { data: medecinData } = await supabase
         .from('medecins')
         .select('id, first_name, name, profile_id')
         .eq('actif', true)
+        .not('profile_id', 'is', null)
         .order('name');
       
       setMedecins(medecinData || []);
 
-      // Fetch secretaires
+      // Fetch secretaires with profile_id only
       const { data: secretaireData } = await supabase
         .from('secretaires')
         .select('id, first_name, name, profile_id')
         .eq('actif', true)
+        .not('profile_id', 'is', null)
         .order('name');
       
       setSecretaires(secretaireData || []);
@@ -207,9 +209,9 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                     <SelectValue placeholder="Sélectionner une personne" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent>
+                 <SelectContent>
                   {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.profile_id || profile.id}>
+                    <SelectItem key={profile.id} value={profile.profile_id}>
                       {profile.first_name} {profile.name}
                     </SelectItem>
                   ))}
