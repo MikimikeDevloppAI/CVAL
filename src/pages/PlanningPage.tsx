@@ -192,72 +192,135 @@ export default function PlanningPage() {
             <div className="text-center py-12 text-muted-foreground">
               Chargement...
             </div>
-          ) : besoinsParSite.length === 0 ? (
+          ) : besoins.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               Aucun besoin pour cette semaine
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {besoinsParSite.map((siteBesoin) => (
-                <Card key={siteBesoin.site_id} className="overflow-hidden">
-                  <CardHeader className="bg-muted/50">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Building2 className="h-5 w-5 text-primary" />
-                      {siteBesoin.site_nom}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-2xl font-bold">{siteBesoin.total_medecins}</div>
-                          <div className="text-xs text-muted-foreground">Médecins</div>
-                        </div>
+            <div className="space-y-6">
+              {Object.entries(
+                besoins.reduce((acc, besoin) => {
+                  const date = besoin.date;
+                  if (!acc[date]) acc[date] = [];
+                  acc[date].push(besoin);
+                  return acc;
+                }, {} as Record<string, BesoinEffectif[]>)
+              ).map(([date, besoinsJour]) => {
+                // Regrouper par site pour ce jour
+                const besoinsParSite = besoinsJour.reduce((acc, besoin) => {
+                  const siteId = besoin.site_id;
+                  if (!acc[siteId]) {
+                    acc[siteId] = {
+                      site_nom: besoin.site?.nom || 'Site inconnu',
+                      besoins: []
+                    };
+                  }
+                  acc[siteId].besoins.push(besoin);
+                  return acc;
+                }, {} as Record<string, { site_nom: string; besoins: BesoinEffectif[] }>);
+
+                return (
+                  <Card key={date}>
+                    <CardHeader className="bg-muted/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        {format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr })}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <div className="space-y-6">
+                        {Object.entries(besoinsParSite).map(([siteId, { site_nom, besoins: besoinsSite }]) => {
+                          const medecins = besoinsSite.filter(b => b.type === 'medecin');
+                          const blocs = besoinsSite.filter(b => b.type === 'bloc_operatoire');
+                          const totalSecretaires = besoinsSite.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
+
+                          return (
+                            <div key={siteId} className="space-y-3">
+                              <div className="flex items-center justify-between bg-primary/5 p-3 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-5 w-5 text-primary" />
+                                  <h3 className="font-semibold text-lg">{site_nom}</h3>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <div className="text-sm text-muted-foreground">Médecins</div>
+                                    <div className="font-bold text-lg">{medecins.length}</div>
+                                  </div>
+                                  <Separator orientation="vertical" className="h-10" />
+                                  <div className="text-right">
+                                    <div className="text-sm text-muted-foreground">Secrétaires requis</div>
+                                    <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="overflow-x-auto">
+                                <table className="w-full border-collapse">
+                                  <thead>
+                                    <tr className="border-b-2">
+                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Type</th>
+                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
+                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
+                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
+                                      <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {medecins.map((besoin) => (
+                                      <tr key={besoin.id} className="border-b hover:bg-muted/30">
+                                        <td className="p-2">
+                                          <Badge variant="default">Médecin</Badge>
+                                        </td>
+                                        <td className="p-2 font-medium">
+                                          {besoin.medecin ? `${besoin.medecin.first_name} ${besoin.medecin.name}` : '-'}
+                                        </td>
+                                        <td className="p-2 text-sm text-muted-foreground">
+                                          {besoin.specialite?.nom || '-'}
+                                        </td>
+                                        <td className="p-2 text-sm">
+                                          {besoin.heure_debut.slice(0, 5)} - {besoin.heure_fin.slice(0, 5)}
+                                        </td>
+                                        <td className="p-2 text-right font-medium">
+                                          {besoin.nombre_secretaires_requis}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {blocs.map((besoin) => (
+                                      <tr key={besoin.id} className="border-b hover:bg-muted/30 bg-blue-50/50">
+                                        <td className="p-2">
+                                          <Badge variant="secondary">Bloc opératoire</Badge>
+                                        </td>
+                                        <td className="p-2 font-medium text-blue-700">
+                                          Intervention chirurgicale
+                                        </td>
+                                        <td className="p-2 text-sm text-muted-foreground">
+                                          {besoin.specialite?.nom || '-'}
+                                        </td>
+                                        <td className="p-2 text-sm">
+                                          {besoin.heure_debut.slice(0, 5)} - {besoin.heure_fin.slice(0, 5)}
+                                        </td>
+                                        <td className="p-2 text-right font-medium">
+                                          {besoin.nombre_secretaires_requis}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    <tr className="font-bold bg-muted/50">
+                                      <td colSpan={4} className="p-2 text-right">TOTAL</td>
+                                      <td className="p-2 text-right text-primary text-lg">
+                                        {Math.ceil(totalSecretaires)}
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-2xl font-bold">{Math.ceil(siteBesoin.total_secretaires_requis)}</div>
-                          <div className="text-xs text-muted-foreground">Secrétaires requis</div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
-                        {siteBesoin.plage_horaire.debut.slice(0, 5)} - {siteBesoin.plage_horaire.fin.slice(0, 5)}
-                      </span>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground">Détail par jour:</div>
-                      {Object.entries(
-                        siteBesoin.besoins.reduce((acc, b) => {
-                          if (!acc[b.date]) acc[b.date] = [];
-                          acc[b.date].push(b);
-                          return acc;
-                        }, {} as Record<string, BesoinEffectif[]>)
-                      ).map(([date, besoins]) => (
-                        <div key={date} className="text-sm">
-                          <div className="font-medium">
-                            {format(new Date(date), 'EEEE d MMM', { locale: fr })}
-                          </div>
-                          <div className="text-muted-foreground pl-2">
-                            {besoins.filter(b => b.type === 'medecin').length} médecin(s) • {' '}
-                            {Math.ceil(besoins.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0))} secrétaire(s)
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
