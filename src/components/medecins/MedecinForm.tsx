@@ -26,7 +26,9 @@ const horaireSchema = z.object({
 const medecinSchema = z.object({
   first_name: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   name: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
-  email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
+  email: z.string().trim().max(255, 'Email trop long').refine((val) => !val || z.string().email().safeParse(val).success, {
+    message: 'Email invalide'
+  }),
   phone_number: z.string().optional(),
   specialiteId: z.string().min(1, 'La spécialité est requise'),
   horaires: z.array(horaireSchema),
