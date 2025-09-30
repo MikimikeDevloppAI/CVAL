@@ -412,8 +412,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                       onClick={() => {
                         append({
                           jour,
-                          heureDebut: '08:00',
-                          heureFin: '12:00',
+                          heureDebut: '07:30',
+                          heureFin: '17:30',
                           siteId: '',
                           actif: true,
                           alternanceType: 'hebdomadaire',
