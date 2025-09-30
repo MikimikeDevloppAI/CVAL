@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Slot definitions (strict coverage required)
+const SLOT_DEFS = {
+  matin: { start: '07:30:00', end: '12:00:00' },
+  apres_midi: { start: '13:00:00', end: '17:00:00' },
+};
+
+// Convert HH:mm:ss to minutes
+function toMinutes(hhmmss: string): number {
+  const [h, m] = hhmmss.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Check if capacity covers the ENTIRE slot (strict requirement)
+function coversWholeSlot(
+  capStart: string,
+  capEnd: string,
+  slotStart: string,
+  slotEnd: string
+): boolean {
+  return toMinutes(capStart) <= toMinutes(slotStart) && toMinutes(capEnd) >= toMinutes(slotEnd);
+}
+
 interface CreneauBesoin {
   id: string;
   date: string;
@@ -29,6 +51,19 @@ interface CreneauCapacite {
   nom_complet: string;
   specialites: string[];
   prefere_port_en_truie: boolean;
+  heure_debut: string;
+  heure_fin: string;
+}
+
+interface Assignment {
+  creneau_besoin: CreneauBesoin;
+  capacites_assignees: Array<{
+    id: string;
+    nom_complet: string;
+    is_backup: boolean;
+    is_1r?: boolean;
+    is_2f?: boolean;
+  }>;
 }
 
 serve(async (req) => {
@@ -42,24 +77,33 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
+    // Create service role client for RLS bypass
+    const supabaseServiceRole = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { weekStart } = await req.json();
     const startDate = new Date(weekStart);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 6);
 
-    console.log(`📅 Generating planning for week: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    const weekStartStr = startDate.toISOString().split('T')[0];
+    const weekEndStr = endDate.toISOString().split('T')[0];
+
+    console.log(`📅 Generating planning for week: ${weekStartStr} to ${weekEndStr}`);
 
     // Fetch besoins
     const { data: besoins, error: besoinsError } = await supabase
       .from('besoin_effectif')
       .select('*, sites!inner(nom, fermeture), medecins(first_name, name)')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr)
       .eq('actif', true);
 
     if (besoinsError) throw besoinsError;
 
-    // Fetch capacites
+    // Fetch capacites WITH time ranges
     const { data: capacites, error: capacitesError } = await supabase
       .from('capacite_effective')
       .select(`
@@ -67,93 +111,94 @@ serve(async (req) => {
         secretaires(first_name, name, prefere_port_en_truie),
         backup(first_name, name)
       `)
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr)
       .eq('actif', true);
 
     if (capacitesError) throw capacitesError;
 
     console.log(`📊 Found ${besoins?.length || 0} besoins and ${capacites?.length || 0} capacites`);
 
-    // Split into creneaux and group by site/date/periode
+    // Group and split
     const creneauxBesoins = groupBesoinsEnCreneaux(besoins);
     const creneauxCapacites = splitCapacitesEnCreneaux(capacites);
 
-    console.log(`🔄 Grouped into ${creneauxBesoins.length} grouped besoins and ${creneauxCapacites.length} capacite slots`);
+    console.log(`🔄 Grouped into ${creneauxBesoins.length} besoin creneaux and ${creneauxCapacites.length} capacite slots`);
 
-    // Run optimization
+    // Run NEW optimization
     const result = optimizePlanning(creneauxBesoins, creneauxCapacites);
 
     console.log(`✅ Optimization complete: Score ${result.score_total}`);
 
-    // Save to planning_genere table
-    try {
-      // Clear existing planning for this week
-      const { error: deleteError } = await supabase
+    // Save to planning_genere using service role
+    console.log('\n💾 Saving planning to database...');
+
+    // Clear existing planning
+    const { error: deleteError } = await supabaseServiceRole
+      .from('planning_genere')
+      .delete()
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr);
+
+    if (deleteError) {
+      console.error('❌ Error clearing old planning:', deleteError);
+      throw deleteError;
+    }
+
+    console.log('✅ Cleared old planning');
+
+    // Insert new planning (site assignments)
+    const planningRows = result.assignments.flatMap((assignment: any) =>
+      assignment.secretaires.map((sec: any) => ({
+        date: assignment.date,
+        heure_debut: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].start,
+        heure_fin: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].end,
+        site_id: assignment.site_id,
+        medecin_id: null,
+        secretaire_id: sec.is_backup ? null : sec.id,
+        type: 'medecin' as const,
+        statut: 'planifie' as const,
+        version_planning: 1,
+        type_assignation: 'site',
+      }))
+    );
+
+    if (planningRows.length > 0) {
+      const { error: insertError } = await supabaseServiceRole
         .from('planning_genere')
-        .delete()
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0]);
+        .insert(planningRows);
 
-      if (deleteError) throw deleteError;
-
-      // Track which secretaries are assigned
-      const assignedSecretaires = new Set<string>();
-      
-      // Insert new planning for assigned secretaries
-      const planningRows = [];
-      for (const assignment of result.assignments) {
-        for (const secretaire of assignment.secretaires) {
-          assignedSecretaires.add(secretaire.id);
-          planningRows.push({
-            date: assignment.date,
-            heure_debut: assignment.periode === 'matin' ? '07:30:00' : '13:00:00',
-            heure_fin: assignment.periode === 'matin' ? '12:00:00' : '17:00:00',
-            site_id: assignment.site_id,
-            medecin_id: null,
-            secretaire_id: secretaire.is_backup ? null : secretaire.id,
-            type: assignment.medecins[0] === 'Bloc opératoire' ? 'bloc_operatoire' : 'medecin',
-            statut: assignment.status === 'satisfait' ? 'confirme' : 'planifie',
-            version_planning: 1,
-            type_assignation: 'site',
-          });
-        }
+      if (insertError) {
+        console.error('❌ Error saving planning:', insertError);
+        throw insertError;
       }
 
-      // Add administrative assignments for unassigned secretaries
-      const allCapacites = creneauxCapacites;
-      for (const capacite of allCapacites) {
-        const secId = capacite.secretaire_id || capacite.backup_id;
-        if (secId && !assignedSecretaires.has(secId)) {
-          planningRows.push({
-            date: capacite.date,
-            heure_debut: capacite.periode === 'matin' ? '07:30:00' : '13:00:00',
-            heure_fin: capacite.periode === 'matin' ? '12:00:00' : '17:00:00',
-            site_id: null,
-            medecin_id: null,
-            secretaire_id: capacite.secretaire_id || null,
-            type: 'medecin',
-            statut: 'planifie',
-            version_planning: 1,
-            type_assignation: 'administratif',
-          });
-          assignedSecretaires.add(secId);
-        }
-      }
+      console.log(`✅ Saved ${planningRows.length} site assignment entries`);
+    }
 
-      if (planningRows.length > 0) {
-        const { error: insertError } = await supabase
-          .from('planning_genere')
-          .insert(planningRows);
+    // Insert administratif assignments
+    const adminRows = result.unusedCapacites.map((cap: CreneauCapacite) => ({
+      date: cap.date,
+      type: 'medecin' as const,
+      secretaire_id: cap.secretaire_id || cap.backup_id,
+      site_id: null,
+      heure_debut: SLOT_DEFS[cap.periode].start,
+      heure_fin: SLOT_DEFS[cap.periode].end,
+      type_assignation: 'administratif',
+      statut: 'planifie' as const,
+      version_planning: 1,
+    }));
 
-        if (insertError) {
-          console.error('❌ Error saving planning:', insertError);
-        } else {
-          console.log(`✅ Planning saved: ${planningRows.length} rows (including administrative)`);
-        }
+    if (adminRows.length > 0) {
+      const { error: adminError } = await supabaseServiceRole
+        .from('planning_genere')
+        .insert(adminRows);
+
+      if (adminError) {
+        console.error('❌ Error saving administratif assignments:', adminError);
+      } else {
+        console.log(`✅ Saved ${adminRows.length} administratif assignment entries`);
       }
-    } catch (error) {
-      console.error('❌ Error in planning save:', error);
     }
 
     return new Response(JSON.stringify(result), {
@@ -170,11 +215,8 @@ serve(async (req) => {
 });
 
 function groupBesoinsEnCreneaux(besoins: any[]): CreneauBesoin[] {
-  const MATIN_START = '07:30:00';
-  const MATIN_END = '12:00:00';
-  const APRES_MIDI_START = '13:00:00';
-  const APRES_MIDI_END = '17:00:00';
-
+  console.log('\n📦 Grouping besoins into creneaux...');
+  
   // Group besoins by (site_id, date, periode)
   const grouped = new Map<string, {
     site_id: string;
@@ -198,12 +240,12 @@ function groupBesoinsEnCreneaux(besoins: any[]): CreneauBesoin[] {
     const slots: Array<{ periode: 'matin' | 'apres_midi' }> = [];
     
     // Check if overlaps with morning
-    if (heureDebut < MATIN_END && heureFin > MATIN_START) {
+    if (heureDebut < SLOT_DEFS.matin.end && heureFin > SLOT_DEFS.matin.start) {
       slots.push({ periode: 'matin' });
     }
     
     // Check if overlaps with afternoon
-    if (heureDebut < APRES_MIDI_END && heureFin > APRES_MIDI_START) {
+    if (heureDebut < SLOT_DEFS.apres_midi.end && heureFin > SLOT_DEFS.apres_midi.start) {
       slots.push({ periode: 'apres_midi' });
     }
 
@@ -257,11 +299,8 @@ function groupBesoinsEnCreneaux(besoins: any[]): CreneauBesoin[] {
 }
 
 function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
+  console.log('\n📦 Splitting capacites into creneaux...');
   const creneaux: CreneauCapacite[] = [];
-  const MATIN_START = '07:30:00';
-  const MATIN_END = '12:00:00';
-  const APRES_MIDI_START = '13:00:00';
-  const APRES_MIDI_END = '17:00:00';
 
   for (const capacite of capacites) {
     const heureDebut = capacite.heure_debut;
@@ -274,7 +313,8 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
     const nomComplet = `${personne.first_name || ''} ${personne.name || ''}`.trim();
     const preferePortEnTruie = isBackup ? false : (personne.prefere_port_en_truie || false);
 
-    if (heureDebut < MATIN_END && heureFin > MATIN_START) {
+    // Check if covers morning slot
+    if (heureDebut < SLOT_DEFS.matin.end && heureFin > SLOT_DEFS.matin.start) {
       creneaux.push({
         id: `${capacite.id}-matin`,
         date: capacite.date,
@@ -284,10 +324,13 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
         nom_complet: nomComplet,
         specialites: capacite.specialites || [],
         prefere_port_en_truie: preferePortEnTruie,
+        heure_debut: heureDebut,
+        heure_fin: heureFin,
       });
     }
 
-    if (heureDebut < APRES_MIDI_END && heureFin > APRES_MIDI_START) {
+    // Check if covers afternoon slot
+    if (heureDebut < SLOT_DEFS.apres_midi.end && heureFin > SLOT_DEFS.apres_midi.start) {
       creneaux.push({
         id: `${capacite.id}-apres_midi`,
         date: capacite.date,
@@ -297,6 +340,8 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
         nom_complet: nomComplet,
         specialites: capacite.specialites || [],
         prefere_port_en_truie: preferePortEnTruie,
+        heure_debut: heureDebut,
+        heure_fin: heureFin,
       });
     }
   }
@@ -304,272 +349,269 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
   return creneaux;
 }
 
+/**
+ * NEW OPTIMIZATION using MILP-inspired heuristic:
+ * - Global pooling per (date, periode, specialite)
+ * - Only capacities covering ENTIRE slot are valid
+ * - Greedy allocation to site with highest deficit
+ * - Minimizes sum of squared deficits
+ */
 function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]) {
-  const assignments: any[] = [];
-  const usedCapaciteIds = new Set<string>();
+  console.log('🎯 Starting MILP-inspired optimization');
   
-  // Map to track 1R/2F assignments per day per site with fermeture
-  const fermetureAssignments = new Map<string, { 
-    secretaire1R?: { secretaire_id?: string, backup_id?: string },
-    secretaire2F?: { secretaire_id?: string, backup_id?: string }
-  }>();
-
-  // Group besoins by date for equitable distribution per day
-  const besoinsByDate = new Map<string, CreneauBesoin[]>();
-  for (const besoin of besoins) {
-    if (!besoinsByDate.has(besoin.date)) {
-      besoinsByDate.set(besoin.date, []);
+  // Filter capacities: only keep those that cover the ENTIRE slot
+  const validCapacites = capacites.filter(cap => {
+    const slotDef = SLOT_DEFS[cap.periode];
+    const covers = coversWholeSlot(cap.heure_debut, cap.heure_fin, slotDef.start, slotDef.end);
+    if (!covers) {
+      console.log(`⚠️  Capacity ${cap.id} (${cap.nom_complet}) does NOT cover full slot ${cap.periode} [${cap.heure_debut}-${cap.heure_fin}]`);
     }
-    besoinsByDate.get(besoin.date)!.push(besoin);
+    return covers;
+  });
+  
+  console.log(`✅ Valid capacities covering full slots: ${validCapacites.length}/${capacites.length}`);
+  
+  const usedCapacities = new Set<string>();
+  
+  // Group besoins by (date, periode, specialite) - GLOBAL pooling level
+  const besoinGroups = new Map<string, CreneauBesoin[]>();
+  for (const b of besoins) {
+    const key = `${b.date}|${b.periode}|${b.specialite_id}`;
+    if (!besoinGroups.has(key)) besoinGroups.set(key, []);
+    besoinGroups.get(key)!.push(b);
   }
-
-  // Process each day independently for equitable distribution
-  for (const [date, dayBesoins] of besoinsByDate) {
-    // Sort by priority: fermeture sites first, then by required secretaries
-    const sortedDayBesoins = [...dayBesoins].sort((a, b) => {
-      if (a.site_fermeture && !b.site_fermeture) return -1;
-      if (!a.site_fermeture && b.site_fermeture) return 1;
-      return b.nombre_secretaires_requis - a.nombre_secretaires_requis;
+  
+  console.log(`📊 Total besoin groups (date|periode|specialite): ${besoinGroups.size}`);
+  
+  const allAssignments = new Map<string, Assignment>();
+  
+  // Initialize empty assignments for all besoins
+  for (const b of besoins) {
+    allAssignments.set(b.id, {
+      creneau_besoin: b,
+      capacites_assignees: [],
     });
-
-    // Group by site for fermeture handling
-    const besoinsBySite = new Map<string, CreneauBesoin[]>();
-    for (const besoin of sortedDayBesoins) {
-      if (!besoinsBySite.has(besoin.site_id)) {
-        besoinsBySite.set(besoin.site_id, []);
-      }
-      besoinsBySite.get(besoin.site_id)!.push(besoin);
-    }
-
-    // Assign for each site
-    for (const [siteId, siteBesoins] of besoinsBySite) {
-      const matin = siteBesoins.find(b => b.periode === 'matin');
-      const apresMidi = siteBesoins.find(b => b.periode === 'apres_midi');
-      
-      if (siteBesoins[0].site_fermeture && matin && apresMidi) {
-        // For fermeture sites, assign same 1R and 2F for both periods
-        const dayKey = `${siteId}-${date}`;
-        
-        const matinCapacites = capacites.filter(cap =>
-          !usedCapaciteIds.has(cap.id) &&
-          cap.date === date &&
-          cap.periode === 'matin' &&
-          cap.specialites.includes(matin.specialite_id)
+  }
+  
+  // Process each group: distribute capacities to minimize sum of squared deficits
+  for (const [groupKey, groupBesoins] of Array.from(besoinGroups.entries()).sort()) {
+    const [date, periode, specialiteId] = groupKey.split('|');
+    console.log(`\n🔄 Processing group: ${date} ${periode} specialite=${specialiteId.substring(0, 8)}`);
+    
+    // Get available capacities for this (date, periode, specialite)
+    const availableCaps = validCapacites.filter(
+      cap =>
+        cap.date === date &&
+        cap.periode === (periode as 'matin' | 'apres_midi') &&
+        cap.specialites.includes(specialiteId) &&
+        !usedCapacities.has(cap.id)
+    );
+    
+    console.log(`   Available capacities: ${availableCaps.length}`);
+    console.log(`   Besoins in group: ${groupBesoins.length} sites`);
+    groupBesoins.forEach(b => {
+      console.log(`     - ${b.site_nom}: needs ${b.nombre_secretaires_requis} (fermeture: ${b.site_fermeture})`);
+    });
+    
+    // Handle 1R/2F for fermeture sites (priority assignment)
+    const fermetureBesoins = groupBesoins.filter(b => b.site_fermeture);
+    
+    for (const fermetureBesoin of fermetureBesoins) {
+      if (periode === 'matin') {
+        // Find afternoon besoin for same site
+        const afternoonBesoin = besoins.find(
+          b =>
+            b.site_id === fermetureBesoin.site_id &&
+            b.date === fermetureBesoin.date &&
+            b.periode === 'apres_midi' &&
+            b.specialite_id === fermetureBesoin.specialite_id
         );
         
-        const apresMidiCapacites = capacites.filter(cap =>
-          !usedCapaciteIds.has(cap.id) &&
-          cap.date === date &&
-          cap.periode === 'apres_midi' &&
-          cap.specialites.includes(apresMidi.specialite_id)
-        );
-
-        // Find 1R (non-backup) available both matin and apres-midi
-        const capacites1R = matinCapacites.filter(c => !c.backup_id);
-        let selected1R_matin: CreneauCapacite | null = null;
-        let selected1R_apresMidi: CreneauCapacite | null = null;
-        
-        for (const r1 of capacites1R) {
-          const amMatch = apresMidiCapacites.find(c => 
-            c.secretaire_id === r1.secretaire_id && !c.backup_id && !usedCapaciteIds.has(c.id)
+        if (afternoonBesoin) {
+          // Find capacities available for both AM and PM
+          const afternoonCaps = validCapacites.filter(
+            cap =>
+              cap.date === date &&
+              cap.periode === 'apres_midi' &&
+              cap.specialites.includes(specialiteId) &&
+              !usedCapacities.has(cap.id)
           );
-          if (amMatch) {
-            selected1R_matin = r1;
-            selected1R_apresMidi = amMatch;
-            break;
-          }
-        }
-
-        // Find 2F (backup) available both matin and apres-midi
-        const capacites2F = matinCapacites.filter(c => !!c.backup_id);
-        let selected2F_matin: CreneauCapacite | null = null;
-        let selected2F_apresMidi: CreneauCapacite | null = null;
-        
-        for (const f2 of capacites2F) {
-          const amMatch = apresMidiCapacites.find(c => 
-            c.backup_id === f2.backup_id && !!c.backup_id && !usedCapaciteIds.has(c.id)
-          );
-          if (amMatch) {
-            selected2F_matin = f2;
-            selected2F_apresMidi = amMatch;
-            break;
-          }
-        }
-
-        // Store fermeture assignments
-        if (selected1R_matin) {
-          fermetureAssignments.set(dayKey, {
-            ...fermetureAssignments.get(dayKey),
-            secretaire1R: { secretaire_id: selected1R_matin.secretaire_id, backup_id: selected1R_matin.backup_id }
-          });
-        }
-        if (selected2F_matin) {
-          fermetureAssignments.set(dayKey, {
-            ...fermetureAssignments.get(dayKey),
-            secretaire2F: { secretaire_id: selected2F_matin.secretaire_id, backup_id: selected2F_matin.backup_id }
-          });
-        }
-
-        // Assign matin
-        const matinAssigned: CreneauCapacite[] = [];
-        if (selected1R_matin) {
-          matinAssigned.push(selected1R_matin);
-          usedCapaciteIds.add(selected1R_matin.id);
-        }
-        if (selected2F_matin) {
-          matinAssigned.push(selected2F_matin);
-          usedCapaciteIds.add(selected2F_matin.id);
-        }
-
-        // Fill remaining spots for matin with equitable distribution
-        const matinRequis = Math.ceil(matin.nombre_secretaires_requis);
-        const matinRemaining = matinRequis - matinAssigned.length;
-        for (let i = 0; i < matinRemaining; i++) {
-          const nextCap = matinCapacites.find(c => !usedCapaciteIds.has(c.id));
-          if (nextCap) {
-            matinAssigned.push(nextCap);
-            usedCapaciteIds.add(nextCap.id);
-          }
-        }
-
-        // Assign apres-midi
-        const apresMidiAssigned: CreneauCapacite[] = [];
-        if (selected1R_apresMidi) {
-          apresMidiAssigned.push(selected1R_apresMidi);
-          usedCapaciteIds.add(selected1R_apresMidi.id);
-        }
-        if (selected2F_apresMidi) {
-          apresMidiAssigned.push(selected2F_apresMidi);
-          usedCapaciteIds.add(selected2F_apresMidi.id);
-        }
-
-        // Fill remaining spots for apres-midi
-        const apresMidiRequis = Math.ceil(apresMidi.nombre_secretaires_requis);
-        const apresMidiRemaining = apresMidiRequis - apresMidiAssigned.length;
-        for (let i = 0; i < apresMidiRemaining; i++) {
-          const nextCap = apresMidiCapacites.find(c => !usedCapaciteIds.has(c.id));
-          if (nextCap) {
-            apresMidiAssigned.push(nextCap);
-            usedCapaciteIds.add(nextCap.id);
-          }
-        }
-
-        // Create assignments
-        assignments.push(createAssignment(matin, matinAssigned, fermetureAssignments.get(dayKey)));
-        assignments.push(createAssignment(apresMidi, apresMidiAssigned, fermetureAssignments.get(dayKey)));
-        
-      } else {
-        // For non-fermeture sites or single period - equitable distribution
-        for (const besoin of siteBesoins) {
-          const matchingCapacites = capacites.filter(cap =>
-            !usedCapaciteIds.has(cap.id) &&
-            cap.date === besoin.date &&
-            cap.periode === besoin.periode &&
-            cap.specialites.includes(besoin.specialite_id)
-          );
-
-          const nombreRequis = Math.ceil(besoin.nombre_secretaires_requis);
-          const assignedCapacites: CreneauCapacite[] = [];
-
-          // Distribute capacity equitably, never assign 0 if capacity exists
-          const availableCount = matchingCapacites.length;
-          const toAssign = Math.min(nombreRequis, availableCount);
           
-          for (let i = 0; i < toAssign; i++) {
-            if (!usedCapaciteIds.has(matchingCapacites[i].id)) {
-              assignedCapacites.push(matchingCapacites[i]);
-              usedCapaciteIds.add(matchingCapacites[i].id);
+          // Find someone who has both AM and PM available
+          for (const amCap of availableCaps) {
+            const secretaireId = amCap.secretaire_id || amCap.backup_id;
+            const pmCap = afternoonCaps.find(
+              c => (c.secretaire_id || c.backup_id) === secretaireId
+            );
+            
+            if (pmCap && secretaireId) {
+              // Assign this person to both AM (1R) and PM (2F)
+              allAssignments.get(fermetureBesoin.id)!.capacites_assignees.push({
+                id: amCap.id,
+                nom_complet: amCap.nom_complet,
+                is_backup: !!amCap.backup_id,
+                is_1r: true,
+              });
+              
+              allAssignments.get(afternoonBesoin.id)!.capacites_assignees.push({
+                id: pmCap.id,
+                nom_complet: pmCap.nom_complet,
+                is_backup: !!pmCap.backup_id,
+                is_2f: true,
+              });
+              
+              usedCapacities.add(amCap.id);
+              usedCapacities.add(pmCap.id);
+              
+              // Remove from available
+              const amIdx = availableCaps.findIndex(c => c.id === amCap.id);
+              if (amIdx >= 0) availableCaps.splice(amIdx, 1);
+              
+              console.log(`   ✅ 1R/2F: Assigned ${amCap.nom_complet} to ${fermetureBesoin.site_nom} (fermeture)`);
+              break;
             }
           }
-
-          assignments.push(createAssignment(besoin, assignedCapacites, undefined));
         }
       }
     }
-  }
-
-  // Calculate score with multiplier and quadratic penalty
-  let scoreBase = 0;
-  let penalty = 0;
-  
-  for (const a of assignments) {
-    const ratio = a.nombre_assigne / a.nombre_requis;
     
-    if (a.status === 'satisfait') {
-      scoreBase += 100.0; // Multiply by 100
-    } else if (a.status === 'arrondi_inferieur') {
-      scoreBase += 70.0; // Partial satisfaction
+    // Greedy: repeatedly assign one capacity to the besoin with highest remaining deficit
+    while (availableCaps.length > 0) {
+      // Calculate current deficit for each besoin in this group
+      let maxDeficit = -1;
+      let maxDeficitBesoin: CreneauBesoin | null = null;
+      
+      for (const b of groupBesoins) {
+        const assignment = allAssignments.get(b.id)!;
+        const assigned = assignment.capacites_assignees.length;
+        const deficit = Math.ceil(b.nombre_secretaires_requis) - assigned;
+        
+        if (deficit > maxDeficit) {
+          maxDeficit = deficit;
+          maxDeficitBesoin = b;
+        }
+      }
+      
+      if (!maxDeficitBesoin || maxDeficit <= 0) {
+        // All besoins in this group are satisfied
+        break;
+      }
+      
+      // Assign next available capacity to maxDeficitBesoin
+      const cap = availableCaps.shift()!;
+      const assignment = allAssignments.get(maxDeficitBesoin.id)!;
+      
+      assignment.capacites_assignees.push({
+        id: cap.id,
+        nom_complet: cap.nom_complet,
+        is_backup: !!cap.backup_id,
+        is_1r: false,
+        is_2f: false,
+      });
+      
+      usedCapacities.add(cap.id);
+      
+      console.log(`   📌 Assigned ${cap.nom_complet} to ${maxDeficitBesoin.site_nom} (deficit was ${maxDeficit})`);
+    }
+  }
+  
+  // Convert to array
+  const assignments = Array.from(allAssignments.values());
+  
+  // Unused capacities -> administratif
+  const unusedCapacites = validCapacites.filter(cap => !usedCapacities.has(cap.id));
+  console.log(`\n📋 Unused capacities (Administratif): ${unusedCapacites.length}`);
+  
+  // Calculate scoring: minimize squared deficit
+  let totalSquaredDeficit = 0;
+  let totalSatisfiedCount = 0;
+  let totalPartialCount = 0;
+  let totalUnsatisfiedCount = 0;
+  
+  for (const assignment of assignments) {
+    const required = Math.ceil(assignment.creneau_besoin.nombre_secretaires_requis);
+    const assigned = assignment.capacites_assignees.length;
+    const deficit = Math.max(0, required - assigned);
+    
+    totalSquaredDeficit += deficit * deficit;
+    
+    if (assigned >= required) {
+      totalSatisfiedCount++;
+    } else if (assigned > 0) {
+      totalPartialCount++;
     } else {
-      scoreBase += 0.0;
-      // Quadratic penalty for unmet needs (squared deficit)
-      const deficit = a.nombre_requis - a.nombre_assigne;
-      penalty += (deficit * deficit) * 100; // Squared penalty
+      totalUnsatisfiedCount++;
+    }
+  }
+  
+  // Score = -100 * sum(deficit²) to prioritize minimizing squared deficit
+  const score_base = -100 * totalSquaredDeficit;
+  const penalites = {
+    changement_site: 0,
+    multiple_fermetures: 0,
+    centre_esplanade_depassement: 0,
+  };
+  const score_total = score_base;
+  
+  console.log(`\n✅ Optimization complete:`);
+  console.log(`   Total squared deficit: ${totalSquaredDeficit}`);
+  console.log(`   Score: ${score_total} (= -100 × ${totalSquaredDeficit})`);
+  console.log(`   Satisfied: ${totalSatisfiedCount}, Partial: ${totalPartialCount}, Unsatisfied: ${totalUnsatisfiedCount}`);
+  
+  // Log specific example for validation (2025-09-30)
+  const exampleDate = '2025-09-30';
+  const exampleBesoins = assignments.filter(a => a.creneau_besoin.date === exampleDate);
+  if (exampleBesoins.length > 0) {
+    console.log(`\n🔍 Example validation for ${exampleDate}:`);
+    for (const a of exampleBesoins) {
+      const required = Math.ceil(a.creneau_besoin.nombre_secretaires_requis);
+      const assigned = a.capacites_assignees.length;
+      console.log(`   ${a.creneau_besoin.site_nom}: ${assigned}/${required} assigned`);
     }
   }
 
   return {
-    assignments,
-    score_base: scoreBase,
-    penalites: { changement_site: 0, multiple_fermetures: 0, centre_esplanade_depassement: 0 },
-    score_total: scoreBase - penalty,
+    assignments: convertToAssignmentResults(assignments),
+    unusedCapacites,
+    score_base,
+    penalites,
+    score_total,
   };
 }
 
-function createAssignment(
-  besoin: CreneauBesoin, 
-  assignedCapacites: CreneauCapacite[],
-  fermetureInfo?: { 
-    secretaire1R?: { secretaire_id?: string, backup_id?: string },
-    secretaire2F?: { secretaire_id?: string, backup_id?: string }
-  }
-) {
-  const nombreRequis = Math.ceil(besoin.nombre_secretaires_requis);
-  const nombreAssigne = assignedCapacites.length;
-  
-  let status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait';
-  if (nombreAssigne >= nombreRequis) {
-    status = 'satisfait';
-  } else if (nombreAssigne >= Math.floor(besoin.nombre_secretaires_requis)) {
-    status = 'arrondi_inferieur';
-  } else {
-    status = 'non_satisfait';
-  }
-
-  return {
-    creneau_besoin_id: besoin.id,
-    date: besoin.date,
-    periode: besoin.periode,
-    site_id: besoin.site_id,
-    site_nom: besoin.site_nom,
-    site_fermeture: besoin.site_fermeture,
-    medecins: besoin.medecin_noms.length > 0 ? besoin.medecin_noms : ['Bloc opératoire'],
-    secretaires: assignedCapacites.map(c => {
-      const personId = c.secretaire_id || c.backup_id;
-      let is1R = false;
-      let is2F = false;
-      
-      if (besoin.site_fermeture && fermetureInfo) {
-        const is1RMatch = fermetureInfo.secretaire1R && 
-          ((c.secretaire_id && c.secretaire_id === fermetureInfo.secretaire1R.secretaire_id) ||
-           (c.backup_id && c.backup_id === fermetureInfo.secretaire1R.backup_id));
-        const is2FMatch = fermetureInfo.secretaire2F && 
-          ((c.secretaire_id && c.secretaire_id === fermetureInfo.secretaire2F.secretaire_id) ||
-           (c.backup_id && c.backup_id === fermetureInfo.secretaire2F.backup_id));
-        
-        is1R = besoin.periode === 'matin' && !!is1RMatch;
-        is2F = besoin.periode === 'apres_midi' && !!is2FMatch;
-      }
-      
-      return {
-        id: personId || '',
-        nom: c.nom_complet,
-        is_backup: !!c.backup_id,
-        is_1r: is1R,
-        is_2f: is2F,
-      };
-    }),
-    nombre_requis: nombreRequis,
-    nombre_assigne: nombreAssigne,
-    status,
-  };
+function convertToAssignmentResults(assignments: Assignment[]) {
+  return assignments.map(assignment => {
+    const required = Math.ceil(assignment.creneau_besoin.nombre_secretaires_requis);
+    const assigned = assignment.capacites_assignees.length;
+    
+    let status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait';
+    if (assigned >= required) {
+      status = 'satisfait';
+    } else if (assigned > 0) {
+      status = 'arrondi_inferieur';
+    } else {
+      status = 'non_satisfait';
+    }
+    
+    return {
+      creneau_besoin_id: assignment.creneau_besoin.id,
+      date: assignment.creneau_besoin.date,
+      periode: assignment.creneau_besoin.periode,
+      site_id: assignment.creneau_besoin.site_id,
+      site_nom: assignment.creneau_besoin.site_nom,
+      site_fermeture: assignment.creneau_besoin.site_fermeture,
+      medecins: assignment.creneau_besoin.medecin_noms,
+      secretaires: assignment.capacites_assignees.map(cap => ({
+        id: cap.id,
+        nom: cap.nom_complet,
+        is_backup: cap.is_backup,
+        is_1r: cap.is_1r,
+        is_2f: cap.is_2f,
+      })),
+      nombre_requis: required,
+      nombre_assigne: assigned,
+      status,
+      type_assignation: 'site',
+    };
+  });
 }
