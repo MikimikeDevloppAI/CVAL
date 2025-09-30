@@ -21,6 +21,8 @@ interface Absence {
   date_fin: string;
   motif?: string;
   statut: string;
+  heure_debut?: string;
+  heure_fin?: string;
   created_at?: string;
   medecins?: {
     first_name: string;
@@ -54,6 +56,8 @@ export default function AbsencesPage() {
           date_fin,
           motif,
           statut,
+          heure_debut,
+          heure_fin,
           created_at,
           medecins:medecin_id (
             first_name,
@@ -266,6 +270,11 @@ export default function AbsencesPage() {
                         {format(new Date(absence.date_debut), 'dd MMM yyyy', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
                       </span>
                     </div>
+                    {absence.heure_debut && absence.heure_fin && (
+                      <Badge variant="outline" className="mt-2">
+                        {absence.heure_debut.slice(0, 5)} - {absence.heure_fin.slice(0, 5)}
+                      </Badge>
+                    )}
                   </div>
 
                   {absence.motif && (
