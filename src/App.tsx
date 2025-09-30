@@ -14,6 +14,7 @@ import MedecinsPage from "./pages/MedecinsPage";
 import SecretairesPage from "./pages/SecretairesPage";
 import SitesPage from "./pages/SitesPage";
 import BackupPage from "./pages/BackupPage";
+import BlocOperatoirePage from "./pages/BlocOperatoirePage";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
                     <Route path="/medecins" element={<MedecinsPage />} />
                     <Route path="/secretaires" element={<SecretairesPage />} />
                     <Route path="/backup" element={<BackupPage />} />
+                    <Route path="/bloc-operatoire" element={<BlocOperatoirePage />} />
                     <Route path="/sites" element={<SitesPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

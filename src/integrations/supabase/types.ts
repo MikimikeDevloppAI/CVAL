@@ -180,6 +180,50 @@ export type Database = {
           },
         ]
       }
+      bloc_operatoire_besoins: {
+        Row: {
+          actif: boolean
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          nombre_secretaires_requis: number
+          specialite_id: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          nombre_secretaires_requis?: number
+          specialite_id: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          nombre_secretaires_requis?: number
+          specialite_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bloc_operatoire_besoins_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       horaires_base_medecins: {
         Row: {
           actif: boolean
