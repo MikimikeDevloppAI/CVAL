@@ -76,11 +76,9 @@ export default function PlanningPage() {
 
   useEffect(() => {
     fetchData();
-  }, [currentWeekStart]);
 
-  // Real-time updates for besoin_effectif
-  useEffect(() => {
-    const channel = supabase
+    // Real-time updates for besoin_effectif
+    const besoinChannel = supabase
       .channel('besoin-effectif-changes')
       .on(
         'postgres_changes',
@@ -95,14 +93,8 @@ export default function PlanningPage() {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentWeekStart]);
-
-  // Real-time updates for capacite_effective
-  useEffect(() => {
-    const channel = supabase
+    // Real-time updates for capacite_effective
+    const capaciteChannel = supabase
       .channel('capacite-effective-changes')
       .on(
         'postgres_changes',
@@ -117,14 +109,8 @@ export default function PlanningPage() {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentWeekStart]);
-
-  // Real-time updates for bloc_operatoire_besoins
-  useEffect(() => {
-    const channel = supabase
+    // Real-time updates for bloc_operatoire_besoins
+    const blocChannel = supabase
       .channel('bloc-operatoire-besoins-changes')
       .on(
         'postgres_changes',
@@ -140,7 +126,9 @@ export default function PlanningPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(besoinChannel);
+      supabase.removeChannel(capaciteChannel);
+      supabase.removeChannel(blocChannel);
     };
   }, [currentWeekStart]);
 
