@@ -838,6 +838,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_besoin_from_bloc: {
+        Args: { p_bloc_id: string }
+        Returns: undefined
+      }
       generate_besoin_effectif: {
         Args: Record<PropertyKey, never>
         Returns: undefined
