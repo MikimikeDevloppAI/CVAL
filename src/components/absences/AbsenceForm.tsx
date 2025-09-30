@@ -53,11 +53,19 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
   const form = useForm<AbsenceFormData>({
     resolver: zodResolver(absenceSchema),
     defaultValues: {
-      profile_type: 'medecin',
+      profile_type: absence?.type_personne || 'medecin',
       person_id: absence?.medecin_id || absence?.secretaire_id || '',
       type: absence?.type || 'conges',
-      dates: absence?.dates ? absence.dates.map((d: string) => new Date(d)) : [],
-      toute_journee: absence?.toute_journee ?? true,
+      dates: absence?.date_debut ? (() => {
+        const dates = [];
+        const start = new Date(absence.date_debut);
+        const end = new Date(absence.date_fin);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          dates.push(new Date(d));
+        }
+        return dates;
+      })() : [],
+      toute_journee: absence ? (!absence.heure_debut && !absence.heure_fin) : true,
       heure_debut: absence?.heure_debut || '',
       heure_fin: absence?.heure_fin || '',
       motif: absence?.motif || '',
