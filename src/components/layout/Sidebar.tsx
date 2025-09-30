@@ -25,10 +25,10 @@ const navigation = [
   { name: 'Paramètres', href: '#', icon: Settings },
 ];
 
-
-const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
+export const Sidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
     return user?.email?.[0]?.toUpperCase() || 'U';
   };
 
-  return (
+  const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => (
     <>
       {/* Logo */}
       <div className="flex h-16 shrink-0 items-center px-6 border-b border-sidebar-border border-opacity-30">
@@ -125,10 +125,6 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
       </nav>
     </>
   );
-};
-
-export const Sidebar = () => {
-  const [open, setOpen] = useState(false);
 
   return (
     <>
