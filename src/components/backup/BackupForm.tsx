@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 const backupSchema = z.object({
   first_name: z.string().min(1, 'Le prénom est requis'),
@@ -36,6 +36,7 @@ interface BackupFormProps {
 export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<BackupFormData>({
     resolver: zodResolver(backupSchema),
@@ -61,7 +62,11 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
         setSpecialites(data || []);
       } catch (error) {
         console.error('Erreur lors du chargement des spécialités:', error);
-        toast.error('Erreur lors du chargement des spécialités');
+        toast({
+          title: "Erreur",
+          description: "Erreur lors du chargement des spécialités",
+          variant: "destructive",
+        });
       }
     };
 
@@ -79,7 +84,10 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
           .eq('id', backup.id);
 
         if (error) throw error;
-        toast.success('Backup mis à jour avec succès');
+        toast({
+          title: "Succès",
+          description: "Backup mis à jour avec succès",
+        });
       } else {
         // Création
         const { error } = await supabase
@@ -87,13 +95,20 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
           .insert([data]);
 
         if (error) throw error;
-        toast.success('Backup créé avec succès');
+        toast({
+          title: "Succès",
+          description: "Backup créé avec succès",
+        });
       }
 
       onSubmit();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      toast.error('Erreur lors de la sauvegarde');
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la sauvegarde",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
