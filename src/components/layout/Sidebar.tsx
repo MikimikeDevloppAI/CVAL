@@ -4,13 +4,16 @@ import {
   Building2, 
   UserPlus,
   Settings,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
+import { useState } from 'react';
 
 const navigation = [
   { name: 'Planning', href: '/planning', icon: Calendar },
@@ -21,12 +24,13 @@ const navigation = [
   { name: 'Paramètres', href: '#', icon: Settings },
 ];
 
-export const Sidebar = () => {
+
+const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
   const location = useLocation();
   const { signOut, user } = useAuth();
 
   return (
-    <div className="flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
+    <>
       {/* Logo */}
       <div className="flex h-16 shrink-0 items-center px-6 border-b border-sidebar-border border-opacity-30">
         <div className="flex items-center space-x-3">
@@ -45,8 +49,9 @@ export const Sidebar = () => {
             const isActive = location.pathname === item.href;
             return (
               <li key={item.name}>
-                  <Link
+                <Link
                   to={item.href}
+                  onClick={onLinkClick}
                   className={cn(
                     'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                     isActive
@@ -86,6 +91,38 @@ export const Sidebar = () => {
           </div>
         </div>
       </nav>
-    </div>
+    </>
+  );
+};
+
+export const Sidebar = () => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {/* Mobile Header with Burger Menu */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-sidebar border-b border-sidebar-border flex items-center px-4">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="sm" className="mr-2">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar">
+            <SidebarContent onLinkClick={() => setOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        <img 
+          src={cliniqueLogoImg} 
+          alt="Clinique La Vallée" 
+          className="h-8 w-auto"
+        />
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
+        <SidebarContent />
+      </div>
+    </>
   );
 };
