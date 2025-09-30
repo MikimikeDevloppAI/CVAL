@@ -11,16 +11,24 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Trash2 } from 'lucide-react';
 
 const horaireSchema = z.object({
-  jour: z.number().min(1).max(7),
-  jourTravaille: z.boolean().default(false),
-  heureDebut: z.string().optional(),
-  heureFin: z.string().optional(),
-  siteId: z.string().optional(),
+  jour: z.number().min(1).max(5),
+  heureDebut: z.string().min(1, 'Heure de début requise'),
+  heureFin: z.string().min(1, 'Heure de fin requise'),
+  siteId: z.string().min(1, 'Site requis'),
   actif: z.boolean().default(true),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
   alternanceSemaineReference: z.string().optional(),
+}).refine((data) => {
+  if (data.heureDebut && data.heureFin) {
+    return data.heureDebut < data.heureFin;
+  }
+  return true;
+}, {
+  message: "L'heure de début doit être avant l'heure de fin",
+  path: ["heureDebut"],
 });
 
 const medecinSchema = z.object({
@@ -33,6 +41,31 @@ const medecinSchema = z.object({
   specialiteId: z.string().min(1, 'La spécialité est requise'),
   besoin_secretaires: z.number().min(0, 'Le besoin doit être positif').max(10, 'Le besoin ne peut pas dépasser 10'),
   horaires: z.array(horaireSchema),
+}).refine((data) => {
+  // Vérifier les chevauchements d'horaires pour chaque jour
+  const horairesParJour = data.horaires.reduce((acc, horaire) => {
+    if (!acc[horaire.jour]) acc[horaire.jour] = [];
+    acc[horaire.jour].push(horaire);
+    return acc;
+  }, {} as Record<number, typeof data.horaires>);
+
+  for (const jour in horairesParJour) {
+    const horairesJour = horairesParJour[jour];
+    for (let i = 0; i < horairesJour.length; i++) {
+      for (let j = i + 1; j < horairesJour.length; j++) {
+        const h1 = horairesJour[i];
+        const h2 = horairesJour[j];
+        // Vérifier le chevauchement
+        if (h1.heureDebut < h2.heureFin && h2.heureDebut < h1.heureFin) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}, {
+  message: "Les horaires d'un même jour ne peuvent pas se chevaucher",
+  path: ["horaires"],
 });
 
 type MedecinFormData = z.infer<typeof medecinSchema>;
@@ -67,13 +100,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       phone_number: medecin?.phone_number || '',
       specialiteId: medecin?.specialite_id || '',
       besoin_secretaires: medecin?.besoin_secretaires || 1.2,
-      horaires: medecin?.horaires || [
-        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
-        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
-        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
-        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
-        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
-      ],
+      horaires: [],
     },
   });
 
@@ -98,36 +125,20 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           const { data: horairesData } = await supabase
             .from('horaires_base_medecins')
             .select('*')
-            .eq('medecin_id', medecin.id);
+            .eq('medecin_id', medecin.id)
+            .order('jour_semaine')
+            .order('heure_debut');
           
           if (horairesData && horairesData.length > 0) {
-            const horaires = [];
-            for (let jour = 1; jour <= 5; jour++) {
-              const horaireExistant = horairesData.find(h => h.jour_semaine === jour);
-              if (horaireExistant) {
-                horaires.push({
-                  jour,
-                  jourTravaille: true,
-                  heureDebut: horaireExistant.heure_debut || '07:30',
-                  heureFin: horaireExistant.heure_fin || '17:00',
-                  siteId: horaireExistant.site_id || '',
-                  actif: horaireExistant.actif !== false,
-                  alternanceType: horaireExistant.alternance_type || 'hebdomadaire',
-                  alternanceSemaineReference: horaireExistant.alternance_semaine_reference || undefined
-                });
-              } else {
-                horaires.push({
-                  jour,
-                  jourTravaille: false,
-                  heureDebut: '07:30',
-                  heureFin: '17:00',
-                  siteId: '',
-                  actif: true,
-                  alternanceType: 'hebdomadaire',
-                  alternanceSemaineReference: undefined
-                });
-              }
-            }
+            const horaires = horairesData.map(h => ({
+              jour: h.jour_semaine,
+              heureDebut: h.heure_debut || '07:30',
+              heureFin: h.heure_fin || '17:00',
+              siteId: h.site_id || '',
+              actif: h.actif !== false,
+              alternanceType: h.alternance_type || 'hebdomadaire',
+              alternanceSemaineReference: h.alternance_semaine_reference || undefined
+            }));
             form.setValue('horaires', horaires);
           }
         }
@@ -172,16 +183,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           .delete()
           .eq('medecin_id', medecin.id);
 
-        // Puis insérer les nouveaux horaires actifs
-        const horairesActifs = data.horaires.filter(horaire => 
-          horaire.jourTravaille && 
-          horaire.heureDebut && 
-          horaire.heureFin &&
-          horaire.siteId
-        );
-
-        if (horairesActifs.length > 0) {
-          const horairesData = horairesActifs.map(horaire => ({
+        // Puis insérer les nouveaux horaires
+        if (data.horaires.length > 0) {
+          const horairesData = data.horaires.map(horaire => ({
             medecin_id: medecin.id,
             jour_semaine: horaire.jour,
             heure_debut: horaire.heureDebut,
@@ -223,33 +227,24 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         if (medecinError) throw medecinError;
 
-        // Créer les horaires (seulement les jours travaillés)
-        if (medecinData) {
-          const horairesActifs = data.horaires.filter(horaire => 
-            horaire.jourTravaille && 
-            horaire.heureDebut && 
-            horaire.heureFin &&
-            horaire.siteId
-          );
+        // Créer les horaires
+        if (medecinData && data.horaires.length > 0) {
+          const horairesData = data.horaires.map(horaire => ({
+            medecin_id: medecinData.id,
+            jour_semaine: horaire.jour,
+            heure_debut: horaire.heureDebut,
+            heure_fin: horaire.heureFin,
+            site_id: horaire.siteId,
+            actif: horaire.actif,
+            alternance_type: horaire.alternanceType,
+            alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+          }));
 
-          if (horairesActifs.length > 0) {
-            const horairesData = horairesActifs.map(horaire => ({
-              medecin_id: medecinData.id,
-              jour_semaine: horaire.jour,
-              heure_debut: horaire.heureDebut,
-              heure_fin: horaire.heureFin,
-              site_id: horaire.siteId,
-              actif: horaire.actif,
-              alternance_type: horaire.alternanceType,
-              alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
-            }));
+          const { error: horairesError } = await supabase
+            .from('horaires_base_medecins')
+            .insert(horairesData);
 
-            const { error: horairesError } = await supabase
-              .from('horaires_base_medecins')
-              .insert(horairesData);
-
-            if (horairesError) throw horairesError;
-          }
+          if (horairesError) throw horairesError;
         }
 
         // Generate besoins after creating the medecin and horaires
@@ -389,55 +384,116 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           />
         </div>
 
-         {/* Horaires */}
+        {/* Horaires */}
         <div className="space-y-4">
-          <FormLabel className="text-base">Horaires de travail par jour</FormLabel>
+          <div className="flex justify-between items-center">
+            <FormLabel className="text-base">Horaires de travail</FormLabel>
+          </div>
 
-          {fields.map((field, index) => {
+          {form.formState.errors.horaires?.message && (
+            <div className="text-destructive text-sm">
+              {form.formState.errors.horaires.message}
+            </div>
+          )}
+
+          {[1, 2, 3, 4, 5].map((jour) => {
             const jourNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
-            const jourTravaille = form.watch(`horaires.${index}.jourTravaille`);
-            const alternanceType = form.watch(`horaires.${index}.alternanceType`);
+            const horairesJour = fields.filter((_, idx) => form.watch(`horaires.${idx}.jour`) === jour);
             
             return (
-              <Card key={field.id}>
+              <Card key={jour}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">
-                    {jourNoms[field.jour]}
-                  </CardTitle>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-sm">{jourNoms[jour]}</CardTitle>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        append({
+                          jour,
+                          heureDebut: '08:00',
+                          heureFin: '12:00',
+                          siteId: '',
+                          actif: true,
+                          alternanceType: 'hebdomadaire',
+                          alternanceSemaineReference: undefined,
+                        });
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Ajouter un créneau
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <FormField
-                    control={form.control}
-                    name={`horaires.${index}.jourTravaille`}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
+                <CardContent className="space-y-4">
+                  {fields.map((field, index) => {
+                    if (form.watch(`horaires.${index}.jour`) !== jour) return null;
+                    
+                    const alternanceType = form.watch(`horaires.${index}.alternanceType`);
+                    
+                    return (
+                      <div key={field.id} className="space-y-3 p-4 border rounded-lg relative">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2 text-destructive hover:text-destructive"
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name={`horaires.${index}.heureDebut`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Heure de début</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="time" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>
-                            Jour travaillé
-                          </FormLabel>
+
+                          <FormField
+                            control={form.control}
+                            name={`horaires.${index}.heureFin`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Heure de fin</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="time" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
-                      </FormItem>
-                    )}
-                  />
 
-                  {jourTravaille ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
                         <FormField
                           control={form.control}
-                          name={`horaires.${index}.heureDebut`}
+                          name={`horaires.${index}.siteId`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Heure de début</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="time" />
-                              </FormControl>
+                              <FormLabel>Site associé</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionner un site" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {sites.map((site) => (
+                                    <SelectItem key={site.id} value={site.id}>
+                                      {site.nom}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -445,87 +501,50 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
                         <FormField
                           control={form.control}
-                          name={`horaires.${index}.heureFin`}
+                          name={`horaires.${index}.alternanceType`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Heure de fin</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="time" />
-                              </FormControl>
+                              <FormLabel>Type d'alternance</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value} defaultValue="hebdomadaire">
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Toutes les semaines" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="hebdomadaire">Toutes les semaines</SelectItem>
+                                  <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
+                                  <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
+                                  <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
+                                </SelectContent>
+                              </Select>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
+
+                        {alternanceType && alternanceType !== 'hebdomadaire' && (
+                          <FormField
+                            control={form.control}
+                            name={`horaires.${index}.alternanceSemaineReference`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Semaine de référence</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="date" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
-
-                      <FormField
-                        control={form.control}
-                        name={`horaires.${index}.siteId`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Site associé</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Sélectionner un site" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {sites.map((site) => (
-                                  <SelectItem key={site.id} value={site.id}>
-                                    {site.nom}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name={`horaires.${index}.alternanceType`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Type d'alternance</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} defaultValue="hebdomadaire">
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Toutes les semaines" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="hebdomadaire">Toutes les semaines</SelectItem>
-                                <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
-                                <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
-                                <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {alternanceType && alternanceType !== 'hebdomadaire' && (
-                        <FormField
-                          control={form.control}
-                          name={`horaires.${index}.alternanceSemaineReference`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Semaine de référence (première semaine de travail)</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="date" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-muted-foreground text-sm py-4">
-                      Jour non travaillé
+                    );
+                  })}
+                  
+                  {horairesJour.length === 0 && (
+                    <div className="text-muted-foreground text-sm py-4 text-center">
+                      Aucun créneau pour ce jour
                     </div>
                   )}
                 </CardContent>
