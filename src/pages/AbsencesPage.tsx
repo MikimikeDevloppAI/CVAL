@@ -13,17 +13,22 @@ import { fr } from 'date-fns/locale';
 
 interface Absence {
   id: string;
-  profile_id: string;
+  type_personne: 'medecin' | 'secretaire';
+  medecin_id?: string;
+  secretaire_id?: string;
   type: string;
   date_debut: string;
   date_fin: string;
   motif?: string;
   statut: string;
   created_at?: string;
-  profiles?: {
-    prenom: string;
-    nom: string;
-    role: string;
+  medecins?: {
+    first_name: string;
+    name: string;
+  };
+  secretaires?: {
+    first_name: string;
+    name: string;
   };
 }
 
@@ -41,17 +46,22 @@ export default function AbsencesPage() {
         .from('absences')
         .select(`
           id,
-          profile_id,
+          type_personne,
+          medecin_id,
+          secretaire_id,
           type,
           date_debut,
           date_fin,
           motif,
           statut,
           created_at,
-          profiles:profile_id (
-            prenom,
-            nom,
-            role
+          medecins:medecin_id (
+            first_name,
+            name
+          ),
+          secretaires:secretaire_id (
+            first_name,
+            name
           )
         `)
         .order('date_debut', { ascending: false });
@@ -76,12 +86,13 @@ export default function AbsencesPage() {
   }, []);
 
   const filteredAbsences = absences.filter(absence => {
-    if (!absence.profiles) return false;
+    const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
+    if (!person) return false;
     
     const searchLower = searchTerm.toLowerCase();
     return (
-      absence.profiles.prenom?.toLowerCase().includes(searchLower) ||
-      absence.profiles.nom?.toLowerCase().includes(searchLower) ||
+      person.first_name?.toLowerCase().includes(searchLower) ||
+      person.name?.toLowerCase().includes(searchLower) ||
       absence.type.toLowerCase().includes(searchLower) ||
       absence.motif?.toLowerCase().includes(searchLower)
     );
@@ -174,11 +185,14 @@ export default function AbsencesPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <ModernCardTitle>
-                      {absence.profiles?.prenom} {absence.profiles?.nom}
+                      {absence.type_personne === 'medecin' 
+                        ? `${absence.medecins?.first_name} ${absence.medecins?.name}`
+                        : `${absence.secretaires?.first_name} ${absence.secretaires?.name}`
+                      }
                     </ModernCardTitle>
                     <div className="flex gap-2 flex-wrap mt-2">
                       <Badge variant="secondary" className="text-xs">
-                        {absence.profiles?.role === 'medecin' ? 'Médecin' : 'Secrétaire'}
+                        {absence.type_personne === 'medecin' ? 'Médecin' : 'Secrétaire'}
                       </Badge>
                       <Badge variant={getStatutVariant(absence.statut)} className="text-xs">
                         {getStatutLabel(absence.statut)}

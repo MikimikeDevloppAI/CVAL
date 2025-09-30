@@ -20,10 +20,12 @@ export type Database = {
           date_debut: string
           date_fin: string
           id: string
+          medecin_id: string | null
           motif: string | null
-          profile_id: string
+          secretaire_id: string | null
           statut: Database["public"]["Enums"]["statut_absence"]
           type: Database["public"]["Enums"]["type_absence"]
+          type_personne: Database["public"]["Enums"]["type_personne"]
           updated_at: string
         }
         Insert: {
@@ -31,10 +33,12 @@ export type Database = {
           date_debut: string
           date_fin: string
           id?: string
+          medecin_id?: string | null
           motif?: string | null
-          profile_id: string
+          secretaire_id?: string | null
           statut?: Database["public"]["Enums"]["statut_absence"]
           type: Database["public"]["Enums"]["type_absence"]
+          type_personne: Database["public"]["Enums"]["type_personne"]
           updated_at?: string
         }
         Update: {
@@ -42,18 +46,27 @@ export type Database = {
           date_debut?: string
           date_fin?: string
           id?: string
+          medecin_id?: string | null
           motif?: string | null
-          profile_id?: string
+          secretaire_id?: string | null
           statut?: Database["public"]["Enums"]["statut_absence"]
           type?: Database["public"]["Enums"]["type_absence"]
+          type_personne?: Database["public"]["Enums"]["type_personne"]
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "absences_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: "absences_medecin_id_fkey"
+            columns: ["medecin_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absences_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
             referencedColumns: ["id"]
           },
         ]

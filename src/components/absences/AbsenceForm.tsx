@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const absenceSchema = z.object({
   profile_type: z.enum(['medecin', 'secretaire']),
-  profile_id: z.string().min(1, 'La sélection d\'une personne est requise'),
+  person_id: z.string().min(1, 'La sélection d\'une personne est requise'),
   type: z.enum(['conges', 'maladie', 'formation', 'autre']),
   dates: z.array(z.date()).min(1, 'Sélectionnez au moins une date'),
   toute_journee: z.boolean().default(true),
@@ -53,7 +53,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
     resolver: zodResolver(absenceSchema),
     defaultValues: {
       profile_type: 'medecin',
-      profile_id: absence?.profile_id || '',
+      person_id: absence?.medecin_id || absence?.secretaire_id || '',
       type: absence?.type || 'conges',
       dates: absence?.dates ? absence.dates.map((d: string) => new Date(d)) : [],
       toute_journee: absence?.toute_journee ?? true,
@@ -69,22 +69,20 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      // Fetch medecins with profile_id only
+      // Fetch all active medecins
       const { data: medecinData } = await supabase
         .from('medecins')
-        .select('id, first_name, name, profile_id')
+        .select('id, first_name, name')
         .eq('actif', true)
-        .not('profile_id', 'is', null)
         .order('name');
       
       setMedecins(medecinData || []);
 
-      // Fetch secretaires with profile_id only
+      // Fetch all active secretaires
       const { data: secretaireData } = await supabase
         .from('secretaires')
-        .select('id, first_name, name, profile_id')
+        .select('id, first_name, name')
         .eq('actif', true)
-        .not('profile_id', 'is', null)
         .order('name');
       
       setSecretaires(secretaireData || []);
@@ -100,7 +98,9 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
       const sortedDates = [...data.dates].sort((a, b) => a.getTime() - b.getTime());
       
       const absenceData = {
-        profile_id: data.profile_id,
+        type_personne: data.profile_type,
+        medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
+        secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
         type: data.type,
         date_debut: format(sortedDates[0], 'yyyy-MM-dd'),
         date_fin: format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd'),
@@ -199,7 +199,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         {/* Personne */}
         <FormField
           control={form.control}
-          name="profile_id"
+          name="person_id"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Personne</FormLabel>
@@ -209,9 +209,9 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                     <SelectValue placeholder="Sélectionner une personne" />
                   </SelectTrigger>
                 </FormControl>
-                 <SelectContent>
+                <SelectContent>
                   {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.profile_id}>
+                    <SelectItem key={profile.id} value={profile.id}>
                       {profile.first_name} {profile.name}
                     </SelectItem>
                   ))}
