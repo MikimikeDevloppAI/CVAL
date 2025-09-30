@@ -36,6 +36,8 @@ export interface AssignmentResult {
   medecins: string[];
   secretaires: {
     id: string;
+    secretaire_id?: string;
+    backup_id?: string;
     nom: string;
     is_backup: boolean;
     is_1r?: boolean;

@@ -157,13 +157,16 @@ serve(async (req) => {
         heure_fin: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].end,
         site_id: assignment.site_id,
         medecin_id: null,
-        secretaire_id: sec.secretaire_id || sec.backup_id,
+        secretaire_id: sec.is_backup ? null : sec.secretaire_id,
+        backup_id: sec.is_backup ? sec.backup_id : null,
         type: 'medecin' as const,
         statut: 'planifie' as const,
         version_planning: 1,
         type_assignation: 'site',
       }))
     );
+
+    console.log(`📊 Planning to insert: ${planningRows.length} site assignments`);
 
     if (planningRows.length > 0) {
       const { error: insertError } = await supabaseServiceRole
@@ -172,6 +175,7 @@ serve(async (req) => {
 
       if (insertError) {
         console.error('❌ Error saving planning:', insertError);
+        console.error('Sample failing row:', planningRows[0]);
         throw insertError;
       }
 
@@ -182,7 +186,8 @@ serve(async (req) => {
     const adminRows = result.unusedCapacites.map((cap: CreneauCapacite) => ({
       date: cap.date,
       type: 'medecin' as const,
-      secretaire_id: cap.secretaire_id || cap.backup_id,
+      secretaire_id: cap.backup_id ? null : cap.secretaire_id,
+      backup_id: cap.backup_id ? cap.backup_id : null,
       site_id: null,
       heure_debut: SLOT_DEFS[cap.periode].start,
       heure_fin: SLOT_DEFS[cap.periode].end,
@@ -191,6 +196,8 @@ serve(async (req) => {
       version_planning: 1,
     }));
 
+    console.log(`📊 Planning to insert: ${adminRows.length} administratif assignments`);
+
     if (adminRows.length > 0) {
       const { error: adminError } = await supabaseServiceRole
         .from('planning_genere')
@@ -198,6 +205,7 @@ serve(async (req) => {
 
       if (adminError) {
         console.error('❌ Error saving administratif assignments:', adminError);
+        console.error('Sample failing row:', adminRows[0]);
       } else {
         console.log(`✅ Saved ${adminRows.length} administratif assignment entries`);
       }

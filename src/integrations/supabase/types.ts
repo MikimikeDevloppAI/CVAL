@@ -569,6 +569,7 @@ export type Database = {
       }
       planning_genere: {
         Row: {
+          backup_id: string | null
           created_at: string
           date: string
           heure_debut: string
@@ -584,6 +585,7 @@ export type Database = {
           version_planning: number
         }
         Insert: {
+          backup_id?: string | null
           created_at?: string
           date: string
           heure_debut: string
@@ -599,6 +601,7 @@ export type Database = {
           version_planning?: number
         }
         Update: {
+          backup_id?: string | null
           created_at?: string
           date?: string
           heure_debut?: string
@@ -614,6 +617,13 @@ export type Database = {
           version_planning?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "planning_genere_backup_id_fkey"
+            columns: ["backup_id"]
+            isOneToOne: false
+            referencedRelation: "backup"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planning_genere_medecin_id_fkey"
             columns: ["medecin_id"]
