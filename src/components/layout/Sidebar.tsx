@@ -13,7 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 const navigation = [
   { name: 'Planning', href: '/planning', icon: Calendar },
@@ -28,6 +29,32 @@ const navigation = [
 const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('prenom, nom')
+          .eq('id', user.id)
+          .single();
+        
+        if (data) {
+          setProfile(data);
+        }
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  const getInitials = () => {
+    if (profile?.prenom && profile?.nom) {
+      return `${profile.prenom[0]}${profile.nom[0]}`.toUpperCase();
+    }
+    return user?.email?.[0]?.toUpperCase() || 'U';
+  };
 
   return (
     <>
@@ -75,10 +102,17 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
-              <span className="text-sm font-medium text-sidebar-primary-foreground">
-                {user?.email?.[0]?.toUpperCase() || 'U'}
-              </span>
+            <div className="flex items-center space-x-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
+                <span className="text-sm font-medium text-sidebar-primary-foreground">
+                  {getInitials()}
+                </span>
+              </div>
+              {profile?.prenom && (
+                <span className="text-sm font-medium text-foreground">
+                  {profile.prenom}
+                </span>
+              )}
             </div>
             <Button
               variant="ghost"
