@@ -67,6 +67,7 @@ export default function PlanningPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [selectedSiteName, setSelectedSiteName] = useState('');
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinEffectif | null>(null);
   const [selectedBesoins, setSelectedBesoins] = useState<BesoinEffectif[]>([]);
   const [besoinsToDelete, setBesoinsToDelete] = useState<BesoinEffectif[]>([]);
@@ -252,9 +253,10 @@ export default function PlanningPage() {
     setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
   };
 
-  const handleAddClick = (date: string, siteId: string) => {
+  const handleAddClick = (date: string, siteId: string, siteName: string) => {
     setSelectedDate(date);
     setSelectedSiteId(siteId);
+    setSelectedSiteName(siteName);
     setAddDialogOpen(true);
   };
 
@@ -414,11 +416,11 @@ export default function PlanningPage() {
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() => handleAddClick('', siteId)}
+                            onClick={() => handleAddClick('', siteId, site_nom)}
                             className="flex items-center gap-2"
                           >
                             <Plus className="h-4 w-4" />
-                            Ajouter un médecin
+                            {site_nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
                           </Button>
                           <Separator orientation="vertical" className="h-10" />
                           <div className="text-right">
@@ -610,6 +612,7 @@ export default function PlanningPage() {
         onOpenChange={setAddDialogOpen}
         date={selectedDate}
         siteId={selectedSiteId}
+        siteName={selectedSiteName}
         onSuccess={fetchData}
       />
 
