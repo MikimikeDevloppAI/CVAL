@@ -183,7 +183,7 @@ export default function SitesPage() {
                       </ModernCardTitle>
                       {site.fermeture === true && (
                         <Badge variant="secondary" className="text-xs">
-                          Fermé
+                          Nécessite fermeture de site
                         </Badge>
                       )}
                     </div>
@@ -257,14 +257,16 @@ export default function SitesPage() {
               <ModernCardContent>
                 <div className="space-y-4">
                   {/* Statut */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Statut
-                    </p>
-                    <Badge variant={site.fermeture === true ? "secondary" : "default"} className="text-xs">
-                      {site.fermeture === true ? 'Fermé' : 'Ouvert'}
-                    </Badge>
-                  </div>
+                  {site.fermeture === true && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Statut
+                      </p>
+                      <Badge variant="secondary" className="text-xs">
+                        Nécessite fermeture de site
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </ModernCardContent>
             </ModernCard>

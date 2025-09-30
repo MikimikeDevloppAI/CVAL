@@ -138,7 +138,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
               </FormControl>
               <div className="space-y-1 leading-none">
                 <FormLabel>
-                  Site fermé
+                  Nécessite fermeture de site
                 </FormLabel>
               </div>
             </FormItem>
