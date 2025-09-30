@@ -8,7 +8,6 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from
 import { AbsenceForm } from '@/components/absences/AbsenceForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Layout } from '@/components/layout/Layout';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -124,17 +123,14 @@ export default function AbsencesPage() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Chargement...</div>
-        </div>
-      </Layout>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Chargement...</div>
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Absences</h1>
           
@@ -246,7 +242,6 @@ export default function AbsencesPage() {
             </p>
           </div>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

@@ -21,8 +21,6 @@ interface Site {
   updated_at?: string;
 }
 
-import { Layout } from '@/components/layout/Layout';
-
 export default function SitesPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,8 +120,7 @@ export default function SitesPage() {
   }
 
   return (
-    <Layout>
-      <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Sites</h1>
           
@@ -281,7 +278,6 @@ export default function SitesPage() {
             </p>
           </div>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

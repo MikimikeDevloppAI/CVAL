@@ -26,8 +26,6 @@ interface Medecin {
   horaires_base_medecins?: any[];
 }
 
-import { Layout } from '@/components/layout/Layout';
-
 export default function MedecinsPage() {
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,8 +185,7 @@ export default function MedecinsPage() {
   }
 
   return (
-    <Layout>
-      <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
           
@@ -371,7 +368,6 @@ export default function MedecinsPage() {
             </p>
           </div>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

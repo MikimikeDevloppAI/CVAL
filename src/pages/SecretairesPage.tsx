@@ -32,8 +32,6 @@ interface Secretaire {
   } | null;
 }
 
-import { Layout } from '@/components/layout/Layout';
-
 export default function SecretairesPage() {
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,8 +208,7 @@ export default function SecretairesPage() {
   }
 
   return (
-    <Layout>
-      <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
           
@@ -418,7 +415,6 @@ export default function SecretairesPage() {
             </p>
           </div>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

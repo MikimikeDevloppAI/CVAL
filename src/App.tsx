@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Layout } from "@/components/layout/Layout";
 import PlanningPage from "./pages/PlanningPage";
 import AbsencesPage from "./pages/AbsencesPage";
 import AuthPage from "./pages/AuthPage";
@@ -24,33 +25,20 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/planning" element={
+            <Route path="*" element={
               <ProtectedRoute>
-                <PlanningPage />
+                <Layout>
+                  <Routes>
+                    <Route path="/planning" element={<PlanningPage />} />
+                    <Route path="/" element={<AbsencesPage />} />
+                    <Route path="/medecins" element={<MedecinsPage />} />
+                    <Route path="/secretaires" element={<SecretairesPage />} />
+                    <Route path="/sites" element={<SitesPage />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Layout>
               </ProtectedRoute>
             } />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <AbsencesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/medecins" element={
-              <ProtectedRoute>
-                <MedecinsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/secretaires" element={
-              <ProtectedRoute>
-                <SecretairesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/sites" element={
-              <ProtectedRoute>
-                <SitesPage />
-              </ProtectedRoute>
-            } />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
