@@ -30,7 +30,9 @@ interface BesoinEffectif {
   heure_fin: string;
   nombre_secretaires_requis: number;
   site_id: string;
+  specialite_id?: string;
   bloc_operatoire_besoin_id?: string;
+  medecin_id?: string;
   medecin?: { first_name: string; name: string };
   site?: { nom: string };
   specialite?: { nom: string };
@@ -66,6 +68,7 @@ export default function PlanningPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinEffectif | null>(null);
+  const [selectedBesoins, setSelectedBesoins] = useState<BesoinEffectif[]>([]);
   const [besoinsToDelete, setBesoinsToDelete] = useState<BesoinEffectif[]>([]);
   const { toast } = useToast();
 
@@ -354,6 +357,15 @@ export default function PlanningPage() {
                           {site_nom}
                         </CardTitle>
                         <div className="flex items-center gap-4">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleAddClick('', siteId)}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Ajouter un médecin
+                          </Button>
                           <Separator orientation="vertical" className="h-10" />
                           <div className="text-right">
                             <div className="text-sm text-muted-foreground">Médecins</div>
@@ -445,7 +457,7 @@ export default function PlanningPage() {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => {
-                                          setSelectedBesoin(premierBesoin);
+                                          setSelectedBesoins(besoinsGroupe);
                                           setEditDialogOpen(true);
                                         }}
                                         title="Modifier"
@@ -550,7 +562,7 @@ export default function PlanningPage() {
       <EditBesoinDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
-        besoin={selectedBesoin}
+        besoins={selectedBesoins}
         onSuccess={fetchData}
       />
 
