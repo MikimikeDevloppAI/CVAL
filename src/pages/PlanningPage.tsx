@@ -66,6 +66,7 @@ export default function PlanningPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinEffectif | null>(null);
+  const [besoinsToDelete, setBesoinsToDelete] = useState<BesoinEffectif[]>([]);
   const { toast } = useToast();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -210,35 +211,54 @@ export default function PlanningPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleDeleteGroupClick = (besoins: BesoinEffectif[]) => {
+    setBesoinsToDelete(besoins);
+    setDeleteDialogOpen(true);
+  };
+
   const handleDelete = async () => {
-    if (!selectedBesoin) return;
+    if (!selectedBesoin && besoinsToDelete.length === 0) return;
 
     try {
-      if (selectedBesoin.type === 'bloc_operatoire' && selectedBesoin.bloc_operatoire_besoin_id) {
-        // Supprimer depuis bloc_operatoire_besoins (le trigger supprimera de besoin_effectif)
-        const { error } = await supabase
-          .from('bloc_operatoire_besoins')
-          .delete()
-          .eq('id', selectedBesoin.bloc_operatoire_besoin_id);
+      if (besoinsToDelete.length > 0) {
+        // Suppression groupée
+        await Promise.all(
+          besoinsToDelete.map(besoin => 
+            supabase
+              .from('besoin_effectif')
+              .delete()
+              .eq('id', besoin.id)
+          )
+        );
+      } else if (selectedBesoin) {
+        // Suppression simple
+        if (selectedBesoin.type === 'bloc_operatoire' && selectedBesoin.bloc_operatoire_besoin_id) {
+          const { error } = await supabase
+            .from('bloc_operatoire_besoins')
+            .delete()
+            .eq('id', selectedBesoin.bloc_operatoire_besoin_id);
 
-        if (error) throw error;
-      } else {
-        // Supprimer directement de besoin_effectif
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('id', selectedBesoin.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('besoin_effectif')
+            .delete()
+            .eq('id', selectedBesoin.id);
 
-        if (error) throw error;
+          if (error) throw error;
+        }
       }
 
       toast({
         title: "Succès",
-        description: "Besoin supprimé avec succès",
+        description: besoinsToDelete.length > 0 
+          ? `${besoinsToDelete.length} besoin(s) supprimé(s) avec succès`
+          : "Besoin supprimé avec succès",
       });
 
       fetchData();
       setDeleteDialogOpen(false);
+      setBesoinsToDelete([]);
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -371,10 +391,15 @@ export default function PlanningPage() {
                                 new Date(a.date).getTime() - new Date(b.date).getTime()
                               );
                               
-                              // Construire la liste des jours
-                              const jours = besoinsTries.map(b => 
-                                format(new Date(b.date), 'EEE d/M', { locale: fr })
-                              ).join(', ');
+                              // Construire la liste des jours avec les noms complets
+                              const joursParNom = besoinsTries.map(b => {
+                                const date = new Date(b.date);
+                                const jourSemaine = format(date, 'EEEE', { locale: fr });
+                                return {
+                                  nom: jourSemaine.charAt(0).toUpperCase() + jourSemaine.slice(1),
+                                  date: format(date, 'yyyy-MM-dd')
+                                };
+                              });
                               
                               // Récupérer les horaires (prendre le premier si c'est identique partout)
                               const horaires = `${premierBesoin.heure_debut.slice(0, 5)} - ${premierBesoin.heure_fin.slice(0, 5)}`;
@@ -399,8 +424,14 @@ export default function PlanningPage() {
                                   <td className="p-2 text-sm text-muted-foreground">
                                     {premierBesoin.specialite?.nom || '-'}
                                   </td>
-                                  <td className="p-2 text-sm font-medium">
-                                    {jours}
+                                  <td className="p-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {joursParNom.map((jour, idx) => (
+                                        <Badge key={idx} variant="outline" className="text-xs">
+                                          {jour.nom}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </td>
                                   <td className="p-2 text-sm">
                                     {horaires}
@@ -410,27 +441,26 @@ export default function PlanningPage() {
                                   </td>
                                   <td className="p-2 text-right">
                                     <div className="flex justify-end gap-1">
-                                      {besoinsGroupe.map((besoin) => (
-                                        <div key={besoin.id} className="flex gap-1">
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleEditClick(besoin)}
-                                            title={`Modifier ${format(new Date(besoin.date), 'd/M', { locale: fr })}`}
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleDeleteClick(besoin)}
-                                            className="text-destructive hover:text-destructive"
-                                            title={`Supprimer ${format(new Date(besoin.date), 'd/M', { locale: fr })}`}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      ))}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedBesoin(premierBesoin);
+                                          setEditDialogOpen(true);
+                                        }}
+                                        title="Modifier"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteGroupClick(besoinsGroupe)}
+                                        className="text-destructive hover:text-destructive"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
                                     </div>
                                   </td>
                                 </tr>
@@ -524,12 +554,21 @@ export default function PlanningPage() {
         onSuccess={fetchData}
       />
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setBesoinsToDelete([]);
+          setSelectedBesoin(null);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce besoin ? Cette action est irréversible.
+              {besoinsToDelete.length > 0 
+                ? `Êtes-vous sûr de vouloir supprimer ${besoinsToDelete.length} besoin(s) ? Cette action est irréversible.`
+                : "Êtes-vous sûr de vouloir supprimer ce besoin ? Cette action est irréversible."
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
