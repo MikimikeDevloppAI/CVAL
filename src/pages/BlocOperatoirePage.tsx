@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -77,6 +77,31 @@ const BlocOperatoirePage = () => {
     fetchBesoins();
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('bloc_operatoire_besoins')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Succès",
+        description: "Besoin supprimé avec succès",
+      });
+      
+      fetchBesoins();
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -145,7 +170,7 @@ const BlocOperatoirePage = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-3 ml-3">
+                <div className="flex items-center space-x-2 ml-3">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -156,6 +181,14 @@ const BlocOperatoirePage = () => {
                     className="opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(besoin.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
