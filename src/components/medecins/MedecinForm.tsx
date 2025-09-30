@@ -446,10 +446,10 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Type d'alternance</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value} defaultValue="hebdomadaire">
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Sélectionner le type" />
+                                  <SelectValue placeholder="Toutes les semaines" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
