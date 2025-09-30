@@ -10,6 +10,7 @@ export interface CreneauBesoin {
   nombre_secretaires_requis: number;
   type: 'medecin' | 'bloc_operatoire';
   medecin_id?: string;
+  medecin_nom?: string;
   bloc_operatoire_besoin_id?: string;
   site_fermeture: boolean;
 }
@@ -31,16 +32,18 @@ export interface AssignmentResult {
   periode: Periode;
   site_id: string;
   site_nom: string;
+  site_fermeture: boolean;
+  medecins: string[];
   secretaires: {
     id: string;
     nom: string;
     is_backup: boolean;
+    is_1r?: boolean;
+    is_2f?: boolean;
   }[];
   nombre_requis: number;
   nombre_assigne: number;
   status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait';
-  has_1r: boolean;
-  has_2f: boolean;
 }
 
 export interface OptimizationResult {

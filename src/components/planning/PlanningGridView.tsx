@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Separator } from '@/components/ui/separator';
 
 interface PlanningGridViewProps {
   assignments: AssignmentResult[];
@@ -94,6 +93,7 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                       <thead>
                         <tr className="bg-muted/50">
                           <th className="text-left p-3 font-medium text-sm border-b">Période</th>
+                          <th className="text-left p-3 font-medium text-sm border-b">Médecins</th>
                           <th className="text-left p-3 font-medium text-sm border-b">Secrétaires assignées</th>
                           <th className="text-center p-3 font-medium text-sm border-b">Nombre</th>
                           <th className="text-center p-3 font-medium text-sm border-b">Statut</th>
@@ -112,16 +112,29 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                             </div>
                           </td>
                           <td className="p-3">
+                            {matin && matin.medecins && matin.medecins.length > 0 ? (
+                              <div className="space-y-1">
+                                {matin.medecins.map((med, idx) => (
+                                  <div key={idx} className="text-sm font-medium">
+                                    {med}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="p-3">
                             {matin ? (
                               <div className="space-y-1">
                                 {matin.secretaires.map(sec => (
                                   <div key={sec.id} className="flex items-center gap-2 text-sm">
                                     <span>{sec.nom}</span>
-                                    {sec.is_backup && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    {matin.site_fermeture && sec.is_1r && (
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
                                     )}
-                                    {!sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs">1R</Badge>
+                                    {matin.site_fermeture && sec.is_2f && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
                                     )}
                                   </div>
                                 ))}
@@ -167,16 +180,29 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                             </div>
                           </td>
                           <td className="p-3">
+                            {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 ? (
+                              <div className="space-y-1">
+                                {apresMidi.medecins.map((med, idx) => (
+                                  <div key={idx} className="text-sm font-medium">
+                                    {med}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="p-3">
                             {apresMidi ? (
                               <div className="space-y-1">
                                 {apresMidi.secretaires.map(sec => (
                                   <div key={sec.id} className="flex items-center gap-2 text-sm">
                                     <span>{sec.nom}</span>
-                                    {sec.is_backup && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    {apresMidi.site_fermeture && sec.is_1r && (
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
                                     )}
-                                    {!sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs">1R</Badge>
+                                    {apresMidi.site_fermeture && sec.is_2f && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
                                     )}
                                   </div>
                                 ))}

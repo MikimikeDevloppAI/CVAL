@@ -257,25 +257,24 @@ function convertToAssignmentResults(assignments: Assignment[]): AssignmentResult
       status = 'non_satisfait';
     }
     
-    const has1R = assignment.capacites.some(c => !c.backup_id);
-    const has2F = assignment.capacites.some(c => c.backup_id);
-    
     return {
       creneau_besoin_id: assignment.besoin.id,
       date: assignment.besoin.date,
       periode: assignment.besoin.periode,
       site_id: assignment.besoin.site_id,
       site_nom: assignment.besoin.site_nom,
+      site_fermeture: assignment.besoin.site_fermeture,
+      medecins: [assignment.besoin.medecin_nom || 'Bloc opératoire'],
       secretaires: assignment.capacites.map(c => ({
         id: c.secretaire_id || c.backup_id || '',
         nom: c.nom_complet,
         is_backup: !!c.backup_id,
+        is_1r: false,
+        is_2f: false,
       })),
       nombre_requis: nombreRequis,
       nombre_assigne: nombreAssigne,
       status,
-      has_1r: has1R,
-      has_2f: has2F,
     };
   });
 }
