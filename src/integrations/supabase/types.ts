@@ -19,6 +19,8 @@ export type Database = {
           created_at: string
           date_debut: string
           date_fin: string
+          heure_debut: string | null
+          heure_fin: string | null
           id: string
           medecin_id: string | null
           motif: string | null
@@ -32,6 +34,8 @@ export type Database = {
           created_at?: string
           date_debut: string
           date_fin: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           motif?: string | null
@@ -45,6 +49,8 @@ export type Database = {
           created_at?: string
           date_debut?: string
           date_fin?: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           motif?: string | null

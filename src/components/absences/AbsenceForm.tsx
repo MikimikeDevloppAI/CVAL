@@ -107,6 +107,8 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         date_fin: format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd'),
         motif: data.motif || null,
         statut: 'approuve' as const,
+        heure_debut: data.toute_journee ? null : (data.heure_debut || null),
+        heure_fin: data.toute_journee ? null : (data.heure_fin || null),
       };
 
       if (absence) {
@@ -125,11 +127,13 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
       } else {
         // Création - une absence par date si toute la journée, sinon une seule
         if (data.toute_journee) {
-          // Créer une absence pour chaque date sélectionnée
+          // Créer une absence pour chaque date sélectionnée (toute la journée)
           const absences = sortedDates.map(date => ({
             ...absenceData,
             date_debut: format(date, 'yyyy-MM-dd'),
             date_fin: format(date, 'yyyy-MM-dd'),
+            heure_debut: null,
+            heure_fin: null,
           }));
 
           const { error } = await supabase
@@ -138,14 +142,23 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
 
           if (error) throw error;
         } else {
-          // Créer une seule absence avec horaires
+          // Créer une absence par date avec horaires (demi-journée)
+          const absences = sortedDates.map(date => ({
+            type_personne: data.profile_type,
+            medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
+            secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
+            type: data.type,
+            date_debut: format(date, 'yyyy-MM-dd'),
+            date_fin: format(date, 'yyyy-MM-dd'),
+            motif: data.motif || null,
+            statut: 'approuve' as const,
+            heure_debut: data.heure_debut || null,
+            heure_fin: data.heure_fin || null,
+          }));
+
           const { error } = await supabase
             .from('absences')
-            .insert({
-              ...absenceData,
-              // Stocker les horaires dans le motif pour l'instant
-              motif: `${data.heure_debut} - ${data.heure_fin}${data.motif ? ' | ' + data.motif : ''}`,
-            });
+            .insert(absences);
 
           if (error) throw error;
         }
