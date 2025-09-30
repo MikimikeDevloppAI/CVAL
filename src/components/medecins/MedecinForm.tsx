@@ -60,7 +60,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       name: medecin?.name || '',
       email: medecin?.email || '',
       phone_number: medecin?.phone_number || '',
-      specialiteId: medecin?.specialites?.id || medecin?.specialite_id || '',
+      specialiteId: medecin?.specialite_id || '',
       horaires: medecin?.horaires || [
         { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
         { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },

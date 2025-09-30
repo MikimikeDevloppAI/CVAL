@@ -47,6 +47,7 @@ export default function MedecinsPage() {
           email,
           phone_number,
           actif,
+          specialite_id,
           specialites!medecins_specialite_id_fkey (
             nom,
             code
