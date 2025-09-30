@@ -158,6 +158,13 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         if (medecinError) throw medecinError;
 
+        // Supprimer les besoins effectifs futurs pour ce médecin avant de recréer
+        await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('medecin_id', medecin.id)
+          .gte('date', new Date().toISOString().split('T')[0]);
+
         // Mettre à jour les horaires
         // D'abord supprimer les anciens horaires
         await supabase

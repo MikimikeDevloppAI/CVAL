@@ -113,6 +113,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         if (secretaireError) throw secretaireError;
 
+        // Supprimer les capacités effectives futures pour ce secrétaire avant de recréer
+        await supabase
+          .from('capacite_effective')
+          .delete()
+          .eq('secretaire_id', secretaire.id)
+          .gte('date', new Date().toISOString().split('T')[0]);
+
         // Mettre à jour les horaires
         // D'abord supprimer les anciens horaires
         await supabase
