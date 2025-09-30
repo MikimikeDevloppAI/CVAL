@@ -192,6 +192,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           if (horairesError) throw horairesError;
         }
 
+        // Regenerate besoins after updating horaires
+        await supabase.rpc('generate_besoin_effectif');
+
         toast({
           title: "Succès",
           description: "Médecin modifié avec succès",
@@ -241,6 +244,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             if (horairesError) throw horairesError;
           }
         }
+
+        // Generate besoins after creating the medecin and horaires
+        await supabase.rpc('generate_besoin_effectif');
 
         toast({
           title: "Succès",

@@ -143,6 +143,9 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           if (horairesError) throw horairesError;
         }
 
+        // Regenerate capacites after updating horaires
+        await supabase.rpc('generate_capacite_effective');
+
         toast({
           title: "Succès",
           description: "Secrétaire modifié avec succès",
@@ -191,6 +194,9 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             if (horairesError) throw horairesError;
           }
         }
+
+        // Generate capacites after creating the secretaire and horaires
+        await supabase.rpc('generate_capacite_effective');
 
         toast({
           title: "Succès",
