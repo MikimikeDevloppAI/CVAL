@@ -23,12 +23,13 @@ const absenceSchema = z.object({
   type: z.enum(['conges', 'maladie', 'formation', 'autre']),
   dates: z.array(z.date()).min(1, 'Sélectionnez au moins une date'),
   toute_journee: z.boolean().default(true),
-  heure_debut: z.string().optional(),
-  heure_fin: z.string().optional(),
+  heure_debut: z.string().default(''),
+  heure_fin: z.string().default(''),
   motif: z.string().optional(),
 }).refine((data) => {
-  if (!data.toute_journee && (!data.heure_debut || !data.heure_fin)) {
-    return false;
+  // Si ce n'est pas toute la journée, les horaires sont obligatoires
+  if (!data.toute_journee) {
+    return data.heure_debut.length > 0 && data.heure_fin.length > 0;
   }
   return true;
 }, {
