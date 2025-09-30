@@ -291,7 +291,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id: string
-          secretaire_id: string
+          secretaire_id: string | null
           specialites: string[]
           updated_at: string
         }
@@ -303,7 +303,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id?: string
-          secretaire_id: string
+          secretaire_id?: string | null
           specialites?: string[]
           updated_at?: string
         }
@@ -315,7 +315,7 @@ export type Database = {
           heure_debut?: string
           heure_fin?: string
           id?: string
-          secretaire_id?: string
+          secretaire_id?: string | null
           specialites?: string[]
           updated_at?: string
         }
