@@ -3,12 +3,24 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
+import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface BesoinEffectif {
   id: string;
@@ -18,6 +30,7 @@ interface BesoinEffectif {
   heure_fin: string;
   nombre_secretaires_requis: number;
   site_id: string;
+  bloc_operatoire_besoin_id?: string;
   medecin?: { first_name: string; name: string };
   site?: { nom: string };
   specialite?: { nom: string };
@@ -48,6 +61,12 @@ export default function PlanningPage() {
   const [besoinsParSite, setBesoinsParSite] = useState<BesoinParSite[]>([]);
   const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
   const [loading, setLoading] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [selectedBesoin, setSelectedBesoin] = useState<BesoinEffectif | null>(null);
   const { toast } = useToast();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -156,6 +175,61 @@ export default function PlanningPage() {
     setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
   };
 
+  const handleAddClick = (date: string, siteId: string) => {
+    setSelectedDate(date);
+    setSelectedSiteId(siteId);
+    setAddDialogOpen(true);
+  };
+
+  const handleEditClick = (besoin: BesoinEffectif) => {
+    setSelectedBesoin(besoin);
+    setEditDialogOpen(true);
+  };
+
+  const handleDeleteClick = (besoin: BesoinEffectif) => {
+    setSelectedBesoin(besoin);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedBesoin) return;
+
+    try {
+      if (selectedBesoin.type === 'bloc_operatoire' && selectedBesoin.bloc_operatoire_besoin_id) {
+        // Supprimer depuis bloc_operatoire_besoins (le trigger supprimera de besoin_effectif)
+        const { error } = await supabase
+          .from('bloc_operatoire_besoins')
+          .delete()
+          .eq('id', selectedBesoin.bloc_operatoire_besoin_id);
+
+        if (error) throw error;
+      } else {
+        // Supprimer directement de besoin_effectif
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', selectedBesoin.id);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Succès",
+        description: "Besoin supprimé avec succès",
+      });
+
+      fetchData();
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -242,6 +316,15 @@ export default function PlanningPage() {
                                   <h3 className="font-semibold text-lg">{site_nom}</h3>
                                 </div>
                                 <div className="flex items-center gap-4">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleAddClick(date, siteId)}
+                                  >
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Ajouter un besoin
+                                  </Button>
+                                  <Separator orientation="vertical" className="h-10" />
                                   <div className="text-right">
                                     <div className="text-sm text-muted-foreground">Médecins</div>
                                     <div className="font-bold text-lg">{medecins.length}</div>
@@ -263,6 +346,7 @@ export default function PlanningPage() {
                                       <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
                                       <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
                                       <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
+                                      <th className="text-right p-2 font-medium text-sm text-muted-foreground">Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -283,6 +367,25 @@ export default function PlanningPage() {
                                         <td className="p-2 text-right font-medium">
                                           {besoin.nombre_secretaires_requis}
                                         </td>
+                                        <td className="p-2 text-right">
+                                          <div className="flex justify-end gap-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleEditClick(besoin)}
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleDeleteClick(besoin)}
+                                              className="text-destructive hover:text-destructive"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </td>
                                       </tr>
                                     ))}
                                     {blocs.map((besoin) => (
@@ -302,10 +405,29 @@ export default function PlanningPage() {
                                         <td className="p-2 text-right font-medium">
                                           {besoin.nombre_secretaires_requis}
                                         </td>
+                                        <td className="p-2 text-right">
+                                          <div className="flex justify-end gap-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleEditClick(besoin)}
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleDeleteClick(besoin)}
+                                              className="text-destructive hover:text-destructive"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </td>
                                       </tr>
                                     ))}
                                     <tr className="font-bold bg-muted/50">
-                                      <td colSpan={4} className="p-2 text-right">TOTAL</td>
+                                      <td colSpan={5} className="p-2 text-right">TOTAL</td>
                                       <td className="p-2 text-right text-primary text-lg">
                                         {Math.ceil(totalSecretaires)}
                                       </td>
@@ -383,6 +505,38 @@ export default function PlanningPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <AddBesoinDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        date={selectedDate}
+        siteId={selectedSiteId}
+        onSuccess={fetchData}
+      />
+
+      <EditBesoinDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        besoin={selectedBesoin}
+        onSuccess={fetchData}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer ce besoin ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
