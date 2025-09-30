@@ -61,6 +61,7 @@ export default function PlanningPage() {
   const [besoins, setBesoins] = useState<BesoinEffectif[]>([]);
   const [besoinsParSite, setBesoinsParSite] = useState<BesoinParSite[]>([]);
   const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
+  const [sites, setSites] = useState<{ id: string; nom: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -136,7 +137,7 @@ export default function PlanningPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchBesoins(), fetchCapacites()]);
+      await Promise.all([fetchSites(), fetchBesoins(), fetchCapacites()]);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       toast({
@@ -147,6 +148,17 @@ export default function PlanningPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSites = async () => {
+    const { data, error } = await supabase
+      .from('sites')
+      .select('id, nom')
+      .eq('actif', true)
+      .order('nom');
+
+    if (error) throw error;
+    setSites(data || []);
   };
 
   const fetchBesoins = async () => {
@@ -370,19 +382,8 @@ export default function PlanningPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(
-                besoins.reduce((acc, besoin) => {
-                  const siteId = besoin.site_id;
-                  if (!acc[siteId]) {
-                    acc[siteId] = {
-                      site_nom: besoin.site?.nom || 'Site inconnu',
-                      besoins: []
-                    };
-                  }
-                  acc[siteId].besoins.push(besoin);
-                  return acc;
-                }, {} as Record<string, { site_nom: string; besoins: BesoinEffectif[] }>)
-              ).map(([siteId, { site_nom, besoins: besoinsSite }]) => {
+              {sites.map((site) => {
+                const besoinsSite = besoins.filter(b => b.site_id === site.id);
                 // Regrouper par médecin/type
                 const besoinsParMedecin = besoinsSite.reduce((acc, besoin) => {
                   let key: string;
@@ -405,38 +406,47 @@ export default function PlanningPage() {
                 const totalSecretaires = besoinsSite.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
 
                 return (
-                  <Card key={siteId}>
+                  <Card key={site.id}>
                     <CardHeader className="bg-primary/5">
                       <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2">
                           <Building2 className="h-6 w-6 text-primary" />
-                          {site_nom}
+                          {site.nom}
                         </CardTitle>
                         <div className="flex items-center gap-4">
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() => handleAddClick('', siteId, site_nom)}
+                            onClick={() => handleAddClick('', site.id, site.nom)}
                             className="flex items-center gap-2"
                           >
                             <Plus className="h-4 w-4" />
-                            {site_nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
+                            {site.nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
                           </Button>
-                          <Separator orientation="vertical" className="h-10" />
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground">Médecins</div>
-                            <div className="font-bold text-lg">{totalMedecins}</div>
-                          </div>
-                          <Separator orientation="vertical" className="h-10" />
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground">Secrétaires requis</div>
-                            <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
-                          </div>
+                          {besoinsSite.length > 0 && (
+                            <>
+                              <Separator orientation="vertical" className="h-10" />
+                              <div className="text-right">
+                                <div className="text-sm text-muted-foreground">Médecins</div>
+                                <div className="font-bold text-lg">{totalMedecins}</div>
+                              </div>
+                              <Separator orientation="vertical" className="h-10" />
+                              <div className="text-right">
+                                <div className="text-sm text-muted-foreground">Secrétaires requis</div>
+                                <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
-                      <div className="overflow-x-auto">
+                      {besoinsSite.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          Aucun besoin pour cette semaine
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="border-b-2">
@@ -543,6 +553,7 @@ export default function PlanningPage() {
                           </tbody>
                         </table>
                       </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
