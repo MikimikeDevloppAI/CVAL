@@ -464,7 +464,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                         )}
                       />
 
-                      {alternanceType !== 'hebdomadaire' && (
+                      {alternanceType && alternanceType !== 'hebdomadaire' && (
                         <FormField
                           control={form.control}
                           name={`horaires.${index}.alternanceSemaineReference`}
