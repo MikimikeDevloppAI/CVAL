@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
 
 const navigation = [
+  { name: 'Planning', href: '/planning', icon: Calendar },
   { name: 'Absences', href: '/', icon: Calendar },
   { name: 'Médecins', href: '/medecins', icon: Users },
   { name: 'Secrétaires', href: '/secretaires', icon: UserPlus },
