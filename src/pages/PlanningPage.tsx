@@ -656,11 +656,8 @@ export default function PlanningPage() {
                         return (
                           <div key={capacite.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
                             <div className="flex-1">
-                              <div className="font-medium flex items-center gap-2">
+                              <div className="font-medium">
                                 {personName}
-                                {capacite.backup_id && (
-                                  <Badge variant="secondary" className="text-xs">Backup</Badge>
-                                )}
                               </div>
                               <div className="text-sm text-muted-foreground mt-1">
                                 {capacite.specialites && capacite.specialites.length > 0 
