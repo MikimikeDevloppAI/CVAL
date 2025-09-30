@@ -291,7 +291,6 @@ export type Database = {
           heure_fin: string
           id: string
           secretaire_id: string
-          site_id: string
           specialites: string[]
           updated_at: string
         }
@@ -303,7 +302,6 @@ export type Database = {
           heure_fin: string
           id?: string
           secretaire_id: string
-          site_id: string
           specialites?: string[]
           updated_at?: string
         }
@@ -315,7 +313,6 @@ export type Database = {
           heure_fin?: string
           id?: string
           secretaire_id?: string
-          site_id?: string
           specialites?: string[]
           updated_at?: string
         }
@@ -325,13 +322,6 @@ export type Database = {
             columns: ["secretaire_id"]
             isOneToOne: false
             referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "capacite_effective_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
