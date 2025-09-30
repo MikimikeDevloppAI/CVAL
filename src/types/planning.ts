@@ -44,6 +44,7 @@ export interface AssignmentResult {
   nombre_requis: number;
   nombre_assigne: number;
   status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait';
+  type_assignation?: 'site' | 'administratif';
 }
 
 export interface OptimizationResult {

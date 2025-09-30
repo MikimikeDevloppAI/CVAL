@@ -1,0 +1,159 @@
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Clock, MapPin } from 'lucide-react';
+
+interface SecretaryAssignment {
+  date: string;
+  periode: 'matin' | 'apres_midi';
+  site_nom?: string;
+  medecins: string[];
+  is_1r?: boolean;
+  is_2f?: boolean;
+  type_assignation: 'site' | 'administratif';
+}
+
+interface SecretaryWeekViewProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  secretaryName: string;
+  assignments: SecretaryAssignment[];
+  weekDays: Date[];
+}
+
+export function SecretaryWeekView({
+  open,
+  onOpenChange,
+  secretaryName,
+  assignments,
+  weekDays,
+}: SecretaryWeekViewProps) {
+  // Group assignments by date
+  const assignmentsByDate = weekDays.map(day => {
+    const dateStr = format(day, 'yyyy-MM-dd');
+    const dayAssignments = assignments.filter(a => a.date === dateStr);
+    const matin = dayAssignments.find(a => a.periode === 'matin');
+    const apresMidi = dayAssignments.find(a => a.periode === 'apres_midi');
+    
+    return {
+      date: day,
+      dateStr,
+      matin,
+      apresMidi,
+    };
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="sm:max-w-xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-xl">
+            Planning de {secretaryName}
+          </SheetTitle>
+        </SheetHeader>
+        
+        <div className="mt-6 space-y-4">
+          {assignmentsByDate.map(({ date, dateStr, matin, apresMidi }) => (
+            <Card key={dateStr} className="p-4">
+              <div className="mb-3 pb-2 border-b">
+                <h3 className="font-semibold text-lg">
+                  {format(date, 'EEEE d MMMM', { locale: fr })}
+                </h3>
+              </div>
+              
+              <div className="space-y-3">
+                {/* Matin */}
+                <div className="flex gap-3">
+                  <div className="flex items-center gap-2 w-32 text-sm font-medium">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    07:30 - 12:00
+                  </div>
+                  <div className="flex-1">
+                    {matin ? (
+                      <div className="space-y-1">
+                        {matin.type_assignation === 'administratif' ? (
+                          <Badge variant="outline" className="bg-gray-100">
+                            Administratif
+                          </Badge>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <span className="font-medium">{matin.site_nom}</span>
+                              {matin.is_1r && (
+                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                  1R
+                                </Badge>
+                              )}
+                              {matin.is_2f && (
+                                <Badge variant="outline" className="text-xs">
+                                  2F
+                                </Badge>
+                              )}
+                            </div>
+                            {matin.medecins.length > 0 && (
+                              <div className="text-sm text-muted-foreground">
+                                {matin.medecins.join(', ')}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground italic">Non assigné</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Après-midi */}
+                <div className="flex gap-3">
+                  <div className="flex items-center gap-2 w-32 text-sm font-medium">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    13:00 - 17:00
+                  </div>
+                  <div className="flex-1">
+                    {apresMidi ? (
+                      <div className="space-y-1">
+                        {apresMidi.type_assignation === 'administratif' ? (
+                          <Badge variant="outline" className="bg-gray-100">
+                            Administratif
+                          </Badge>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <span className="font-medium">{apresMidi.site_nom}</span>
+                              {apresMidi.is_1r && (
+                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                  1R
+                                </Badge>
+                              )}
+                              {apresMidi.is_2f && (
+                                <Badge variant="outline" className="text-xs">
+                                  2F
+                                </Badge>
+                              )}
+                            </div>
+                            {apresMidi.medecins.length > 0 && (
+                              <div className="text-sm text-muted-foreground">
+                                {apresMidi.medecins.join(', ')}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground italic">Non assigné</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}

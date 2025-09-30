@@ -576,9 +576,10 @@ export type Database = {
           id: string
           medecin_id: string | null
           secretaire_id: string | null
-          site_id: string
+          site_id: string | null
           statut: Database["public"]["Enums"]["statut_planning"]
           type: Database["public"]["Enums"]["type_planning"]
+          type_assignation: string | null
           updated_at: string
           version_planning: number
         }
@@ -590,9 +591,10 @@ export type Database = {
           id?: string
           medecin_id?: string | null
           secretaire_id?: string | null
-          site_id: string
+          site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
           type: Database["public"]["Enums"]["type_planning"]
+          type_assignation?: string | null
           updated_at?: string
           version_planning?: number
         }
@@ -604,9 +606,10 @@ export type Database = {
           id?: string
           medecin_id?: string | null
           secretaire_id?: string | null
-          site_id?: string
+          site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
           type?: Database["public"]["Enums"]["type_planning"]
+          type_assignation?: string | null
           updated_at?: string
           version_planning?: number
         }
