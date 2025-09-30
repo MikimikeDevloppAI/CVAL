@@ -61,7 +61,7 @@ serve(async (req) => {
       .select(`
         *,
         secretaires(first_name, name, prefere_port_en_truie),
-        backup(first_name, name, prefere_port_en_truie)
+        backup(first_name, name)
       `)
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
@@ -148,6 +148,7 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
     if (!personne) continue;
 
     const nomComplet = `${personne.first_name || ''} ${personne.name || ''}`.trim();
+    const preferePortEnTruie = isBackup ? false : (personne.prefere_port_en_truie || false);
 
     if (heureDebut < MATIN_END && heureFin > MATIN_START) {
       creneaux.push({
@@ -158,7 +159,7 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
         backup_id: capacite.backup_id,
         nom_complet: nomComplet,
         specialites: capacite.specialites || [],
-        prefere_port_en_truie: personne.prefere_port_en_truie || false,
+        prefere_port_en_truie: preferePortEnTruie,
       });
     }
 
@@ -171,7 +172,7 @@ function splitCapacitesEnCreneaux(capacites: any[]): CreneauCapacite[] {
         backup_id: capacite.backup_id,
         nom_complet: nomComplet,
         specialites: capacite.specialites || [],
-        prefere_port_en_truie: personne.prefere_port_en_truie || false,
+        prefere_port_en_truie: preferePortEnTruie,
       });
     }
   }
