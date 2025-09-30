@@ -31,6 +31,7 @@ const medecinSchema = z.object({
   }),
   phone_number: z.string().optional(),
   specialiteId: z.string().min(1, 'La spécialité est requise'),
+  besoin_secretaires: z.number().min(0, 'Le besoin doit être positif').max(10, 'Le besoin ne peut pas dépasser 10'),
   horaires: z.array(horaireSchema),
 });
 
@@ -65,6 +66,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       email: medecin?.email || '',
       phone_number: medecin?.phone_number || '',
       specialiteId: medecin?.specialite_id || '',
+      besoin_secretaires: medecin?.besoin_secretaires || 1.2,
       horaires: medecin?.horaires || [
         { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
         { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
@@ -150,6 +152,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             email: data.email,
             phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
+            besoin_secretaires: data.besoin_secretaires,
           })
           .eq('id', medecin.id);
 
@@ -203,6 +206,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             email: data.email,
             phone_number: data.phone_number || null,
             specialite_id: data.specialiteId,
+            besoin_secretaires: data.besoin_secretaires,
           })
           .select()
           .single();
@@ -322,33 +326,57 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           />
         </div>
 
-        {/* Spécialité seule */}
-        <FormField
-          control={form.control}
-          name="specialiteId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Spécialité</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une spécialité" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {specialites.map((specialite) => (
-                    <SelectItem key={specialite.id} value={specialite.id}>
+        {/* Spécialité et Besoin secrétaires côte à côte */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="specialiteId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Spécialité</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une spécialité" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {specialites.map((specialite) => (
+                      <SelectItem key={specialite.id} value={specialite.id}>
                       {specialite.nom}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                 </SelectContent>
+               </Select>
+               <FormMessage />
+             </FormItem>
+           )}
+         />
 
-        {/* Horaires */}
+          <FormField
+            control={form.control}
+            name="besoin_secretaires"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Besoin en secrétaires</FormLabel>
+                <FormControl>
+                  <Input 
+                    {...field} 
+                    type="number" 
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                    placeholder="1.2" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+         {/* Horaires */}
         <div className="space-y-4">
           <FormLabel className="text-base">Horaires de travail par jour</FormLabel>
 

@@ -532,6 +532,7 @@ export type Database = {
       medecins: {
         Row: {
           actif: boolean
+          besoin_secretaires: number
           created_at: string
           email: string | null
           first_name: string | null
@@ -544,6 +545,7 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
+          besoin_secretaires?: number
           created_at?: string
           email?: string | null
           first_name?: string | null
@@ -556,6 +558,7 @@ export type Database = {
         }
         Update: {
           actif?: boolean
+          besoin_secretaires?: number
           created_at?: string
           email?: string | null
           first_name?: string | null
