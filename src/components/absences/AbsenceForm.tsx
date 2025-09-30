@@ -8,9 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -241,7 +244,6 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
             </FormItem>
           )}
         />
-
         {/* Dates */}
         <FormField
           control={form.control}
@@ -249,15 +251,35 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
           render={({ field }) => (
             <FormItem className="flex flex-col">
               <FormLabel>Dates d'absence</FormLabel>
-              <div className="border rounded-lg p-3">
-                <Calendar
-                  mode="multiple"
-                  selected={field.value}
-                  onSelect={field.onChange}
-                  className="pointer-events-auto"
-                  locale={fr}
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value?.length && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value?.length ? (
+                        `${field.value.length} date${field.value.length > 1 ? 's' : ''} sélectionnée${field.value.length > 1 ? 's' : ''}`
+                      ) : (
+                        <span>Sélectionner des dates</span>
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="multiple"
+                    selected={field.value}
+                    onSelect={field.onChange}
+                    className="pointer-events-auto"
+                    locale={fr}
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
