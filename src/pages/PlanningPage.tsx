@@ -92,6 +92,7 @@ export default function PlanningPage() {
 
   useEffect(() => {
     fetchData();
+    fetchPlanningGenere();
 
     // Real-time updates for besoin_effectif
     const besoinChannel = supabase
@@ -151,7 +152,7 @@ export default function PlanningPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchSites(), fetchBesoins(), fetchCapacites()]);
+      await Promise.all([fetchSites(), fetchBesoins(), fetchCapacites(), fetchPlanningGenere()]);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       toast({
@@ -161,6 +162,100 @@ export default function PlanningPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPlanningGenere = async () => {
+    try {
+      const { data: planningData, error } = await supabase
+        .from('planning_genere')
+        .select(`
+          *,
+          secretaire:secretaires(first_name, name),
+          backup:backup(first_name, name),
+          site:sites(nom, fermeture)
+        `)
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+        .order('date')
+        .order('heure_debut');
+
+      if (error) throw error;
+
+      if (planningData && planningData.length > 0) {
+        // Regrouper les affectations par (date, période, site)
+        const assignmentsByKey = new Map();
+
+        for (const row of planningData) {
+          // Déterminer la période depuis l'heure_debut
+          const periode = row.heure_debut < '12:00:00' ? 'matin' : 'apres_midi';
+          const key = `${row.date}-${periode}-${row.site_id || 'admin'}`;
+
+          if (!assignmentsByKey.has(key)) {
+            assignmentsByKey.set(key, {
+              date: row.date,
+              periode,
+              site_id: row.site_id,
+              site_nom: row.site?.nom || 'Administratif',
+              site_fermeture: row.site?.fermeture || false,
+              secretaires: [],
+              type_assignation: row.type_assignation,
+            });
+          }
+
+          const assignment = assignmentsByKey.get(key);
+          
+          if (row.secretaire_id || row.backup_id) {
+            const personne = row.secretaire || row.backup;
+            assignment.secretaires.push({
+              id: row.secretaire_id || row.backup_id,
+              secretaire_id: row.secretaire_id,
+              backup_id: row.backup_id,
+              nom: personne ? `${personne.first_name || ''} ${personne.name || ''}`.trim() : 'Inconnu',
+              is_backup: !!row.backup_id,
+            });
+          }
+        }
+
+        // Convertir en AssignmentResult[]
+        const assignments = Array.from(assignmentsByKey.values()).map(a => ({
+          creneau_besoin_id: `${a.date}-${a.periode}-${a.site_id}`,
+          date: a.date,
+          periode: a.periode,
+          site_id: a.site_id || '',
+          site_nom: a.site_nom,
+          site_fermeture: a.site_fermeture,
+          medecins: [],
+          secretaires: a.secretaires,
+          nombre_requis: a.secretaires.length,
+          nombre_assigne: a.secretaires.length,
+          status: 'satisfait' as const,
+          type_assignation: a.type_assignation,
+        }));
+
+        // Pour un planning déjà généré, on considère tout comme satisfait
+        const siteAssignments = assignments.filter(a => a.type_assignation === 'site');
+        
+        setOptimizationResult({
+          assignments,
+          stats: { 
+            satisfait: siteAssignments.length, 
+            partiel: 0, 
+            non_satisfait: 0 
+          },
+          score_base: 0,
+          penalites: {
+            changement_site: 0,
+            multiple_fermetures: 0,
+            centre_esplanade_depassement: 0,
+          },
+          score_total: 0,
+        });
+      } else {
+        setOptimizationResult(null);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du planning généré:', error);
     }
   };
 
