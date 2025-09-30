@@ -51,8 +51,7 @@ interface CapaciteEffective {
   heure_debut: string;
   heure_fin: string;
   secretaire?: { first_name: string; name: string };
-  site?: { nom: string };
-  specialites?: string[];
+  specialites: string[];
 }
 
 export default function PlanningPage() {
@@ -150,8 +149,7 @@ export default function PlanningPage() {
       .from('capacite_effective')
       .select(`
         *,
-        secretaire:secretaires(first_name, name),
-        site:sites(nom)
+        secretaire:secretaires(first_name, name)
       `)
       .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
       .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -160,7 +158,28 @@ export default function PlanningPage() {
       .order('heure_debut');
 
     if (error) throw error;
-    setCapacites(data || []);
+
+    // Récupérer les spécialités pour enrichir les données
+    if (data && data.length > 0) {
+      const { data: specialitesData } = await supabase
+        .from('specialites')
+        .select('id, nom');
+
+      const specialitesMap = new Map(
+        specialitesData?.map(s => [s.id, s.nom]) || []
+      );
+
+      const enrichedData = data.map(capacite => ({
+        ...capacite,
+        specialites: (capacite.specialites || []).map(
+          (id: string) => specialitesMap.get(id) || 'Spécialité inconnue'
+        )
+      }));
+
+      setCapacites(enrichedData);
+    } else {
+      setCapacites([]);
+    }
   };
 
   const goToPreviousWeek = () => {
@@ -481,18 +500,15 @@ export default function PlanningPage() {
                             <div className="font-medium">
                               {capacite.secretaire ? `${capacite.secretaire.first_name} ${capacite.secretaire.name}` : 'Secrétaire inconnu'}
                             </div>
-                            <div className="text-sm text-muted-foreground">
-                              {capacite.site?.nom || 'Site non défini'}
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {capacite.specialites && capacite.specialites.length > 0 
+                                ? capacite.specialites.join(', ')
+                                : 'Aucune spécialité'}
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">
+                            <div className="font-medium text-lg">
                               {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {capacite.specialites && capacite.specialites.length > 0 
-                                ? `${capacite.specialites.length} spécialité(s)`
-                                : 'Aucune spécialité'}
                             </div>
                           </div>
                         </div>
