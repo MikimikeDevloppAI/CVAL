@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
 import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
+import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
+import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +74,10 @@ export default function PlanningPage() {
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinEffectif | null>(null);
   const [selectedBesoins, setSelectedBesoins] = useState<BesoinEffectif[]>([]);
   const [besoinsToDelete, setBesoinsToDelete] = useState<BesoinEffectif[]>([]);
+  const [addCapaciteDialogOpen, setAddCapaciteDialogOpen] = useState(false);
+  const [editCapaciteDialogOpen, setEditCapaciteDialogOpen] = useState(false);
+  const [deleteCapaciteDialogOpen, setDeleteCapaciteDialogOpen] = useState(false);
+  const [selectedCapacite, setSelectedCapacite] = useState<CapaciteEffective | null>(null);
   const { toast } = useToast();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -285,6 +291,45 @@ export default function PlanningPage() {
   const handleDeleteGroupClick = (besoins: BesoinEffectif[]) => {
     setBesoinsToDelete(besoins);
     setDeleteDialogOpen(true);
+  };
+
+  const handleEditCapaciteClick = (capacite: CapaciteEffective) => {
+    setSelectedCapacite(capacite);
+    setEditCapaciteDialogOpen(true);
+  };
+
+  const handleDeleteCapaciteClick = (capacite: CapaciteEffective) => {
+    setSelectedCapacite(capacite);
+    setDeleteCapaciteDialogOpen(true);
+  };
+
+  const handleDeleteCapacite = async () => {
+    if (!selectedCapacite) return;
+
+    try {
+      const { error } = await supabase
+        .from('capacite_effective')
+        .delete()
+        .eq('id', selectedCapacite.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Capacité supprimée avec succès",
+      });
+
+      fetchData();
+      setDeleteCapaciteDialogOpen(false);
+      setSelectedCapacite(null);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -563,6 +608,13 @@ export default function PlanningPage() {
         </TabsContent>
 
         <TabsContent value="capacites" className="space-y-4">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => setAddCapaciteDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter une capacité
+            </Button>
+          </div>
+
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">
               Chargement...
@@ -591,7 +643,7 @@ export default function PlanningPage() {
                   <CardContent>
                     <div className="space-y-3">
                       {capacitesJour.map((capacite) => (
-                        <div key={capacite.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <div key={capacite.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex-1">
                             <div className="font-medium">
                               {capacite.secretaire ? `${capacite.secretaire.first_name} ${capacite.secretaire.name}` : 'Secrétaire inconnu'}
@@ -602,9 +654,30 @@ export default function PlanningPage() {
                                 : 'Aucune spécialité'}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium text-lg">
-                              {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className="font-medium text-lg">
+                                {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditCapaciteClick(capacite)}
+                                title="Modifier"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteCapaciteClick(capacite)}
+                                className="text-destructive hover:text-destructive"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -634,6 +707,19 @@ export default function PlanningPage() {
         onSuccess={fetchData}
       />
 
+      <AddCapaciteDialog
+        open={addCapaciteDialogOpen}
+        onOpenChange={setAddCapaciteDialogOpen}
+        onSuccess={fetchData}
+      />
+
+      <EditCapaciteDialog
+        open={editCapaciteDialogOpen}
+        onOpenChange={setEditCapaciteDialogOpen}
+        capacite={selectedCapacite}
+        onSuccess={fetchData}
+      />
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
         setDeleteDialogOpen(open);
         if (!open) {
@@ -654,6 +740,28 @@ export default function PlanningPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteCapaciteDialogOpen} onOpenChange={(open) => {
+        setDeleteCapaciteDialogOpen(open);
+        if (!open) {
+          setSelectedCapacite(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer cette capacité ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCapacite} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>
