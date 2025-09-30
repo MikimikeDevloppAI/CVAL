@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from '@/components/ui/modern-card';
 import { AbsenceForm } from '@/components/absences/AbsenceForm';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +40,7 @@ export default function AbsencesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAbsence, setSelectedAbsence] = useState<Absence | null>(null);
+  const [absenceToDelete, setAbsenceToDelete] = useState<Absence | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -144,6 +146,34 @@ export default function AbsencesPage() {
     fetchAbsences();
   };
 
+  const handleDelete = async () => {
+    if (!absenceToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('absences')
+        .delete()
+        .eq('id', absenceToDelete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Absence supprimée avec succès",
+      });
+
+      setAbsenceToDelete(null);
+      fetchAbsences();
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'absence",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       conges: 'Congé',
@@ -237,17 +267,27 @@ export default function AbsencesPage() {
                     </div>
                   </div>
                   
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedAbsence(absence);
-                      setIsDialogOpen(true);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedAbsence(absence);
+                        setIsDialogOpen(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAbsenceToDelete(absence)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </ModernCardHeader>
               
@@ -298,6 +338,24 @@ export default function AbsencesPage() {
             </p>
           </div>
         )}
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={!!absenceToDelete} onOpenChange={() => setAbsenceToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+              <AlertDialogDescription>
+                Êtes-vous sûr de vouloir supprimer cette absence ? Cette action est irréversible et les capacités/besoins seront régénérés automatiquement.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
