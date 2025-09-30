@@ -1,10 +1,7 @@
 import { 
   Calendar, 
-  LayoutDashboard, 
   Users, 
   Building2, 
-  Clock, 
-  BarChart3,
   UserPlus,
   Settings,
   LogOut
@@ -16,13 +13,10 @@ import { Button } from '@/components/ui/button';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
 
 const navigation = [
-  { name: 'Vue d\'ensemble', href: '/', icon: LayoutDashboard },
-  { name: 'Planning', href: '/', icon: Calendar },
+  { name: 'Absences', href: '/', icon: Calendar },
   { name: 'Médecins', href: '/medecins', icon: Users },
   { name: 'Secrétaires', href: '/secretaires', icon: UserPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
-  { name: 'Horaires', href: '#', icon: Clock },
-  { name: 'Statistiques', href: '#', icon: BarChart3 },
   { name: 'Paramètres', href: '#', icon: Settings },
 ];
 

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Index from "./pages/Index";
+import AbsencesPage from "./pages/AbsencesPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import MedecinsPage from "./pages/MedecinsPage";
@@ -25,7 +25,7 @@ const App = () => (
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/" element={
               <ProtectedRoute>
-                <Index />
+                <AbsencesPage />
               </ProtectedRoute>
             } />
             <Route path="/medecins" element={
