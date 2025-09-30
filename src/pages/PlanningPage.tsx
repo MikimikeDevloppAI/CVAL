@@ -13,6 +13,10 @@ import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
 import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
 import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
+import { PlanningOptimizer } from '@/components/planning/PlanningOptimizer';
+import { PlanningGridView } from '@/components/planning/PlanningGridView';
+import { OptimizationResult } from '@/types/planning';
+import { eachDayOfInterval } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,6 +85,7 @@ export default function PlanningPage() {
   const [editCapaciteDialogOpen, setEditCapaciteDialogOpen] = useState(false);
   const [deleteCapaciteDialogOpen, setDeleteCapaciteDialogOpen] = useState(false);
   const [selectedCapacite, setSelectedCapacite] = useState<CapaciteEffective | null>(null);
+  const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const { toast } = useToast();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -415,9 +420,10 @@ export default function PlanningPage() {
       </div>
 
       <Tabs defaultValue="besoins" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="besoins">Besoins ({besoins.length})</TabsTrigger>
           <TabsTrigger value="capacites">Capacités ({capacites.length})</TabsTrigger>
+          <TabsTrigger value="planning">Planning Généré</TabsTrigger>
         </TabsList>
 
         <TabsContent value="besoins" className="space-y-4">
@@ -698,6 +704,90 @@ export default function PlanningPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="planning" className="space-y-4">
+          <div className="flex justify-center py-6">
+            <PlanningOptimizer
+              weekStart={currentWeekStart}
+              onOptimizationComplete={(result) => setOptimizationResult(result)}
+            />
+          </div>
+          
+          {optimizationResult && (
+            <div className="space-y-4">
+              <Card className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Résultats de l'optimisation</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Semaine du {format(currentWeekStart, 'd MMMM', { locale: fr })} au {format(weekEnd, 'd MMMM yyyy', { locale: fr })}
+                    </p>
+                  </div>
+                  <div className="flex gap-6">
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Score de base</div>
+                      <div className="text-2xl font-bold text-primary">
+                        {(optimizationResult.score_base * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                    <Separator orientation="vertical" className="h-12" />
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Score total</div>
+                      <div className="text-2xl font-bold">
+                        {(optimizationResult.score_total * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {(optimizationResult.penalites.changement_site > 0 ||
+                  optimizationResult.penalites.multiple_fermetures > 0 ||
+                  optimizationResult.penalites.centre_esplanade_depassement > 0) && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-2">Pénalités</h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      {optimizationResult.penalites.changement_site > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Changements de site:</span>
+                          <span className="ml-2 font-medium text-orange-600">
+                            -{optimizationResult.penalites.changement_site.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                      {optimizationResult.penalites.multiple_fermetures > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Multiples fermetures:</span>
+                          <span className="ml-2 font-medium text-orange-600">
+                            -{optimizationResult.penalites.multiple_fermetures.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                      {optimizationResult.penalites.centre_esplanade_depassement > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Centre Esplanade {'>'}1j:</span>
+                          <span className="ml-2 font-medium text-orange-600">
+                            -{optimizationResult.penalites.centre_esplanade_depassement.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              <PlanningGridView
+                assignments={optimizationResult.assignments}
+                weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+              />
+            </div>
+          )}
+          
+          {!optimizationResult && (
+            <div className="text-center py-12 text-muted-foreground">
+              Cliquez sur le bouton ci-dessus pour générer un planning optimal
             </div>
           )}
         </TabsContent>
