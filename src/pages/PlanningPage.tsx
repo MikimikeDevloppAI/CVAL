@@ -293,14 +293,6 @@ export default function PlanningPage() {
             <div className="space-y-6">
               {Object.entries(
                 besoins.reduce((acc, besoin) => {
-                  const date = besoin.date;
-                  if (!acc[date]) acc[date] = [];
-                  acc[date].push(besoin);
-                  return acc;
-                }, {} as Record<string, BesoinEffectif[]>)
-              ).map(([date, besoinsJour]) => {
-                // Regrouper par site pour ce jour
-                const besoinsParSite = besoinsJour.reduce((acc, besoin) => {
                   const siteId = besoin.site_id;
                   if (!acc[siteId]) {
                     acc[siteId] = {
@@ -310,153 +302,148 @@ export default function PlanningPage() {
                   }
                   acc[siteId].besoins.push(besoin);
                   return acc;
-                }, {} as Record<string, { site_nom: string; besoins: BesoinEffectif[] }>);
+                }, {} as Record<string, { site_nom: string; besoins: BesoinEffectif[] }>)
+              ).map(([siteId, { site_nom, besoins: besoinsSite }]) => {
+                // Regrouper par médecin/type
+                const besoinsParMedecin = besoinsSite.reduce((acc, besoin) => {
+                  let key: string;
+                  if (besoin.type === 'medecin' && besoin.medecin) {
+                    key = `medecin-${besoin.medecin.first_name}-${besoin.medecin.name}`;
+                  } else if (besoin.type === 'bloc_operatoire') {
+                    key = `bloc-${besoin.date}-${besoin.heure_debut}`;
+                  } else {
+                    key = `autre-${besoin.id}`;
+                  }
+                  
+                  if (!acc[key]) {
+                    acc[key] = [];
+                  }
+                  acc[key].push(besoin);
+                  return acc;
+                }, {} as Record<string, BesoinEffectif[]>);
+
+                const totalMedecins = Object.keys(besoinsParMedecin).filter(k => k.startsWith('medecin-')).length;
+                const totalSecretaires = besoinsSite.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
 
                 return (
-                  <Card key={date}>
-                    <CardHeader className="bg-muted/50">
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-primary" />
-                        {format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr })}
-                      </CardTitle>
+                  <Card key={siteId}>
+                    <CardHeader className="bg-primary/5">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <Building2 className="h-6 w-6 text-primary" />
+                          {site_nom}
+                        </CardTitle>
+                        <div className="flex items-center gap-4">
+                          <Separator orientation="vertical" className="h-10" />
+                          <div className="text-right">
+                            <div className="text-sm text-muted-foreground">Médecins</div>
+                            <div className="font-bold text-lg">{totalMedecins}</div>
+                          </div>
+                          <Separator orientation="vertical" className="h-10" />
+                          <div className="text-right">
+                            <div className="text-sm text-muted-foreground">Secrétaires requis</div>
+                            <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
+                          </div>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent className="pt-6">
-                      <div className="space-y-6">
-                        {Object.entries(besoinsParSite).map(([siteId, { site_nom, besoins: besoinsSite }]) => {
-                          const medecins = besoinsSite.filter(b => b.type === 'medecin');
-                          const blocs = besoinsSite.filter(b => b.type === 'bloc_operatoire');
-                          const totalSecretaires = besoinsSite.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b-2">
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Type</th>
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Jours de présence</th>
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
+                              <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
+                              <th className="text-right p-2 font-medium text-sm text-muted-foreground">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(besoinsParMedecin).map(([key, besoinsGroupe]) => {
+                              const premierBesoin = besoinsGroupe[0];
+                              const isBloc = key.startsWith('bloc-');
+                              
+                              // Trier les besoins par date
+                              const besoinsTries = [...besoinsGroupe].sort((a, b) => 
+                                new Date(a.date).getTime() - new Date(b.date).getTime()
+                              );
+                              
+                              // Construire la liste des jours
+                              const jours = besoinsTries.map(b => 
+                                format(new Date(b.date), 'EEE d/M', { locale: fr })
+                              ).join(', ');
+                              
+                              // Récupérer les horaires (prendre le premier si c'est identique partout)
+                              const horaires = `${premierBesoin.heure_debut.slice(0, 5)} - ${premierBesoin.heure_fin.slice(0, 5)}`;
+                              
+                              const totalSecretairesPersonne = besoinsGroupe.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
 
-                          return (
-                            <div key={siteId} className="space-y-3">
-                              <div className="flex items-center justify-between bg-primary/5 p-3 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-5 w-5 text-primary" />
-                                  <h3 className="font-semibold text-lg">{site_nom}</h3>
-                                </div>
-                                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddClick(date, siteId)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Ajouter un médecin
-                  </Button>
-                                  <Separator orientation="vertical" className="h-10" />
-                                  <div className="text-right">
-                                    <div className="text-sm text-muted-foreground">Médecins</div>
-                                    <div className="font-bold text-lg">{medecins.length}</div>
-                                  </div>
-                                  <Separator orientation="vertical" className="h-10" />
-                                  <div className="text-right">
-                                    <div className="text-sm text-muted-foreground">Secrétaires requis</div>
-                                    <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="overflow-x-auto">
-                                <table className="w-full border-collapse">
-                                  <thead>
-                                    <tr className="border-b-2">
-                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Type</th>
-                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
-                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
-                                      <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
-                                      <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
-                                      <th className="text-right p-2 font-medium text-sm text-muted-foreground">Actions</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {medecins.map((besoin) => (
-                                      <tr key={besoin.id} className="border-b hover:bg-muted/30">
-                                        <td className="p-2">
-                                          <Badge variant="default">Médecin</Badge>
-                                        </td>
-                                        <td className="p-2 font-medium">
-                                          {besoin.medecin ? `${besoin.medecin.first_name} ${besoin.medecin.name}` : '-'}
-                                        </td>
-                                        <td className="p-2 text-sm text-muted-foreground">
-                                          {besoin.specialite?.nom || '-'}
-                                        </td>
-                                        <td className="p-2 text-sm">
-                                          {besoin.heure_debut.slice(0, 5)} - {besoin.heure_fin.slice(0, 5)}
-                                        </td>
-                                        <td className="p-2 text-right font-medium">
-                                          {besoin.nombre_secretaires_requis}
-                                        </td>
-                                        <td className="p-2 text-right">
-                                          <div className="flex justify-end gap-1">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => handleEditClick(besoin)}
-                                            >
-                                              <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => handleDeleteClick(besoin)}
-                                              className="text-destructive hover:text-destructive"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                    {blocs.map((besoin) => (
-                                      <tr key={besoin.id} className="border-b hover:bg-muted/30 bg-blue-50/50">
-                                        <td className="p-2">
-                                          <Badge variant="secondary">Bloc opératoire</Badge>
-                                        </td>
-                                        <td className="p-2 font-medium text-blue-700">
-                                          Intervention chirurgicale
-                                        </td>
-                                        <td className="p-2 text-sm text-muted-foreground">
-                                          {besoin.specialite?.nom || '-'}
-                                        </td>
-                                        <td className="p-2 text-sm">
-                                          {besoin.heure_debut.slice(0, 5)} - {besoin.heure_fin.slice(0, 5)}
-                                        </td>
-                                        <td className="p-2 text-right font-medium">
-                                          {besoin.nombre_secretaires_requis}
-                                        </td>
-                                        <td className="p-2 text-right">
-                                          <div className="flex justify-end gap-1">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => handleEditClick(besoin)}
-                                            >
-                                              <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => handleDeleteClick(besoin)}
-                                              className="text-destructive hover:text-destructive"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                    <tr className="font-bold bg-muted/50">
-                                      <td colSpan={5} className="p-2 text-right">TOTAL</td>
-                                      <td className="p-2 text-right text-primary text-lg">
-                                        {Math.ceil(totalSecretaires)}
-                                      </td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })}
+                              return (
+                                <tr key={key} className={`border-b hover:bg-muted/30 ${isBloc ? 'bg-blue-50/50' : ''}`}>
+                                  <td className="p-2">
+                                    <Badge variant={isBloc ? "secondary" : "default"}>
+                                      {isBloc ? 'Bloc opératoire' : 'Médecin'}
+                                    </Badge>
+                                  </td>
+                                  <td className="p-2 font-medium">
+                                    {isBloc 
+                                      ? <span className="text-blue-700">Intervention chirurgicale</span>
+                                      : premierBesoin.medecin 
+                                        ? `${premierBesoin.medecin.first_name} ${premierBesoin.medecin.name}` 
+                                        : '-'
+                                    }
+                                  </td>
+                                  <td className="p-2 text-sm text-muted-foreground">
+                                    {premierBesoin.specialite?.nom || '-'}
+                                  </td>
+                                  <td className="p-2 text-sm font-medium">
+                                    {jours}
+                                  </td>
+                                  <td className="p-2 text-sm">
+                                    {horaires}
+                                  </td>
+                                  <td className="p-2 text-right font-medium">
+                                    {totalSecretairesPersonne.toFixed(1)}
+                                  </td>
+                                  <td className="p-2 text-right">
+                                    <div className="flex justify-end gap-1">
+                                      {besoinsGroupe.map((besoin) => (
+                                        <div key={besoin.id} className="flex gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEditClick(besoin)}
+                                            title={`Modifier ${format(new Date(besoin.date), 'd/M', { locale: fr })}`}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDeleteClick(besoin)}
+                                            className="text-destructive hover:text-destructive"
+                                            title={`Supprimer ${format(new Date(besoin.date), 'd/M', { locale: fr })}`}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            <tr className="font-bold bg-muted/50">
+                              <td colSpan={6} className="p-2 text-right">TOTAL SECRÉTAIRES REQUIS</td>
+                              <td className="p-2 text-right text-primary text-lg">
+                                {Math.ceil(totalSecretaires)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </CardContent>
                   </Card>
