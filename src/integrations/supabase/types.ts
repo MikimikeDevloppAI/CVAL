@@ -319,6 +319,75 @@ export type Database = {
           },
         ]
       }
+      horaires_effectifs: {
+        Row: {
+          actif: boolean
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          personne_id: string
+          reference_id: string | null
+          site_id: string
+          source: Database["public"]["Enums"]["source_horaire"]
+          specialite_id: string | null
+          specialites: string[] | null
+          statut: Database["public"]["Enums"]["statut_horaire"]
+          type_personne: Database["public"]["Enums"]["type_personne"]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          personne_id: string
+          reference_id?: string | null
+          site_id: string
+          source?: Database["public"]["Enums"]["source_horaire"]
+          specialite_id?: string | null
+          specialites?: string[] | null
+          statut?: Database["public"]["Enums"]["statut_horaire"]
+          type_personne: Database["public"]["Enums"]["type_personne"]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          personne_id?: string
+          reference_id?: string | null
+          site_id?: string
+          source?: Database["public"]["Enums"]["source_horaire"]
+          specialite_id?: string | null
+          specialites?: string[] | null
+          statut?: Database["public"]["Enums"]["statut_horaire"]
+          type_personne?: Database["public"]["Enums"]["type_personne"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horaires_effectifs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_effectifs_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medecins: {
         Row: {
           actif: boolean
@@ -595,6 +664,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_week_plus_5: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
@@ -603,13 +676,23 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      regenerate_horaires_for_person: {
+        Args: {
+          p_personne_id: string
+          p_type_personne: Database["public"]["Enums"]["type_personne"]
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       priorite_besoin: "haute" | "moyenne" | "basse"
+      source_horaire: "horaire_base" | "bloc_operatoire" | "absence"
       statut_absence: "en_attente" | "approuve" | "refuse"
+      statut_horaire: "disponible" | "absent" | "bloc_operatoire"
       statut_planning: "planifie" | "confirme" | "absent"
       type_absence: "conges" | "maladie" | "formation" | "autre"
       type_horaire: "fixe" | "disponible"
+      type_personne: "medecin" | "secretaire"
       type_planning: "medecin" | "secretaire"
       user_role: "admin" | "medecin" | "secretaire"
     }
@@ -740,10 +823,13 @@ export const Constants = {
   public: {
     Enums: {
       priorite_besoin: ["haute", "moyenne", "basse"],
+      source_horaire: ["horaire_base", "bloc_operatoire", "absence"],
       statut_absence: ["en_attente", "approuve", "refuse"],
+      statut_horaire: ["disponible", "absent", "bloc_operatoire"],
       statut_planning: ["planifie", "confirme", "absent"],
       type_absence: ["conges", "maladie", "formation", "autre"],
       type_horaire: ["fixe", "disponible"],
+      type_personne: ["medecin", "secretaire"],
       type_planning: ["medecin", "secretaire"],
       user_role: ["admin", "medecin", "secretaire"],
     },

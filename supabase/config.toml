@@ -1,1 +1,4 @@
 project_id = "xvuugxjseavbxpxhfprb"
+
+[functions.generate-weekly-schedules]
+verify_jwt = false
