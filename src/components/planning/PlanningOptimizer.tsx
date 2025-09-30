@@ -29,7 +29,7 @@ export function PlanningOptimizer({ weekStart, onOptimizationComplete }: Plannin
       
       toast({
         title: "Planning généré avec succès",
-        description: `Score: ${data.score_total.toFixed(2)} (Base: ${data.score_base.toFixed(2)})`,
+        description: `✅ ${data.stats.satisfait} satisfaits | ⚠️ ${data.stats.partiel} partiels | ❌ ${data.stats.non_satisfait} non satisfaits`,
       });
     } catch (error: any) {
       console.error('Optimization error:', error);

@@ -51,6 +51,11 @@ export interface AssignmentResult {
 
 export interface OptimizationResult {
   assignments: AssignmentResult[];
+  stats: {
+    satisfait: number;
+    partiel: number;
+    non_satisfait: number;
+  };
   score_base: number;
   penalites: {
     changement_site: number;

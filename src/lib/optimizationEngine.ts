@@ -21,8 +21,17 @@ export function optimizePlanning(
   const scoreBase = calculateBaseScore(optimizedAssignments);
   const penalites = calculatePenalties(optimizedAssignments);
   
+  // Calculate stats
+  const assignmentResults = convertToAssignmentResults(optimizedAssignments);
+  const stats = {
+    satisfait: assignmentResults.filter(a => a.status === 'satisfait').length,
+    partiel: assignmentResults.filter(a => a.status === 'arrondi_inferieur').length,
+    non_satisfait: assignmentResults.filter(a => a.status === 'non_satisfait').length,
+  };
+  
   return {
-    assignments: convertToAssignmentResults(optimizedAssignments),
+    assignments: assignmentResults,
+    stats,
     score_base: scoreBase,
     penalites,
     score_total: scoreBase - (penalites.changement_site + penalites.multiple_fermetures + penalites.centre_esplanade_depassement),

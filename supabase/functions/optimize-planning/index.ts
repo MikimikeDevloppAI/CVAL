@@ -574,6 +574,12 @@ function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]
   console.log(`   Score: ${score_total} (= -100 × ${totalSquaredDeficit})`);
   console.log(`   Satisfied: ${totalSatisfiedCount}, Partial: ${totalPartialCount}, Unsatisfied: ${totalUnsatisfiedCount}`);
   
+  const stats = {
+    satisfait: totalSatisfiedCount,
+    partiel: totalPartialCount,
+    non_satisfait: totalUnsatisfiedCount,
+  };
+  
   // Log specific example for validation (2025-09-30)
   const exampleDate = '2025-09-30';
   const exampleBesoins = assignments.filter(a => a.creneau_besoin.date === exampleDate);
@@ -589,6 +595,7 @@ function optimizePlanning(besoins: CreneauBesoin[], capacites: CreneauCapacite[]
   return {
     assignments: convertToAssignmentResults(assignments),
     unusedCapacites,
+    stats,
     score_base,
     penalites,
     score_total,
