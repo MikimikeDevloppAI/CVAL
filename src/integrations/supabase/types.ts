@@ -458,6 +458,7 @@ export type Database = {
       }
       sites: {
         Row: {
+          actif: boolean
           adresse: string
           created_at: string
           fermeture: boolean
@@ -466,6 +467,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actif?: boolean
           adresse: string
           created_at?: string
           fermeture?: boolean
@@ -474,6 +476,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actif?: boolean
           adresse?: string
           created_at?: string
           fermeture?: boolean

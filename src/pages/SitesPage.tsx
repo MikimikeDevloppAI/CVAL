@@ -16,6 +16,7 @@ interface Site {
   nom: string;
   adresse: string;
   fermeture?: boolean;
+  actif?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -26,7 +27,7 @@ export default function SitesPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showClosed, setShowClosed] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -40,6 +41,7 @@ export default function SitesPage() {
           nom,
           adresse,
           fermeture,
+          actif,
           created_at,
           updated_at
         `)
@@ -64,24 +66,24 @@ export default function SitesPage() {
     fetchSites();
   }, []);
 
-  const handleToggleStatus = async (siteId: string, currentStatus: boolean, skipConfirmation: boolean = false) => {
-    // Si on ferme et qu'on n'a pas skip la confirmation, on ne fait rien ici
+  const handleToggleActif = async (siteId: string, currentActif: boolean, skipConfirmation: boolean = false) => {
+    // Si on désactive et qu'on n'a pas skip la confirmation, on ne fait rien ici
     // La confirmation sera gérée par l'AlertDialog
-    if (!currentStatus && !skipConfirmation) {
+    if (currentActif && !skipConfirmation) {
       return;
     }
 
     try {
       const { error } = await supabase
         .from('sites')
-        .update({ fermeture: !currentStatus })
+        .update({ actif: !currentActif })
         .eq('id', siteId);
 
       if (error) throw error;
 
       toast({
         title: "Succès",
-        description: `Site ${!currentStatus ? 'fermé' : 'ouvert'} avec succès`,
+        description: `Site ${!currentActif ? 'activé' : 'désactivé'} avec succès`,
       });
       
       fetchSites();
@@ -100,7 +102,7 @@ export default function SitesPage() {
            site.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
            site.id.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = showClosed ? site.fermeture === true : site.fermeture !== true;
+    const matchesStatus = showInactive ? site.actif === false : site.actif !== false;
     
     return matchesSearch && matchesStatus;
   });
@@ -160,12 +162,12 @@ export default function SitesPage() {
           
           <div className="flex items-center space-x-2">
             <Switch
-              checked={showClosed}
-              onCheckedChange={setShowClosed}
-              id="show-closed-sites"
+              checked={showInactive}
+              onCheckedChange={setShowInactive}
+              id="show-inactive-sites"
             />
-            <label htmlFor="show-closed-sites" className="text-sm font-medium cursor-pointer">
-              Montrer sites fermés
+            <label htmlFor="show-inactive-sites" className="text-sm font-medium cursor-pointer">
+              Montrer sites inactifs
             </label>
           </div>
         </div>
@@ -173,7 +175,7 @@ export default function SitesPage() {
         {/* Sites Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSites.map((site) => (
-            <ModernCard key={site.id} className={site.fermeture === true ? 'opacity-60' : ''}>
+            <ModernCard key={site.id} className={site.actif === false ? 'opacity-60' : ''}>
               <ModernCardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -181,11 +183,18 @@ export default function SitesPage() {
                       <ModernCardTitle>
                         {site.nom}
                       </ModernCardTitle>
-                      {site.fermeture === true && (
-                        <Badge variant="secondary" className="text-xs">
-                          Nécessite fermeture de site
-                        </Badge>
-                      )}
+                      <div className="flex gap-2 flex-wrap mt-2">
+                        {site.actif === false && (
+                          <Badge variant="secondary" className="text-xs">
+                            Inactif
+                          </Badge>
+                        )}
+                        {site.fermeture === true && (
+                          <Badge variant="destructive" className="text-xs">
+                            Nécessite fermeture de site
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="space-y-3 mt-4">
@@ -211,17 +220,17 @@ export default function SitesPage() {
                       <Edit className="h-4 w-4" />
                     </Button>
                     
-                    {site.fermeture === true ? (
-                      // Switch fermé - réouverture directe
+                    {site.actif === false ? (
+                      // Switch inactif - activation directe
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={false}
-                          onCheckedChange={() => handleToggleStatus(site.id, true, true)}
+                          onCheckedChange={() => handleToggleActif(site.id, false, true)}
                           className="data-[state=unchecked]:bg-muted"
                         />
                       </div>
                     ) : (
-                      // Switch ouvert - avec confirmation pour fermer
+                      // Switch actif - avec confirmation pour désactiver
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <div className="flex items-center space-x-2">
@@ -233,18 +242,18 @@ export default function SitesPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Confirmer la fermeture</AlertDialogTitle>
+                            <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Êtes-vous sûr de vouloir fermer ce site ?
+                              Êtes-vous sûr de vouloir désactiver ce site ?
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annuler</AlertDialogCancel>
                             <AlertDialogAction 
-                              onClick={() => handleToggleStatus(site.id, false, true)}
+                              onClick={() => handleToggleActif(site.id, true, true)}
                               className="bg-muted text-muted-foreground hover:bg-muted/90"
                             >
-                              Fermer le site
+                              Désactiver le site
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -257,16 +266,14 @@ export default function SitesPage() {
               <ModernCardContent>
                 <div className="space-y-4">
                   {/* Statut */}
-                  {site.fermeture === true && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                        Statut
-                      </p>
-                      <Badge variant="secondary" className="text-xs">
-                        Nécessite fermeture de site
-                      </Badge>
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Statut
+                    </p>
+                    <Badge variant={site.actif === false ? "secondary" : "default"} className="text-xs">
+                      {site.actif === false ? 'Inactif' : 'Actif'}
+                    </Badge>
+                  </div>
                 </div>
               </ModernCardContent>
             </ModernCard>
@@ -276,7 +283,7 @@ export default function SitesPage() {
         {filteredSites.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              {searchTerm ? 'Aucun site trouvé pour cette recherche' : showClosed ? 'Aucun site fermé' : 'Aucun site enregistré'}
+              {searchTerm ? 'Aucun site trouvé pour cette recherche' : showInactive ? 'Aucun site inactif' : 'Aucun site enregistré'}
             </p>
           </div>
         )}

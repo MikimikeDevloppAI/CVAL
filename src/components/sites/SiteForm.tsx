@@ -64,6 +64,7 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
             nom: data.nom,
             adresse: data.adresse,
             fermeture: data.fermeture,
+            actif: true, // Par défaut actif
           });
 
         if (siteError) throw siteError;
