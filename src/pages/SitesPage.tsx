@@ -183,18 +183,11 @@ export default function SitesPage() {
                       <ModernCardTitle>
                         {site.nom}
                       </ModernCardTitle>
-                      <div className="flex gap-2 flex-wrap mt-2">
-                        {site.actif === false && (
-                          <Badge variant="secondary" className="text-xs">
-                            Inactif
-                          </Badge>
-                        )}
-                        {site.fermeture === true && (
-                          <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
-                            Nécessite fermeture de site
-                          </Badge>
-                        )}
-                      </div>
+                      {site.actif === false && (
+                        <Badge variant="secondary" className="text-xs">
+                          Inactif
+                        </Badge>
+                      )}
                     </div>
                     
                     <div className="space-y-3 mt-4">
