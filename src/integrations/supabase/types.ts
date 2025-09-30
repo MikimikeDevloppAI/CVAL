@@ -854,6 +854,26 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      recreate_doctor_besoin: {
+        Args: { p_date_debut: string; p_date_fin: string; p_medecin_id: string }
+        Returns: undefined
+      }
+      recreate_secretary_capacite: {
+        Args: {
+          p_date_debut: string
+          p_date_fin: string
+          p_secretaire_id: string
+        }
+        Returns: undefined
+      }
+      should_doctor_work: {
+        Args: {
+          p_alternance_reference: string
+          p_alternance_type: Database["public"]["Enums"]["type_alternance"]
+          p_target_date: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       priorite_besoin: "haute" | "moyenne" | "basse"

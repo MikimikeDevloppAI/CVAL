@@ -128,13 +128,6 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
 
         if (error) throw error;
 
-        // Régénérer les capacités/besoins après modification
-        if (data.profile_type === 'medecin') {
-          await supabase.rpc('generate_besoin_effectif');
-        } else {
-          await supabase.rpc('generate_capacite_effective');
-        }
-
         toast({
           title: "Succès",
           description: "Absence modifiée avec succès",
@@ -176,13 +169,6 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
             .insert(absences);
 
           if (error) throw error;
-        }
-
-        // Régénérer les capacités/besoins après toutes les insertions
-        if (data.profile_type === 'medecin') {
-          await supabase.rpc('generate_besoin_effectif');
-        } else {
-          await supabase.rpc('generate_capacite_effective');
         }
 
         toast({
