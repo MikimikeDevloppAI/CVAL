@@ -5,7 +5,11 @@ import {
   UserPlus,
   Settings,
   LogOut,
-  Menu
+  Menu,
+  Stethoscope,
+  User,
+  UserCog,
+  CalendarX
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -18,9 +22,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 const navigation = [
   { name: 'Planning', href: '/planning', icon: Calendar },
-  { name: 'Absences', href: '/', icon: Calendar },
-  { name: 'Médecins', href: '/medecins', icon: Users },
-  { name: 'Secrétaires', href: '/secretaires', icon: UserPlus },
+  { name: 'Absences', href: '/', icon: CalendarX },
+  { name: 'Médecins', href: '/medecins', icon: Stethoscope },
+  { name: 'Secrétaires', href: '/secretaires', icon: User },
+  { name: 'Backup', href: '/backup', icon: UserCog },
   { name: 'Sites', href: '/sites', icon: Building2 },
   { name: 'Paramètres', href: '#', icon: Settings },
 ];
