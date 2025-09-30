@@ -101,15 +101,15 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
 
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary shrink-0">
               <span className="text-sm font-medium text-sidebar-primary-foreground">
                 {getInitials()}
               </span>
             </div>
             {profile?.prenom && (
-              <span className="text-sm font-medium text-foreground flex-1 text-center">
-                {profile.prenom}
+              <span className="text-sm font-medium text-foreground flex-1 text-center truncate">
+                {profile.prenom} {profile.nom}
               </span>
             )}
             <Button
