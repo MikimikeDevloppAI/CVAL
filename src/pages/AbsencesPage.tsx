@@ -230,9 +230,6 @@ export default function AbsencesPage() {
                       <Badge variant="secondary" className="text-xs">
                         {absence.type_personne === 'medecin' ? 'Médecin' : 'Secrétaire'}
                       </Badge>
-                      <Badge variant={getStatutVariant(absence.statut)} className="text-xs">
-                        {getStatutLabel(absence.statut)}
-                      </Badge>
                     </div>
                   </div>
                   

@@ -105,7 +105,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         date_debut: format(sortedDates[0], 'yyyy-MM-dd'),
         date_fin: format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd'),
         motif: data.motif || null,
-        statut: 'en_attente' as const,
+        statut: 'approuve' as const,
       };
 
       if (absence) {
