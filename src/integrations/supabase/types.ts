@@ -190,44 +190,6 @@ export type Database = {
           },
         ]
       }
-      besoins_secretaires_par_medecin: {
-        Row: {
-          actif: boolean
-          created_at: string
-          facteur_ajustement: number
-          id: string
-          medecin_id: string
-          nombre_secretaires_requis: number
-          updated_at: string
-        }
-        Insert: {
-          actif?: boolean
-          created_at?: string
-          facteur_ajustement?: number
-          id?: string
-          medecin_id: string
-          nombre_secretaires_requis?: number
-          updated_at?: string
-        }
-        Update: {
-          actif?: boolean
-          created_at?: string
-          facteur_ajustement?: number
-          id?: string
-          medecin_id?: string
-          nombre_secretaires_requis?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "besoins_secretaires_par_medecin_medecin_id_fkey"
-            columns: ["medecin_id"]
-            isOneToOne: false
-            referencedRelation: "medecins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       besoins_sites: {
         Row: {
           actif: boolean
