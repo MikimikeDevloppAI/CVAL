@@ -102,23 +102,21 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary">
-                <span className="text-sm font-medium text-sidebar-primary-foreground">
-                  {getInitials()}
-                </span>
-              </div>
-              {profile?.prenom && (
-                <span className="text-sm font-medium text-foreground">
-                  {profile.prenom}
-                </span>
-              )}
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary shrink-0">
+              <span className="text-sm font-medium text-sidebar-primary-foreground">
+                {getInitials()}
+              </span>
             </div>
+            {profile?.prenom && (
+              <span className="text-sm font-medium text-foreground flex-1 text-center">
+                {profile.prenom}
+              </span>
+            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="h-8 w-8 p-0 hover:bg-sidebar-accent-foreground/10"
+              className="h-8 w-8 p-0 hover:bg-sidebar-accent-foreground/10 shrink-0"
             >
               <LogOut className="h-4 w-4" />
             </Button>
