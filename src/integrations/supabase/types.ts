@@ -285,6 +285,7 @@ export type Database = {
       capacite_effective: {
         Row: {
           actif: boolean
+          backup_id: string | null
           created_at: string
           date: string
           heure_debut: string
@@ -296,6 +297,7 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
+          backup_id?: string | null
           created_at?: string
           date: string
           heure_debut: string
@@ -307,6 +309,7 @@ export type Database = {
         }
         Update: {
           actif?: boolean
+          backup_id?: string | null
           created_at?: string
           date?: string
           heure_debut?: string
@@ -317,6 +320,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "capacite_effective_backup_id_fkey"
+            columns: ["backup_id"]
+            isOneToOne: false
+            referencedRelation: "backup"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "capacite_effective_secretaire_id_fkey"
             columns: ["secretaire_id"]

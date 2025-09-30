@@ -54,7 +54,10 @@ interface CapaciteEffective {
   date: string;
   heure_debut: string;
   heure_fin: string;
+  secretaire_id?: string;
+  backup_id?: string;
   secretaire?: { first_name: string; name: string };
+  backup?: { first_name: string; name: string };
   specialites: string[];
 }
 
@@ -226,7 +229,8 @@ export default function PlanningPage() {
       .from('capacite_effective')
       .select(`
         *,
-        secretaire:secretaires(first_name, name)
+        secretaire:secretaires(first_name, name),
+        backup:backup(first_name, name)
       `)
       .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
       .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -642,46 +646,57 @@ export default function PlanningPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {capacitesJour.map((capacite) => (
-                        <div key={capacite.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex-1">
-                            <div className="font-medium">
-                              {capacite.secretaire ? `${capacite.secretaire.first_name} ${capacite.secretaire.name}` : 'Secrétaire inconnu'}
-                            </div>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {capacite.specialites && capacite.specialites.length > 0 
-                                ? capacite.specialites.join(', ')
-                                : 'Aucune spécialité'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <div className="font-medium text-lg">
-                                {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
+                      {capacitesJour.map((capacite) => {
+                        const personName = capacite.secretaire 
+                          ? `${capacite.secretaire.first_name} ${capacite.secretaire.name}`
+                          : capacite.backup
+                          ? `${capacite.backup.first_name} ${capacite.backup.name} (Backup)`
+                          : 'Personne inconnue';
+
+                        return (
+                          <div key={capacite.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex-1">
+                              <div className="font-medium flex items-center gap-2">
+                                {personName}
+                                {capacite.backup_id && (
+                                  <Badge variant="secondary" className="text-xs">Backup</Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                {capacite.specialites && capacite.specialites.length > 0 
+                                  ? capacite.specialites.join(', ')
+                                  : 'Aucune spécialité'}
                               </div>
                             </div>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditCapaciteClick(capacite)}
-                                title="Modifier"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteCapaciteClick(capacite)}
-                                className="text-destructive hover:text-destructive"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <div className="font-medium text-lg">
+                                  {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
+                                </div>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditCapaciteClick(capacite)}
+                                  title="Modifier"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteCapaciteClick(capacite)}
+                                  className="text-destructive hover:text-destructive"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

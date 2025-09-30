@@ -113,19 +113,29 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
 
     setLoading(true);
     try {
+      // Déterminer si c'est un secrétaire ou un backup
+      const isBackup = backup.some(b => b.id === data.secretaire_id);
+      
       await Promise.all(
-        selectedDates.map(date => 
-          supabase
+        selectedDates.map(date => {
+          const insertData: any = {
+            date: format(date, 'yyyy-MM-dd'),
+            heure_debut: data.heure_debut,
+            heure_fin: data.heure_fin,
+            specialites: data.specialites,
+            actif: true,
+          };
+
+          if (isBackup) {
+            insertData.backup_id = data.secretaire_id;
+          } else {
+            insertData.secretaire_id = data.secretaire_id;
+          }
+
+          return supabase
             .from('capacite_effective')
-            .insert({
-              date: format(date, 'yyyy-MM-dd'),
-              secretaire_id: data.secretaire_id,
-              heure_debut: data.heure_debut,
-              heure_fin: data.heure_fin,
-              specialites: data.specialites,
-              actif: true,
-            })
-        )
+            .insert(insertData);
+        })
       );
 
       toast({
