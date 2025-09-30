@@ -316,14 +316,14 @@ export default function PlanningPage() {
                                   <h3 className="font-semibold text-lg">{site_nom}</h3>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleAddClick(date, siteId)}
-                                  >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Ajouter un besoin
-                                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddClick(date, siteId)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Ajouter un médecin
+                  </Button>
                                   <Separator orientation="vertical" className="h-10" />
                                   <div className="text-right">
                                     <div className="text-sm text-muted-foreground">Médecins</div>
