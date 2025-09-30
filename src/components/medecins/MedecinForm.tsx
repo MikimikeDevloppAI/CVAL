@@ -19,6 +19,8 @@ const horaireSchema = z.object({
   heureFin: z.string().optional(),
   siteId: z.string().optional(),
   actif: z.boolean().default(true),
+  alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
+  alternanceSemaineReference: z.string().optional(),
 });
 
 const medecinSchema = z.object({
@@ -62,11 +64,11 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
       phone_number: medecin?.phone_number || '',
       specialiteId: medecin?.specialite_id || '',
       horaires: medecin?.horaires || [
-        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
-        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true },
+        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
+        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
+        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
+        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
+        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', siteId: '', actif: true, alternanceType: 'hebdomadaire' as const, alternanceSemaineReference: undefined },
       ],
     },
   });
@@ -105,7 +107,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                   heureDebut: horaireExistant.heure_debut || '07:30',
                   heureFin: horaireExistant.heure_fin || '17:00',
                   siteId: horaireExistant.site_id || '',
-                  actif: horaireExistant.actif !== false
+                  actif: horaireExistant.actif !== false,
+                  alternanceType: horaireExistant.alternance_type || 'hebdomadaire',
+                  alternanceSemaineReference: horaireExistant.alternance_semaine_reference || undefined
                 });
               } else {
                 horaires.push({
@@ -114,7 +118,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                   heureDebut: '07:30',
                   heureFin: '17:00',
                   siteId: '',
-                  actif: true
+                  actif: true,
+                  alternanceType: 'hebdomadaire',
+                  alternanceSemaineReference: undefined
                 });
               }
             }
@@ -170,6 +176,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             heure_fin: horaire.heureFin,
             site_id: horaire.siteId,
             actif: horaire.actif,
+            alternance_type: horaire.alternanceType,
+            alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
           }));
 
           const { error: horairesError } = await supabase
@@ -216,6 +224,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
               heure_fin: horaire.heureFin,
               site_id: horaire.siteId,
               actif: horaire.actif,
+              alternance_type: horaire.alternanceType,
+              alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
             }));
 
             const { error: horairesError } = await supabase
@@ -343,6 +353,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           {fields.map((field, index) => {
             const jourNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
             const jourTravaille = form.watch(`horaires.${index}.jourTravaille`);
+            const alternanceType = form.watch(`horaires.${index}.alternanceType`);
             
             return (
               <Card key={field.id}>
@@ -428,6 +439,46 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name={`horaires.${index}.alternanceType`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Type d'alternance</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sélectionner le type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="hebdomadaire">Toutes les semaines</SelectItem>
+                                <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
+                                <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
+                                <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {alternanceType !== 'hebdomadaire' && (
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.alternanceSemaineReference`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Semaine de référence (première semaine de travail)</FormLabel>
+                              <FormControl>
+                                <Input {...field} type="date" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </>
                   ) : (
                     <div className="text-muted-foreground text-sm py-4">

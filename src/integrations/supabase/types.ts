@@ -227,6 +227,8 @@ export type Database = {
       horaires_base_medecins: {
         Row: {
           actif: boolean
+          alternance_semaine_reference: string | null
+          alternance_type: Database["public"]["Enums"]["type_alternance"] | null
           created_at: string
           heure_debut: string
           heure_fin: string
@@ -238,6 +240,10 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
+          alternance_semaine_reference?: string | null
+          alternance_type?:
+            | Database["public"]["Enums"]["type_alternance"]
+            | null
           created_at?: string
           heure_debut: string
           heure_fin: string
@@ -249,6 +255,10 @@ export type Database = {
         }
         Update: {
           actif?: boolean
+          alternance_semaine_reference?: string | null
+          alternance_type?:
+            | Database["public"]["Enums"]["type_alternance"]
+            | null
           created_at?: string
           heure_debut?: string
           heure_fin?: string
@@ -702,6 +712,11 @@ export type Database = {
       statut_horaire: "disponible" | "absent" | "bloc_operatoire"
       statut_planning: "planifie" | "confirme" | "absent"
       type_absence: "conges" | "maladie" | "formation" | "autre"
+      type_alternance:
+        | "hebdomadaire"
+        | "une_sur_deux"
+        | "une_sur_trois"
+        | "une_sur_quatre"
       type_horaire: "fixe" | "disponible"
       type_personne: "medecin" | "secretaire"
       type_planning: "medecin" | "secretaire"
@@ -839,6 +854,12 @@ export const Constants = {
       statut_horaire: ["disponible", "absent", "bloc_operatoire"],
       statut_planning: ["planifie", "confirme", "absent"],
       type_absence: ["conges", "maladie", "formation", "autre"],
+      type_alternance: [
+        "hebdomadaire",
+        "une_sur_deux",
+        "une_sur_trois",
+        "une_sur_quatre",
+      ],
       type_horaire: ["fixe", "disponible"],
       type_personne: ["medecin", "secretaire"],
       type_planning: ["medecin", "secretaire"],
