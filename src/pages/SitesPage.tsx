@@ -149,8 +149,8 @@ export default function SitesPage() {
         </div>
 
         {/* Search and Filter */}
-        <div className="flex items-center space-x-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+          <div className="relative flex-1 max-w-full md:max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Rechercher un site..."
