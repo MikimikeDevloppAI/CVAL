@@ -13,8 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 const backupSchema = z.object({
   first_name: z.string().min(1, 'Le prénom est requis'),
   name: z.string().min(1, 'Le nom est requis'),
-  email: z.string().email('Email invalide'),
-  phone_number: z.string().optional(),
+  email: z.string().email('Email invalide').optional().or(z.literal('')),
+  phone_number: z.string().optional().or(z.literal('')),
   specialites: z.array(z.string()).default([]),
   actif: z.boolean().default(true),
 });
