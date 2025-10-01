@@ -54,15 +54,8 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
   });
 
   const getStatusClass = (status?: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait') => {
-    if (!status) return 'bg-muted/30';
-    switch (status) {
-      case 'satisfait':
-        return 'bg-green-50 border-green-200';
-      case 'arrondi_inferieur':
-        return 'bg-yellow-50 border-yellow-200';
-      case 'non_satisfait':
-        return 'bg-red-50 border-red-200';
-    }
+    // Toujours retourner un fond blanc
+    return 'bg-white';
   };
 
   // Get all secretaries from assignments

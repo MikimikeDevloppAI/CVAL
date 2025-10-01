@@ -209,10 +209,19 @@ export default function PlanningPage() {
             // Récupérer les médecins correspondants depuis besoinsData
             const medecins = besoinsData
               ?.filter(besoin => {
-                const besoinPeriode = besoin.heure_debut < '12:00:00' ? 'matin' : 'apres_midi';
+                // Un besoin est associé à une période si ses horaires chevauchent cette période
+                const besoinHeureDebut = besoin.heure_debut || '00:00:00';
+                const isMatin = periode === 'matin';
+                
+                // Matin: 07:30 - 12:00, Après-midi: 13:00 - 17:00
+                // On considère qu'un besoin appartient à une période si son heure de début est dans cette période
+                const appartientPeriode = isMatin 
+                  ? besoinHeureDebut >= '07:00:00' && besoinHeureDebut < '12:30:00'
+                  : besoinHeureDebut >= '12:30:00' && besoinHeureDebut < '18:00:00';
+                
                 return besoin.date === row.date && 
                        besoin.site_id === row.site_id && 
-                       besoinPeriode === periode &&
+                       appartientPeriode &&
                        besoin.medecin;
               })
               .map(besoin => `${besoin.medecin?.first_name || ''} ${besoin.medecin?.name || ''}`.trim())
