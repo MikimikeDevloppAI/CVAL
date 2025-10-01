@@ -300,7 +300,7 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
       
       model.variables[varName] = {
         objective: 0,
-        [besoinConstraint]: 1,
+        [`def_ecart_${besoinKey}`]: 1, // Contribue à satisfaire le besoin
         [`cap_${person.person_id}_${besoin.date}_${besoin.demi_journee}`]: 1
       };
       
@@ -336,29 +336,22 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
     totalConstraints++;
   }
 
-  // Contrainte 2: Écart pour chaque besoin
-  // On crée une variable d'écart et on minimise son carré (approximation linéaire)
+  // Contrainte 2: Pour chaque besoin, on veut que la capacité assignée soit <= besoin
+  // On crée aussi des variables d'écart pour pénaliser les besoins non satisfaits
   for (const [besoinKey, besoin] of besoinsAgg) {
-    const besoinValue = Math.ceil(besoin.besoin); // Arrondir au supérieur pour le besoin
+    const besoinValue = besoin.besoin; // Garder la valeur réelle (peut être décimale)
     
-    // Variable pour capacité assignée
-    const capVarName = `cap_assigned_${besoinKey}`;
-    model.variables[capVarName] = {
-      [`besoin_${besoinKey}`]: -1, // capacité = -Σx (on inverse le signe)
-      [`ecart_${besoinKey}`]: 1    // ecart = besoin - capacité
-    };
-    totalVars++;
-    
-    // Variable d'écart (positif)
+    // Variable d'écart (représente le manque de capacité)
     const ecartVarName = `ecart_${besoinKey}`;
     model.variables[ecartVarName] = {
-      objective: WEIGHTS.satisfaction * 2 * besoinValue, // Approximation linéaire de x²
-      [`ecart_${besoinKey}`]: 1
+      objective: WEIGHTS.satisfaction * Math.max(1, besoinValue), // Pénalité proportionnelle au besoin
+      [`def_ecart_${besoinKey}`]: 1
     };
     totalVars++;
     
-    // Contrainte: capacité + écart = besoin
-    model.constraints[`ecart_${besoinKey}`] = { equal: besoinValue };
+    // Contrainte: Σx + ecart >= besoin (on veut satisfaire le besoin)
+    // Réécrit comme: Σx + ecart = besoin (pour simplifier)
+    model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
     totalConstraints++;
   }
 
