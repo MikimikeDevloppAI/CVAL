@@ -483,7 +483,7 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
       assignments.push({
         date: c.date,
         site_id: c.siteId,
-        type: info?.type || 'medecin',
+        type: 'secretaire',
         heure_debut: c.times.heure_debut,
         heure_fin: c.times.heure_fin,
         secretaires_ids: [c.personId],
@@ -509,7 +509,7 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
       assignments.push({
         date: c.date,
         site_id: c.siteId,
-        type: info.type || 'medecin',
+        type: 'secretaire',
         heure_debut: c.times.heure_debut,
         heure_fin: c.times.heure_fin,
         secretaires_ids: [c.personId],
