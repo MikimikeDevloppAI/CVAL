@@ -11,7 +11,8 @@ import {
   UserCog,
   CalendarX,
   ClipboardPlus,
-  BarChart3
+  BarChart3,
+  ChevronDown
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -22,26 +23,16 @@ import cliniqueLogoImg from '@/assets/clinique-logo.png';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-const navigationGroups = [
-  {
-    name: 'Planning',
-    items: [
-      { name: 'Planning', href: '/planning', icon: Calendar },
-      { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
-    ]
-  },
-  {
-    name: 'Gestion',
-    items: [
-      { name: 'Absences', href: '/', icon: CalendarX },
-      { name: 'Médecins', href: '/medecins', icon: Stethoscope },
-      { name: 'Secrétaires', href: '/secretaires', icon: User },
-      { name: 'Backup', href: '/backup', icon: UserCog },
-      { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
-      { name: 'Sites', href: '/sites', icon: Building2 },
-      { name: 'Paramètres', href: '#', icon: Settings },
-    ]
-  }
+const planningItems = [
+  { name: 'Planning', href: '/planning', icon: Calendar },
+  { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
+  { name: 'Absences', href: '/', icon: CalendarX },
+  { name: 'Médecins', href: '/medecins', icon: Stethoscope },
+  { name: 'Secrétaires', href: '/secretaires', icon: User },
+  { name: 'Backup', href: '/backup', icon: UserCog },
+  { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
+  { name: 'Sites', href: '/sites', icon: Building2 },
+  { name: 'Paramètres', href: '#', icon: Settings },
 ];
 
 export const Sidebar = () => {
@@ -49,6 +40,7 @@ export const Sidebar = () => {
   const { signOut, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const [planningExpanded, setPlanningExpanded] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -90,42 +82,52 @@ export const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col px-3 py-4">
-        <ul role="list" className="flex flex-1 flex-col gap-y-4">
-          {navigationGroups.map((group) => (
-            <li key={group.name}>
-              <div className="text-xs font-semibold text-sidebar-foreground/70 px-3 mb-2">
-                {group.name}
-              </div>
-              <ul className="space-y-1">
-                {group.items.map((item) => {
-                  const isActive = location.pathname === item.href;
-                  return (
-                    <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        onClick={onLinkClick}
+        <div>
+          <button
+            onClick={() => setPlanningExpanded(!planningExpanded)}
+            className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+          >
+            <span>Planning</span>
+            <ChevronDown 
+              className={cn(
+                "h-4 w-4 transition-transform",
+                !planningExpanded && "-rotate-90"
+              )}
+            />
+          </button>
+          
+          {planningExpanded && (
+            <ul className="mt-2 space-y-1">
+              {planningItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <li key={item.name}>
+                    <Link
+                      to={item.href}
+                      onClick={onLinkClick}
+                      className={cn(
+                        'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                          : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+                      )}
+                    >
+                      <item.icon
                         className={cn(
-                          'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                          isActive
-                            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                            : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+                          'h-4 w-4 shrink-0 transition-colors',
+                          isActive ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
                         )}
-                      >
-                        <item.icon
-                          className={cn(
-                            'h-4 w-4 shrink-0 transition-colors',
-                            isActive ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-                          )}
-                        />
-                        {item.name}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          ))}
-        </ul>
+                      />
+                      {item.name}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex-1" />
 
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
