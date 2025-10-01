@@ -113,7 +113,7 @@ serve(async (req) => {
     // Insert new planning
     const insertData = results.map(r => ({
       date: r.date,
-      type: 'site',
+      type: 'medecin',
       type_assignation: 'site',
       site_id: r.site_id,
       heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
