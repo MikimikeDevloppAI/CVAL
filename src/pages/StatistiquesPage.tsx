@@ -5,8 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { OptimizationScoreCards } from '@/components/statistiques/OptimizationScoreCards';
-import { aggregateBesoins, aggregateCapacites, optimizeBaseSchedule } from '@/lib/baseScheduleOptimization';
-import type { BaseScheduleOptimizationResult } from '@/types/baseSchedule';
+import type { OptimizationScoreParSpecialite, OptimizationDetailJour } from '@/types/baseSchedule';
 
 interface SpecialiteStats {
   specialite: string;
@@ -28,7 +27,7 @@ export default function StatistiquesPage() {
   const [selectedSpecialite, setSelectedSpecialite] = useState<string | null>(null);
   const [detailJour, setDetailJour] = useState<JourStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [optimizationResult, setOptimizationResult] = useState<BaseScheduleOptimizationResult | null>(null);
+  const [optimizationScores, setOptimizationScores] = useState<OptimizationScoreParSpecialite[]>([]);
 
   useEffect(() => {
     fetchStats();
@@ -37,37 +36,61 @@ export default function StatistiquesPage() {
 
   const fetchOptimization = async () => {
     try {
-      // Fetch all necessary data
-      const [
-        { data: horairesM, error: errorM },
-        { data: horairesS, error: errorS },
-        { data: medecins, error: errorMed },
-        { data: secretaires, error: errorSec },
-        { data: backups, error: errorBack },
-        { data: specialites, error: errorSpec }
-      ] = await Promise.all([
-        supabase.from('horaires_base_medecins').select('*').eq('actif', true),
-        supabase.from('horaires_base_secretaires').select('*').eq('actif', true),
-        supabase.from('medecins').select('*').eq('actif', true),
-        supabase.from('secretaires').select('*').eq('actif', true),
-        supabase.from('backup').select('*').eq('actif', true),
-        supabase.from('specialites').select('*')
-      ]);
+      // Fetch optimization results from database
+      const { data: optimisationData, error } = await supabase
+        .from('optimisation_horaires_base')
+        .select(`
+          *,
+          specialites!inner(nom)
+        `)
+        .order('specialite_id');
 
-      if (errorM || errorS || errorMed || errorSec || errorBack || errorSpec) {
-        console.error('Error fetching optimization data');
-        return;
-      }
+      if (error) throw error;
 
-      // Aggregate needs and capacities
-      const besoins = aggregateBesoins(horairesM || [], medecins || [], specialites || []);
-      const capacites = aggregateCapacites(horairesS || [], secretaires || [], backups || []);
+      // Group by specialty
+      const specialitesMap = new Map<string, OptimizationScoreParSpecialite>();
+      const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
-      // Run optimization
-      const result = optimizeBaseSchedule(besoins, capacites);
-      setOptimizationResult(result);
+      optimisationData?.forEach((row: any) => {
+        const specId = row.specialite_id;
+        
+        if (!specialitesMap.has(specId)) {
+          specialitesMap.set(specId, {
+            specialite_id: specId,
+            specialite_nom: row.specialites.nom,
+            score_global: 0,
+            pourcentage_global: 0,
+            details_jours: JOURS_NOMS.map((nom, idx) => ({
+              jour_semaine: idx + 1,
+              jour_nom: nom,
+              matin: { besoins: 0, capacites: 0, score: 0, pourcentage: 0 },
+              apres_midi: { besoins: 0, capacites: 0, score: 0, pourcentage: 0 },
+            })),
+          });
+        }
+
+        const spec = specialitesMap.get(specId)!;
+        const jourIndex = row.jour_semaine - 1;
+        
+        if (jourIndex >= 0 && jourIndex < 5) {
+          const detail = spec.details_jours[jourIndex];
+          
+          if (row.demi_journee === 'matin') {
+            detail.matin.besoins = row.besoins;
+            detail.matin.capacites = row.capacites_assignees;
+            detail.matin.pourcentage = row.besoins > 0 ? Math.round((row.capacites_assignees / row.besoins) * 100) : 100;
+          } else {
+            detail.apres_midi.besoins = row.besoins;
+            detail.apres_midi.capacites = row.capacites_assignees;
+            detail.apres_midi.pourcentage = row.besoins > 0 ? Math.round((row.capacites_assignees / row.besoins) * 100) : 100;
+          }
+        }
+      });
+
+      setOptimizationScores(Array.from(specialitesMap.values()));
     } catch (error) {
-      console.error('Error in optimization:', error);
+      console.error('Error fetching optimization:', error);
+      toast.error('Erreur lors du chargement de l\'optimisation');
     }
   };
 
@@ -246,8 +269,8 @@ export default function StatistiquesPage() {
         <p className="text-muted-foreground">Analyse des besoins et capacités par spécialité (heures hebdomadaires)</p>
       </div>
 
-      {optimizationResult && (
-        <OptimizationScoreCards scores={optimizationResult.scores_par_specialite} />
+      {optimizationScores.length > 0 && (
+        <OptimizationScoreCards scores={optimizationScores} />
       )}
 
       <Card className="border-border/50 shadow-lg">

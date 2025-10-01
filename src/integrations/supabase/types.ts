@@ -567,6 +567,50 @@ export type Database = {
           },
         ]
       }
+      optimisation_horaires_base: {
+        Row: {
+          besoins: number
+          capacites_assignees: number
+          created_at: string
+          demi_journee: string
+          id: string
+          jour_semaine: number
+          secretaires_assignees: string[]
+          specialite_id: string
+          updated_at: string
+        }
+        Insert: {
+          besoins?: number
+          capacites_assignees?: number
+          created_at?: string
+          demi_journee: string
+          id?: string
+          jour_semaine: number
+          secretaires_assignees?: string[]
+          specialite_id: string
+          updated_at?: string
+        }
+        Update: {
+          besoins?: number
+          capacites_assignees?: number
+          created_at?: string
+          demi_journee?: string
+          id?: string
+          jour_semaine?: number
+          secretaires_assignees?: string[]
+          specialite_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimisation_horaires_base_specialite_id_fkey"
+            columns: ["specialite_id"]
+            isOneToOne: false
+            referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       planning_genere: {
         Row: {
           backup_id: string | null
@@ -832,6 +876,10 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      recalculate_base_schedule_optimization: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       recreate_doctor_besoin: {
         Args: { p_date_debut: string; p_date_fin: string; p_medecin_id: string }
