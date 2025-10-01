@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 interface SpecialiteStats {
@@ -192,118 +193,137 @@ export default function StatistiquesPage() {
         <CardHeader>
           <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
           <CardDescription>
-            Basé sur les horaires de base des médecins et secrétaires. Cliquez sur une barre pour voir le détail par jour.
+            Basé sur les horaires de base des médecins et secrétaires
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={450}>
-            <BarChart data={stats} onClick={handleBarClick}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-              <XAxis 
-                dataKey="specialite" 
-                stroke="hsl(var(--muted-foreground))"
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis 
-                stroke="hsl(var(--muted-foreground))" 
-                label={{ value: 'Heures', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--popover))', 
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }}
-              />
-              <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
-                iconType="rect"
-              />
-              <Bar 
-                dataKey="besoins" 
-                fill="hsl(var(--chart-1))" 
-                radius={[8, 8, 0, 0]}
-                name="Besoins"
-                cursor="pointer"
-                style={{
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                }}
-              />
-              <Bar 
-                dataKey="capacites" 
-                fill="hsl(var(--chart-2))" 
-                radius={[8, 8, 0, 0]}
-                name="Capacités"
-                cursor="pointer"
-                style={{
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <Tabs defaultValue="global" className="space-y-6">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="global">Vue Globale</TabsTrigger>
+              <TabsTrigger value="detail" disabled={!selectedSpecialite}>
+                Détail par Jour {selectedSpecialite && `(${stats.find(s => s.specialite_id === selectedSpecialite)?.specialite})`}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="global" className="space-y-4">
+              <p className="text-sm text-muted-foreground">Cliquez sur une spécialité pour voir le détail par jour</p>
+              <ResponsiveContainer width="100%" height={stats.length * 60 + 100}>
+                <BarChart 
+                  data={stats} 
+                  layout="vertical"
+                  onClick={handleBarClick}
+                  margin={{ left: 100, right: 30, top: 20, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                  <XAxis 
+                    type="number"
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 12 }}
+                    label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
+                  />
+                  <YAxis 
+                    type="category"
+                    dataKey="specialite" 
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 12 }}
+                    width={90}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--popover))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="rect"
+                  />
+                  <Bar 
+                    dataKey="besoins" 
+                    fill="hsl(217 91% 60%)" 
+                    radius={[0, 8, 8, 0]}
+                    name="Besoins"
+                    cursor="pointer"
+                    style={{
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                    }}
+                  />
+                  <Bar 
+                    dataKey="capacites" 
+                    fill="hsl(142 76% 36%)" 
+                    radius={[0, 8, 8, 0]}
+                    name="Capacités"
+                    cursor="pointer"
+                    style={{
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                    }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </TabsContent>
+
+            <TabsContent value="detail">
+              {selectedSpecialite && detailJour.length > 0 && (
+                <ResponsiveContainer width="100%" height={450}>
+                  <BarChart 
+                    data={detailJour} 
+                    layout="vertical"
+                    margin={{ left: 80, right: 30, top: 20, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                    <XAxis 
+                      type="number"
+                      stroke="hsl(var(--muted-foreground))"
+                      tick={{ fontSize: 12 }}
+                      label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
+                    />
+                    <YAxis 
+                      type="category"
+                      dataKey="jour" 
+                      stroke="hsl(var(--muted-foreground))"
+                      tick={{ fontSize: 12 }}
+                      width={70}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="rect"
+                    />
+                    <Bar 
+                      dataKey="besoins" 
+                      fill="hsl(217 91% 60%)" 
+                      radius={[0, 8, 8, 0]}
+                      name="Besoins"
+                      style={{
+                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                      }}
+                    />
+                    <Bar 
+                      dataKey="capacites" 
+                      fill="hsl(142 76% 36%)" 
+                      radius={[0, 8, 8, 0]}
+                      name="Capacités"
+                      style={{
+                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
-
-      {selectedSpecialite && detailJour.length > 0 && (
-        <Card className="border-border/50 shadow-lg">
-          <CardHeader>
-            <CardTitle>Détail par Jour de la Semaine</CardTitle>
-            <CardDescription>
-              {stats.find(s => s.specialite_id === selectedSpecialite)?.specialite}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={detailJour}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis 
-                  dataKey="jour" 
-                  stroke="hsl(var(--muted-foreground))"
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))" 
-                  label={{ value: 'Heures', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--popover))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-                <Legend 
-                  wrapperStyle={{ paddingTop: '20px' }}
-                  iconType="rect"
-                />
-                <Bar 
-                  dataKey="besoins" 
-                  fill="hsl(var(--chart-1))" 
-                  radius={[8, 8, 0, 0]}
-                  name="Besoins"
-                  style={{
-                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                  }}
-                />
-                <Bar 
-                  dataKey="capacites" 
-                  fill="hsl(var(--chart-2))" 
-                  radius={[8, 8, 0, 0]}
-                  name="Capacités"
-                  style={{
-                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                  }}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
