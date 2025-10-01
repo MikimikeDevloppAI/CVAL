@@ -10,7 +10,7 @@ const corsHeaders = {
 // Configuration - MINIMISER l'écart carré intelligent avec pénalisations marginales
 const COEF_ECART_CARRE = 1000;          // Poids pour (besoin - capacité)² pondéré
 const PENALTY_CHANGEMENT_SITE = 0.1;    // Pénalité changement de site (+0.1)
-const BONUS_ADMIN = -0.1;               // Bonus administratif (-0.1)
+const BONUS_ADMIN = 0;                  // Neutraliser l'incitation admin (0)
 
 // Port-en-Truie progressif par paliers
 const PORT_PENALTIES_NORMAL = [0.002, 0.004, 0.006, 0.008, 0.010, 0.012, 0.014, 0.016];
@@ -425,7 +425,9 @@ function buildIntelligentMILPModel(capacitesMap: Map<string, any>, besoinsMap: M
     const capEffVarName = `cap_eff_${besoinKey}`;
     model.variables[capEffVarName] = {
       [`def_cap_eff_${besoinKey}`]: 1,
-      [`cap_eff_max_${besoinKey}`]: 1
+      [`cap_eff_max_${besoinKey}`]: 1,
+      // Lie cap_eff dans la définition de l'écart: ecart + cap_eff = besoin
+      [`def_ecart_${besoinKey}`]: 1
     };
     totalVars++;
     
