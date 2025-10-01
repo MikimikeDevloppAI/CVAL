@@ -13,7 +13,7 @@ import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
 import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
 import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
-import { PlanningGridView } from '@/components/planning/PlanningGridView';
+import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -997,9 +997,10 @@ export default function PlanningPage() {
           </div>
 
           {optimizationResult && (
-            <PlanningGridView
+            <MILPOptimizationView
               assignments={optimizationResult.assignments}
               weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+              specialites={specialites}
             />
           )}
         </TabsContent>
