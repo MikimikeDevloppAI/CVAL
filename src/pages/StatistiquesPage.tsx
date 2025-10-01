@@ -308,27 +308,6 @@ export default function StatistiquesPage() {
         </div>
         
         <div className="flex items-center gap-4">
-          {canManage && (
-            <Button 
-              onClick={handleOptimizeMILP} 
-              disabled={isOptimizing}
-              size="lg"
-              className="gap-2"
-            >
-              {isOptimizing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Optimisation MILP en cours...
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4" />
-                  Lancer optimisation MILP
-                </>
-              )}
-            </Button>
-          )}
-
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs')} className="w-auto">
             <TabsList>
               <TabsTrigger value="optimization">Optimisation</TabsTrigger>
