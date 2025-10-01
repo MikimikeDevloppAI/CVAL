@@ -337,7 +337,7 @@ function buildIntelligentMILPModel(capacitesMap: Map<string, any>, besoinsMap: M
 
           model.variables[varName] = {
             [`unique_${personSlotKey}`]: 1,
-            [`besoin_${besoinKey}`]: 1
+            [`def_cap_eff_${besoinKey}`]: -1  // Contribue à Σx dans cap_effective = Σx
           };
 
           model.ints[varName] = 1;
@@ -467,20 +467,12 @@ function buildIntelligentMILPModel(capacitesMap: Map<string, any>, besoinsMap: M
     }
   }
 
-  // C2: Définir cap_effective = min(Σx, besoin)
+  // C2: Définir cap_effective = Σx
   for (const [besoinKey, besoin] of besoinsMap) {
     const besoinValue = besoin.besoin;
-    const xVars = xVariables.get(besoinKey) || [];
     
-    // cap_effective - Σx = 0 (si Σx <= besoin)
+    // cap_effective - Σx = 0 => cap_effective = Σx
     model.constraints[`def_cap_eff_${besoinKey}`] = { equal: 0 };
-    
-    for (const xVar of xVars) {
-      if (!model.variables[xVar][`def_cap_eff_${besoinKey}`]) {
-        model.variables[xVar][`def_cap_eff_${besoinKey}`] = 0;
-      }
-      model.variables[xVar][`def_cap_eff_${besoinKey}`] -= 1;
-    }
     
     // cap_effective <= besoin
     model.constraints[`cap_eff_max_${besoinKey}`] = { max: besoinValue };
