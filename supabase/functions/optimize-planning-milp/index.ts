@@ -391,11 +391,14 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
             esplanadeCounters.set(counterKey, currentCount + 1);
           }
 
+          const besoinKey = `${date}_${demi}_${besoin.site_id}_${specialiteId}`;
+          
           // OBJECTIF: Pénalités secondaires uniquement (l'écart sera géré par les variables delta)
           model.variables[varName] = {
             objective: secondaryPenalties,
             [`unique_${personId}_${date}_${demi}`]: 1,
-            [`total_${date}_${demi}_${besoin.site_id}_${specialiteId}`]: 1 // Lien avec variable agrégée
+            [`manque_${besoinKey}`]: 1, // Contribue à couvrir le besoin
+            [`max_${besoinKey}`]: 1 // Compte dans la limite maximale
           };
 
           model.ints[varName] = 1;
@@ -409,35 +412,18 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // BUILD VARIABLES D'ÉCART: Pour chaque besoin, créer delta_under et delta_over
+  // BUILD VARIABLES D'ÉCART: Pour chaque besoin, créer seulement delta_under (manque)
+  // On ne veut JAMAIS dépasser le besoin arrondi supérieur
   for (const [key, besoin] of besoinsMap) {
     const besoinKey = `${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
     
-    // Variable d'écart sous le besoin (manque)
+    // Variable d'écart sous le besoin (manque uniquement)
     const deltaUnderVar = `delta_under_${besoinKey}`;
     model.variables[deltaUnderVar] = {
-      objective: WEIGHT_DEVIATION, // Pénalité forte
-      [`balance_${besoinKey}`]: -1 // Contribue négativement à l'équilibre
+      objective: WEIGHT_DEVIATION, // Pénalité forte pour le manque
+      [`manque_${besoinKey}`]: 1 // Contribue au manque
     };
     model.ints[deltaUnderVar] = 1;
-    totalVars++;
-    
-    // Variable d'écart au-dessus du besoin (surplus)
-    const deltaOverVar = `delta_over_${besoinKey}`;
-    model.variables[deltaOverVar] = {
-      objective: WEIGHT_DEVIATION, // Pénalité forte
-      [`balance_${besoinKey}`]: 1 // Contribue positivement à l'équilibre
-    };
-    model.ints[deltaOverVar] = 1;
-    totalVars++;
-    
-    // Variable agrégée pour le total assigné (pour information)
-    const totalVar = `total_${besoinKey}`;
-    model.variables[totalVar] = {
-      objective: 0, // Pas de contribution directe
-      [`balance_${besoinKey}`]: 1 // Contribue à l'équilibre
-    };
-    // Cette variable n'est pas un entier, c'est juste une somme
     totalVars++;
   }
 
@@ -466,14 +452,17 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // CONTRAINTE 2: Équilibre pour chaque besoin (total + delta_under - delta_over = besoin)
+  // CONTRAINTE 2: Équilibre et limites pour chaque besoin
   for (const [key, besoin] of besoinsMap) {
     const besoinKey = `${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
-    const constraintName = `balance_${besoinKey}`;
     
-    // total_assigned + delta_under - delta_over = besoin
-    // Cette contrainte est automatiquement construite via les coefficients des variables
-    model.constraints[constraintName] = { equal: besoin.besoin };
+    // Contrainte 2a: total_assigned + delta_under >= besoin (couvrir le manque)
+    const manqueConstraint = `manque_${besoinKey}`;
+    model.constraints[manqueConstraint] = { min: besoin.besoin };
+    
+    // Contrainte 2b: total_assigned <= ceil(besoin) (NE JAMAIS dépasser le plafond)
+    const maxConstraint = `max_${besoinKey}`;
+    model.constraints[maxConstraint] = { max: Math.ceil(besoin.besoin) };
   }
 
   return {
