@@ -19,6 +19,7 @@ interface CapaciteData {
   secretaire_id?: string;
   backup_id?: string;
   specialites: string[];
+  prefere_port_en_truie: boolean;
   slots: {
     date: string;
     demi_journee: DemiJournee;
@@ -74,17 +75,33 @@ serve(async (req) => {
 
     if (capaciteError) throw capaciteError;
 
-    console.log(`   Found ${besoins?.length || 0} besoins, ${capacites?.length || 0} capacités`);
+    // Fetch secretaires data for prefere_port_en_truie
+    const { data: secretaires, error: secretairesError } = await supabaseServiceRole
+      .from('secretaires')
+      .select('id, prefere_port_en_truie')
+      .eq('actif', true);
+
+    if (secretairesError) throw secretairesError;
+
+    // Fetch backup data (they don't have prefere_port_en_truie)
+    const { data: backups, error: backupsError } = await supabaseServiceRole
+      .from('backup')
+      .select('id')
+      .eq('actif', true);
+
+    if (backupsError) throw backupsError;
+
+    console.log(`   Found ${besoins?.length || 0} besoins, ${capacites?.length || 0} capacités, ${secretaires?.length || 0} secrétaires`);
 
     // Transform data
-    const capacitesMap = buildCapacitesMap(capacites);
+    const capacitesMap = buildCapacitesMap(capacites, secretaires, backups);
     const besoinsMap = buildBesoinsMap(besoins);
 
     console.log(`   Transformed to ${capacitesMap.size} capacité slots, ${besoinsMap.size} besoin groups`);
 
     // Build and solve MILP model
     console.log('🧮 Building MILP model...');
-    const { model, stats } = buildMILPModel(capacitesMap, besoinsMap);
+    const { model, stats } = buildMILPModel(capacitesMap, besoinsMap, startDate, endDate);
     
     console.log(`   📊 Variables: ${stats.totalVars}, Contraintes: ${stats.totalConstraints}`);
     
@@ -110,19 +127,40 @@ serve(async (req) => {
       .gte('date', startDate)
       .lte('date', endDate);
 
-    // Insert new planning
-    const insertData = results.map(r => ({
-      date: r.date,
-      type: 'medecin',
-      type_assignation: 'site',
-      site_id: r.site_id,
-      heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
-      heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
-      medecins_ids: r.medecin_ids,
-      secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
-      backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
-      statut: 'planifie',
-    }));
+    // Insert new planning - both site and administrative assignments
+    const insertData = [];
+    
+    // Site assignments
+    for (const r of results.filter(r => r.type === 'site')) {
+      insertData.push({
+        date: r.date,
+        type: 'medecin',
+        type_assignation: 'site',
+        site_id: r.site_id,
+        heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
+        heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
+        medecins_ids: r.medecin_ids,
+        secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
+        backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
+        statut: 'planifie',
+      });
+    }
+    
+    // Administrative assignments
+    for (const r of results.filter(r => r.type === 'administratif')) {
+      insertData.push({
+        date: r.date,
+        type: 'medecin',
+        type_assignation: 'administratif',
+        site_id: null,
+        heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
+        heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
+        medecins_ids: [],
+        secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
+        backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
+        statut: 'planifie',
+      });
+    }
 
     const { error: insertError } = await supabaseServiceRole
       .from('planning_genere')
@@ -130,14 +168,17 @@ serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    console.log(`✅ Successfully saved ${results.length} planning entries`);
+    console.log(`✅ Successfully saved ${insertData.length} planning entries (${results.filter(r => r.type === 'site').length} site, ${results.filter(r => r.type === 'administratif').length} administratif)`);
 
     const response = {
       success: true,
       stats: {
-        total_entries: results.length,
+        total_entries: insertData.length,
+        site_assignments: results.filter(r => r.type === 'site').length,
+        administrative_assignments: results.filter(r => r.type === 'administratif').length,
         date_range: { start: startDate, end: endDate },
         objective_value: solution.result,
+        penalties: results[0]?.penalties || {},
       },
       results: results,
     };
@@ -157,19 +198,27 @@ serve(async (req) => {
 });
 
 function buildCapacitesMap(
-  capacites: any[]
+  capacites: any[],
+  secretaires: any[],
+  backups: any[]
 ): Map<string, CapaciteData> {
   const map = new Map<string, CapaciteData>();
+  
+  // Build lookup maps for prefere_port_en_truie
+  const secretairesMap = new Map(secretaires.map(s => [s.id, s.prefere_port_en_truie || false]));
 
   for (const cap of capacites) {
     const personId = cap.secretaire_id ? cap.secretaire_id : `backup_${cap.backup_id}`;
     
     if (!map.has(personId)) {
+      const preferePortEnTruie = cap.secretaire_id ? (secretairesMap.get(cap.secretaire_id) || false) : false;
+      
       map.set(personId, {
         id: personId,
         secretaire_id: cap.secretaire_id,
         backup_id: cap.backup_id,
         specialites: cap.specialites || [],
+        prefere_port_en_truie: preferePortEnTruie,
         slots: [],
       });
     }
@@ -281,10 +330,16 @@ function buildBesoinsMap(
 
 function buildMILPModel(
   capacitesMap: Map<string, CapaciteData>,
-  besoinsMap: Map<string, BesoinData>
+  besoinsMap: Map<string, BesoinData>,
+  startDate: string,
+  endDate: string
 ) {
-  // Small penalty to prefer consistency (same site matin/apres) without affecting satisfaction
-  const CONSISTENCY_PENALTY = 0.0001;
+  // Penalty constants - hierarchical (SITE_CHANGE > ESPLANADE)
+  const SITE_CHANGE_PENALTY = 0.01;       // PRIORITY 1 - Changing site between matin/apres
+  const ESPLANADE_BASE_PENALTY = 0.0005;  // PRIORITY 2 - Base penalty for Esplanade assignment
+  
+  // Esplanade site ID
+  const ESPLANADE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
   
   const model: any = {
     optimize: 'objective',
@@ -320,6 +375,9 @@ function buildMILPModel(
       }
     }
   }
+  
+  // Track Esplanade assignments per person for progressive penalty
+  const esplanadeAssignmentsPerPerson = new Map<string, number>();
 
   // Build variables: x_person_date_demi_site_specialite
   for (const [personId, capData] of capacitesMap) {
@@ -336,7 +394,7 @@ function buildMILPModel(
             // Contribution based on REAL need (non-rounded)
             let contributionPercent = 100 / besoin.besoin;
             
-            // Apply small penalty if this would cause site change for same person/spec/date
+            // PRIORITY 1: Site change penalty (highest)
             const siteKey = `${personId}_${date}_${specialiteId}`;
             const sitesInfo = personDateSpecSites.get(siteKey);
             
@@ -347,11 +405,23 @@ function buildMILPModel(
                 const otherDemi = demi === 'matin' ? 'apres' : 'matin';
                 const otherSites = demi === 'matin' ? sitesInfo.apres : sitesInfo.matin;
                 
-                // If current site is not in the other demi, apply small penalty
+                // If current site is not in the other demi, apply strong penalty
                 if (otherSites.size > 0 && !otherSites.has(besoin.site_id)) {
-                  contributionPercent -= CONSISTENCY_PENALTY;
+                  contributionPercent -= SITE_CHANGE_PENALTY;
                 }
               }
+            }
+            
+            // PRIORITY 2: Progressive Esplanade penalty
+            if (besoin.site_id === ESPLANADE_SITE_ID && !capData.prefere_port_en_truie) {
+              // Get current count of Esplanade assignments for this person
+              const currentCount = esplanadeAssignmentsPerPerson.get(personId) || 0;
+              // Apply progressive penalty: 1st time = 1x, 2nd time = 2x, 3rd time = 3x, etc.
+              const progressivePenalty = ESPLANADE_BASE_PENALTY * (currentCount + 1);
+              contributionPercent -= progressivePenalty;
+              
+              // Track that this variable could assign to Esplanade
+              esplanadeAssignmentsPerPerson.set(personId, currentCount + 1);
             }
             
             model.variables[varName] = {
@@ -365,6 +435,24 @@ function buildMILPModel(
           }
         }
       }
+    }
+  }
+  
+  // Add administrative assignment variables
+  // These are used when needs are satisfied and secretaries are available
+  for (const [personId, capData] of capacitesMap) {
+    for (const slot of capData.slots) {
+      const varName = `admin_${personId}_${slot.date}_${slot.demi_journee}`;
+      
+      // Small positive value to encourage administrative assignments when possible
+      model.variables[varName] = {
+        objective: 0.00001, // Very small to not affect main optimization
+        [`uniqueness_${personId}_${slot.date}_${slot.demi_journee}`]: 1,
+        [`admin_assignment_${slot.date}_${slot.demi_journee}`]: 1,
+      };
+      
+      model.ints[varName] = 1;
+      totalVars++;
     }
   }
 
@@ -402,37 +490,69 @@ function parseResults(
   const results: {
     date: string;
     demi_journee: DemiJournee;
-    site_id: string;
-    specialite_id: string;
-    besoin: number;
+    site_id?: string;
+    specialite_id?: string;
+    besoin?: number;
     secretaires_assignees: string[];
     medecin_ids: string[];
+    type: 'site' | 'administratif';
+    penalties?: any;
   }[] = [];
 
-  // Group assignments by (date, demi, site, specialite)
+  // Group site assignments by (date, demi, site, specialite)
   const assignmentGroups = new Map<string, string[]>();
+  
+  // Group administrative assignments by (date, demi)
+  const adminAssignments = new Map<string, string[]>();
+
+  // Track penalties
+  let siteChangeCount = 0;
+  let esplanadeAssignments = 0;
+  const esplanadePerPerson = new Map<string, number>();
 
   for (const [varName, value] of Object.entries(solution)) {
-    if (varName.startsWith('x_') && value === 1) {
-      // Parse: x_person_date_demi_site_specialite
-      const parts = varName.split('_');
-      if (parts.length >= 6) {
-        const personId = parts[1];
-        const date = parts[2];
-        const demi = parts[3] as DemiJournee;
-        const siteId = parts[4];
-        const specialiteId = parts.slice(5).join('_');
+    if (value === 1) {
+      if (varName.startsWith('x_')) {
+        // Parse: x_person_date_demi_site_specialite
+        const parts = varName.split('_');
+        if (parts.length >= 6) {
+          const personId = parts[1];
+          const date = parts[2];
+          const demi = parts[3] as DemiJournee;
+          const siteId = parts[4];
+          const specialiteId = parts.slice(5).join('_');
 
-        const key = `${date}|${demi}|${siteId}|${specialiteId}`;
-        if (!assignmentGroups.has(key)) {
-          assignmentGroups.set(key, []);
+          const key = `${date}|${demi}|${siteId}|${specialiteId}`;
+          if (!assignmentGroups.has(key)) {
+            assignmentGroups.set(key, []);
+          }
+          assignmentGroups.get(key)!.push(personId);
+          
+          // Track Esplanade assignments
+          if (siteId === '043899a1-a232-4c4b-9d7d-0eb44dad00ad') {
+            esplanadeAssignments++;
+            esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
+          }
         }
-        assignmentGroups.get(key)!.push(personId);
+      } else if (varName.startsWith('admin_')) {
+        // Parse: admin_person_date_demi
+        const parts = varName.split('_');
+        if (parts.length >= 4) {
+          const personId = parts[1];
+          const date = parts[2];
+          const demi = parts[3] as DemiJournee;
+          
+          const key = `${date}|${demi}`;
+          if (!adminAssignments.has(key)) {
+            adminAssignments.set(key, []);
+          }
+          adminAssignments.get(key)!.push(personId);
+        }
       }
     }
   }
 
-  // Create results for each besoin
+  // Create results for each besoin (site assignments)
   for (const [key, besoin] of besoinsMap) {
     const assignedPersons = assignmentGroups.get(key) || [];
 
@@ -444,6 +564,25 @@ function parseResults(
       besoin: Math.round(besoin.besoin * 10) / 10,
       secretaires_assignees: assignedPersons,
       medecin_ids: besoin.medecin_ids,
+      type: 'site',
+      penalties: {
+        site_changes: siteChangeCount,
+        esplanade_assignments: esplanadeAssignments,
+        esplanade_per_person: Object.fromEntries(esplanadePerPerson),
+      },
+    });
+  }
+  
+  // Create results for administrative assignments
+  for (const [key, persons] of adminAssignments) {
+    const [date, demi] = key.split('|');
+    
+    results.push({
+      date,
+      demi_journee: demi as DemiJournee,
+      secretaires_assignees: persons,
+      medecin_ids: [],
+      type: 'administratif',
     });
   }
 
