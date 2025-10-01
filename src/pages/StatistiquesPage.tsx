@@ -28,6 +28,7 @@ export default function StatistiquesPage() {
   const [detailJour, setDetailJour] = useState<JourStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [optimizationScores, setOptimizationScores] = useState<OptimizationScoreParSpecialite[]>([]);
+  const [viewMode, setViewMode] = useState<'optimization' | 'graphs'>('optimization');
 
   useEffect(() => {
     fetchStats();
@@ -264,24 +265,38 @@ export default function StatistiquesPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Statistiques</h1>
-        <p className="text-muted-foreground">Analyse des besoins et capacités par spécialité (heures hebdomadaires)</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Statistiques</h1>
+          <p className="text-muted-foreground">
+            {viewMode === 'optimization' 
+              ? 'Optimisation des horaires de base' 
+              : 'Analyse des besoins et capacités par spécialité (heures hebdomadaires)'}
+          </p>
+        </div>
+        
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs')} className="w-auto">
+          <TabsList>
+            <TabsTrigger value="optimization">Optimisation</TabsTrigger>
+            <TabsTrigger value="graphs">Graphiques</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      {optimizationScores.length > 0 && (
+      {viewMode === 'optimization' && optimizationScores.length > 0 && (
         <OptimizationScoreCards scores={optimizationScores} />
       )}
 
-      <Card className="border-border/50 shadow-lg">
-        <CardHeader>
-          <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
-          <CardDescription>
-            Basé sur les horaires de base des médecins et secrétaires
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="global" className="space-y-6">
+      {viewMode === 'graphs' && (
+        <Card className="border-border/50 shadow-lg">
+          <CardHeader>
+            <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
+            <CardDescription>
+              Basé sur les horaires de base des médecins et secrétaires
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="global" className="space-y-6">
             <div className="flex justify-end">
               <TabsList className="grid w-full max-w-md grid-cols-2">
                 <TabsTrigger value="global">Vue Globale</TabsTrigger>
@@ -441,8 +456,9 @@ export default function StatistiquesPage() {
               </div>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
