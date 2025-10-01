@@ -100,16 +100,16 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                   
                   <div className="space-y-2">
                     <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
-                      <div>Jour</div>
-                      <div className="text-center">Matin</div>
-                      <div className="text-center">Après-midi</div>
+                      <div className="w-16">Jour</div>
+                      <div className="flex justify-center">Matin</div>
+                      <div className="flex justify-center">Après-midi</div>
                     </div>
 
                     {data.details.map((jour) => (
                       <div key={jour.jour_semaine} className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs items-center">
                         <div className="font-medium w-16">{jour.jour_nom}</div>
                         
-                        <div className="text-center">
+                        <div className="flex items-center justify-center">
                           {jour.matin > 0 ? (
                             <span className="text-red-600 dark:text-red-400 font-medium">
                               -{jour.matin}
@@ -119,7 +119,7 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                           )}
                         </div>
 
-                        <div className="text-center">
+                        <div className="flex items-center justify-center">
                           {jour.apres_midi > 0 ? (
                             <span className="text-red-600 dark:text-red-400 font-medium">
                               -{jour.apres_midi}
@@ -163,9 +163,9 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                 {/* Details by day */}
                 <div className="space-y-2">
                 <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
-                  <div>Jour</div>
-                  <div className="text-center">Matin</div>
-                  <div className="text-center">Après-midi</div>
+                  <div className="w-16">Jour</div>
+                  <div className="flex justify-center">Matin</div>
+                  <div className="flex justify-center">Après-midi</div>
                 </div>
 
                 {score.details_jours.map((jour) => (
