@@ -240,6 +240,7 @@ export default function PlanningPage() {
               site_fermeture: row.site?.fermeture || false,
               secretaires: [],
               medecins,
+              besoin_reel: nombreRequis, // Stocker le besoin réel avant arrondi
               nombre_requis: Math.ceil(nombreRequis),
               type_assignation: row.type_assignation,
             });
@@ -262,13 +263,21 @@ export default function PlanningPage() {
         // Convertir en AssignmentResult[]
         const assignments = Array.from(assignmentsByKey.values()).map(a => {
           const nombreAssigne = a.secretaires.length;
-          const nombreRequis = a.nombre_requis || 0;
+          const besoinReel = a.besoin_reel || 0;
+          const nombreRequis = Math.ceil(besoinReel);
+          const arrondInferieur = Math.floor(besoinReel);
           
           let status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait' = 'satisfait';
-          if (nombreAssigne === 0 && nombreRequis > 0) {
-            status = 'non_satisfait';
-          } else if (nombreAssigne < nombreRequis) {
+          
+          if (nombreAssigne >= nombreRequis) {
+            // On a au moins l'arrondi supérieur → satisfait (vert)
+            status = 'satisfait';
+          } else if (nombreAssigne >= arrondInferieur && nombreAssigne < nombreRequis) {
+            // On est entre l'arrondi inférieur et supérieur → partiel (orange)
             status = 'arrondi_inferieur';
+          } else {
+            // On est en dessous de l'arrondi inférieur → non satisfait (rouge)
+            status = 'non_satisfait';
           }
 
           return {
