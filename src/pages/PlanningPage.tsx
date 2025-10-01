@@ -183,14 +183,16 @@ export default function PlanningPage() {
       if (error) throw error;
 
       if (planningData && planningData.length > 0) {
-        // Récupérer les besoins effectifs pour obtenir les noms des médecins
+        // Récupérer les besoins effectifs pour obtenir les noms des médecins et les besoins réels
         const { data: besoinsData } = await supabase
           .from('besoin_effectif')
           .select(`
             id,
             date,
             heure_debut,
+            heure_fin,
             site_id,
+            nombre_secretaires_requis,
             medecin:medecins(first_name, name)
           `)
           .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
@@ -206,26 +208,30 @@ export default function PlanningPage() {
           const key = `${row.date}-${periode}-${row.site_id || 'admin'}`;
 
           if (!assignmentsByKey.has(key)) {
-            // Récupérer les médecins correspondants depuis besoinsData
-            const medecins = besoinsData
-              ?.filter(besoin => {
-                // Un besoin est associé à une période si ses horaires chevauchent cette période
-                const besoinHeureDebut = besoin.heure_debut || '00:00:00';
-                const isMatin = periode === 'matin';
-                
-                // Matin: 07:30 - 12:00, Après-midi: 13:00 - 17:00
-                // On considère qu'un besoin appartient à une période si son heure de début est dans cette période
-                const appartientPeriode = isMatin 
-                  ? besoinHeureDebut >= '07:00:00' && besoinHeureDebut < '12:30:00'
-                  : besoinHeureDebut >= '12:30:00' && besoinHeureDebut < '18:00:00';
-                
-                return besoin.date === row.date && 
-                       besoin.site_id === row.site_id && 
-                       appartientPeriode &&
-                       besoin.medecin;
-              })
+            // Récupérer les besoins pour cette période
+            const besoinsForSlot = besoinsData?.filter(besoin => {
+              const besoinHeureDebut = besoin.heure_debut || '00:00:00';
+              const isMatin = periode === 'matin';
+              
+              const appartientPeriode = isMatin 
+                ? besoinHeureDebut >= '07:00:00' && besoinHeureDebut < '12:30:00'
+                : besoinHeureDebut >= '12:30:00' && besoinHeureDebut < '18:00:00';
+              
+              return besoin.date === row.date && 
+                     besoin.site_id === row.site_id && 
+                     appartientPeriode;
+            }) || [];
+
+            // Extraire les médecins
+            const medecins = besoinsForSlot
+              .filter(besoin => besoin.medecin)
               .map(besoin => `${besoin.medecin?.first_name || ''} ${besoin.medecin?.name || ''}`.trim())
-              .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx) || []; // Retirer les doublons et les vides
+              .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx);
+
+            // Calculer le nombre total de secrétaires requis
+            const nombreRequis = besoinsForSlot.reduce((sum, besoin) => {
+              return sum + (besoin.nombre_secretaires_requis || 0);
+            }, 0);
 
             assignmentsByKey.set(key, {
               date: row.date,
@@ -235,6 +241,7 @@ export default function PlanningPage() {
               site_fermeture: row.site?.fermeture || false,
               secretaires: [],
               medecins,
+              nombre_requis: Math.ceil(nombreRequis),
               type_assignation: row.type_assignation,
             });
           }
@@ -254,20 +261,32 @@ export default function PlanningPage() {
         }
 
         // Convertir en AssignmentResult[]
-        const assignments = Array.from(assignmentsByKey.values()).map(a => ({
-          creneau_besoin_id: `${a.date}-${a.periode}-${a.site_id}`,
-          date: a.date,
-          periode: a.periode,
-          site_id: a.site_id || '',
-          site_nom: a.site_nom,
-          site_fermeture: a.site_fermeture,
-          medecins: a.medecins,
-          secretaires: a.secretaires,
-          nombre_requis: a.secretaires.length,
-          nombre_assigne: a.secretaires.length,
-          status: 'satisfait' as const,
-          type_assignation: a.type_assignation,
-        }));
+        const assignments = Array.from(assignmentsByKey.values()).map(a => {
+          const nombreAssigne = a.secretaires.length;
+          const nombreRequis = a.nombre_requis || 0;
+          
+          let status: 'satisfait' | 'arrondi_inferieur' | 'non_satisfait' = 'satisfait';
+          if (nombreAssigne === 0 && nombreRequis > 0) {
+            status = 'non_satisfait';
+          } else if (nombreAssigne < nombreRequis) {
+            status = 'arrondi_inferieur';
+          }
+
+          return {
+            creneau_besoin_id: `${a.date}-${a.periode}-${a.site_id}`,
+            date: a.date,
+            periode: a.periode,
+            site_id: a.site_id || '',
+            site_nom: a.site_nom,
+            site_fermeture: a.site_fermeture,
+            medecins: a.medecins,
+            secretaires: a.secretaires,
+            nombre_requis: nombreRequis,
+            nombre_assigne: nombreAssigne,
+            status,
+            type_assignation: a.type_assignation,
+          };
+        });
 
         // Pour un planning déjà généré, on considère tout comme satisfait
         const siteAssignments = assignments.filter(a => a.type_assignation === 'site');
