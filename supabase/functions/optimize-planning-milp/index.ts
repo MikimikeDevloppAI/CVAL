@@ -443,8 +443,7 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
   };
 
   const candidates: Candidate[] = [];
-  let hasBinary = false;
-
+  
   for (const [varName, value] of Object.entries(solution)) {
     if (typeof value !== 'number') continue;
     if (!varName.startsWith('x_') || value <= 0) continue;
@@ -471,57 +470,64 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
       besoinKey,
       times
     });
-
-    if (value === 1) hasBinary = true;
   }
 
-  if (hasBinary) {
-    // Use strict MILP selections
-    for (const c of candidates) {
-      if (c.value !== 1) continue;
-      const info = besoinInfo.get(c.besoinKey);
-      assignments.push({
-        date: c.date,
-        site_id: c.siteId,
-        type: 'secretaire',
-        heure_debut: c.times.heure_debut,
-        heure_fin: c.times.heure_fin,
-        secretaires_ids: [c.personId],
-        backups_ids: [],
-        medecins_ids: info?.medecin_ids || [],
-        type_assignation: 'site',
-        statut: 'planifie'
-      });
-    }
-  } else {
-    // LP relaxation fallback: greedy rounding
-    candidates.sort((a, b) => b.value - a.value);
-    const usedPersonDj = new Set<string>();
+  // Greedy extraction: 1) take all exact 1's, 2) fill rest with highest fractional values
+  const usedPersonDj = new Set<string>();
 
-    for (const c of candidates) {
-      const info = besoinInfo.get(c.besoinKey);
-      if (!info || info.max <= 0) continue;
-      if (info.assigned >= info.max) continue;
+  // Initialize besoinInfo.assigned from any pre-existing context (kept at 0)
+  // Pass 1: exact binaries
+  for (const c of candidates) {
+    if (c.value !== 1) continue;
+    const info = besoinInfo.get(c.besoinKey);
+    if (!info || info.max <= 0) continue;
+    if (info.assigned >= info.max) continue;
 
-      const usedKey = `${c.personId}|${c.date}|${c.dj}`;
-      if (usedPersonDj.has(usedKey)) continue;
+    const usedKey = `${c.personId}|${c.date}|${c.dj}`;
+    if (usedPersonDj.has(usedKey)) continue;
 
-      assignments.push({
-        date: c.date,
-        site_id: c.siteId,
-        type: 'secretaire',
-        heure_debut: c.times.heure_debut,
-        heure_fin: c.times.heure_fin,
-        secretaires_ids: [c.personId],
-        backups_ids: [],
-        medecins_ids: info.medecin_ids || [],
-        type_assignation: 'site',
-        statut: 'planifie'
-      });
+    assignments.push({
+      date: c.date,
+      site_id: c.siteId,
+      type: 'secretaire',
+      heure_debut: c.times.heure_debut,
+      heure_fin: c.times.heure_fin,
+      secretaires_ids: [c.personId],
+      backups_ids: [],
+      medecins_ids: info?.medecin_ids || [],
+      type_assignation: 'site',
+      statut: 'planifie'
+    });
 
-      usedPersonDj.add(usedKey);
-      info.assigned++;
-    }
+    usedPersonDj.add(usedKey);
+    info.assigned++;
+  }
+
+  // Pass 2: fractional values (descending)
+  const fractional = candidates.filter(c => c.value > 0 && c.value < 1).sort((a, b) => b.value - a.value);
+  for (const c of fractional) {
+    const info = besoinInfo.get(c.besoinKey);
+    if (!info || info.max <= 0) continue;
+    if (info.assigned >= info.max) continue;
+
+    const usedKey = `${c.personId}|${c.date}|${c.dj}`;
+    if (usedPersonDj.has(usedKey)) continue;
+
+    assignments.push({
+      date: c.date,
+      site_id: c.siteId,
+      type: 'secretaire',
+      heure_debut: c.times.heure_debut,
+      heure_fin: c.times.heure_fin,
+      secretaires_ids: [c.personId],
+      backups_ids: [],
+      medecins_ids: info?.medecin_ids || [],
+      type_assignation: 'site',
+      statut: 'planifie'
+    });
+
+    usedPersonDj.add(usedKey);
+    info.assigned++;
   }
 
   return assignments;
