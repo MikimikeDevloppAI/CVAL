@@ -806,7 +806,6 @@ export default function PlanningPage() {
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Jours de présence</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
-                              <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
                               <th className="text-right p-2 font-medium text-sm text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
@@ -865,9 +864,6 @@ export default function PlanningPage() {
                                   <td className="p-2 text-sm">
                                     {horaires}
                                   </td>
-                                  <td className="p-2 text-right font-medium">
-                                    {totalSecretairesPersonne.toFixed(1)}
-                                  </td>
                                   <td className="p-2 text-right">
                                     {canManage && (
                                       <div className="flex justify-end gap-1">
@@ -897,12 +893,6 @@ export default function PlanningPage() {
                                 </tr>
                               );
                             })}
-                            <tr className="font-bold bg-muted/50">
-                              <td colSpan={4} className="p-2 text-right">TOTAL SECRÉTAIRES REQUIS</td>
-                              <td className="p-2 text-right text-primary text-lg">
-                                {Math.ceil(totalSecretaires)}
-                              </td>
-                            </tr>
                           </tbody>
                         </table>
                       </div>
