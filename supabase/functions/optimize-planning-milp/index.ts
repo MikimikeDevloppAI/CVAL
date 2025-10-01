@@ -7,11 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
-// Configuration hiérarchique des poids
-const WEIGHT_SATISFACTION = 1000; // Priorité absolue
-const PENALTY_SITE_CHANGE = 0.001;   // Pénalité minimale - ne doit pas interférer avec l'objectif principal
-const PENALTY_ESPLANADE_BASE = 0.0001; // Pénalité minimale progressive
-const BONUS_PREFERE_ESPLANADE = -0.0001; // Petit bonus pour préférence
+// Configuration hiérarchique des poids - OPTIMISATION QUADRATIQUE
+const WEIGHT_DEVIATION = 10000; // Poids pour pénaliser l'écart au besoin (priorité absolue)
+const PENALTY_SITE_CHANGE = 0.001;   // Pénalité minimale pour changement de site
+const PENALTY_ESPLANADE_BASE = 0.0001; // Pénalité minimale progressive pour Esplanade
+const BONUS_PREFERE_ESPLANADE = -0.0001; // Petit bonus pour préférence Esplanade
 
 const ESPLANADE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
@@ -289,7 +289,7 @@ function getTimeOverlap(start1: string, end1: string, start2: string, end2: stri
 function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map<string, any>, startDate: string, endDate: string) {
   const model: any = {
     optimize: 'objective',
-    opType: 'max',
+    opType: 'min', // CHANGEMENT: on minimise les écarts maintenant
     constraints: {},
     variables: {},
     ints: {}
@@ -354,13 +354,8 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
 
           const varName = `x_${personId}_${date}_${demi}_${besoin.site_id}_${specialiteId}`;
 
-          // ===== CONTRIBUTION À LA SATISFACTION (PRIORITÉ 1) =====
-          // Contribution pondérée par besoin réel, plafonnée à 100%
-          const ceilBesoin = Math.ceil(besoin.besoin);
-          const satisfactionContribution = WEIGHT_SATISFACTION * (besoin.besoin / ceilBesoin);
-
-          // ===== PÉNALITÉS (PRIORITÉ 2) =====
-          let penalties = 0;
+          // ===== PÉNALITÉS SECONDAIRES =====
+          let secondaryPenalties = 0;
 
           // Pénalité 1: Changement de site le même jour
           const personDateKey = `${personId}_${date}`;
@@ -372,7 +367,7 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
             
             // Si travaille l'autre demi-journée et sur un site différent
             if (otherSites.size > 0 && !otherSites.has(besoin.site_id)) {
-              penalties += PENALTY_SITE_CHANGE;
+              secondaryPenalties += PENALTY_SITE_CHANGE;
             }
           }
 
@@ -386,23 +381,21 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
             
             if (!capData.prefere_port_en_truie) {
               // Pénalité progressive: 1, 2, 3, 4...
-              penalties += PENALTY_ESPLANADE_BASE * (1 + currentCount);
+              secondaryPenalties += PENALTY_ESPLANADE_BASE * (1 + currentCount);
             } else {
-              // Bonus pour les personnes qui préfèrent
-              penalties += BONUS_PREFERE_ESPLANADE;
+              // Bonus pour les personnes qui préfèrent (pénalité négative)
+              secondaryPenalties += BONUS_PREFERE_ESPLANADE;
             }
             
             // Incrémenter le compteur
             esplanadeCounters.set(counterKey, currentCount + 1);
           }
 
-          // CONTRIBUTION FINALE
-          const contribution = satisfactionContribution - penalties;
-
+          // OBJECTIF: Pénalités secondaires uniquement (l'écart sera géré par les variables delta)
           model.variables[varName] = {
-            objective: contribution,
+            objective: secondaryPenalties,
             [`unique_${personId}_${date}_${demi}`]: 1,
-            [`capacity_${date}_${demi}_${besoin.site_id}_${specialiteId}`]: 1
+            [`total_${date}_${demi}_${besoin.site_id}_${specialiteId}`]: 1 // Lien avec variable agrégée
           };
 
           model.ints[varName] = 1;
@@ -416,14 +409,46 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // Variables administratives (fallback)
+  // BUILD VARIABLES D'ÉCART: Pour chaque besoin, créer delta_under et delta_over
+  for (const [key, besoin] of besoinsMap) {
+    const besoinKey = `${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
+    
+    // Variable d'écart sous le besoin (manque)
+    const deltaUnderVar = `delta_under_${besoinKey}`;
+    model.variables[deltaUnderVar] = {
+      objective: WEIGHT_DEVIATION, // Pénalité forte
+      [`balance_${besoinKey}`]: -1 // Contribue négativement à l'équilibre
+    };
+    model.ints[deltaUnderVar] = 1;
+    totalVars++;
+    
+    // Variable d'écart au-dessus du besoin (surplus)
+    const deltaOverVar = `delta_over_${besoinKey}`;
+    model.variables[deltaOverVar] = {
+      objective: WEIGHT_DEVIATION, // Pénalité forte
+      [`balance_${besoinKey}`]: 1 // Contribue positivement à l'équilibre
+    };
+    model.ints[deltaOverVar] = 1;
+    totalVars++;
+    
+    // Variable agrégée pour le total assigné (pour information)
+    const totalVar = `total_${besoinKey}`;
+    model.variables[totalVar] = {
+      objective: 0, // Pas de contribution directe
+      [`balance_${besoinKey}`]: 1 // Contribue à l'équilibre
+    };
+    // Cette variable n'est pas un entier, c'est juste une somme
+    totalVars++;
+  }
+
+  // Variables administratives (fallback) - avec pénalité faible
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
       const yVarName = `y_${personId}_${slot.date}_${slot.demi_journee}`;
       
-      // Très petite contribution pour encourager l'utilisation
+      // Petite pénalité pour décourager l'utilisation (sauf si nécessaire)
       model.variables[yVarName] = {
-        objective: 0.000001,
+        objective: 0.1, // Légère pénalité pour les assignations admin
         [`unique_${personId}_${slot.date}_${slot.demi_journee}`]: 1
       };
       
@@ -441,11 +466,14 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // CONTRAINTE 2: Max secretaires par besoin = ceil(besoin)
+  // CONTRAINTE 2: Équilibre pour chaque besoin (total + delta_under - delta_over = besoin)
   for (const [key, besoin] of besoinsMap) {
-    const maxCapacity = Math.ceil(besoin.besoin);
-    const constraintName = `capacity_${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
-    model.constraints[constraintName] = { max: maxCapacity };
+    const besoinKey = `${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
+    const constraintName = `balance_${besoinKey}`;
+    
+    // total_assigned + delta_under - delta_over = besoin
+    // Cette contrainte est automatiquement construite via les coefficients des variables
+    model.constraints[constraintName] = { equal: besoin.besoin };
   }
 
   return {
