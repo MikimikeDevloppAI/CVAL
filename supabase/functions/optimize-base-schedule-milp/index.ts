@@ -329,7 +329,7 @@ function buildMILPModel(
   besoinsMap: Map<string, BesoinData>
 ) {
   const model: any = {
-    optimize: 'satisfaction',
+    optimize: 'satisfaction_percentage',
     opType: 'max',
     constraints: {},
     variables: {},
@@ -354,9 +354,14 @@ function buildMILPModel(
         const besoin = besoinsMap.get(besoinKey);
 
         if (besoin) {
-          // Variable contributes to satisfaction
+          // Calculate contribution to satisfaction percentage
+          // Each secretary contributes (100 / ceil(besoin))% to the score
+          const maxCapacity = Math.ceil(besoin.besoin);
+          const contributionPercent = 100 / maxCapacity;
+          
+          // Variable contributes to satisfaction percentage
           model.variables[varName] = {
-            satisfaction: 1, // Each assignment adds 1 to satisfaction
+            satisfaction_percentage: contributionPercent, // Weighted contribution
             [`uniqueness_${secId}_${jour}_${demi}`]: 1, // For uniqueness constraint
             [`capacity_${jour}_${demi}_${specialiteId}`]: 1, // For capacity constraint
           };
