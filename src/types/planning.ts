@@ -61,6 +61,7 @@ export interface OptimizationResult {
     changement_site: number;
     multiple_fermetures: number;
     centre_esplanade_depassement: number;
+    penalite_1r_2f?: number;
   };
   score_total: number;
 }

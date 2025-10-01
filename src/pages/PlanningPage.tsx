@@ -903,10 +903,11 @@ export default function PlanningPage() {
                 
                 {(optimizationResult.penalites.changement_site > 0 ||
                   optimizationResult.penalites.multiple_fermetures > 0 ||
-                  optimizationResult.penalites.centre_esplanade_depassement > 0) && (
+                  optimizationResult.penalites.centre_esplanade_depassement > 0 ||
+                  (optimizationResult.penalites.penalite_1r_2f && optimizationResult.penalites.penalite_1r_2f > 0)) && (
                   <div className="mt-4 pt-4 border-t">
                     <h4 className="text-sm font-medium mb-2">Pénalités</h4>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       {optimizationResult.penalites.changement_site > 0 && (
                         <div className="text-sm">
                           <span className="text-muted-foreground">Changements de site:</span>
@@ -928,6 +929,14 @@ export default function PlanningPage() {
                           <span className="text-muted-foreground">Centre Esplanade {'>'}1j:</span>
                           <span className="ml-2 font-medium text-orange-600">
                             -{optimizationResult.penalites.centre_esplanade_depassement.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                      {optimizationResult.penalites.penalite_1r_2f && optimizationResult.penalites.penalite_1r_2f > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Assignations 1R/2F:</span>
+                          <span className="ml-2 font-medium text-orange-600">
+                            -{optimizationResult.penalites.penalite_1r_2f.toFixed(1)}
                           </span>
                         </div>
                       )}
