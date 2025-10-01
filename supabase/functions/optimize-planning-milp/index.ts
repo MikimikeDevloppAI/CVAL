@@ -116,6 +116,10 @@ serve(async (req) => {
 
     // Parse results
     const results = parseResults(solution, capacitesMap, besoinsMap);
+    
+    console.log(`📋 Parsed ${results.length} planning entries with doctors:`);
+    const entriesWithDoctors = results.filter(r => r.medecin_ids && r.medecin_ids.length > 0);
+    console.log(`   ${entriesWithDoctors.length} entries have doctors assigned`);
 
     // Save to database
     console.log('💾 Saving results to planning_genere...');
@@ -147,7 +151,8 @@ serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    console.log(`✅ Successfully saved ${insertData.length} planning entries`);
+    const savedWithDoctors = insertData.filter(d => d.medecins_ids && d.medecins_ids.length > 0);
+    console.log(`✅ Successfully saved ${insertData.length} planning entries (${savedWithDoctors.length} with doctors)`);
 
     const response = {
       success: true,
@@ -268,6 +273,7 @@ function buildBesoinsMap(
         const proportionCovered = overlapHours / 4.5;
         const entry = besoinsMap.get(key)!;
         entry.besoin += besoin.nombre_secretaires_requis * proportionCovered;
+        // Add medecin_id if exists and not already in the list
         if (besoin.medecin_id && !entry.medecin_ids.includes(besoin.medecin_id)) {
           entry.medecin_ids.push(besoin.medecin_id);
         }
@@ -296,6 +302,7 @@ function buildBesoinsMap(
         const proportionCovered = overlapHours / 4.0;
         const entry = besoinsMap.get(key)!;
         entry.besoin += besoin.nombre_secretaires_requis * proportionCovered;
+        // Add medecin_id if exists and not already in the list
         if (besoin.medecin_id && !entry.medecin_ids.includes(besoin.medecin_id)) {
           entry.medecin_ids.push(besoin.medecin_id);
         }
