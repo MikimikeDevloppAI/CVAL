@@ -358,7 +358,7 @@ function buildMILPModel(
           model.variables[varName] = {
             satisfaction: 1, // Each assignment adds 1 to satisfaction
             [`uniqueness_${secId}_${jour}_${demi}`]: 1, // For uniqueness constraint
-            [`coverage_${jour}_${demi}_${specialiteId}`]: 1, // For coverage tracking
+            [`capacity_${jour}_${demi}_${specialiteId}`]: 1, // For capacity constraint
           };
 
           // Mark as integer (binary: 0 or 1)
@@ -383,8 +383,16 @@ function buildMILPModel(
     }
   }
 
-  // Optional: Add soft coverage constraints (we want to get close to besoin)
-  // This is implicit through the objective function maximization
+  // Add capacity constraints: max secretaries per besoin = ceil(besoin)
+  // This ensures we don't over-assign and forces optimal distribution
+  for (const [key, besoin] of besoinsMap) {
+    const [jourStr, demi, specialiteId] = key.split('|');
+    const jour = parseInt(jourStr);
+    const maxCapacity = Math.ceil(besoin.besoin);
+    const constraintName = `capacity_${jour}_${demi}_${specialiteId}`;
+    
+    model.constraints[constraintName] = { max: maxCapacity };
+  }
 
   return {
     model,
