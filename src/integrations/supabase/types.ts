@@ -344,7 +344,6 @@ export type Database = {
           heure_fin: string
           id: string
           secretaire_id: string | null
-          specialites: string[]
           updated_at: string
         }
         Insert: {
@@ -356,7 +355,6 @@ export type Database = {
           heure_fin: string
           id?: string
           secretaire_id?: string | null
-          specialites?: string[]
           updated_at?: string
         }
         Update: {
@@ -368,7 +366,6 @@ export type Database = {
           heure_fin?: string
           id?: string
           secretaire_id?: string | null
-          specialites?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -948,6 +945,10 @@ export type Database = {
           p_target_date: string
         }
         Returns: boolean
+      }
+      weekly_planning_maintenance: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {
