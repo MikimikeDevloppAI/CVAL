@@ -283,8 +283,8 @@ function buildMILPModel(
   capacitesMap: Map<string, CapaciteData>,
   besoinsMap: Map<string, BesoinData>
 ) {
-  // Very small penalty to prefer consistency (same site matin/apres) without affecting satisfaction
-  const PENALTY_WEIGHT = 0.001;
+  // Small penalty to prefer consistency (same site matin/apres) without affecting satisfaction
+  const CONSISTENCY_PENALTY = 0.0001;
   
   const model: any = {
     optimize: 'objective',
@@ -295,6 +295,31 @@ function buildMILPModel(
   };
 
   let totalVars = 0;
+
+  // Pre-calculate which sites each person could work at for each date/specialty
+  const personDateSpecSites = new Map<string, { matin: Set<string>, apres: Set<string> }>();
+  
+  for (const [personId, capData] of capacitesMap) {
+    for (const slot of capData.slots) {
+      for (const specialiteId of capData.specialites) {
+        const key = `${personId}_${slot.date}_${specialiteId}`;
+        if (!personDateSpecSites.has(key)) {
+          personDateSpecSites.set(key, { matin: new Set(), apres: new Set() });
+        }
+        
+        const sites = personDateSpecSites.get(key)!;
+        for (const [_, besoin] of besoinsMap) {
+          if (besoin.date === slot.date && besoin.demi_journee === slot.demi_journee && besoin.specialite_id === specialiteId) {
+            if (slot.demi_journee === 'matin') {
+              sites.matin.add(besoin.site_id);
+            } else {
+              sites.apres.add(besoin.site_id);
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Build variables: x_person_date_demi_site_specialite
   for (const [personId, capData] of capacitesMap) {
@@ -308,10 +333,26 @@ function buildMILPModel(
           if (besoin.date === date && besoin.demi_journee === demi && besoin.specialite_id === specialiteId) {
             const varName = `x_${personId}_${date}_${demi}_${besoin.site_id}_${specialiteId}`;
             
-            // Contribution based on REAL need (non-rounded) like optimize-base-schedule-milp
-            // Each assignment contributes (100 / real_need) percentage points
-            // Maximum is capped at 100% via constraint
-            const contributionPercent = 100 / besoin.besoin;
+            // Contribution based on REAL need (non-rounded)
+            let contributionPercent = 100 / besoin.besoin;
+            
+            // Apply small penalty if this would cause site change for same person/spec/date
+            const siteKey = `${personId}_${date}_${specialiteId}`;
+            const sitesInfo = personDateSpecSites.get(siteKey);
+            
+            if (sitesInfo) {
+              // If person works both matin and apres for this spec/date
+              if (sitesInfo.matin.size > 0 && sitesInfo.apres.size > 0) {
+                // Check if there are different sites in matin vs apres
+                const otherDemi = demi === 'matin' ? 'apres' : 'matin';
+                const otherSites = demi === 'matin' ? sitesInfo.apres : sitesInfo.matin;
+                
+                // If current site is not in the other demi, apply small penalty
+                if (otherSites.size > 0 && !otherSites.has(besoin.site_id)) {
+                  contributionPercent -= CONSISTENCY_PENALTY;
+                }
+              }
+            }
             
             model.variables[varName] = {
               objective: contributionPercent,
@@ -335,64 +376,11 @@ function buildMILPModel(
     }
   }
 
-  // Capacity constraints: max secretaries per besoin = ceil(besoin) to avoid over-assignment
+  // Capacity constraints: max secretaries per besoin = ceil(besoin)
   for (const [key, besoin] of besoinsMap) {
     const maxCapacity = Math.ceil(besoin.besoin);
     const constraintName = `capacity_${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
     model.constraints[constraintName] = { max: maxCapacity };
-  }
-
-  // Add penalty for changing sites between matin and apres_midi for same person/specialty
-  const dates = new Set(Array.from(besoinsMap.values()).map(b => b.date));
-  
-  for (const [personId, capData] of capacitesMap) {
-    for (const date of dates) {
-      const hasMatinSlot = capData.slots.some(s => s.date === date && s.demi_journee === 'matin');
-      const hasApresSlot = capData.slots.some(s => s.date === date && s.demi_journee === 'apres_midi');
-      
-      if (hasMatinSlot && hasApresSlot) {
-        for (const specialiteId of capData.specialites) {
-          // Get all site combinations for this specialty on this date
-          const sitesMatinForSpec = Array.from(besoinsMap.values())
-            .filter(b => b.date === date && b.demi_journee === 'matin' && b.specialite_id === specialiteId)
-            .map(b => b.site_id);
-          
-          const sitesApresForSpec = Array.from(besoinsMap.values())
-            .filter(b => b.date === date && b.demi_journee === 'apres_midi' && b.specialite_id === specialiteId)
-            .map(b => b.site_id);
-
-          // If there are different sites for this specialty between matin and apres_midi
-          for (const siteM of sitesMatinForSpec) {
-            for (const siteA of sitesApresForSpec) {
-              if (siteM !== siteA) {
-                // Add penalty if person is assigned to both different sites
-                const varMatinName = `x_${personId}_${date}_matin_${siteM}_${specialiteId}`;
-                const varApresName = `x_${personId}_${date}_apres_midi_${siteA}_${specialiteId}`;
-                
-                // Only if both variables exist
-                if (model.variables[varMatinName] && model.variables[varApresName]) {
-                  // Create auxiliary variable for penalty
-                  const penaltyVar = `penalty_${personId}_${date}_${siteM}_${siteA}_${specialiteId}`;
-                  model.variables[penaltyVar] = {
-                    objective: -PENALTY_WEIGHT,
-                  };
-                  model.ints[penaltyVar] = 1;
-                  totalVars++;
-                  
-                  // Link penalty: penalty_var * 2 >= x_matin + x_apres
-                  // So penalty_var = 1 only if both x_matin=1 and x_apres=1
-                  const constraintName = `link_penalty_${penaltyVar}`;
-                  model.constraints[constraintName] = { min: 0 };
-                  model.variables[penaltyVar][constraintName] = 2;
-                  model.variables[varMatinName][constraintName] = -1;
-                  model.variables[varApresName][constraintName] = -1;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
   }
 
   console.log(`   📊 Built model with ${totalVars} variables (${Object.keys(model.constraints).length} constraints)`);
