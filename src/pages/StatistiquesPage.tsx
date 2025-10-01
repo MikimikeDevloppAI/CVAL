@@ -287,72 +287,89 @@ export default function StatistiquesPage() {
             </TabsContent>
 
             <TabsContent value="detail">
-              {selectedSpecialite && detailJour.length > 0 ? (
-                <div className="space-y-4">
-                  <p className="text-sm font-medium">
-                    {stats.find(s => s.specialite_id === selectedSpecialite)?.specialite}
-                  </p>
-                  <ResponsiveContainer width="100%" height={450}>
-                    <BarChart 
-                      data={detailJour} 
-                      layout="vertical"
-                      margin={{ left: 80, right: 80, top: 20, bottom: 20 }}
-                      barCategoryGap="20%"
-                    >
-                      <XAxis 
-                        type="number"
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fontSize: 12 }}
-                        label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
-                      />
-                      <YAxis 
-                        type="category"
-                        dataKey="jour" 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fontSize: 12 }}
-                        width={70}
-                        axisLine={false}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--popover))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-4">Sélectionnez une spécialité pour voir le détail par jour</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {stats.map((stat) => (
+                      <button
+                        key={stat.specialite_id}
+                        onClick={() => {
+                          setSelectedSpecialite(stat.specialite_id);
+                          fetchDetailJour(stat.specialite_id);
                         }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="rect"
-                      />
-                      <Bar 
-                        dataKey="besoins" 
-                        fill="hsl(217 91% 60%)" 
-                        radius={[0, 8, 8, 0]}
-                        name="Besoins"
-                        label={renderCustomLabel}
-                        style={{
-                          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                        }}
-                      />
-                      <Bar 
-                        dataKey="capacites" 
-                        fill="hsl(142 76% 36%)" 
-                        radius={[0, 8, 8, 0]}
-                        name="Capacités"
-                        label={renderCustomLabel}
-                        style={{
-                          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                        }}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
+                        className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                          selectedSpecialite === stat.specialite_id
+                            ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                            : 'bg-card hover:bg-accent border-border hover:border-primary/50'
+                        }`}
+                      >
+                        {stat.specialite}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center h-64">
-                  <p className="text-muted-foreground">Cliquez sur une spécialité dans la vue globale pour voir le détail</p>
-                </div>
-              )}
+
+                {selectedSpecialite && detailJour.length > 0 && (
+                  <div className="space-y-4">
+                    <ResponsiveContainer width="100%" height={450}>
+                      <BarChart 
+                        data={detailJour} 
+                        layout="vertical"
+                        margin={{ left: 80, right: 80, top: 20, bottom: 20 }}
+                        barCategoryGap="20%"
+                      >
+                        <XAxis 
+                          type="number"
+                          stroke="hsl(var(--muted-foreground))"
+                          tick={{ fontSize: 12 }}
+                          label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
+                        />
+                        <YAxis 
+                          type="category"
+                          dataKey="jour" 
+                          stroke="hsl(var(--muted-foreground))"
+                          tick={{ fontSize: 12 }}
+                          width={70}
+                          axisLine={false}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--popover))', 
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '12px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                          }}
+                        />
+                        <Legend 
+                          wrapperStyle={{ paddingTop: '20px' }}
+                          iconType="rect"
+                        />
+                        <Bar 
+                          dataKey="besoins" 
+                          fill="hsl(217 91% 60%)" 
+                          radius={[0, 8, 8, 0]}
+                          name="Besoins"
+                          label={renderCustomLabel}
+                          style={{
+                            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                          }}
+                        />
+                        <Bar 
+                          dataKey="capacites" 
+                          fill="hsl(142 76% 36%)" 
+                          radius={[0, 8, 8, 0]}
+                          name="Capacités"
+                          label={renderCustomLabel}
+                          style={{
+                            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>
