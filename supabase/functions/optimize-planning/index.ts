@@ -138,14 +138,13 @@ serve(async (req) => {
 
     console.log(`🔄 Transformed: ${creneauxBesoins.length} besoin creneaux, ${creneauxCapacites.length} capacite slots`);
 
-    // Run 3-phase optimization
-    const result = optimizePlanning3Phases(creneauxBesoins, creneauxCapacites, historiqueMap);
+    // Run simple optimization
+    const result = optimizeSimple(creneauxBesoins, creneauxCapacites);
 
-    console.log(`✅ Optimization complete: Score ${result.score_total}`);
+    console.log(`✅ Simple optimization complete`);
 
-    // Save to planning_genere
-    await savePlanning(supabaseServiceRole, weekStartStr, weekEndStr, result);
-
+    // DO NOT save to planning_genere - just return results for visualization
+    
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -262,50 +261,110 @@ function buildHistoriqueMap(historique: any[]): Map<string, HistoriqueEntry> {
   return map;
 }
 
-function optimizePlanning3Phases(
+interface SimpleAssignment {
+  date: string;
+  periode: Periode;
+  specialite_id: string;
+  besoin_arrondi: number;
+  secretaires_assignees: CreneauCapacite[];
+  taux_satisfaction: number;
+}
+
+function optimizeSimple(
   besoins: CreneauBesoin[],
-  capacites: CreneauCapacite[],
-  historique: Map<string, HistoriqueEntry>
+  capacites: CreneauCapacite[]
 ) {
-  console.log('\n🎯 Starting 3-phase optimization');
+  console.log('\n🎯 Starting simple optimization by specialty/half-day');
   
-  // PHASE 1: Optimisation par spécialité
-  console.log('\n📍 PHASE 1: Optimisation par spécialité');
-  const phase1Result = phase1OptimisationSpecialite(besoins, capacites);
+  const assignments: SimpleAssignment[] = [];
+  const usedCapacites = new Set<string>();
   
-  // PHASE 2: Répartition par site
-  console.log('\n📍 PHASE 2: Répartition par site');
-  const phase2Result = phase2RepartitionSite(besoins, phase1Result);
+  // Group besoins by (date, periode, specialite)
+  const besoinGroups = new Map<string, { 
+    specialite_id: string; 
+    total: number; 
+    date: string; 
+    periode: Periode 
+  }>();
   
-  // PHASE 3: Assignation 1R/2F
-  console.log('\n📍 PHASE 3: Assignation 1R/2F');
-  const phase3Result = phase3Assignation1R2F(phase2Result, historique);
+  for (const b of besoins) {
+    const key = `${b.date}|${b.periode}|${b.specialite_id}`;
+    if (!besoinGroups.has(key)) {
+      besoinGroups.set(key, {
+        specialite_id: b.specialite_id,
+        total: 0,
+        date: b.date,
+        periode: b.periode,
+      });
+    }
+    besoinGroups.get(key)!.total += b.nombre_secretaires_requis;
+  }
   
-  // Calculate final scores
-  const stats = calculateStats(phase3Result.assignments, besoins);
-  const score_base = phase1Result.score;
-  const penalites = {
-    changement_site: phase2Result.penalite_matin_apres_midi + phase2Result.penalite_changement_specialite,
-    multiple_fermetures: 0,
-    centre_esplanade_depassement: phase2Result.penalite_centre_esplanade,
-    penalite_1r_2f: phase3Result.penalite,
-  };
+  console.log(`📊 Found ${besoinGroups.size} specialty/half-day groups to optimize`);
   
-  const score_total = score_base + penalites.changement_site + penalites.centre_esplanade_depassement + penalites.penalite_1r_2f;
+  // For each group, assign secretaries
+  for (const [key, group] of besoinGroups) {
+    const besoinArrondi = Math.ceil(group.total);
+    
+    // Get available capacites for this (date, periode, specialite)
+    const availableCaps = capacites.filter(
+      cap =>
+        cap.date === group.date &&
+        cap.periode === group.periode &&
+        cap.specialites.includes(group.specialite_id) &&
+        !usedCapacites.has(cap.id)
+    );
+    
+    // Assign up to besoinArrondi
+    const assignedCaps: CreneauCapacite[] = [];
+    for (let i = 0; i < Math.min(availableCaps.length, besoinArrondi); i++) {
+      assignedCaps.push(availableCaps[i]);
+      usedCapacites.add(availableCaps[i].id);
+    }
+    
+    const tauxSatisfaction = (assignedCaps.length / besoinArrondi) * 100;
+    
+    assignments.push({
+      date: group.date,
+      periode: group.periode,
+      specialite_id: group.specialite_id,
+      besoin_arrondi: besoinArrondi,
+      secretaires_assignees: assignedCaps,
+      taux_satisfaction: tauxSatisfaction,
+    });
+    
+    console.log(`   ${group.date} ${group.periode} spec=${group.specialite_id.substring(0, 8)}: ${assignedCaps.length}/${besoinArrondi} (${tauxSatisfaction.toFixed(1)}%)`);
+  }
   
-  console.log(`\n✅ Final scores:`);
-  console.log(`   Base score (Phase 1): ${score_base}`);
-  console.log(`   Pénalité sites (Phase 2): ${penalites.changement_site + penalites.centre_esplanade_depassement}`);
-  console.log(`   Pénalité 1R/2F (Phase 3): ${penalites.penalite_1r_2f}`);
-  console.log(`   Score total: ${score_total}`);
+  // Get unused capacities (administratif)
+  const administratif = capacites.filter(cap => !usedCapacites.has(cap.id));
+  
+  // Group administratif by date/periode
+  const administratifGrouped = new Map<string, CreneauCapacite[]>();
+  for (const cap of administratif) {
+    const key = `${cap.date}|${cap.periode}`;
+    if (!administratifGrouped.has(key)) {
+      administratifGrouped.set(key, []);
+    }
+    administratifGrouped.get(key)!.push(cap);
+  }
+  
+  console.log(`\n📋 Summary:`);
+  console.log(`   Total assignments: ${assignments.length}`);
+  console.log(`   Secretaries assigned to specialties: ${[...usedCapacites].length}`);
+  console.log(`   Secretaries in administratif: ${administratif.length}`);
   
   return {
-    assignments: convertToAssignmentResults(phase3Result.assignments),
-    unusedCapacites: phase1Result.unusedCapacites,
-    stats,
-    score_base,
-    penalites,
-    score_total,
+    assignments,
+    administratif: Array.from(administratifGrouped.entries()).map(([key, caps]) => {
+      const [date, periode] = key.split('|');
+      return { date, periode, secretaires: caps };
+    }),
+    stats: {
+      total_secretaires: capacites.length,
+      assignees_specialites: usedCapacites.size,
+      assignees_administratif: administratif.length,
+    }
   };
 }
 
