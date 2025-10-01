@@ -224,7 +224,6 @@ export default function StatistiquesPage() {
             </div>
 
             <TabsContent value="global" className="space-y-4">
-              <p className="text-sm text-muted-foreground">Cliquez sur une spécialité pour voir le détail par jour</p>
               <ResponsiveContainer width="100%" height={stats.length * 70 + 100}>
                 <BarChart 
                   data={stats} 
