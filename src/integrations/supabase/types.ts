@@ -175,7 +175,6 @@ export type Database = {
           heure_fin: string
           id: string
           medecin_id: string | null
-          nombre_secretaires_requis: number
           site_id: string
           type: Database["public"]["Enums"]["type_besoin"]
           updated_at: string
@@ -189,7 +188,6 @@ export type Database = {
           heure_fin: string
           id?: string
           medecin_id?: string | null
-          nombre_secretaires_requis?: number
           site_id: string
           type: Database["public"]["Enums"]["type_besoin"]
           updated_at?: string
@@ -203,7 +201,6 @@ export type Database = {
           heure_fin?: string
           id?: string
           medecin_id?: string | null
-          nombre_secretaires_requis?: number
           site_id?: string
           type?: Database["public"]["Enums"]["type_besoin"]
           updated_at?: string

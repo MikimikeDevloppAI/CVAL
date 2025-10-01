@@ -21,7 +21,6 @@ const medecinBesoinSchema = z.object({
   site_id: z.string().min(1, 'Site requis'),
   heure_debut: z.string().min(1, 'Heure de début requise'),
   heure_fin: z.string().min(1, 'Heure de fin requise'),
-  nombre_secretaires_requis: z.number().min(0).max(10),
 }).refine((data) => {
   if (data.heure_debut && data.heure_fin) {
     return data.heure_debut < data.heure_fin;
