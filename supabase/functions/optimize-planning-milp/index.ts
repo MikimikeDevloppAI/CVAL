@@ -18,6 +18,9 @@ const PORT_PENALTIES_PREFERE = [0.0002, 0.0004, 0.0008, 0.0016, 0.0032, 0.0064, 
 
 const PORT_EN_TRUIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 const MAX_ECART_LINEARIZATION = 10; // Segments pour linéarisation de l'écart carré
+// Priorité d'équité: petit biais pour favoriser les besoins au plus faible ratio capacité/besoin
+const FAIRNESS_EPS = 1.0;
+const EPS_BESOIN = 1e-3;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -422,14 +425,16 @@ function buildIntelligentMILPModel(capacitesMap: Map<string, any>, besoinsMap: M
     const besoinValue = besoin.besoin;
     
     // Variable cap_effective = min(Σx, besoin)
-    const capEffVarName = `cap_eff_${besoinKey}`;
-    model.variables[capEffVarName] = {
-      [`def_cap_eff_${besoinKey}`]: 1,
-      [`cap_eff_max_${besoinKey}`]: 1,
-      // Lie cap_eff dans la définition de l'écart: ecart + cap_eff = besoin
-      [`def_ecart_${besoinKey}`]: 1
-    };
-    totalVars++;
+const capEffVarName = `cap_eff_${besoinKey}`;
+model.variables[capEffVarName] = {
+  // Biais d'équité: encourager à remplir d'abord les petits besoins (ratio plus faible)
+  objective: -FAIRNESS_EPS / Math.max(besoinValue, EPS_BESOIN),
+  [`def_cap_eff_${besoinKey}`]: 1,
+  [`cap_eff_max_${besoinKey}`]: 1,
+  // Lie cap_eff dans la définition de l'écart: ecart + cap_eff = besoin
+  [`def_ecart_${besoinKey}`]: 1
+};
+totalVars++;
     
     // Variable ecart = besoin - cap_effective (positif)
     const ecartVarName = `ecart_${besoinKey}`;
@@ -443,11 +448,9 @@ function buildIntelligentMILPModel(capacitesMap: Map<string, any>, besoinsMap: M
     for (let k = 1; k <= MAX_ECART_LINEARIZATION; k++) {
       const segVarName = `seg_${besoinKey}_${k}`;
       
-      // Poids intelligent W_i pour prioriser besoins moins satisfaits
-      // W_i ≈ (besoin / (satisfaction_actuelle + 0.1))²
-      // Approximation initiale: W_i = besoin² pour l'instant (sera raffiné dynamiquement)
-      const weight = Math.pow(besoinValue, 2);
-      const segmentCoef = weight * COEF_ECART_CARRE * (2 * k - 1) / besoinValue; // approximation linéaire de k²
+// Pondération d'équité: normaliser par le besoin pour privilégier les slots au plus faible ratio cap/besoin
+const W = COEF_ECART_CARRE / Math.max(besoinValue, EPS_BESOIN);
+const segmentCoef = W * (2 * k - 1);
       
       model.variables[segVarName] = {
         objective: segmentCoef,
