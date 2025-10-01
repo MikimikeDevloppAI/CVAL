@@ -27,8 +27,13 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
     const siteAssignments = assignments.filter(a => a.site_id === siteId);
     const siteName = siteAssignments[0]?.site_nom || 'Administratif';
     
-    // Grouper par jour pour ce site
-    const dayGroups = weekDays.map(day => {
+    // Grouper par jour pour ce site (jours ouvrés uniquement)
+    const weekdaysOnly = weekDays.filter(d => {
+      const dow = d.getDay(); // 0=dimanche, 6=samedi
+      return dow !== 0 && dow !== 6;
+    });
+
+    const dayGroups = weekdaysOnly.map(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
       const dayAssignments = siteAssignments.filter(a => a.date === dateStr);
       

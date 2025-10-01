@@ -208,29 +208,28 @@ export default function PlanningPage() {
           const key = `${row.date}-${periode}-${row.site_id || 'admin'}`;
 
           if (!assignmentsByKey.has(key)) {
-            // Récupérer les besoins pour cette période
-            const besoinsForSlot = besoinsData?.filter(besoin => {
-              const besoinHeureDebut = besoin.heure_debut || '00:00:00';
-              const isMatin = periode === 'matin';
-              
-              const appartientPeriode = isMatin 
-                ? besoinHeureDebut >= '07:00:00' && besoinHeureDebut < '12:30:00'
-                : besoinHeureDebut >= '12:30:00' && besoinHeureDebut < '18:00:00';
-              
-              return besoin.date === row.date && 
-                     besoin.site_id === row.site_id && 
-                     appartientPeriode;
-            }) || [];
+            const isMatin = periode === 'matin';
+            const slotStart = isMatin ? '07:30:00' : '13:00:00';
+            const slotEnd = isMatin ? '12:00:00' : '17:00:00';
 
-            // Extraire les médecins
+            // Récupérer les besoins pour cette période en vérifiant le chevauchement d'horaires
+            const besoinsForSlot = (besoinsData || []).filter(besoin => {
+              if (besoin.date !== row.date || besoin.site_id !== row.site_id) return false;
+              const besoinHeureDebut = besoin.heure_debut || '00:00:00';
+              const besoinHeureFin = besoin.heure_fin || '23:59:59';
+              const overlap = besoinHeureDebut < slotEnd && besoinHeureFin > slotStart;
+              return overlap;
+            });
+
+            // Extraire les médecins (tous ceux qui chevauchent le créneau)
             const medecins = besoinsForSlot
               .filter(besoin => besoin.medecin)
               .map(besoin => `${besoin.medecin?.first_name || ''} ${besoin.medecin?.name || ''}`.trim())
               .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx);
 
-            // Calculer le nombre total de secrétaires requis
+            // Calculer le nombre total de secrétaires requis (somme, puis arrondi supérieur)
             const nombreRequis = besoinsForSlot.reduce((sum, besoin) => {
-              return sum + (besoin.nombre_secretaires_requis || 0);
+              return sum + (Number(besoin.nombre_secretaires_requis) || 0);
             }, 0);
 
             assignmentsByKey.set(key, {
