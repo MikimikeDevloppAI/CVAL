@@ -289,24 +289,21 @@ export default function StatistiquesPage() {
 
       {viewMode === 'graphs' && (
         <Card className="border-border/50 shadow-lg">
-          <CardHeader>
-            <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
-            <CardDescription>
-              Basé sur les horaires de base des médecins et secrétaires
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="global" className="space-y-6">
-            <div className="flex justify-end">
+          <Tabs defaultValue="global">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
+                <CardDescription>
+                  Basé sur les horaires de base des médecins et secrétaires
+                </CardDescription>
+              </div>
               <TabsList className="grid w-full max-w-md grid-cols-2">
                 <TabsTrigger value="global">Vue Globale</TabsTrigger>
-                <TabsTrigger value="detail">
-                  Détail par Jour
-                </TabsTrigger>
+                <TabsTrigger value="detail">Détail par Jour</TabsTrigger>
               </TabsList>
-            </div>
-
-            <TabsContent value="global" className="space-y-4">
+            </CardHeader>
+            <CardContent>
+              <TabsContent value="global" className="space-y-4">
               <ResponsiveContainer width="100%" height={stats.length * 70 + 100}>
                 <BarChart 
                   data={stats} 
@@ -455,8 +452,8 @@ export default function StatistiquesPage() {
                 )}
               </div>
             </TabsContent>
+            </CardContent>
           </Tabs>
-          </CardContent>
         </Card>
       )}
     </div>
