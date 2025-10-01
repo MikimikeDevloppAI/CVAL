@@ -474,17 +474,21 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
   let esplanadeTotal = 0;
   const esplanadePerPerson = new Map();
 
+  // Regex patterns for parsing variable names
+  const xVarRegex = /^x_(?<person>[^_]+)_(?<date>\d{4}-\d{2}-\d{2})_(?<demi>matin|apres_midi)_(?<site>[0-9a-f-]+)_(?<spec>.+)$/;
+  const yVarRegex = /^y_(?<person>[^_]+)_(?<date>\d{4}-\d{2}-\d{2})_(?<demi>matin|apres_midi)$/;
+
   for (const [varName, value] of Object.entries(solution)) {
     if (value !== 1 || typeof varName !== 'string') continue;
 
     if (varName.startsWith('x_')) {
-      const parts = varName.split('_');
-      if (parts.length >= 6) {
-        const personId = parts[1];
-        const date = parts[2];
-        const demi = parts[3];
-        const siteId = parts[4];
-        const specialiteId = parts.slice(5).join('_');
+      const match = varName.match(xVarRegex);
+      if (match && match.groups) {
+        const personId = match.groups.person;
+        const date = match.groups.date;
+        const demi = match.groups.demi;
+        const siteId = match.groups.site;
+        const specialiteId = match.groups.spec;
 
         const key = `${date}|${demi}|${siteId}|${specialiteId}`;
         if (!assignmentGroups.has(key)) {
@@ -498,11 +502,11 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
         }
       }
     } else if (varName.startsWith('y_')) {
-      const parts = varName.split('_');
-      if (parts.length >= 4) {
-        const personId = parts[1];
-        const date = parts[2];
-        const demi = parts[3];
+      const match = varName.match(yVarRegex);
+      if (match && match.groups) {
+        const personId = match.groups.person;
+        const date = match.groups.date;
+        const demi = match.groups.demi;
         const key = `${date}|${demi}`;
         if (!adminGroups.has(key)) {
           adminGroups.set(key, []);
@@ -529,14 +533,27 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
     });
   }
 
-  // Administrative assignments
+  // Administrative assignments with medecin_ids from besoinsMap
   for (const [key, persons] of adminGroups) {
     const [date, demi] = key.split('|');
+    
+    // Aggregate medecin_ids for this date+demi from besoinsMap
+    const medecinIds: string[] = [];
+    for (const [_, besoin] of besoinsMap) {
+      if (besoin.date === date && besoin.demi_journee === demi) {
+        for (const medecinId of besoin.medecin_ids) {
+          if (!medecinIds.includes(medecinId)) {
+            medecinIds.push(medecinId);
+          }
+        }
+      }
+    }
+    
     results.push({
       date,
       demi_journee: demi,
       secretaires_assignees: persons,
-      medecin_ids: [],
+      medecin_ids: medecinIds,
       type: 'administratif'
     });
   }

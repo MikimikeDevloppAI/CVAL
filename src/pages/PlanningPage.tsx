@@ -266,8 +266,19 @@ export default function PlanningPage() {
             const slotEnd = isMatin ? '12:00:00' : '17:00:00';
 
             // Récupérer les besoins pour cette période en vérifiant le chevauchement d'horaires
+            // Pour les assignations administratives (site_id null), ne pas filtrer par site
             const besoinsForSlot = (besoinsData || []).filter(besoin => {
-              if (besoin.date !== row.date || besoin.site_id !== row.site_id) return false;
+              if (besoin.date !== row.date) return false;
+              // Si administrative, ne pas filtrer par site
+              if (row.site_id === null) {
+                // Filtrer juste par chevauchement de période
+                const besoinHeureDebut = besoin.heure_debut || '00:00:00';
+                const besoinHeureFin = besoin.heure_fin || '23:59:59';
+                const overlap = besoinHeureDebut < slotEnd && besoinHeureFin > slotStart;
+                return overlap;
+              }
+              // Sinon, filtrer par site et période
+              if (besoin.site_id !== row.site_id) return false;
               const besoinHeureDebut = besoin.heure_debut || '00:00:00';
               const besoinHeureFin = besoin.heure_fin || '23:59:59';
               const overlap = besoinHeureDebut < slotEnd && besoinHeureFin > slotStart;
@@ -282,7 +293,8 @@ export default function PlanningPage() {
               .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx);
 
             // Calculer le nombre total de secrétaires requis (somme, puis arrondi supérieur)
-            const nombreRequis = besoinsForSlot.reduce((sum, besoin) => {
+            // Pour les assignations administratives, ne pas calculer de besoin (mis à 0)
+            const nombreRequis = row.site_id === null ? 0 : besoinsForSlot.reduce((sum, besoin) => {
               return sum + (Number(besoin.nombre_secretaires_requis) || 0);
             }, 0);
 
@@ -295,7 +307,7 @@ export default function PlanningPage() {
               secretaires: [],
               medecins,
               besoin_reel: nombreRequis, // Stocker le besoin réel avant arrondi
-              nombre_requis: Math.ceil(nombreRequis),
+              nombre_requis: row.site_id === null ? 0 : Math.ceil(nombreRequis),
               type_assignation: row.type_assignation,
             });
           }
