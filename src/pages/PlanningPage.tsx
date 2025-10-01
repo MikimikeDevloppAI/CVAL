@@ -790,20 +790,6 @@ export default function PlanningPage() {
                               {site.nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
                             </Button>
                           )}
-                          {besoinsSite.length > 0 && (
-                            <>
-                              <Separator orientation="vertical" className="h-10" />
-                              <div className="text-right">
-                                <div className="text-sm text-muted-foreground">Médecins</div>
-                                <div className="font-bold text-lg">{totalMedecins}</div>
-                              </div>
-                              <Separator orientation="vertical" className="h-10" />
-                              <div className="text-right">
-                                <div className="text-sm text-muted-foreground">Secrétaires requis</div>
-                                <div className="font-bold text-lg text-primary">{Math.ceil(totalSecretaires)}</div>
-                              </div>
-                            </>
-                          )}
                         </div>
                       </div>
                     </CardHeader>
