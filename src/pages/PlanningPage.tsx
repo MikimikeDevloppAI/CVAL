@@ -818,7 +818,6 @@ export default function PlanningPage() {
                           <thead>
                             <tr className="border-b-2">
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
-                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Jours de présence</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
                               <th className="text-right p-2 font-medium text-sm text-muted-foreground">Secrétaires</th>
@@ -868,9 +867,6 @@ export default function PlanningPage() {
                                         : '-'
                                     }
                                   </td>
-                                  <td className="p-2 text-sm text-muted-foreground">
-                                    -
-                                  </td>
                                   <td className="p-2">
                                     <div className="flex flex-wrap gap-1">
                                       {joursParNom.map((jour, idx) => (
@@ -916,7 +912,7 @@ export default function PlanningPage() {
                               );
                             })}
                             <tr className="font-bold bg-muted/50">
-                              <td colSpan={6} className="p-2 text-right">TOTAL SECRÉTAIRES REQUIS</td>
+                              <td colSpan={4} className="p-2 text-right">TOTAL SECRÉTAIRES REQUIS</td>
                               <td className="p-2 text-right text-primary text-lg">
                                 {Math.ceil(totalSecretaires)}
                               </td>
