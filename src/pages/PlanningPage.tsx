@@ -183,6 +183,20 @@ export default function PlanningPage() {
       if (error) throw error;
 
       if (planningData && planningData.length > 0) {
+        // Récupérer les besoins effectifs pour obtenir les noms des médecins
+        const { data: besoinsData } = await supabase
+          .from('besoin_effectif')
+          .select(`
+            id,
+            date,
+            heure_debut,
+            site_id,
+            medecin:medecins(first_name, name)
+          `)
+          .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+          .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+          .eq('actif', true);
+
         // Regrouper les affectations par (date, période, site)
         const assignmentsByKey = new Map();
 
@@ -192,6 +206,18 @@ export default function PlanningPage() {
           const key = `${row.date}-${periode}-${row.site_id || 'admin'}`;
 
           if (!assignmentsByKey.has(key)) {
+            // Récupérer les médecins correspondants depuis besoinsData
+            const medecins = besoinsData
+              ?.filter(besoin => {
+                const besoinPeriode = besoin.heure_debut < '12:00:00' ? 'matin' : 'apres_midi';
+                return besoin.date === row.date && 
+                       besoin.site_id === row.site_id && 
+                       besoinPeriode === periode &&
+                       besoin.medecin;
+              })
+              .map(besoin => `${besoin.medecin?.first_name || ''} ${besoin.medecin?.name || ''}`.trim())
+              .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx) || []; // Retirer les doublons et les vides
+
             assignmentsByKey.set(key, {
               date: row.date,
               periode,
@@ -199,6 +225,7 @@ export default function PlanningPage() {
               site_nom: row.site?.nom || 'Administratif',
               site_fermeture: row.site?.fermeture || false,
               secretaires: [],
+              medecins,
               type_assignation: row.type_assignation,
             });
           }
@@ -225,7 +252,7 @@ export default function PlanningPage() {
           site_id: a.site_id || '',
           site_nom: a.site_nom,
           site_fermeture: a.site_fermeture,
-          medecins: [],
+          medecins: a.medecins,
           secretaires: a.secretaires,
           nombre_requis: a.secretaires.length,
           nombre_assigne: a.secretaires.length,
