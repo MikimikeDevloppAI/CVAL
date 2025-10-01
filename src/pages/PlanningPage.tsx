@@ -481,8 +481,8 @@ export default function PlanningPage() {
       .from('capacite_effective')
       .select(`
         *,
-        secretaire:secretaires(first_name, name),
-        backup:backup(first_name, name)
+        secretaire:secretaires(first_name, name, specialites),
+        backup:backup(first_name, name, specialites)
       `)
       .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
       .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -502,12 +502,16 @@ export default function PlanningPage() {
         specialitesData?.map(s => [s.id, s.nom]) || []
       );
 
-      const enrichedData = data.map(capacite => ({
-        ...capacite,
-        specialites: (capacite.specialites || []).map(
-          (id: string) => specialitesMap.get(id) || 'Spécialité inconnue'
-        )
-      }));
+      const enrichedData = data.map(capacite => {
+        // Récupérer les spécialités depuis secretaire ou backup
+        const specialitesIds = capacite.secretaire?.specialites || capacite.backup?.specialites || [];
+        return {
+          ...capacite,
+          specialites: specialitesIds.map(
+            (id: string) => specialitesMap.get(id) || 'Spécialité inconnue'
+          )
+        };
+      });
 
       setCapacites(enrichedData);
     } else {
