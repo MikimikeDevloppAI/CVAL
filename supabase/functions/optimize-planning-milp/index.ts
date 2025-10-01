@@ -7,13 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
-// Configuration - OPTIMISATION SIMPLE ET RAPIDE
-const WEIGHT_SATISFACTION = 1000; // Priorité: maximiser la couverture des besoins
-const PENALTY_SITE_CHANGE = 0.001;   // Pénalité minimale pour changement de site
-const PENALTY_ESPLANADE_BASE = 0.0001; // Pénalité minimale progressive pour Esplanade
-const BONUS_PREFERE_ESPLANADE = -0.0001; // Petit bonus pour préférence Esplanade
+// Configuration - Nouvelle formulation objective
+const W1_SATISFACTION = 10000;  // Satisfaction du besoin (priorité absolue)
+const W2_PORT_EN_TRUIE = 1;     // Pénalité Port-en-Truie (marginal)
+const W3_CHANGEMENT_SITE = 1;   // Pénalité changement site (marginal)
 
-const ESPLANADE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+const PORT_EN_TRUIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -84,14 +83,15 @@ serve(async (req) => {
     console.log(`✅ Solution: objective = ${solution.result.toFixed(2)}`);
 
     // Parse results
-    const results = parseResults(solution, capacitesMap, besoinsMap);
+    const parseResult = parseResults(solution, capacitesMap, besoinsMap);
+    const results = parseResult.results;
     
     // Calculate statistics
-    const statistics = calculateStatistics(results, besoinsMap);
+    const statistics = calculateStatistics(results, besoinsMap, parseResult.penalties);
     
     console.log(`📊 Satisfaction: ${statistics.satisfaction_globale_pct}%`);
     console.log(`📊 Site changes: ${statistics.penalties.site_changes}`);
-    console.log(`📊 Esplanade assignments: ${statistics.penalties.esplanade_total}`);
+    console.log(`📊 Port-en-Truie assignments: ${statistics.penalties.port_en_truie_total}`);
 
     // Save to database
     console.log('💾 Saving to planning_genere...');
@@ -289,7 +289,7 @@ function getTimeOverlap(start1: string, end1: string, start2: string, end2: stri
 function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map<string, any>, startDate: string, endDate: string) {
   const model: any = {
     optimize: 'objective',
-    opType: 'max', // Maximiser la satisfaction
+    opType: 'max', // Maximiser Z = W1*Satisfaction - W2*Port-en-Truie - W3*Changement
     constraints: {},
     variables: {},
     ints: {}
@@ -301,8 +301,13 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
   let matinCount = 0;
   let apresMidiCount = 0;
 
-  // Pre-calculate: which sites can each person work at for each date
-  const personDateSites = new Map();
+  // Track Port-en-Truie assignments per person across the period
+  const portEnTruieAssignments = new Map<string, number>(); // personId -> number of assignments
+  
+  // Track site assignments per person per date for change detection
+  const personDateSites = new Map<string, {matin: Set<string>, apres: Set<string>}>();
+  
+  // Pre-calculate possible sites for each person
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
       const key = `${personId}_${slot.date}`;
@@ -310,9 +315,8 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
         personDateSites.set(key, { matin: new Set(), apres: new Set() });
       }
       
-      const sites = personDateSites.get(key);
+      const sites = personDateSites.get(key)!;
       
-      // Find all sites this person could work at
       for (const spec of capData.specialites) {
         for (const [_, besoin] of besoinsMap) {
           if (besoin.date === slot.date && 
@@ -328,15 +332,6 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
       }
     }
   }
-
-  // Count Esplanade assignments per person per week
-  const weekKey = (date: string) => {
-    const d = new Date(date);
-    const weekNum = Math.floor((d.getTime() - new Date(startDate).getTime()) / (7 * 24 * 60 * 60 * 1000));
-    return weekNum;
-  };
-
-  const esplanadeCounters = new Map(); // personId_week -> count
 
   // BUILD VARIABLES: x_{person}_{date}_{demi}_{site}_{spec}
   for (const [personId, capData] of capacitesMap) {
@@ -354,15 +349,33 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
 
           const varName = `x_${personId}_${date}_${demi}_${besoin.site_id}_${specialiteId}`;
 
-          // ===== CONTRIBUTION À LA SATISFACTION =====
-          // Contribution uniforme pour satisfaire le besoin
-          const ceilBesoin = Math.ceil(besoin.besoin);
-          const satisfactionContribution = WEIGHT_SATISFACTION / ceilBesoin;
+          // ===== TERME 1: SATISFACTION DU BESOIN =====
+          // Si(xi) = -[(bi - min(xi, bi)) / bi]²
+          // On utilise une approximation linéaire : contribution uniforme W1 par personne
+          // La vraie optimisation quadratique serait trop complexe pour le solveur LP
+          const besoinReel = besoin.besoin;
+          const ceilBesoin = Math.ceil(besoinReel);
+          
+          // Contribution de base: on contribue à satisfaire le besoin
+          // Poids plus élevé pour les premiers à satisfaire le besoin (approximation linéaire)
+          const satisfactionWeight = W1_SATISFACTION;
 
-          // ===== PÉNALITÉS SECONDAIRES =====
-          let penalties = 0;
+          // ===== TERME 2: PÉNALITÉ PORT-EN-TRUIE PROGRESSIVE =====
+          // Pi = αi × [k1×y¹i + k2×y²i + ... + kn×yⁿi] où kj = j
+          let penaltyPortEnTruie = 0;
+          if (besoin.site_id === PORT_EN_TRUIE_SITE_ID) {
+            const currentCount = portEnTruieAssignments.get(personId) || 0;
+            const kj = currentCount + 1; // Pénalité croissante: 1, 2, 3, 4, 5...
+            const alpha = capData.prefere_port_en_truie ? 0.5 : 1.0;
+            penaltyPortEnTruie = W2_PORT_EN_TRUIE * alpha * kj;
+            
+            // Incrémenter pour la prochaine assignation potentielle
+            portEnTruieAssignments.set(personId, currentCount + 1);
+          }
 
-          // Pénalité 1: Changement de site le même jour
+          // ===== TERME 3: PÉNALITÉ CHANGEMENT DE SITE MATIN/APRÈS-MIDI =====
+          // ci = 1 si changement, 0 sinon
+          let penaltyChangementSite = 0;
           const personDateKey = `${personId}_${date}`;
           const sitesInfo = personDateSites.get(personDateKey);
           
@@ -370,34 +383,19 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
             const otherDemi = demi === 'matin' ? 'apres' : 'matin';
             const otherSites = demi === 'matin' ? sitesInfo.apres : sitesInfo.matin;
             
+            // Si la personne pourrait travailler sur un autre site l'autre demi-journée
             if (otherSites.size > 0 && !otherSites.has(besoin.site_id)) {
-              penalties += PENALTY_SITE_CHANGE;
+              penaltyChangementSite = W3_CHANGEMENT_SITE;
             }
           }
 
-          // Pénalité 2: Esplanade (progressive par semaine)
-          if (besoin.site_id === ESPLANADE_SITE_ID) {
-            const week = weekKey(date);
-            const counterKey = `${personId}_${week}`;
-            
-            const currentCount = esplanadeCounters.get(counterKey) || 0;
-            
-            if (!capData.prefere_port_en_truie) {
-              penalties += PENALTY_ESPLANADE_BASE * (1 + currentCount);
-            } else {
-              penalties += BONUS_PREFERE_ESPLANADE;
-            }
-            
-            esplanadeCounters.set(counterKey, currentCount + 1);
-          }
-
-          // CONTRIBUTION FINALE
-          const contribution = satisfactionContribution - penalties;
+          // ===== OBJECTIF FINAL: Maximiser Z = W1×S - W2×P - W3×c =====
+          const objective = satisfactionWeight - penaltyPortEnTruie - penaltyChangementSite;
 
           model.variables[varName] = {
-            objective: contribution,
+            objective: objective,
             [`unique_${personId}_${date}_${demi}`]: 1,
-            [`capacity_${date}_${demi}_${besoin.site_id}_${specialiteId}`]: 1
+            [`capacity_${besoinKey}`]: 1
           };
 
           model.ints[varName] = 1;
@@ -411,13 +409,13 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // Variables administratives (fallback)
+  // Variables administratives (fallback) - petite contribution positive
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
       const yVarName = `y_${personId}_${slot.date}_${slot.demi_journee}`;
       
       model.variables[yVarName] = {
-        objective: 0.000001, // Très petite contribution positive
+        objective: 0.1, // Contribution positive minime (encourage à utiliser en admin si pas de besoin)
         [`unique_${personId}_${slot.date}_${slot.demi_journee}`]: 1
       };
       
@@ -435,10 +433,10 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // CONTRAINTE 2: Ne JAMAIS dépasser ceil(besoin) - LIMITE STRICTE
-  for (const [key, besoin] of besoinsMap) {
+  // CONTRAINTE 2: Ne JAMAIS dépasser ceil(besoin) - CAPACITÉ MAXIMALE
+  for (const [besoinKey, besoin] of besoinsMap) {
     const maxCapacity = Math.ceil(besoin.besoin);
-    const constraintName = `capacity_${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
+    const constraintName = `capacity_${besoinKey}`;
     model.constraints[constraintName] = { max: maxCapacity };
   }
 
@@ -465,8 +463,8 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
   const adminGroups = new Map();
   
   let siteChanges = 0;
-  let esplanadeTotal = 0;
-  const esplanadePerPerson = new Map();
+  let portEnTruieTotal = 0;
+  const portEnTruiePerPerson = new Map();
 
   // Regex patterns for parsing variable names
   const xVarRegex = /^x_(?<person>[^_]+)_(?<date>\d{4}-\d{2}-\d{2})_(?<demi>matin|apres_midi)_(?<site>[0-9a-f-]+)_(?<spec>.+)$/;
@@ -490,9 +488,9 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
         }
         assignmentGroups.get(key).push(personId);
 
-        if (siteId === ESPLANADE_SITE_ID) {
-          esplanadeTotal++;
-          esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
+        if (siteId === PORT_EN_TRUIE_SITE_ID) {
+          portEnTruieTotal++;
+          portEnTruiePerPerson.set(personId, (portEnTruiePerPerson.get(personId) || 0) + 1);
         }
       }
     } else if (varName.startsWith('y_')) {
@@ -552,10 +550,17 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
     });
   }
 
-  return results;
+  return { 
+    results,
+    penalties: {
+      siteChanges,
+      portEnTruieTotal,
+      portEnTruiePerPerson
+    }
+  };
 }
 
-function calculateStatistics(results: any[], besoinsMap: Map<string, any>) {
+function calculateStatistics(results: any[], besoinsMap: Map<string, any>, penalties: any) {
   let totalBesoin = 0;
   let totalAssigned = 0;
 
@@ -576,8 +581,9 @@ function calculateStatistics(results: any[], besoinsMap: Map<string, any>) {
     total_assigned: totalAssigned,
     satisfaction_globale_pct: Math.round(satisfactionGlobalePct),
     penalties: {
-      site_changes: 0, // À calculer si nécessaire
-      esplanade_total: 0, // À calculer si nécessaire
+      site_changes: penalties.siteChanges,
+      port_en_truie_total: penalties.portEnTruieTotal,
+      port_en_truie_per_person: Object.fromEntries(penalties.portEnTruiePerPerson)
     }
   };
 }
