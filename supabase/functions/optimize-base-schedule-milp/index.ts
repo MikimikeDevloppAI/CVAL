@@ -174,16 +174,39 @@ function buildSecretairesMap(
       .map(h => {
         const slots: { jour_semaine: number; demi_journee: DemiJournee }[] = [];
         
-        // Check if overlaps with matin
-        if (h.heure_debut < DEMI_JOURNEE_SLOTS.matin.end && 
-            h.heure_fin > DEMI_JOURNEE_SLOTS.matin.start) {
+        // Strict separation: matin is 07:30-12:00, apres_midi is 13:00-17:00
+        // Check if covers matin period (must have significant overlap)
+        const matinStart = '07:30:00';
+        const matinEnd = '12:00:00';
+        if (h.heure_debut <= matinStart && h.heure_fin >= matinEnd) {
+          // Full matin coverage
           slots.push({ jour_semaine: h.jour_semaine, demi_journee: 'matin' });
+        } else if (h.heure_debut < matinEnd && h.heure_fin > matinStart) {
+          // Partial matin coverage (at least 1 hour overlap)
+          const overlapStart = h.heure_debut > matinStart ? h.heure_debut : matinStart;
+          const overlapEnd = h.heure_fin < matinEnd ? h.heure_fin : matinEnd;
+          const overlapHours = (new Date(`2000-01-01T${overlapEnd}`).getTime() - 
+                                new Date(`2000-01-01T${overlapStart}`).getTime()) / (1000 * 60 * 60);
+          if (overlapHours >= 1) {
+            slots.push({ jour_semaine: h.jour_semaine, demi_journee: 'matin' });
+          }
         }
         
-        // Check if overlaps with apres_midi
-        if (h.heure_debut < DEMI_JOURNEE_SLOTS.apres_midi.end && 
-            h.heure_fin > DEMI_JOURNEE_SLOTS.apres_midi.start) {
+        // Check if covers apres_midi period (must have significant overlap)
+        const apresStart = '13:00:00';
+        const apresEnd = '17:00:00';
+        if (h.heure_debut <= apresStart && h.heure_fin >= apresEnd) {
+          // Full apres_midi coverage
           slots.push({ jour_semaine: h.jour_semaine, demi_journee: 'apres_midi' });
+        } else if (h.heure_debut < apresEnd && h.heure_fin > apresStart) {
+          // Partial apres_midi coverage (at least 1 hour overlap)
+          const overlapStart = h.heure_debut > apresStart ? h.heure_debut : apresStart;
+          const overlapEnd = h.heure_fin < apresEnd ? h.heure_fin : apresEnd;
+          const overlapHours = (new Date(`2000-01-01T${overlapEnd}`).getTime() - 
+                                new Date(`2000-01-01T${overlapStart}`).getTime()) / (1000 * 60 * 60);
+          if (overlapHours >= 1) {
+            slots.push({ jour_semaine: h.jour_semaine, demi_journee: 'apres_midi' });
+          }
         }
         
         return slots;
@@ -212,34 +235,56 @@ function buildBesoinsMap(
     const medHoraires = horaires.filter(h => h.medecin_id === med.id);
 
     for (const h of medHoraires) {
-      // Check if overlaps with matin
-      if (h.heure_debut < DEMI_JOURNEE_SLOTS.matin.end && 
-          h.heure_fin > DEMI_JOURNEE_SLOTS.matin.start) {
-        const key = `${h.jour_semaine}|matin|${med.specialite_id}`;
-        if (!besoinsMap.has(key)) {
-          besoinsMap.set(key, {
-            jour_semaine: h.jour_semaine,
-            demi_journee: 'matin',
-            specialite_id: med.specialite_id,
-            besoin: 0,
-          });
+      // Strict separation: matin is 07:30-12:00, apres_midi is 13:00-17:00
+      const matinStart = '07:30:00';
+      const matinEnd = '12:00:00';
+      const apresStart = '13:00:00';
+      const apresEnd = '17:00:00';
+
+      // Calculate matin overlap
+      if (h.heure_debut < matinEnd && h.heure_fin > matinStart) {
+        const overlapStart = h.heure_debut > matinStart ? h.heure_debut : matinStart;
+        const overlapEnd = h.heure_fin < matinEnd ? h.heure_fin : matinEnd;
+        const overlapHours = (new Date(`2000-01-01T${overlapEnd}`).getTime() - 
+                              new Date(`2000-01-01T${overlapStart}`).getTime()) / (1000 * 60 * 60);
+        
+        if (overlapHours > 0) {
+          const key = `${h.jour_semaine}|matin|${med.specialite_id}`;
+          if (!besoinsMap.has(key)) {
+            besoinsMap.set(key, {
+              jour_semaine: h.jour_semaine,
+              demi_journee: 'matin',
+              specialite_id: med.specialite_id,
+              besoin: 0,
+            });
+          }
+          // Weight besoin by the proportion of matin covered
+          const proportionCovered = overlapHours / 4.5; // 4.5h = matin duration
+          besoinsMap.get(key)!.besoin += med.besoin_secretaires * proportionCovered;
         }
-        besoinsMap.get(key)!.besoin += med.besoin_secretaires;
       }
 
-      // Check if overlaps with apres_midi
-      if (h.heure_debut < DEMI_JOURNEE_SLOTS.apres_midi.end && 
-          h.heure_fin > DEMI_JOURNEE_SLOTS.apres_midi.start) {
-        const key = `${h.jour_semaine}|apres_midi|${med.specialite_id}`;
-        if (!besoinsMap.has(key)) {
-          besoinsMap.set(key, {
-            jour_semaine: h.jour_semaine,
-            demi_journee: 'apres_midi',
-            specialite_id: med.specialite_id,
-            besoin: 0,
-          });
+      // Calculate apres_midi overlap
+      if (h.heure_debut < apresEnd && h.heure_fin > apresStart) {
+        const overlapStart = h.heure_debut > apresStart ? h.heure_debut : apresStart;
+        const overlapEnd = h.heure_fin < apresEnd ? h.heure_fin : apresEnd;
+        const overlapHours = (new Date(`2000-01-01T${overlapEnd}`).getTime() - 
+                              new Date(`2000-01-01T${overlapStart}`).getTime()) / (1000 * 60 * 60);
+        
+        if (overlapHours > 0) {
+          const key = `${h.jour_semaine}|apres_midi|${med.specialite_id}`;
+          if (!besoinsMap.has(key)) {
+            besoinsMap.set(key, {
+              jour_semaine: h.jour_semaine,
+              demi_journee: 'apres_midi',
+              specialite_id: med.specialite_id,
+              besoin: 0,
+            });
+          }
+          // Weight besoin by the proportion of apres_midi covered
+          const proportionCovered = overlapHours / 4.0; // 4.0h = apres_midi duration
+          besoinsMap.get(key)!.besoin += med.besoin_secretaires * proportionCovered;
         }
-        besoinsMap.get(key)!.besoin += med.besoin_secretaires;
       }
     }
   }
