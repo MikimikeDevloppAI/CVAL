@@ -128,20 +128,30 @@ serve(async (req) => {
       console.error('⚠️ Delete error:', deleteError);
     }
 
-    const insertData = results.map(r => ({
-      date: r.date,
-      type: 'medecin',
-      type_assignation: r.type === 'site' ? 'site' : 'administratif',
-      site_id: r.type === 'site' ? r.site_id : null,
-      heure_debut: r.demi_journee === 'matin' ? '07:30:00' : '13:00:00',
-      heure_fin: r.demi_journee === 'matin' ? '12:00:00' : '17:00:00',
-      medecins_ids: r.medecin_ids || [],
-      secretaires_ids: r.secretaires_assignees.filter((id: string) => !id.startsWith('backup_')),
-      backups_ids: r.secretaires_assignees
-        .filter((id: string) => id.startsWith('backup_'))
-        .map((id: string) => id.replace('backup_', '')),
-      statut: 'planifie'
-    }));
+    const insertData = results
+      .map(r => ({
+        date: r.date,
+        type: 'medecin',
+        type_assignation: r.type === 'site' ? 'site' : 'administratif',
+        site_id: r.type === 'site' ? r.site_id : null,
+        heure_debut: r.demi_journee === 'matin' ? '07:30:00' : '13:00:00',
+        heure_fin: r.demi_journee === 'matin' ? '12:00:00' : '17:00:00',
+        medecins_ids: r.medecin_ids || [],
+        secretaires_ids: r.secretaires_assignees.filter((id: string) => !id.startsWith('backup_')),
+        backups_ids: r.secretaires_assignees
+          .filter((id: string) => id.startsWith('backup_'))
+          .map((id: string) => id.replace('backup_', '')),
+        statut: 'planifie'
+      }))
+      .filter(entry => {
+        // Validate date format before insertion
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(entry.date)) {
+          console.error(`❌ Invalid date format detected, skipping: ${entry.date}`);
+          return false;
+        }
+        return true;
+      });
     
     console.log(`📝 Inserting ${insertData.length} entries`);
 
@@ -563,15 +573,20 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
   const results: any[] = [];
   const assignmentsByBesoin = new Map<string, any>();
 
+  // Regex patterns to parse variable names safely (supports underscores in personId)
+  const xVarRegex = /^x_(.+)_(\d{4}-\d{2}-\d{2})_(matin|apres_midi)_([0-9a-f-]+)_([0-9a-f-]+)$/;
+  const yVarRegex = /^y_(.+)_(\d{4}-\d{2}-\d{2})_(matin|apres_midi)$/;
+
   // Parse site assignments
   for (const varName in solution) {
     if (varName.startsWith('x_') && solution[varName] === 1) {
-      const parts = varName.split('_');
-      const personId = parts[1];
-      const date = parts[2];
-      const demi = parts[3];
-      const siteId = parts[4];
-      const specialiteId = parts[5];
+      const match = varName.match(xVarRegex);
+      if (!match) {
+        console.warn(`⚠️ Skipping malformed x_ variable: ${varName}`);
+        continue;
+      }
+      
+      const [, personId, date, demi, siteId, specialiteId] = match;
       
       const besoinKey = `${date}|${demi}|${siteId}|${specialiteId}`;
       const besoin = besoinsMap.get(besoinKey);
@@ -602,10 +617,13 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
   
   for (const varName in solution) {
     if (varName.startsWith('y_') && solution[varName] === 1) {
-      const parts = varName.split('_');
-      const personId = parts[1];
-      const date = parts[2];
-      const demi = parts[3];
+      const match = varName.match(yVarRegex);
+      if (!match) {
+        console.warn(`⚠️ Skipping malformed y_ variable: ${varName}`);
+        continue;
+      }
+      
+      const [, personId, date, demi] = match;
       const slotKey = `${date}|${demi}`;
       
       if (!adminBySlot.has(slotKey)) {
