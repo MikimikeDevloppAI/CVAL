@@ -158,7 +158,7 @@ export default function StatistiquesPage() {
         jour,
         besoins: Math.round((besoinsJourMap.get(index + 1) || 0) * 10) / 10,
         capacites: Math.round((capacitesJourMap.get(index + 1) || 0) * 10) / 10,
-      }));
+      })).filter((_, index) => index < 5); // Garde uniquement Lundi à Vendredi
 
       setDetailJour(detailData);
     } catch (error) {
@@ -258,7 +258,8 @@ export default function StatistiquesPage() {
                   />
                   <Legend 
                     wrapperStyle={{ paddingTop: '20px' }}
-                    iconType="rect"
+                    iconType="circle"
+                    formatter={(value) => <span style={{ color: '#000' }}>{value}</span>}
                   />
                   <Bar 
                     dataKey="besoins" 
@@ -343,7 +344,8 @@ export default function StatistiquesPage() {
                         />
                         <Legend 
                           wrapperStyle={{ paddingTop: '20px' }}
-                          iconType="rect"
+                          iconType="circle"
+                          formatter={(value) => <span style={{ color: '#000' }}>{value}</span>}
                         />
                         <Bar 
                           dataKey="besoins" 
