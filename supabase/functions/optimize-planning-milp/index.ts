@@ -79,6 +79,9 @@ serve(async (req) => {
     const { model, stats } = buildOptimizationModel(capacitesAgg, besoinsAgg);
     
     console.log(`🧮 Model: ${stats.totalVars} variables, ${stats.totalConstraints} constraints`);
+    if (stats?.relaxed) {
+      console.log('ℹ️ Using LP relaxation (no integer constraints) for performance.');
+    }
     console.log('⚡ Solving optimization problem...');
     
     const startTime = Date.now();
@@ -296,6 +299,8 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
 
   let totalVars = 0;
   let totalConstraints = 0;
+  let xVarCount = 0;
+  let relaxed = false;
   const personSitesByDate = new Map(); // Pour détecter changements de site
 
   // Variables: x_{person}_{date}_{site}_{dj}_{spec}
@@ -332,8 +337,16 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
       personSitesByDate.get(dateKey).add(besoin.site_id);
       
       model.ints[varName] = 1;
+      xVarCount++;
       totalVars++;
     }
+  }
+
+  // Si trop de variables entières, on bascule en relaxation LP pour éviter les timeouts
+  if (xVarCount > 220) {
+    console.log(`⚠️ Large model detected with ${xVarCount} integer x vars - switching to LP relaxation`);
+    model.ints = {}; // remove integer constraints
+    relaxed = true;
   }
 
   // Contrainte 1: Chaque personne affectée max 1 fois par (date, demi_journee)
@@ -384,11 +397,11 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
     }
   }
 
-  return { model, stats: { totalVars, totalConstraints } };
+  return { model, stats: { totalVars, totalConstraints, xVars: xVarCount, relaxed } };
 }
 
 function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoinsAgg: Map<string, any>) {
-  const assignments = [];
+  const assignments: any[] = [];
   const djToTime = {
     matin: { heure_debut: '07:30:00', heure_fin: '12:00:00' },
     apres_midi: { heure_debut: '13:00:00', heure_fin: '17:00:00' }
@@ -406,33 +419,108 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
     }
   }
 
+  // Build besoin info map
+  const besoinInfo = new Map<string, any>();
+  for (const [key, besoin] of besoinsAgg) {
+    besoinInfo.set(key, {
+      max: Math.ceil(besoin.besoin || 0),
+      assigned: 0,
+      type: besoin.type,
+      medecin_ids: besoin.medecin_ids || []
+    });
+  }
+
+  type Candidate = {
+    varName: string;
+    value: number;
+    personId: string;
+    date: string;
+    siteId: string;
+    dj: string;
+    specId: string;
+    besoinKey: string;
+    times: { heure_debut: string; heure_fin: string };
+  };
+
+  const candidates: Candidate[] = [];
+  let hasBinary = false;
+
   for (const [varName, value] of Object.entries(solution)) {
-    if (varName.startsWith('x_') && value === 1) {
-      const parts = varName.split('_');
-      const personId = parts[1];
-      const date = parts[2];
-      const siteId = parts[3];
-      const dj = parts[4];
-      const specId = parts.slice(5).join('_');
+    if (typeof value !== 'number') continue;
+    if (!varName.startsWith('x_') || value <= 0) continue;
 
-      const times = djToTime[dj as keyof typeof djToTime];
-      
-      // Trouver le besoin correspondant pour récupérer les médecins
-      const besoinKey = `${date}|${siteId}|${dj}|${specId}`;
-      const besoin = besoinsAgg.get(besoinKey);
+    const parts = varName.split('_');
+    const personId = parts[1];
+    const date = parts[2];
+    const siteId = parts[3];
+    const dj = parts[4];
+    const specId = parts.slice(5).join('_');
+    const times = djToTime[dj as keyof typeof djToTime];
+    const besoinKey = `${date}|${siteId}|${dj}|${specId}`;
 
+    if (!times) continue;
+
+    candidates.push({
+      varName,
+      value,
+      personId,
+      date,
+      siteId,
+      dj,
+      specId,
+      besoinKey,
+      times
+    });
+
+    if (value === 1) hasBinary = true;
+  }
+
+  if (hasBinary) {
+    // Use strict MILP selections
+    for (const c of candidates) {
+      if (c.value !== 1) continue;
+      const info = besoinInfo.get(c.besoinKey);
       assignments.push({
-        date,
-        site_id: siteId,
-        type: besoin?.type || 'medecin',
-        heure_debut: times.heure_debut,
-        heure_fin: times.heure_fin,
-        secretaires_ids: [personId],
+        date: c.date,
+        site_id: c.siteId,
+        type: info?.type || 'medecin',
+        heure_debut: c.times.heure_debut,
+        heure_fin: c.times.heure_fin,
+        secretaires_ids: [c.personId],
         backups_ids: [],
-        medecins_ids: besoin?.medecin_ids || [],
+        medecins_ids: info?.medecin_ids || [],
         type_assignation: 'site',
         statut: 'planifie'
       });
+    }
+  } else {
+    // LP relaxation fallback: greedy rounding
+    candidates.sort((a, b) => b.value - a.value);
+    const usedPersonDj = new Set<string>();
+
+    for (const c of candidates) {
+      const info = besoinInfo.get(c.besoinKey);
+      if (!info || info.max <= 0) continue;
+      if (info.assigned >= info.max) continue;
+
+      const usedKey = `${c.personId}|${c.date}|${c.dj}`;
+      if (usedPersonDj.has(usedKey)) continue;
+
+      assignments.push({
+        date: c.date,
+        site_id: c.siteId,
+        type: info.type || 'medecin',
+        heure_debut: c.times.heure_debut,
+        heure_fin: c.times.heure_fin,
+        secretaires_ids: [c.personId],
+        backups_ids: [],
+        medecins_ids: info.medecin_ids || [],
+        type_assignation: 'site',
+        statut: 'planifie'
+      });
+
+      usedPersonDj.add(usedKey);
+      info.assigned++;
     }
   }
 
