@@ -69,26 +69,26 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
 
                 {score.details_jours.map((jour) => (
                   <div key={jour.jour_semaine} className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs items-center">
-                    <div className="font-medium">{jour.jour_nom}</div>
+                    <div className="font-medium w-16">{jour.jour_nom}</div>
                     
                     {/* Morning */}
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="font-medium">{jour.matin.capacites}</span>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="font-medium tabular-nums w-4 text-right">{jour.matin.capacites}</span>
                       <span className="text-muted-foreground">/</span>
-                      <span className="text-muted-foreground">{jour.matin.besoins}</span>
+                      <span className="text-muted-foreground tabular-nums w-4 text-left">{jour.matin.besoins}</span>
                       <Circle 
-                        className={`${getSlotStatusColor(jour.matin.besoins, jour.matin.capacites)} h-2.5 w-2.5 flex-shrink-0`} 
+                        className={`${getSlotStatusColor(jour.matin.besoins, jour.matin.capacites)} h-2.5 w-2.5 flex-shrink-0 ml-1`} 
                         fill="currentColor"
                       />
                     </div>
 
                     {/* Afternoon */}
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="font-medium">{jour.apres_midi.capacites}</span>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="font-medium tabular-nums w-4 text-right">{jour.apres_midi.capacites}</span>
                       <span className="text-muted-foreground">/</span>
-                      <span className="text-muted-foreground">{jour.apres_midi.besoins}</span>
+                      <span className="text-muted-foreground tabular-nums w-4 text-left">{jour.apres_midi.besoins}</span>
                       <Circle 
-                        className={`${getSlotStatusColor(jour.apres_midi.besoins, jour.apres_midi.capacites)} h-2.5 w-2.5 flex-shrink-0`} 
+                        className={`${getSlotStatusColor(jour.apres_midi.besoins, jour.apres_midi.capacites)} h-2.5 w-2.5 flex-shrink-0 ml-1`} 
                         fill="currentColor"
                       />
                     </div>
