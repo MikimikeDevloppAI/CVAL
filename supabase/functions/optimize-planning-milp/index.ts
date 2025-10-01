@@ -283,7 +283,8 @@ function buildMILPModel(
   capacitesMap: Map<string, CapaciteData>,
   besoinsMap: Map<string, BesoinData>
 ) {
-  const PENALTY_WEIGHT = 0.01; // Small penalty for consistency
+  // Very small penalty to prefer consistency (same site matin/apres) without affecting satisfaction
+  const PENALTY_WEIGHT = 0.001;
   
   const model: any = {
     optimize: 'objective',
@@ -292,6 +293,8 @@ function buildMILPModel(
     variables: {},
     ints: {},
   };
+
+  let totalVars = 0;
 
   // Build variables: x_person_date_demi_site_specialite
   for (const [personId, capData] of capacitesMap) {
@@ -305,20 +308,19 @@ function buildMILPModel(
           if (besoin.date === date && besoin.demi_journee === demi && besoin.specialite_id === specialiteId) {
             const varName = `x_${personId}_${date}_${demi}_${besoin.site_id}_${specialiteId}`;
             
-            // Calculate contribution to satisfaction percentage
-            const maxCapacity = Math.ceil(besoin.besoin);
-            const contributionPercent = 100 / maxCapacity;
+            // Contribution based on REAL need (non-rounded) like optimize-base-schedule-milp
+            // Each assignment contributes (100 / real_need) percentage points
+            // Maximum is capped at 100% via constraint
+            const contributionPercent = 100 / besoin.besoin;
             
             model.variables[varName] = {
               objective: contributionPercent,
               [`uniqueness_${personId}_${date}_${demi}`]: 1,
               [`capacity_${date}_${demi}_${besoin.site_id}_${specialiteId}`]: 1,
-              // Track for consistency penalty
-              [`person_date_matin_${personId}_${date}_${besoin.site_id}_${specialiteId}`]: demi === 'matin' ? 1 : 0,
-              [`person_date_apres_${personId}_${date}_${besoin.site_id}_${specialiteId}`]: demi === 'apres_midi' ? 1 : 0,
             };
 
             model.ints[varName] = 1;
+            totalVars++;
           }
         }
       }
@@ -333,49 +335,57 @@ function buildMILPModel(
     }
   }
 
-  // Capacity constraints: max secretaries per besoin = ceil(besoin)
+  // Capacity constraints: max secretaries per besoin = ceil(besoin) to avoid over-assignment
   for (const [key, besoin] of besoinsMap) {
     const maxCapacity = Math.ceil(besoin.besoin);
     const constraintName = `capacity_${besoin.date}_${besoin.demi_journee}_${besoin.site_id}_${besoin.specialite_id}`;
     model.constraints[constraintName] = { max: maxCapacity };
   }
 
-  // Consistency penalty variables: y_person_date_site_specialite
-  // If person works matin but not apres_midi (or vice versa), y = 1
+  // Add penalty for changing sites between matin and apres_midi for same person/specialty
   const dates = new Set(Array.from(besoinsMap.values()).map(b => b.date));
+  
   for (const [personId, capData] of capacitesMap) {
     for (const date of dates) {
-      // Check if person has both matin and apres_midi slots for this date
       const hasMatinSlot = capData.slots.some(s => s.date === date && s.demi_journee === 'matin');
       const hasApresSlot = capData.slots.some(s => s.date === date && s.demi_journee === 'apres_midi');
       
       if (hasMatinSlot && hasApresSlot) {
         for (const specialiteId of capData.specialites) {
-          // Check if there are besoins for both demi-journées
-          const besoinsMatin = Array.from(besoinsMap.values()).filter(
-            b => b.date === date && b.demi_journee === 'matin' && b.specialite_id === specialiteId
-          );
-          const besoinsApres = Array.from(besoinsMap.values()).filter(
-            b => b.date === date && b.demi_journee === 'apres_midi' && b.specialite_id === specialiteId
-          );
+          // Get all site combinations for this specialty on this date
+          const sitesMatinForSpec = Array.from(besoinsMap.values())
+            .filter(b => b.date === date && b.demi_journee === 'matin' && b.specialite_id === specialiteId)
+            .map(b => b.site_id);
+          
+          const sitesApresForSpec = Array.from(besoinsMap.values())
+            .filter(b => b.date === date && b.demi_journee === 'apres_midi' && b.specialite_id === specialiteId)
+            .map(b => b.site_id);
 
-          if (besoinsMatin.length > 0 && besoinsApres.length > 0) {
-            for (const besoinMatin of besoinsMatin) {
-              for (const besoinApres of besoinsApres) {
-                // Penalty if person works different sites for same specialty matin/apres
-                if (besoinMatin.site_id !== besoinApres.site_id) {
-                  const penaltyVarName = `y_${personId}_${date}_${besoinMatin.site_id}_${besoinApres.site_id}_${specialiteId}`;
-                  model.variables[penaltyVarName] = {
-                    objective: -PENALTY_WEIGHT, // Penalty
-                    [`penalty_${penaltyVarName}`]: 1,
+          // If there are different sites for this specialty between matin and apres_midi
+          for (const siteM of sitesMatinForSpec) {
+            for (const siteA of sitesApresForSpec) {
+              if (siteM !== siteA) {
+                // Add penalty if person is assigned to both different sites
+                const varMatinName = `x_${personId}_${date}_matin_${siteM}_${specialiteId}`;
+                const varApresName = `x_${personId}_${date}_apres_midi_${siteA}_${specialiteId}`;
+                
+                // Only if both variables exist
+                if (model.variables[varMatinName] && model.variables[varApresName]) {
+                  // Create auxiliary variable for penalty
+                  const penaltyVar = `penalty_${personId}_${date}_${siteM}_${siteA}_${specialiteId}`;
+                  model.variables[penaltyVar] = {
+                    objective: -PENALTY_WEIGHT,
                   };
-                  model.ints[penaltyVarName] = 1;
+                  model.ints[penaltyVar] = 1;
+                  totalVars++;
                   
-                  // Constraint: y >= x_matin + x_apres - 1
-                  model.constraints[`penalty_${penaltyVarName}`] = {
-                    min: 0,
-                    max: 1,
-                  };
+                  // Link penalty: penalty_var * 2 >= x_matin + x_apres
+                  // So penalty_var = 1 only if both x_matin=1 and x_apres=1
+                  const constraintName = `link_penalty_${penaltyVar}`;
+                  model.constraints[constraintName] = { min: 0 };
+                  model.variables[penaltyVar][constraintName] = 2;
+                  model.variables[varMatinName][constraintName] = -1;
+                  model.variables[varApresName][constraintName] = -1;
                 }
               }
             }
@@ -385,10 +395,12 @@ function buildMILPModel(
     }
   }
 
+  console.log(`   📊 Built model with ${totalVars} variables (${Object.keys(model.constraints).length} constraints)`);
+
   return {
     model,
     stats: {
-      totalVars: Object.keys(model.variables).length,
+      totalVars: totalVars,
       totalConstraints: Object.keys(model.constraints).length,
     }
   };
