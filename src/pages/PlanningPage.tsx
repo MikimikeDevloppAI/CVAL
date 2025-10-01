@@ -143,10 +143,27 @@ export default function PlanningPage() {
       )
       .subscribe();
 
+    // Real-time updates for planning_genere
+    const planningChannel = supabase
+      .channel('planning-genere-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere'
+        },
+        () => {
+          fetchPlanningGenere();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(besoinChannel);
       supabase.removeChannel(capaciteChannel);
       supabase.removeChannel(blocChannel);
+      supabase.removeChannel(planningChannel);
     };
   }, [currentWeekStart]);
 
@@ -978,6 +995,13 @@ export default function PlanningPage() {
               </Button>
             </div>
           </div>
+
+          {optimizationResult && (
+            <PlanningGridView
+              assignments={optimizationResult.assignments}
+              weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+            />
+          )}
         </TabsContent>
       </Tabs>
 
