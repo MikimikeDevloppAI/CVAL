@@ -10,7 +10,8 @@ import {
   User,
   UserCog,
   CalendarX,
-  ClipboardPlus
+  ClipboardPlus,
+  BarChart3
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Backup', href: '/backup', icon: UserCog },
   { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
+  { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   { name: 'Paramètres', href: '#', icon: Settings },
 ];
 

@@ -15,6 +15,7 @@ import SecretairesPage from "./pages/SecretairesPage";
 import SitesPage from "./pages/SitesPage";
 import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
+import StatistiquesPage from "./pages/StatistiquesPage";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
                     <Route path="/backup" element={<BackupPage />} />
                     <Route path="/bloc-operatoire" element={<BlocOperatoirePage />} />
                     <Route path="/sites" element={<SitesPage />} />
+                    <Route path="/statistiques" element={<StatistiquesPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>
