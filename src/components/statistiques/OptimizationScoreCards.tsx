@@ -26,20 +26,12 @@ function getSlotStatusColor(besoins: number, capacites: number): string {
 }
 
 function calculateMissingCapacities(scores: OptimizationScoreParSpecialite[]) {
-  const missingBySpecialty = new Map<string, { 
-    details: Array<{ 
-      jour_semaine: number, 
-      jour_nom: string, 
-      matin: number, 
-      apres_midi: number 
-    }> 
-  }>();
+  const missingBySpecialty = new Map<string, Array<{ label: string, count: number }>>();
   
   const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   
   scores.forEach(score => {
-    const details: Array<{ jour_semaine: number, jour_nom: string, matin: number, apres_midi: number }> = [];
-    let hasMissing = false;
+    const missing: Array<{ label: string, count: number }> = [];
     
     score.details_jours.forEach(jour => {
       const matinNeeded = Math.ceil(jour.matin.besoins);
@@ -48,20 +40,23 @@ function calculateMissingCapacities(scores: OptimizationScoreParSpecialite[]) {
       const apremNeeded = Math.ceil(jour.apres_midi.besoins);
       const apremMissing = Math.max(0, apremNeeded - jour.apres_midi.capacites);
       
-      if (matinMissing > 0 || apremMissing > 0) {
-        hasMissing = true;
+      if (matinMissing > 0) {
+        missing.push({
+          label: `${JOURS_NOMS[jour.jour_semaine - 1]} Matin`,
+          count: matinMissing
+        });
       }
       
-      details.push({
-        jour_semaine: jour.jour_semaine,
-        jour_nom: JOURS_NOMS[jour.jour_semaine - 1],
-        matin: matinMissing,
-        apres_midi: apremMissing
-      });
+      if (apremMissing > 0) {
+        missing.push({
+          label: `${JOURS_NOMS[jour.jour_semaine - 1]} Après-midi`,
+          count: apremMissing
+        });
+      }
     });
     
-    if (hasMissing) {
-      missingBySpecialty.set(score.specialite_nom, { details });
+    if (missing.length > 0) {
+      missingBySpecialty.set(score.specialite_nom, missing);
     }
   });
   
@@ -85,7 +80,7 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
 
       {hasMissing && (
         <Card className="p-4">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-primary" />
               <h4 className="font-semibold">
@@ -93,41 +88,18 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
               </h4>
             </div>
             
-            <div className="space-y-4">
-              {Array.from(missingCapacities.entries()).map(([specialite, data]) => (
-                <div key={specialite}>
-                  <div className="font-medium mb-2">{specialite}</div>
-                  
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
-                      <div className="w-16">Jour</div>
-                      <div className="flex justify-center">Matin</div>
-                      <div className="flex justify-center">Après-midi</div>
-                    </div>
-
-                    {data.details.map((jour) => (
-                      <div key={jour.jour_semaine} className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs items-center">
-                        <div className="font-medium w-16">{jour.jour_nom}</div>
-                        
-                        <div className="flex items-center justify-center">
-                          {jour.matin > 0 ? (
-                            <span className="text-red-600 dark:text-red-400 font-medium">
-                              -{jour.matin}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-center">
-                          {jour.apres_midi > 0 ? (
-                            <span className="text-red-600 dark:text-red-400 font-medium">
-                              -{jour.apres_midi}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </div>
+            <div className="space-y-3">
+              {Array.from(missingCapacities.entries()).map(([specialite, missing]) => (
+                <div key={specialite} className="space-y-2">
+                  <div className="font-medium text-sm">{specialite}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {missing.map((item, idx) => (
+                      <div 
+                        key={idx}
+                        className="px-3 py-1.5 bg-muted rounded-md text-xs font-medium"
+                      >
+                        <span className="text-muted-foreground">{item.label}:</span>{' '}
+                        <span className="text-red-600 dark:text-red-400">-{item.count}</span>
                       </div>
                     ))}
                   </div>
