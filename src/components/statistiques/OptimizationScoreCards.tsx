@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { OptimizationScoreParSpecialite } from "@/types/baseSchedule";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 
 interface OptimizationScoreCardsProps {
   scores: OptimizationScoreParSpecialite[];
@@ -14,6 +14,15 @@ function countOptimizedSlots(score: OptimizationScoreParSpecialite): number {
     if (jour.apres_midi.capacites >= jour.apres_midi.besoins) count++;
   });
   return count;
+}
+
+function getSlotStatusColor(besoins: number, capacites: number): string {
+  const ceilBesoins = Math.ceil(besoins);
+  const floorBesoins = Math.floor(besoins);
+  
+  if (capacites >= ceilBesoins) return "text-green-500";
+  if (capacites >= floorBesoins) return "text-yellow-500";
+  return "text-red-500";
 }
 
 export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) {
@@ -65,6 +74,10 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                       {/* Morning */}
                       <div className="text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <Circle 
+                            className={`${getSlotStatusColor(jour.matin.besoins, jour.matin.capacites)} h-2.5 w-2.5`} 
+                            fill="currentColor"
+                          />
                           <span className="font-medium">{jour.matin.capacites}</span>
                           <span className="text-muted-foreground">/</span>
                           <span className="text-muted-foreground">{jour.matin.besoins}</span>
@@ -74,6 +87,10 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                       {/* Afternoon */}
                       <div className="text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <Circle 
+                            className={`${getSlotStatusColor(jour.apres_midi.besoins, jour.apres_midi.capacites)} h-2.5 w-2.5`} 
+                            fill="currentColor"
+                          />
                           <span className="font-medium">{jour.apres_midi.capacites}</span>
                           <span className="text-muted-foreground">/</span>
                           <span className="text-muted-foreground">{jour.apres_midi.besoins}</span>
