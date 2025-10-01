@@ -177,7 +177,6 @@ export type Database = {
           medecin_id: string | null
           nombre_secretaires_requis: number
           site_id: string
-          specialite_id: string
           type: Database["public"]["Enums"]["type_besoin"]
           updated_at: string
         }
@@ -192,7 +191,6 @@ export type Database = {
           medecin_id?: string | null
           nombre_secretaires_requis?: number
           site_id: string
-          specialite_id: string
           type: Database["public"]["Enums"]["type_besoin"]
           updated_at?: string
         }
@@ -207,7 +205,6 @@ export type Database = {
           medecin_id?: string | null
           nombre_secretaires_requis?: number
           site_id?: string
-          specialite_id?: string
           type?: Database["public"]["Enums"]["type_besoin"]
           updated_at?: string
         }
@@ -231,13 +228,6 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "besoin_effectif_specialite_id_fkey"
-            columns: ["specialite_id"]
-            isOneToOne: false
-            referencedRelation: "specialites"
             referencedColumns: ["id"]
           },
         ]
