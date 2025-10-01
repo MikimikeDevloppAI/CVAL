@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PlanningProtectedRoute } from "@/components/PlanningProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import PlanningPage from "./pages/PlanningPage";
 import AbsencesPage from "./pages/AbsencesPage";
@@ -33,13 +34,41 @@ const App = () => (
                 <Layout>
                   <Routes>
                     <Route path="/planning" element={<PlanningPage />} />
-                    <Route path="/" element={<AbsencesPage />} />
-                    <Route path="/medecins" element={<MedecinsPage />} />
-                    <Route path="/secretaires" element={<SecretairesPage />} />
-                    <Route path="/backup" element={<BackupPage />} />
-                    <Route path="/bloc-operatoire" element={<BlocOperatoirePage />} />
-                    <Route path="/sites" element={<SitesPage />} />
-                    <Route path="/statistiques" element={<StatistiquesPage />} />
+                    <Route path="/" element={
+                      <PlanningProtectedRoute>
+                        <AbsencesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/medecins" element={
+                      <PlanningProtectedRoute>
+                        <MedecinsPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/secretaires" element={
+                      <PlanningProtectedRoute>
+                        <SecretairesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/backup" element={
+                      <PlanningProtectedRoute>
+                        <BackupPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/bloc-operatoire" element={
+                      <PlanningProtectedRoute>
+                        <BlocOperatoirePage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/sites" element={
+                      <PlanningProtectedRoute>
+                        <SitesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/statistiques" element={
+                      <PlanningProtectedRoute>
+                        <StatistiquesPage />
+                      </PlanningProtectedRoute>
+                    } />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>

@@ -22,6 +22,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 const planningItems = [
   { name: 'Planning', href: '/planning', icon: Calendar },
@@ -41,13 +42,14 @@ export const Sidebar = () => {
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [planningExpanded, setPlanningExpanded] = useState(true);
+  const { canManage } = useCanManagePlanning();
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
         const { data } = await supabase
           .from('profiles')
-          .select('prenom, nom')
+          .select('prenom, nom, planning')
           .eq('id', user.id)
           .single();
         
@@ -59,6 +61,11 @@ export const Sidebar = () => {
 
     fetchProfile();
   }, [user]);
+
+  // Filter items based on planning access
+  const visibleItems = canManage 
+    ? planningItems 
+    : planningItems.filter(item => item.href === '/planning');
 
   const getInitials = () => {
     if (profile?.prenom && profile?.nom) {
@@ -98,7 +105,7 @@ export const Sidebar = () => {
           
           {planningExpanded && (
             <ul className="mt-2 space-y-1">
-              {planningItems.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
                   <li key={item.name}>
