@@ -3,9 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { OptimizationScoreCards } from '@/components/statistiques/OptimizationScoreCards';
 import type { OptimizationScoreParSpecialite, OptimizationDetailJour } from '@/types/baseSchedule';
+import { Loader2, Zap } from 'lucide-react';
 
 interface SpecialiteStats {
   specialite: string;
@@ -29,6 +31,7 @@ export default function StatistiquesPage() {
   const [loading, setLoading] = useState(true);
   const [optimizationScores, setOptimizationScores] = useState<OptimizationScoreParSpecialite[]>([]);
   const [viewMode, setViewMode] = useState<'optimization' | 'graphs'>('optimization');
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -239,6 +242,33 @@ export default function StatistiquesPage() {
     }
   };
 
+  const handleOptimizeMILP = async () => {
+    setIsOptimizing(true);
+    try {
+      toast.info('Optimisation MILP en cours...', {
+        description: 'Cela peut prendre quelques secondes',
+      });
+
+      const { data, error } = await supabase.functions.invoke('optimize-base-schedule-milp');
+
+      if (error) throw error;
+
+      toast.success('Optimisation MILP terminée', {
+        description: `${data.stats.total_assignments} assignations créées (${data.stats.satisfaction_rate} de satisfaction)`,
+      });
+
+      // Refresh optimization data
+      await fetchOptimization();
+    } catch (error: any) {
+      console.error('MILP optimization error:', error);
+      toast.error('Erreur lors de l\'optimisation MILP', {
+        description: error.message,
+      });
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -275,12 +305,33 @@ export default function StatistiquesPage() {
           </p>
         </div>
         
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs')} className="w-auto">
-          <TabsList>
-            <TabsTrigger value="optimization">Optimisation</TabsTrigger>
+        <div className="flex items-center gap-4">
+          <Button 
+            onClick={handleOptimizeMILP} 
+            disabled={isOptimizing}
+            size="lg"
+            className="gap-2"
+          >
+            {isOptimizing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Optimisation MILP en cours...
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4" />
+                Lancer optimisation MILP
+              </>
+            )}
+          </Button>
+
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs')} className="w-auto">
+            <TabsList>
+              <TabsTrigger value="optimization">Optimisation</TabsTrigger>
             <TabsTrigger value="graphs">Graphiques</TabsTrigger>
           </TabsList>
         </Tabs>
+        </div>
       </div>
 
       {viewMode === 'optimization' && optimizationScores.length > 0 && (
