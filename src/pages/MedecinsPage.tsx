@@ -179,6 +179,34 @@ export default function MedecinsPage() {
     fetchMedecins();
   };
 
+  const handleRegenerateAllBesoins = async () => {
+    try {
+      setLoading(true);
+      toast({
+        title: "Régénération en cours",
+        description: "Régénération des besoins effectifs pour les 52 prochaines semaines...",
+      });
+
+      const { error } = await supabase.rpc('generate_besoin_effectif');
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Les besoins effectifs ont été régénérés avec succès",
+      });
+    } catch (error) {
+      console.error('Erreur lors de la régénération:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de régénérer les besoins effectifs",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -193,13 +221,21 @@ export default function MedecinsPage() {
           <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
           
           {canManage && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
-                  <Plus className="h-4 w-4" />
-                  Ajouter un médecin
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleRegenerateAllBesoins}
+                disabled={loading}
+              >
+                Régénérer 52 semaines
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
+                    <Plus className="h-4 w-4" />
+                    Ajouter un médecin
+                  </Button>
+                </DialogTrigger>
             <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -212,6 +248,7 @@ export default function MedecinsPage() {
               />
             </DialogContent>
           </Dialog>
+            </div>
           )}
         </div>
 
