@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { OptimizationScoreParSpecialite } from "@/types/baseSchedule";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, AlertCircle } from "lucide-react";
 
 interface OptimizationScoreCardsProps {
   scores: OptimizationScoreParSpecialite[];
@@ -25,8 +25,42 @@ function getSlotStatusColor(besoins: number, capacites: number): string {
   return "text-red-500";
 }
 
+function calculateMissingCapacities(scores: OptimizationScoreParSpecialite[]) {
+  const missingBySpecialty = new Map<string, { total: number, byDay: Map<string, number> }>();
+  const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+  
+  scores.forEach(score => {
+    let totalMissing = 0;
+    const byDay = new Map<string, number>();
+    
+    score.details_jours.forEach(jour => {
+      const matinNeeded = Math.ceil(jour.matin.besoins);
+      const matinMissing = Math.max(0, matinNeeded - jour.matin.capacites);
+      
+      const apremNeeded = Math.ceil(jour.apres_midi.besoins);
+      const apremMissing = Math.max(0, apremNeeded - jour.apres_midi.capacites);
+      
+      const dayMissing = matinMissing + apremMissing;
+      
+      if (dayMissing > 0) {
+        byDay.set(JOURS_NOMS[jour.jour_semaine - 1], dayMissing);
+        totalMissing += dayMissing;
+      }
+    });
+    
+    if (totalMissing > 0) {
+      missingBySpecialty.set(score.specialite_nom, { total: totalMissing, byDay });
+    }
+  });
+  
+  return missingBySpecialty;
+}
+
 export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) {
   if (scores.length === 0) return null;
+
+  const missingCapacities = calculateMissingCapacities(scores);
+  const hasMissing = missingCapacities.size > 0;
 
   return (
     <div className="space-y-4 mb-6">
@@ -36,6 +70,36 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
           Demi-journées optimisées (capacités ≥ besoins)
         </p>
       </div>
+
+      {hasMissing && (
+        <Card className="p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              <h4 className="font-semibold text-orange-900 dark:text-orange-100">
+                Capacités manquantes pour optimisation complète
+              </h4>
+            </div>
+            
+            <div className="space-y-2">
+              {Array.from(missingCapacities.entries()).map(([specialite, data]) => (
+                <div key={specialite} className="text-sm">
+                  <div className="font-medium text-orange-900 dark:text-orange-100 mb-1">
+                    {specialite}: {data.total} secrétaire{data.total > 1 ? 's' : ''} manquante{data.total > 1 ? 's' : ''}
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-orange-700 dark:text-orange-300 ml-4">
+                    {Array.from(data.byDay.entries()).map(([jour, count]) => (
+                      <span key={jour} className="bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded">
+                        {jour}: {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {scores.map((score) => {
