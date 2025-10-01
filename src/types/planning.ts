@@ -7,7 +7,6 @@ export interface CreneauBesoin {
   site_id: string;
   site_nom: string;
   specialite_id: string;
-  nombre_secretaires_requis: number;
   type: 'medecin' | 'bloc_operatoire';
   medecin_ids: string[];
   medecin_noms: string[];

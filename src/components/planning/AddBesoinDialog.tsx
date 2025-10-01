@@ -73,7 +73,6 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
       site_id: siteId,
       heure_debut: '07:30',
       heure_fin: '17:30',
-      nombre_secretaires_requis: 1.2,
     },
   });
 
@@ -133,8 +132,6 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
 
     setLoading(true);
     try {
-      const medecin = medecins.find(m => m.id === data.medecin_id);
-      
       await Promise.all(
         selectedDates.map(date => 
           supabase
@@ -144,10 +141,8 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
               type: 'medecin',
               medecin_id: data.medecin_id,
               site_id: data.site_id,
-              specialite_id: medecin?.specialite_id,
               heure_debut: data.heure_debut,
               heure_fin: data.heure_fin,
-              nombre_secretaires_requis: data.nombre_secretaires_requis,
               actif: true,
             })
         )
@@ -364,27 +359,6 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
                   )}
                 />
               </div>
-
-              <FormField
-                control={medecinForm.control}
-                name="nombre_secretaires_requis"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre de secrétaires requis</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="number"
-                        min={0}
-                        max={10}
-                        step={0.1}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

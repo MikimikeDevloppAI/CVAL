@@ -34,14 +34,12 @@ interface BesoinEffectif {
   type: string;
   heure_debut: string;
   heure_fin: string;
-  nombre_secretaires_requis: number;
   site_id: string;
-  specialite_id?: string;
   bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
-  medecin?: { first_name: string; name: string };
+  medecin?: { first_name: string; name: string; besoin_secretaires: number };
   site?: { nom: string };
-  specialite?: { nom: string };
+  bloc_operatoire_besoin?: { nombre_secretaires_requis: number };
 }
 
 interface BesoinParSite {
@@ -247,8 +245,10 @@ export default function PlanningPage() {
             heure_fin,
             site_id,
             medecin_id,
-            nombre_secretaires_requis,
-            medecin:medecins(first_name, name)
+            bloc_operatoire_besoin_id,
+            type,
+            medecin:medecins(first_name, name, besoin_secretaires),
+            bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
           `)
           .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
           .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -297,7 +297,14 @@ export default function PlanningPage() {
             // Calculer le nombre total de secrétaires requis (somme, puis arrondi supérieur)
             // Pour les assignations administratives, ne pas calculer de besoin (mis à 0)
             const nombreRequis = row.site_id === null ? 0 : besoinsForSlot.reduce((sum, besoin) => {
-              return sum + (Number(besoin.nombre_secretaires_requis) || 0);
+              // Récupérer le besoin selon le type
+              let besoinValue = 0;
+              if (besoin.type === 'medecin' && besoin.medecin?.besoin_secretaires) {
+                besoinValue = Number(besoin.medecin.besoin_secretaires);
+              } else if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin?.nombre_secretaires_requis) {
+                besoinValue = Number(besoin.bloc_operatoire_besoin.nombre_secretaires_requis);
+              }
+              return sum + besoinValue;
             }, 0);
 
             assignmentsByKey.set(key, {
@@ -427,9 +434,9 @@ export default function PlanningPage() {
       .from('besoin_effectif')
       .select(`
         *,
-        medecin:medecins(first_name, name),
+        medecin:medecins(first_name, name, besoin_secretaires),
         site:sites(nom),
-        specialite:specialites(nom)
+        bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
       `)
       .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
       .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -459,7 +466,15 @@ export default function PlanningPage() {
         if (besoin.type === 'medecin') {
           acc[siteId].total_medecins++;
         }
-        acc[siteId].total_secretaires_requis += besoin.nombre_secretaires_requis;
+        
+        // Calculer le besoin selon le type
+        let besoinValue = 0;
+        if (besoin.type === 'medecin' && besoin.medecin?.besoin_secretaires) {
+          besoinValue = Number(besoin.medecin.besoin_secretaires);
+        } else if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin?.nombre_secretaires_requis) {
+          besoinValue = Number(besoin.bloc_operatoire_besoin.nombre_secretaires_requis);
+        }
+        acc[siteId].total_secretaires_requis += besoinValue;
         
         // Mettre à jour la plage horaire
         if (besoin.heure_debut < acc[siteId].plage_horaire.debut) {
@@ -745,7 +760,15 @@ export default function PlanningPage() {
                 }, {} as Record<string, BesoinEffectif[]>);
 
                 const totalMedecins = Object.keys(besoinsParMedecin).filter(k => k.startsWith('medecin-')).length;
-                const totalSecretaires = besoinsSite.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
+                const totalSecretaires = besoinsSite.reduce((sum, b) => {
+                  let besoinValue = 0;
+                  if (b.type === 'medecin' && b.medecin?.besoin_secretaires) {
+                    besoinValue = Number(b.medecin.besoin_secretaires);
+                  } else if (b.type === 'bloc_operatoire' && b.bloc_operatoire_besoin?.nombre_secretaires_requis) {
+                    besoinValue = Number(b.bloc_operatoire_besoin.nombre_secretaires_requis);
+                  }
+                  return sum + besoinValue;
+                }, 0);
 
                 return (
                   <Card key={site.id}>
@@ -825,7 +848,15 @@ export default function PlanningPage() {
                               // Récupérer les horaires (prendre le premier si c'est identique partout)
                               const horaires = `${premierBesoin.heure_debut.slice(0, 5)} - ${premierBesoin.heure_fin.slice(0, 5)}`;
                               
-                              const totalSecretairesPersonne = besoinsGroupe.reduce((sum, b) => sum + b.nombre_secretaires_requis, 0);
+                              const totalSecretairesPersonne = besoinsGroupe.reduce((sum, b) => {
+                                let besoinValue = 0;
+                                if (b.type === 'medecin' && b.medecin?.besoin_secretaires) {
+                                  besoinValue = Number(b.medecin.besoin_secretaires);
+                                } else if (b.type === 'bloc_operatoire' && b.bloc_operatoire_besoin?.nombre_secretaires_requis) {
+                                  besoinValue = Number(b.bloc_operatoire_besoin.nombre_secretaires_requis);
+                                }
+                                return sum + besoinValue;
+                              }, 0);
 
                               return (
                                 <tr key={key} className={`border-b hover:bg-muted/30 ${isBloc ? 'bg-blue-50/50' : ''}`}>
@@ -838,7 +869,7 @@ export default function PlanningPage() {
                                     }
                                   </td>
                                   <td className="p-2 text-sm text-muted-foreground">
-                                    {premierBesoin.specialite?.nom || '-'}
+                                    -
                                   </td>
                                   <td className="p-2">
                                     <div className="flex flex-wrap gap-1">

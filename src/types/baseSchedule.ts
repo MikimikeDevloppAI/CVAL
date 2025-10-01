@@ -5,7 +5,6 @@ export interface HoraireBaseBesoin {
   demi_journee: DemiJournee;
   specialite_id: string;
   specialite_nom: string;
-  nombre_secretaires_requis: number;
 }
 
 export interface HoraireBaseCapacite {

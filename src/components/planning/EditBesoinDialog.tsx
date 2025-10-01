@@ -26,14 +26,12 @@ interface BesoinEffectif {
   type: string;
   heure_debut: string;
   heure_fin: string;
-  nombre_secretaires_requis: number;
   bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
   site_id: string;
-  specialite_id?: string;
-  medecin?: { first_name: string; name: string };
+  medecin?: { first_name: string; name: string; besoin_secretaires: number };
   site?: { nom: string };
-  specialite?: { nom: string };
+  bloc_operatoire_besoin?: { nombre_secretaires_requis: number };
 }
 
 interface EditBesoinDialogProps {
@@ -138,13 +136,15 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
         type: premierBesoin.type,
         heure_debut: newHeureDebut,
         heure_fin: newHeureFin,
-        nombre_secretaires_requis: premierBesoin.nombre_secretaires_requis,
         site_id: premierBesoin.site_id,
-        specialite_id: premierBesoin.specialite_id,
       };
 
       if (premierBesoin.medecin_id) {
         insertData.medecin_id = premierBesoin.medecin_id;
+      }
+
+      if (premierBesoin.bloc_operatoire_besoin_id) {
+        insertData.bloc_operatoire_besoin_id = premierBesoin.bloc_operatoire_besoin_id;
       }
 
       const { data, error } = await supabase
@@ -152,9 +152,9 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
         .insert(insertData)
         .select(`
           *,
-          medecin:medecins(first_name, name),
+          medecin:medecins(first_name, name, besoin_secretaires),
           site:sites(nom),
-          specialite:specialites(nom)
+          bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
         `)
         .single();
 
@@ -202,7 +202,6 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
               .update({
                 heure_debut: besoin.heure_debut,
                 heure_fin: besoin.heure_fin,
-                nombre_secretaires_requis: besoin.nombre_secretaires_requis,
               })
               .eq('id', besoin.bloc_operatoire_besoin_id);
           } else {
@@ -211,7 +210,6 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
               .update({
                 heure_debut: besoin.heure_debut,
                 heure_fin: besoin.heure_fin,
-                nombre_secretaires_requis: besoin.nombre_secretaires_requis,
               })
               .eq('id', besoin.id);
           }
@@ -296,18 +294,6 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
                           type="time"
                           value={besoin.heure_fin}
                           onChange={(e) => handleFieldChange(besoin.id, 'heure_fin', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Secrétaires requis</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={10}
-                          step={0.1}
-                          value={besoin.nombre_secretaires_requis}
-                          onChange={(e) => handleFieldChange(besoin.id, 'nombre_secretaires_requis', parseFloat(e.target.value))}
                           className="mt-1"
                         />
                       </div>
