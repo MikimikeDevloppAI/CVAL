@@ -665,16 +665,16 @@ export type Database = {
       }
       planning_genere: {
         Row: {
-          backup_id: string | null
+          backups_ids: string[] | null
           created_at: string
           date: string
           heure_debut: string
           heure_fin: string
           id: string
-          is_1r: boolean | null
-          is_2f: boolean | null
-          medecin_id: string | null
-          secretaire_id: string | null
+          medecins_ids: string[] | null
+          responsable_1r_id: string | null
+          responsable_2f_id: string | null
+          secretaires_ids: string[] | null
           site_id: string | null
           statut: Database["public"]["Enums"]["statut_planning"]
           type: Database["public"]["Enums"]["type_planning"]
@@ -683,16 +683,16 @@ export type Database = {
           version_planning: number
         }
         Insert: {
-          backup_id?: string | null
+          backups_ids?: string[] | null
           created_at?: string
           date: string
           heure_debut: string
           heure_fin: string
           id?: string
-          is_1r?: boolean | null
-          is_2f?: boolean | null
-          medecin_id?: string | null
-          secretaire_id?: string | null
+          medecins_ids?: string[] | null
+          responsable_1r_id?: string | null
+          responsable_2f_id?: string | null
+          secretaires_ids?: string[] | null
           site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
           type: Database["public"]["Enums"]["type_planning"]
@@ -701,16 +701,16 @@ export type Database = {
           version_planning?: number
         }
         Update: {
-          backup_id?: string | null
+          backups_ids?: string[] | null
           created_at?: string
           date?: string
           heure_debut?: string
           heure_fin?: string
           id?: string
-          is_1r?: boolean | null
-          is_2f?: boolean | null
-          medecin_id?: string | null
-          secretaire_id?: string | null
+          medecins_ids?: string[] | null
+          responsable_1r_id?: string | null
+          responsable_2f_id?: string | null
+          secretaires_ids?: string[] | null
           site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
           type?: Database["public"]["Enums"]["type_planning"]
@@ -719,27 +719,6 @@ export type Database = {
           version_planning?: number
         }
         Relationships: [
-          {
-            foreignKeyName: "planning_genere_backup_id_fkey"
-            columns: ["backup_id"]
-            isOneToOne: false
-            referencedRelation: "backup"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_medecin_id_fkey"
-            columns: ["medecin_id"]
-            isOneToOne: false
-            referencedRelation: "medecins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_secretaire_id_fkey"
-            columns: ["secretaire_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "planning_genere_site_id_fkey"
             columns: ["site_id"]

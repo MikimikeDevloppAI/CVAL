@@ -22,6 +22,7 @@ interface CreneauBesoin {
   site_fermeture: boolean;
   specialite_id: string;
   nombre_secretaires_requis: number;
+  medecin_ids: string[]; // Liste des médecins pour ce créneau
 }
 
 interface CreneauCapacite {
@@ -52,6 +53,7 @@ interface Phase2Assignment {
   specialite_id: string;
   capacites: CreneauCapacite[];
   besoin_site: number;
+  medecins_ids: string[];
 }
 
 interface Phase3Assignment extends Phase2Assignment {
@@ -174,18 +176,22 @@ function transformBesoins(besoins: any[]): CreneauBesoin[] {
         site_fermeture: site?.fermeture || false,
         specialite_id: besoin.specialite_id,
         nombre_secretaires_requis: besoin.nombre_secretaires_requis,
+        medecin_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
       });
     }
   }
   
-  // Group by (site, date, periode) and sum besoins
+  // Group by (site, date, periode) and sum besoins + merge medecin_ids
   const grouped = new Map<string, CreneauBesoin>();
   for (const creneau of creneaux) {
     const key = creneau.id;
     if (!grouped.has(key)) {
       grouped.set(key, creneau);
     } else {
-      grouped.get(key)!.nombre_secretaires_requis += creneau.nombre_secretaires_requis;
+      const existing = grouped.get(key)!;
+      existing.nombre_secretaires_requis += creneau.nombre_secretaires_requis;
+      // Merge medecin_ids without duplicates
+      existing.medecin_ids = [...new Set([...existing.medecin_ids, ...creneau.medecin_ids])];
     }
   }
   
@@ -417,6 +423,7 @@ function phase2RepartitionSite(
         specialite_id: phase1Assignment.specialite_id,
         capacites: phase1Assignment.capacites,
         besoin_site: relevantBesoins[0].nombre_secretaires_requis,
+        medecins_ids: relevantBesoins[0].medecin_ids,
       });
       continue;
     }
@@ -508,6 +515,7 @@ function distributeCapsToMultipleSites(
       specialite_id: besoin.specialite_id,
       capacites: assignedCaps,
       besoin_site: besoin.nombre_secretaires_requis,
+      medecins_ids: besoin.medecin_ids,
     });
   }
   
@@ -770,6 +778,7 @@ function convertToAssignmentResults(assignments: Phase3Assignment[]) {
       site_nom: assignment.site_nom,
       site_fermeture: assignment.site_fermeture,
       medecins: [],
+      medecins_ids: assignment.medecins_ids || [],
       secretaires: assignment.capacites.map(cap => ({
         id: cap.id,
         secretaire_id: cap.secretaire_id,
@@ -804,24 +813,62 @@ async function savePlanning(supabaseServiceRole: any, weekStartStr: string, week
   
   console.log('✅ Cleared old planning');
   
-  // Insert site assignments
-  const planningRows = result.assignments.flatMap((assignment: any) =>
-    assignment.secretaires.map((sec: any) => ({
-      date: assignment.date,
-      heure_debut: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].start,
-      heure_fin: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].end,
-      site_id: assignment.site_id,
-      medecin_id: null,
-      secretaire_id: sec.is_backup ? null : sec.secretaire_id,
-      backup_id: sec.is_backup ? sec.backup_id : null,
-      type: 'medecin' as const,
-      statut: 'planifie' as const,
-      version_planning: 1,
-      type_assignation: 'site',
-      is_1r: sec.is_1r || false,
-      is_2f: sec.is_2f || false,
-    }))
-  );
+  // Group assignments by (site, date, periode)
+  const siteAssignmentMap = new Map<string, any>();
+  
+  for (const assignment of result.assignments) {
+    const key = `${assignment.site_id}-${assignment.date}-${assignment.periode}`;
+    
+    if (!siteAssignmentMap.has(key)) {
+      siteAssignmentMap.set(key, {
+        date: assignment.date,
+        site_id: assignment.site_id,
+        periode: assignment.periode,
+        secretaires_ids: [],
+        backups_ids: [],
+        medecins_ids: assignment.medecins_ids || [],
+        responsable_1r_id: null,
+        responsable_2f_id: null,
+        site_fermeture: assignment.site_fermeture,
+      });
+    }
+    
+    const grouped = siteAssignmentMap.get(key)!;
+    
+    // Add secretaries and backups
+    for (const sec of assignment.secretaires) {
+      if (sec.is_backup) {
+        grouped.backups_ids.push(sec.backup_id);
+      } else {
+        grouped.secretaires_ids.push(sec.secretaire_id);
+      }
+      
+      // Set 1R/2F responsables
+      if (sec.is_1r) {
+        grouped.responsable_1r_id = sec.is_backup ? sec.backup_id : sec.secretaire_id;
+      }
+      if (sec.is_2f) {
+        grouped.responsable_2f_id = sec.is_backup ? sec.backup_id : sec.secretaire_id;
+      }
+    }
+  }
+  
+  // Convert to planning rows
+  const planningRows = Array.from(siteAssignmentMap.values()).map(assignment => ({
+    date: assignment.date,
+    heure_debut: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].start,
+    heure_fin: SLOT_DEFS[assignment.periode as keyof typeof SLOT_DEFS].end,
+    site_id: assignment.site_id,
+    secretaires_ids: assignment.secretaires_ids,
+    backups_ids: assignment.backups_ids,
+    medecins_ids: assignment.medecins_ids,
+    responsable_1r_id: assignment.responsable_1r_id,
+    responsable_2f_id: assignment.responsable_2f_id,
+    type: 'medecin' as const,
+    statut: 'planifie' as const,
+    version_planning: 1,
+    type_assignation: 'site',
+  }));
   
   console.log(`📊 Planning to insert: ${planningRows.length} site assignments`);
   
@@ -838,20 +885,44 @@ async function savePlanning(supabaseServiceRole: any, weekStartStr: string, week
     console.log(`✅ Saved ${planningRows.length} site assignment entries`);
   }
   
-  // Insert administratif assignments
-  const adminRows = result.unusedCapacites.map((cap: CreneauCapacite) => ({
-    date: cap.date,
+  // Group administratif assignments by date and periode
+  const adminAssignmentMap = new Map<string, any>();
+  
+  for (const cap of result.unusedCapacites) {
+    const key = `${cap.date}-${cap.periode}`;
+    
+    if (!adminAssignmentMap.has(key)) {
+      adminAssignmentMap.set(key, {
+        date: cap.date,
+        periode: cap.periode,
+        secretaires_ids: [],
+        backups_ids: [],
+      });
+    }
+    
+    const grouped = adminAssignmentMap.get(key)!;
+    
+    if (cap.backup_id) {
+      grouped.backups_ids.push(cap.backup_id);
+    } else if (cap.secretaire_id) {
+      grouped.secretaires_ids.push(cap.secretaire_id);
+    }
+  }
+  
+  const adminRows = Array.from(adminAssignmentMap.values()).map(assignment => ({
+    date: assignment.date,
     type: 'medecin' as const,
-    secretaire_id: cap.backup_id ? null : cap.secretaire_id,
-    backup_id: cap.backup_id ? cap.backup_id : null,
+    secretaires_ids: assignment.secretaires_ids,
+    backups_ids: assignment.backups_ids,
+    medecins_ids: [],
+    responsable_1r_id: null,
+    responsable_2f_id: null,
     site_id: null,
-    heure_debut: SLOT_DEFS[cap.periode].start,
-    heure_fin: SLOT_DEFS[cap.periode].end,
+    heure_debut: SLOT_DEFS[assignment.periode as Periode].start,
+    heure_fin: SLOT_DEFS[assignment.periode as Periode].end,
     type_assignation: 'administratif',
     statut: 'planifie' as const,
     version_planning: 1,
-    is_1r: false,
-    is_2f: false,
   }));
   
   console.log(`📊 Planning to insert: ${adminRows.length} administratif assignments`);

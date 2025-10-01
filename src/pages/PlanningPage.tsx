@@ -171,8 +171,6 @@ export default function PlanningPage() {
         .from('planning_genere')
         .select(`
           *,
-          secretaire:secretaires(first_name, name),
-          backup:backup(first_name, name),
           site:sites(nom, fermeture)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
@@ -183,6 +181,23 @@ export default function PlanningPage() {
       if (error) throw error;
 
       if (planningData && planningData.length > 0) {
+        // Récupérer toutes les secrétaires et backups nécessaires
+        const allSecretaireIds = planningData.flatMap(row => row.secretaires_ids || []);
+        const allBackupIds = planningData.flatMap(row => row.backups_ids || []);
+        
+        const { data: secretairesData } = await supabase
+          .from('secretaires')
+          .select('id, first_name, name')
+          .in('id', allSecretaireIds.length > 0 ? allSecretaireIds : ['00000000-0000-0000-0000-000000000000']);
+        
+        const { data: backupsData } = await supabase
+          .from('backup')
+          .select('id, first_name, name')
+          .in('id', allBackupIds.length > 0 ? allBackupIds : ['00000000-0000-0000-0000-000000000000']);
+        
+        const secretairesMap = new Map(secretairesData?.map(s => [s.id, s]) || []);
+        const backupsMap = new Map(backupsData?.map(b => [b.id, b]) || []);
+
         // Récupérer les besoins effectifs pour obtenir les noms des médecins et les besoins réels
         const { data: besoinsData } = await supabase
           .from('besoin_effectif')
@@ -192,6 +207,7 @@ export default function PlanningPage() {
             heure_debut,
             heure_fin,
             site_id,
+            medecin_id,
             nombre_secretaires_requis,
             medecin:medecins(first_name, name)
           `)
@@ -221,9 +237,10 @@ export default function PlanningPage() {
               return overlap;
             });
 
-            // Extraire les médecins (tous ceux qui chevauchent le créneau)
+            // Extraire les médecins depuis row.medecins_ids ou depuis les besoins
+            const medecinIds = row.medecins_ids || [];
             const medecins = besoinsForSlot
-              .filter(besoin => besoin.medecin)
+              .filter(besoin => besoin.medecin && medecinIds.includes(besoin.medecin_id))
               .map(besoin => `${besoin.medecin?.first_name || ''} ${besoin.medecin?.name || ''}`.trim())
               .filter((nom, idx, arr) => nom && arr.indexOf(nom) === idx);
 
@@ -248,15 +265,36 @@ export default function PlanningPage() {
 
           const assignment = assignmentsByKey.get(key);
           
-          if (row.secretaire_id || row.backup_id) {
-            const personne = row.secretaire || row.backup;
-            assignment.secretaires.push({
-              id: row.secretaire_id || row.backup_id,
-              secretaire_id: row.secretaire_id,
-              backup_id: row.backup_id,
-              nom: personne ? `${personne.first_name || ''} ${personne.name || ''}`.trim() : 'Inconnu',
-              is_backup: !!row.backup_id,
-            });
+          // Ajouter toutes les secrétaires depuis l'array secretaires_ids
+          for (const secId of (row.secretaires_ids || [])) {
+            const sec = secretairesMap.get(secId);
+            if (sec) {
+              assignment.secretaires.push({
+                id: secId,
+                secretaire_id: secId,
+                backup_id: null,
+                nom: `${sec.first_name || ''} ${sec.name || ''}`.trim(),
+                is_backup: false,
+                is_1r: row.responsable_1r_id === secId,
+                is_2f: row.responsable_2f_id === secId,
+              });
+            }
+          }
+          
+          // Ajouter tous les backups depuis l'array backups_ids
+          for (const backupId of (row.backups_ids || [])) {
+            const bck = backupsMap.get(backupId);
+            if (bck) {
+              assignment.secretaires.push({
+                id: backupId,
+                secretaire_id: null,
+                backup_id: backupId,
+                nom: `${bck.first_name || ''} ${bck.name || ''}`.trim(),
+                is_backup: true,
+                is_1r: row.responsable_1r_id === backupId,
+                is_2f: row.responsable_2f_id === backupId,
+              });
+            }
           }
         }
 
