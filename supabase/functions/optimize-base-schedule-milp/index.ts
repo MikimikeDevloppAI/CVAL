@@ -354,14 +354,14 @@ function buildMILPModel(
         const besoin = besoinsMap.get(besoinKey);
 
         if (besoin) {
-          // Calculate contribution to satisfaction percentage
-          // Each secretary contributes (100 / ceil(besoin))% to the score
-          const maxCapacity = Math.ceil(besoin.besoin);
-          const contributionPercent = 100 / maxCapacity;
+          // Calculate contribution to satisfaction percentage using real need (not rounded)
+          // Each secretary contributes (100 / real_besoin)% to the score
+          // This ensures proper scoring where 1.2 need = 100% when 1.2 secretaries assigned
+          const contributionPercent = 100 / besoin.besoin;
           
           // Variable contributes to satisfaction percentage
           model.variables[varName] = {
-            satisfaction_percentage: contributionPercent, // Weighted contribution
+            satisfaction_percentage: contributionPercent, // Weighted contribution based on real need
             [`uniqueness_${secId}_${jour}_${demi}`]: 1, // For uniqueness constraint
             [`capacity_${jour}_${demi}_${specialiteId}`]: 1, // For capacity constraint
           };
