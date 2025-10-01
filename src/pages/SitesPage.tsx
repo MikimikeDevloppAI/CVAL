@@ -10,6 +10,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, Conta
 import { SiteForm } from '@/components/sites/SiteForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface Site {
   id: string;
@@ -34,6 +35,7 @@ export default function SitesPage() {
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const fetchSites = async () => {
     try {
@@ -131,13 +133,14 @@ export default function SitesPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Sites</h1>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setSelectedSite(null)}>
-                <Plus className="h-4 w-4" />
-                Ajouter un site
-              </Button>
-            </DialogTrigger>
+          {canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={() => setSelectedSite(null)}>
+                  <Plus className="h-4 w-4" />
+                  Ajouter un site
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -150,6 +153,7 @@ export default function SitesPage() {
               />
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Search and Filter */}
@@ -204,20 +208,21 @@ export default function SitesPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-3 ml-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedSite(site);
-                        setIsDialogOpen(true);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    
-                    {site.actif === false ? (
+                  {canManage && (
+                    <div className="flex items-center space-x-3 ml-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedSite(site);
+                          setIsDialogOpen(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      
+                      {site.actif === false ? (
                       // Switch inactif - activation directe
                       <div className="flex items-center space-x-2">
                         <Switch
@@ -257,6 +262,7 @@ export default function SitesPage() {
                       </AlertDialog>
                     )}
                   </div>
+                  )}
                 </div>
               </ModernCardHeader>
               

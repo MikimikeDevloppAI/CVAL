@@ -10,6 +10,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, Conta
 import { MedecinForm } from '@/components/medecins/MedecinForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface Medecin {
   id: string;
@@ -34,6 +35,7 @@ export default function MedecinsPage() {
   const [selectedMedecin, setSelectedMedecin] = useState<Medecin | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const fetchMedecins = async () => {
     try {
@@ -190,13 +192,14 @@ export default function MedecinsPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
-                <Plus className="h-4 w-4" />
-                Ajouter un médecin
-              </Button>
-            </DialogTrigger>
+          {canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
+                  <Plus className="h-4 w-4" />
+                  Ajouter un médecin
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -209,6 +212,7 @@ export default function MedecinsPage() {
               />
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Search and Filter */}
@@ -270,20 +274,21 @@ export default function MedecinsPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-3 ml-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedMedecin(medecin);
-                        setIsDialogOpen(true);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    
-                    {medecin.actif !== false ? (
+                  {canManage && (
+                    <div className="flex items-center space-x-3 ml-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMedecin(medecin);
+                          setIsDialogOpen(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      
+                      {medecin.actif !== false ? (
                       // Switch actif - avec confirmation pour désactiver
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -323,6 +328,7 @@ export default function MedecinsPage() {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               </ModernCardHeader>
               

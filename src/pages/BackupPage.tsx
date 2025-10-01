@@ -9,6 +9,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, Conta
 import { supabase } from '@/integrations/supabase/client';
 import { BackupForm } from '@/components/backup/BackupForm';
 import { useToast } from '@/hooks/use-toast';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface Backup {
   id: string;
@@ -29,6 +30,7 @@ const BackupPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const fetchBackups = async () => {
     try {
@@ -84,13 +86,14 @@ const BackupPage = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Personnel de Backup</h1>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => setSelectedBackup(null)}>
-              <Plus className="h-4 w-4" />
-              Ajouter un backup
-            </Button>
-          </DialogTrigger>
+        {canManage && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => setSelectedBackup(null)}>
+                <Plus className="h-4 w-4" />
+                Ajouter un backup
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -104,6 +107,7 @@ const BackupPage = () => {
             />
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Search and Filter */}
@@ -164,19 +168,21 @@ const BackupPage = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-3 ml-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedBackup(backup);
-                      setIsDialogOpen(true);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </div>
+                {canManage && (
+                  <div className="flex items-center space-x-3 ml-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedBackup(backup);
+                        setIsDialogOpen(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </ModernCardHeader>
             

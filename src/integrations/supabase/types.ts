@@ -734,6 +734,7 @@ export type Database = {
           email: string
           id: string
           nom: string
+          planning: boolean
           prenom: string
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
@@ -743,6 +744,7 @@ export type Database = {
           email: string
           id: string
           nom: string
+          planning?: boolean
           prenom: string
           role: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -752,6 +754,7 @@ export type Database = {
           email?: string
           id?: string
           nom?: string
+          planning?: boolean
           prenom?: string
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -913,6 +916,10 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      has_planning_access: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       is_admin: {
         Args: Record<PropertyKey, never>

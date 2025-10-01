@@ -9,6 +9,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from
 import { AbsenceForm } from '@/components/absences/AbsenceForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -43,6 +44,7 @@ export default function AbsencesPage() {
   const [absenceToDelete, setAbsenceToDelete] = useState<Absence | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const fetchAbsences = async () => {
     try {
@@ -215,13 +217,14 @@ export default function AbsencesPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Gestion des Absences</h1>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setSelectedAbsence(null)}>
-                <Plus className="h-4 w-4" />
-                Déclarer une absence
-              </Button>
-            </DialogTrigger>
+          {canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={() => setSelectedAbsence(null)}>
+                  <Plus className="h-4 w-4" />
+                  Déclarer une absence
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -234,6 +237,7 @@ export default function AbsencesPage() {
               />
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Search */}
@@ -267,27 +271,29 @@ export default function AbsencesPage() {
                     </div>
                   </div>
                   
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedAbsence(absence);
-                        setIsDialogOpen(true);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAbsenceToDelete(absence)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {canManage && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedAbsence(absence);
+                          setIsDialogOpen(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAbsenceToDelete(absence)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </ModernCardHeader>
               

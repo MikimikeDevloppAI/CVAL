@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap } from 'lucide-react';
@@ -88,6 +89,7 @@ export default function PlanningPage() {
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
 
@@ -750,15 +752,17 @@ export default function PlanningPage() {
                           {site.nom}
                         </CardTitle>
                         <div className="flex items-center gap-4">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleAddClick('', site.id, site.nom)}
-                            className="flex items-center gap-2"
-                          >
-                            <Plus className="h-4 w-4" />
-                            {site.nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
-                          </Button>
+                          {canManage && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleAddClick('', site.id, site.nom)}
+                              className="flex items-center gap-2"
+                            >
+                              <Plus className="h-4 w-4" />
+                              {site.nom.includes('Bloc') ? 'Ajouter un besoin' : 'Ajouter un médecin'}
+                            </Button>
+                          )}
                           {besoinsSite.length > 0 && (
                             <>
                               <Separator orientation="vertical" className="h-10" />
@@ -848,28 +852,30 @@ export default function PlanningPage() {
                                     {totalSecretairesPersonne.toFixed(1)}
                                   </td>
                                   <td className="p-2 text-right">
-                                    <div className="flex justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedBesoins(besoinsGroupe);
-                                          setEditDialogOpen(true);
-                                        }}
-                                        title="Modifier"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteGroupClick(besoinsGroupe)}
-                                        className="text-destructive hover:text-destructive"
-                                        title="Supprimer"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
+                                    {canManage && (
+                                      <div className="flex justify-end gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedBesoins(besoinsGroupe);
+                                            setEditDialogOpen(true);
+                                          }}
+                                          title="Modifier"
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteGroupClick(besoinsGroupe)}
+                                          className="text-destructive hover:text-destructive"
+                                          title="Supprimer"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -893,12 +899,14 @@ export default function PlanningPage() {
         </TabsContent>
 
         <TabsContent value="capacites" className="space-y-4">
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => setAddCapaciteDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter une capacité
-            </Button>
-          </div>
+          {canManage && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => setAddCapaciteDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter une capacité
+              </Button>
+            </div>
+          )}
 
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -952,25 +960,27 @@ export default function PlanningPage() {
                                   {capacite.heure_debut.slice(0, 5)} - {capacite.heure_fin.slice(0, 5)}
                                 </div>
                               </div>
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditCapaciteClick(capacite)}
-                                  title="Modifier"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteCapaciteClick(capacite)}
-                                  className="text-destructive hover:text-destructive"
-                                  title="Supprimer"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                              {canManage && (
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditCapaciteClick(capacite)}
+                                    title="Modifier"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteCapaciteClick(capacite)}
+                                    className="text-destructive hover:text-destructive"
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -984,29 +994,31 @@ export default function PlanningPage() {
         </TabsContent>
 
         <TabsContent value="planning" className="space-y-4">
-          <div className="flex flex-col gap-4 py-6">
-            <div className="flex justify-center">
-              <Button 
-                onClick={handleOptimizeMILP} 
-                disabled={isOptimizingMILP}
-                size="lg"
-                variant="default"
-                className="gap-2"
-              >
-                {isOptimizingMILP ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Optimisation MILP en cours...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4" />
-                    Optimiser avec MILP
-                  </>
-                )}
-              </Button>
+          {canManage && (
+            <div className="flex flex-col gap-4 py-6">
+              <div className="flex justify-center">
+                <Button 
+                  onClick={handleOptimizeMILP} 
+                  disabled={isOptimizingMILP}
+                  size="lg"
+                  variant="default"
+                  className="gap-2"
+                >
+                  {isOptimizingMILP ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Optimisation MILP en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Optimiser avec MILP
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {optimizationResult && (
             <MILPOptimizationView

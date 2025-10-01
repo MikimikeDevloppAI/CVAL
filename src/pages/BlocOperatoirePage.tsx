@@ -10,6 +10,7 @@ import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireFo
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface BlocOperatoireBesoin {
   id: string;
@@ -32,6 +33,7 @@ const BlocOperatoirePage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { canManage } = useCanManagePlanning();
 
   const fetchBesoins = async () => {
     try {
@@ -115,13 +117,14 @@ const BlocOperatoirePage = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => setSelectedBesoin(null)}>
-              <Plus className="h-4 w-4" />
-              Ajouter un besoin
-            </Button>
-          </DialogTrigger>
+        {canManage && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => setSelectedBesoin(null)}>
+                <Plus className="h-4 w-4" />
+                Ajouter un besoin
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -135,6 +138,7 @@ const BlocOperatoirePage = () => {
             />
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Search */}
@@ -170,27 +174,29 @@ const BlocOperatoirePage = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2 ml-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedBesoin(besoin);
-                      setIsDialogOpen(true);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(besoin.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                {canManage && (
+                  <div className="flex items-center space-x-2 ml-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedBesoin(besoin);
+                        setIsDialogOpen(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(besoin.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </ModernCardHeader>
             
