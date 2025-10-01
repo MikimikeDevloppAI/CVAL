@@ -7,12 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
-// Configuration - Nouvelle formulation: MINIMISER écart quadratique + pénalités
-const COEF_ECART_QUADRATIQUE = 1000; // Poids pour l'écart quadratique (objectif principal)
-const COEF_ADMIN_BONUS = -0.1;       // Bonus pour affectation administrative (négatif car minimisation)
-const COEF_CHANGEMENT_SITE = 0.01;   // Pénalité changement de site matin/après-midi
-const COEF_PORT_EN_TRUIE_BASE = 0.002; // Pénalité de base Port-en-Truie (progression linéaire)
-const COEF_PORT_EN_TRUIE_PREFERE_BASE = 0.0002; // Pénalité de base si préférence (progression géométrique)
+// Configuration - MAXIMISER le score de satisfaction
+const COEF_SATISFACTION = 1000;      // Poids pour capacité/besoin (objectif principal)
+const COEF_ADMIN_BONUS = 0.001;      // Bonus administratif marginal (divisé par 1000)
+const COEF_PORT_EN_TRUIE = -0.01;    // Pénalité Port-en-Truie (diminue le score)
+const COEF_CHANGEMENT_SITE = -0.005; // Pénalité changement de site (diminue le score)
 
 const PORT_EN_TRUIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
@@ -82,20 +81,17 @@ serve(async (req) => {
       throw new Error('No feasible solution found');
     }
 
-    console.log(`✅ Solution: objective (minimized) = ${solution.result.toFixed(2)}`);
+    console.log(`✅ Solution: score (maximized) = ${solution.result.toFixed(2)}`);
 
     // Parse results
-    const parseResult = parseResults(solution, capacitesMap, besoinsMap);
-    const results = parseResult.results;
+    const results = parseResults(solution, capacitesMap, besoinsMap);
     
     // Calculate statistics
-    const statistics = calculateStatistics(results, besoinsMap, parseResult.penalties);
+    const statistics = calculateStatistics(results, besoinsMap);
     
-    console.log(`📊 Écart quadratique total: ${statistics.ecart_quadratique_total.toFixed(2)}`);
-    console.log(`📊 Satisfaction globale: ${statistics.satisfaction_globale_pct}%`);
-    console.log(`📊 Port-en-Truie: ${statistics.penalties.port_en_truie_total} assignations`);
-    console.log(`📊 Changements de site: ${statistics.penalties.site_changes}`);
-    console.log(`📊 Assignations admin: ${statistics.admin_assignments}`);
+    console.log(`📊 Satisfaction: ${statistics.satisfaction_pct}% (${statistics.capacite_totale}/${statistics.besoin_total.toFixed(1)})`);
+    console.log(`📊 Port-en-Truie: ${statistics.port_en_truie_count} assignations`);
+    console.log(`📊 Assignations admin: ${statistics.admin_count}`);
 
     // Save to database
     console.log('💾 Saving to planning_genere...');
@@ -293,7 +289,7 @@ function getTimeOverlap(start1: string, end1: string, start2: string, end2: stri
 function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map<string, any>, startDate: string, endDate: string) {
   const model: any = {
     optimize: 'objective',
-    opType: 'min', // MINIMISER l'écart quadratique + pénalités
+    opType: 'max', // MAXIMISER le score de satisfaction
     constraints: {},
     variables: {},
     ints: {}
@@ -304,38 +300,6 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
   let adminVars = 0;
   let matinCount = 0;
   let apresMidiCount = 0;
-
-  // Track Port-en-Truie assignments per person across the period (for progressive penalty)
-  const portEnTruieAssignments = new Map<string, number>();
-  
-  // Track site assignments per person per date for change detection
-  const personDateSites = new Map<string, Map<string, Set<string>>>(); // personId -> date -> Set<sites>
-  
-  // Pre-calculate possible sites for each person per date and demi-journée
-  for (const [personId, capData] of capacitesMap) {
-    if (!personDateSites.has(personId)) {
-      personDateSites.set(personId, new Map());
-    }
-    const personDates = personDateSites.get(personId)!;
-    
-    for (const slot of capData.slots) {
-      const dateKey = `${slot.date}_${slot.demi_journee}`;
-      if (!personDates.has(dateKey)) {
-        personDates.set(dateKey, new Set());
-      }
-      const sites = personDates.get(dateKey)!;
-      
-      for (const spec of capData.specialites) {
-        for (const [_, besoin] of besoinsMap) {
-          if (besoin.date === slot.date && 
-              besoin.demi_journee === slot.demi_journee && 
-              besoin.specialite_id === spec) {
-            sites.add(besoin.site_id);
-          }
-        }
-      }
-    }
-  }
 
   // BUILD VARIABLES FOR SITE ASSIGNMENTS: x_{person}_{date}_{demi}_{site}_{spec}
   for (const [personId, capData] of capacitesMap) {
@@ -355,40 +319,15 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
 
           let objectiveCoef = 0;
 
-          // TERME 2: Pénalité Port-en-Truie progressive
-          if (besoin.site_id === PORT_EN_TRUIE_SITE_ID) {
-            const currentCount = portEnTruieAssignments.get(personId) || 0;
-            
-            if (capData.prefere_port_en_truie) {
-              // Progression géométrique: 0.0002, 0.0004, 0.0008, 0.0016...
-              const penalty = COEF_PORT_EN_TRUIE_PREFERE_BASE * Math.pow(2, currentCount);
-              objectiveCoef += penalty;
-            } else {
-              // Progression linéaire: 0.002, 0.004, 0.006, 0.008...
-              const penalty = COEF_PORT_EN_TRUIE_BASE * (currentCount + 1);
-              objectiveCoef += penalty;
-            }
-            
-            portEnTruieAssignments.set(personId, currentCount + 1);
-          }
-
-          // TERME 3: Pénalité changement de site matin/après-midi
-          const personDates = personDateSites.get(personId);
-          if (personDates) {
-            const otherDemiKey = demi === 'matin' 
-              ? `${date}_apres_midi` 
-              : `${date}_matin`;
-            const otherSites = personDates.get(otherDemiKey);
-            
-            if (otherSites && otherSites.size > 0 && !otherSites.has(besoin.site_id)) {
-              objectiveCoef += COEF_CHANGEMENT_SITE;
-            }
+          // Pénalité Port-en-Truie (diminue le score sauf si préféré)
+          if (besoin.site_id === PORT_EN_TRUIE_SITE_ID && !capData.prefere_port_en_truie) {
+            objectiveCoef += COEF_PORT_EN_TRUIE;
           }
 
           model.variables[varName] = {
             objective: objectiveCoef,
             [`unique_${personId}_${date}_${demi}`]: 1,
-            [`def_total_${besoinKey}`]: -1  // Contribue -1 pour que total = Σ x
+            [`besoin_${besoinKey}`]: 1  // Compte pour le besoin
           };
 
           model.ints[varName] = 1;
@@ -403,13 +342,12 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
   }
 
   // Variables administratives: y_{person}_{date}_{demi}
-  // TERME 4: Bonus pour affectation administrative (-0.1)
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
       const yVarName = `y_${personId}_${slot.date}_${slot.demi_journee}`;
       
       model.variables[yVarName] = {
-        objective: COEF_ADMIN_BONUS, // Négatif: réduit l'objectif (bonus)
+        objective: COEF_ADMIN_BONUS, // Bonus marginal
         [`unique_${personId}_${slot.date}_${slot.demi_journee}`]: 1
       };
       
@@ -419,45 +357,33 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // Variables auxiliaires pour l'écart et sa pénalité quadratique
-  // Approche simplifiée: on pénalise linéairement l'écart, avec un poids élevé
+  // Variables pour le score: capacite/besoin pour chaque besoin
   for (const [besoinKey, besoin] of besoinsMap) {
-    const besoinReel = besoin.besoin;
+    const besoinValue = besoin.besoin;
     
-    // Variable total_{besoinKey}: somme des assignations
-    // Contrainte: total = Σ x_variables (définie par def_total)
-    const totalVarName = `total_${besoinKey}`;
-    model.variables[totalVarName] = {
-      objective: 0,
-      [`def_total_${besoinKey}`]: 1  // Contribue +1 pour que total = Σ x
-    };
-    // total n'est pas limité (peut dépasser besoin théoriquement)
-    totalVars++;
+    // Variable capacite_{besoinKey} représente min(capacité assignée, besoin)
+    const capaciteVarName = `cap_${besoinKey}`;
     
-    // Variable capacite_{besoinKey}: min(total, besoin)
-    // Contraintes: capacite <= total ET capacite <= besoin
-    const capaciteVarName = `capacite_${besoinKey}`;
+    // Le coefficient dans l'objectif est COEF_SATISFACTION / besoin
+    // pour que capacite/besoin * COEF_SATISFACTION donne le bon poids
+    const scoreCoef = COEF_SATISFACTION / besoinValue;
+    
     model.variables[capaciteVarName] = {
-      objective: 0,
-      [`cap_vs_total_${besoinKey}`]: 1,     // capacite <= total
-      [`cap_vs_besoin_${besoinKey}`]: 1,    // capacite <= besoin
-      [`def_ecart_${besoinKey}`]: 1         // ecart = besoin - capacite
+      objective: scoreCoef,  // Maximiser capacité/besoin
+      [`def_cap_${besoinKey}`]: 1,     // capacite = min(Σx, besoin)
+      [`cap_max_${besoinKey}`]: 1      // capacite <= besoin
     };
-    totalVars++;
     
-    // Variable ecart_{besoinKey}: besoin - capacite
-    // Cette variable sera pénalisée dans l'objectif
-    const ecartVarName = `ecart_${besoinKey}`;
+    // Ajouter les x_variables avec coefficient -1 pour la définition
+    for (const varName in model.variables) {
+      if (varName.startsWith('x_') && model.variables[varName][`besoin_${besoinKey}`]) {
+        if (!model.variables[varName][`def_cap_${besoinKey}`]) {
+          model.variables[varName][`def_cap_${besoinKey}`] = 0;
+        }
+        model.variables[varName][`def_cap_${besoinKey}`] -= 1;
+      }
+    }
     
-    // Pour approximer (ecart + 1)², on utilise une pénalité linéaire forte
-    // Approximation: (x+1)² ≈ 2x + 1 + x/2 pour x petit
-    // On va utiliser un coefficient élevé pour pénaliser fortement
-    const penaliteEcart = COEF_ECART_QUADRATIQUE * (2 + besoinReel * 0.5);
-    
-    model.variables[ecartVarName] = {
-      objective: penaliteEcart,  // TERME 1: Pénalité pour écart
-      [`def_ecart_${besoinKey}`]: -1  // ecart = besoin - capacite
-    };
     totalVars++;
   }
 
@@ -469,28 +395,18 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     }
   }
 
-  // CONTRAINTE 2: Définition de total_{besoinKey} = Σ x_variables
-  // total - Σ x = 0, donc total = Σ x
+  // CONTRAINTE 2: Pour chaque besoin, définir capacite et plafond
   for (const [besoinKey, besoin] of besoinsMap) {
-    model.constraints[`def_total_${besoinKey}`] = { equal: 0 };
+    const besoinValue = besoin.besoin;
+    
+    // def_cap: capacite = Σ x_variables (définie par les coefficients ci-dessus)
+    model.constraints[`def_cap_${besoinKey}`] = { equal: 0 };
+    
+    // cap_max: capacite <= besoin
+    model.constraints[`cap_max_${besoinKey}`] = { max: besoinValue };
   }
 
-  // CONTRAINTE 3: capacite_{besoinKey} <= total_{besoinKey}
-  for (const [besoinKey, besoin] of besoinsMap) {
-    model.constraints[`cap_vs_total_${besoinKey}`] = { max: 0 };
-  }
-
-  // CONTRAINTE 4: capacite_{besoinKey} <= besoin
-  for (const [besoinKey, besoin] of besoinsMap) {
-    const besoinReel = besoin.besoin;
-    model.constraints[`cap_vs_besoin_${besoinKey}`] = { max: besoinReel };
-  }
-
-  // CONTRAINTE 5: Définition de ecart = besoin - capacite
-  for (const [besoinKey, besoin] of besoinsMap) {
-    const besoinReel = besoin.besoin;
-    model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinReel };
-  }
+  const totalConstraints = Object.keys(model.constraints).length;
 
   return {
     model,
@@ -498,9 +414,9 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
       totalVars,
       siteVars,
       adminVars,
+      totalConstraints,
       matinCount,
-      apresMidiCount,
-      totalConstraints: Object.keys(model.constraints).length
+      apresMidiCount
     }
   };
 }
@@ -510,144 +426,116 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
 // ============================================================================
 
 function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap: Map<string, any>) {
-  const results = [];
-  const assignmentGroups = new Map();
-  const adminGroups = new Map();
+  const results: any[] = [];
+  const assignmentsByBesoin = new Map<string, any>();
+
+  // Parse site assignments
+  for (const varName in solution) {
+    if (varName.startsWith('x_') && solution[varName] === 1) {
+      const [_, personId, date, demi, siteId, specialiteId] = varName.split('_');
+      
+      const besoinKey = `${date}|${demi}|${siteId}|${specialiteId}`;
+      const besoin = besoinsMap.get(besoinKey);
+      
+      if (!assignmentsByBesoin.has(besoinKey)) {
+        assignmentsByBesoin.set(besoinKey, {
+          date,
+          demi_journee: demi,
+          site_id: siteId,
+          specialite_id: specialiteId,
+          type: 'site',
+          secretaires_assignees: [],
+          medecin_ids: besoin?.medecin_ids || []
+        });
+      }
+      
+      assignmentsByBesoin.get(besoinKey).secretaires_assignees.push(personId);
+    }
+  }
+
+  // Add site assignments to results
+  for (const [_, assignment] of assignmentsByBesoin) {
+    results.push(assignment);
+  }
+
+  // Parse administrative assignments
+  const adminBySlot = new Map<string, any>();
   
-  let siteChanges = 0;
-  let portEnTruieTotal = 0;
-  const portEnTruiePerPerson = new Map();
-
-  // Regex patterns for parsing variable names
-  const xVarRegex = /^x_(?<person>[^_]+)_(?<date>\d{4}-\d{2}-\d{2})_(?<demi>matin|apres_midi)_(?<site>[0-9a-f-]+)_(?<spec>.+)$/;
-  const yVarRegex = /^y_(?<person>[^_]+)_(?<date>\d{4}-\d{2}-\d{2})_(?<demi>matin|apres_midi)$/;
-
-  for (const [varName, value] of Object.entries(solution)) {
-    if (value !== 1 || typeof varName !== 'string') continue;
-
-    if (varName.startsWith('x_')) {
-      const match = varName.match(xVarRegex);
-      if (match && match.groups) {
-        const personId = match.groups.person;
-        const date = match.groups.date;
-        const demi = match.groups.demi;
-        const siteId = match.groups.site;
-        const specialiteId = match.groups.spec;
-
-        const key = `${date}|${demi}|${siteId}|${specialiteId}`;
-        if (!assignmentGroups.has(key)) {
-          assignmentGroups.set(key, []);
-        }
-        assignmentGroups.get(key).push(personId);
-
-        if (siteId === PORT_EN_TRUIE_SITE_ID) {
-          portEnTruieTotal++;
-          portEnTruiePerPerson.set(personId, (portEnTruiePerPerson.get(personId) || 0) + 1);
-        }
+  for (const varName in solution) {
+    if (varName.startsWith('y_') && solution[varName] === 1) {
+      const [_, personId, date, demi] = varName.split('_');
+      const slotKey = `${date}|${demi}`;
+      
+      if (!adminBySlot.has(slotKey)) {
+        adminBySlot.set(slotKey, {
+          date,
+          demi_journee: demi,
+          type: 'administratif',
+          secretaires_assignees: [],
+          medecin_ids: []
+        });
       }
-    } else if (varName.startsWith('y_')) {
-      const match = varName.match(yVarRegex);
-      if (match && match.groups) {
-        const personId = match.groups.person;
-        const date = match.groups.date;
-        const demi = match.groups.demi;
-        const key = `${date}|${demi}`;
-        if (!adminGroups.has(key)) {
-          adminGroups.set(key, []);
-        }
-        adminGroups.get(key).push(personId);
-      }
+      
+      adminBySlot.get(slotKey).secretaires_assignees.push(personId);
     }
   }
 
-  // Site assignments
-  for (const [key, besoin] of besoinsMap) {
-    const assigned = assignmentGroups.get(key) || [];
-    results.push({
-      date: besoin.date,
-      demi_journee: besoin.demi_journee,
-      site_id: besoin.site_id,
-      specialite_id: besoin.specialite_id,
-      besoin: Math.round(besoin.besoin * 100) / 100,
-      besoin_ceil: Math.ceil(besoin.besoin),
-      secretaires_assignees: assigned,
-      medecin_ids: besoin.medecin_ids,
-      type: 'site',
-      satisfaction_pct: Math.min((assigned.length / besoin.besoin) * 100, 100)
-    });
+  // Add administrative assignments to results
+  for (const [_, admin] of adminBySlot) {
+    results.push(admin);
   }
 
-  // Administrative assignments with medecin_ids from besoinsMap
-  for (const [key, persons] of adminGroups) {
-    const [date, demi] = key.split('|');
-    
-    // Aggregate medecin_ids for this date+demi from besoinsMap
-    const medecinIds: string[] = [];
-    for (const [_, besoin] of besoinsMap) {
-      if (besoin.date === date && besoin.demi_journee === demi) {
-        for (const medecinId of besoin.medecin_ids) {
-          if (!medecinIds.includes(medecinId)) {
-            medecinIds.push(medecinId);
-          }
-        }
-      }
-    }
-    
-    results.push({
-      date,
-      demi_journee: demi,
-      secretaires_assignees: persons,
-      medecin_ids: medecinIds,
-      type: 'administratif'
-    });
-  }
-
-  return { 
-    results,
-    penalties: {
-      siteChanges,
-      portEnTruieTotal,
-      portEnTruiePerPerson
-    }
-  };
+  return results;
 }
 
-function calculateStatistics(results: any[], besoinsMap: Map<string, any>, penalties: any) {
-  let totalBesoin = 0;
-  let totalAssigned = 0;
-  let ecartQuadratiqueTotal = 0;
-  let adminAssignments = 0;
+// ============================================================================
+// STATISTICS CALCULATION
+// ============================================================================
+
+function calculateStatistics(results: any[], besoinsMap: Map<string, any>) {
+  let capaciteTotale = 0;
+  let besoinTotal = 0;
+  let adminCount = 0;
+  let portEnTruieCount = 0;
+
+  const besoinStats = new Map<string, { besoin: number, capacite: number }>();
 
   for (const result of results) {
-    if (result.type === 'site') {
-      totalBesoin += result.besoin;
-      const assigned = result.secretaires_assignees.length;
-      totalAssigned += assigned;
-      
-      // Calculer l'écart: (besoin - min(assigned, besoin) + 1)²
-      const capaciteAssignee = Math.min(assigned, result.besoin);
-      const ecart = result.besoin - capaciteAssignee + 1;
-      ecartQuadratiqueTotal += ecart * ecart;
-    } else if (result.type === 'administratif') {
-      adminAssignments += result.secretaires_assignees.length;
+    if (result.type === 'administratif') {
+      adminCount += result.secretaires_assignees.length;
+      continue;
+    }
+
+    if (result.site_id === PORT_EN_TRUIE_SITE_ID) {
+      portEnTruieCount += result.secretaires_assignees.length;
+    }
+
+    const besoinKey = `${result.date}|${result.demi_journee}|${result.site_id}|${result.specialite_id}`;
+    const besoin = besoinsMap.get(besoinKey);
+    
+    if (besoin) {
+      if (!besoinStats.has(besoinKey)) {
+        besoinStats.set(besoinKey, { besoin: besoin.besoin, capacite: 0 });
+      }
+      besoinStats.get(besoinKey)!.capacite += result.secretaires_assignees.length;
     }
   }
 
-  const satisfactionGlobalePct = totalBesoin > 0
-    ? Math.min((totalAssigned / totalBesoin) * 100, 100)
-    : 0;
+  for (const [_, stats] of besoinStats) {
+    const capacite = Math.min(stats.capacite, stats.besoin);
+    capaciteTotale += capacite;
+    besoinTotal += stats.besoin;
+  }
+
+  const satisfactionPct = besoinTotal > 0 
+    ? Math.round((capaciteTotale / besoinTotal) * 100) 
+    : 100;
 
   return {
-    total_entries: results.length,
-    total_besoin: Math.round(totalBesoin * 100) / 100,
-    total_assigned: totalAssigned,
-    satisfaction_globale_pct: Math.round(satisfactionGlobalePct),
-    ecart_quadratique_total: ecartQuadratiqueTotal,
-    admin_assignments: adminAssignments,
-    penalties: {
-      site_changes: penalties.siteChanges,
-      port_en_truie_total: penalties.portEnTruieTotal,
-      port_en_truie_per_person: Object.fromEntries(penalties.portEnTruiePerPerson)
-    }
+    satisfaction_pct: satisfactionPct,
+    capacite_totale: Math.round(capaciteTotale * 10) / 10,
+    besoin_total: besoinTotal,
+    admin_count: adminCount,
+    port_en_truie_count: portEnTruieCount
   };
 }
