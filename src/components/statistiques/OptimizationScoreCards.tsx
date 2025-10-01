@@ -26,12 +26,20 @@ function getSlotStatusColor(besoins: number, capacites: number): string {
 }
 
 function calculateMissingCapacities(scores: OptimizationScoreParSpecialite[]) {
-  const missingBySpecialty = new Map<string, { total: number, byDay: Map<string, number> }>();
+  const missingBySpecialty = new Map<string, { 
+    details: Array<{ 
+      jour_semaine: number, 
+      jour_nom: string, 
+      matin: number, 
+      apres_midi: number 
+    }> 
+  }>();
+  
   const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   
   scores.forEach(score => {
-    let totalMissing = 0;
-    const byDay = new Map<string, number>();
+    const details: Array<{ jour_semaine: number, jour_nom: string, matin: number, apres_midi: number }> = [];
+    let hasMissing = false;
     
     score.details_jours.forEach(jour => {
       const matinNeeded = Math.ceil(jour.matin.besoins);
@@ -40,16 +48,20 @@ function calculateMissingCapacities(scores: OptimizationScoreParSpecialite[]) {
       const apremNeeded = Math.ceil(jour.apres_midi.besoins);
       const apremMissing = Math.max(0, apremNeeded - jour.apres_midi.capacites);
       
-      const dayMissing = matinMissing + apremMissing;
-      
-      if (dayMissing > 0) {
-        byDay.set(JOURS_NOMS[jour.jour_semaine - 1], dayMissing);
-        totalMissing += dayMissing;
+      if (matinMissing > 0 || apremMissing > 0) {
+        hasMissing = true;
       }
+      
+      details.push({
+        jour_semaine: jour.jour_semaine,
+        jour_nom: JOURS_NOMS[jour.jour_semaine - 1],
+        matin: matinMissing,
+        apres_midi: apremMissing
+      });
     });
     
-    if (totalMissing > 0) {
-      missingBySpecialty.set(score.specialite_nom, { total: totalMissing, byDay });
+    if (hasMissing) {
+      missingBySpecialty.set(score.specialite_nom, { details });
     }
   });
   
@@ -72,26 +84,51 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
       </div>
 
       {hasMissing && (
-        <Card className="p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900">
+        <Card className="p-4">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              <h4 className="font-semibold text-orange-900 dark:text-orange-100">
+              <AlertCircle className="h-5 w-5 text-primary" />
+              <h4 className="font-semibold">
                 Capacités manquantes pour optimisation complète
               </h4>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-4">
               {Array.from(missingCapacities.entries()).map(([specialite, data]) => (
-                <div key={specialite} className="text-sm">
-                  <div className="font-medium text-orange-900 dark:text-orange-100 mb-1">
-                    {specialite}: {data.total} secrétaire{data.total > 1 ? 's' : ''} manquante{data.total > 1 ? 's' : ''}
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-orange-700 dark:text-orange-300 ml-4">
-                    {Array.from(data.byDay.entries()).map(([jour, count]) => (
-                      <span key={jour} className="bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded">
-                        {jour}: {count}
-                      </span>
+                <div key={specialite}>
+                  <div className="font-medium mb-2">{specialite}</div>
+                  
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
+                      <div>Jour</div>
+                      <div className="text-center">Matin</div>
+                      <div className="text-center">Après-midi</div>
+                    </div>
+
+                    {data.details.map((jour) => (
+                      <div key={jour.jour_semaine} className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs items-center">
+                        <div className="font-medium w-16">{jour.jour_nom}</div>
+                        
+                        <div className="text-center">
+                          {jour.matin > 0 ? (
+                            <span className="text-red-600 dark:text-red-400 font-medium">
+                              -{jour.matin}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+
+                        <div className="text-center">
+                          {jour.apres_midi > 0 ? (
+                            <span className="text-red-600 dark:text-red-400 font-medium">
+                              -{jour.apres_midi}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -127,8 +164,8 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
                 <div className="space-y-2">
                 <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
                   <div>Jour</div>
-                  <div className="text-center">Matin (7h30-12h)</div>
-                  <div className="text-center">Après-midi (13h-17h)</div>
+                  <div className="text-center">Matin</div>
+                  <div className="text-center">Après-midi</div>
                 </div>
 
                 {score.details_jours.map((jour) => (
