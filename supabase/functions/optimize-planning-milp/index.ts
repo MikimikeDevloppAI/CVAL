@@ -127,40 +127,19 @@ serve(async (req) => {
       .gte('date', startDate)
       .lte('date', endDate);
 
-    // Insert new planning - both site and administrative assignments
-    const insertData = [];
-    
-    // Site assignments
-    for (const r of results.filter(r => r.type === 'site')) {
-      insertData.push({
-        date: r.date,
-        type: 'medecin',
-        type_assignation: 'site',
-        site_id: r.site_id,
-        heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
-        heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
-        medecins_ids: r.medecin_ids,
-        secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
-        backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
-        statut: 'planifie',
-      });
-    }
-    
-    // Administrative assignments
-    for (const r of results.filter(r => r.type === 'administratif')) {
-      insertData.push({
-        date: r.date,
-        type: 'medecin',
-        type_assignation: 'administratif',
-        site_id: null,
-        heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
-        heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
-        medecins_ids: [],
-        secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
-        backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
-        statut: 'planifie',
-      });
-    }
+    // Insert new planning - only site assignments
+    const insertData = results.map(r => ({
+      date: r.date,
+      type: 'medecin',
+      type_assignation: 'site',
+      site_id: r.site_id,
+      heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
+      heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
+      medecins_ids: r.medecin_ids,
+      secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
+      backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
+      statut: 'planifie',
+    }));
 
     const { error: insertError } = await supabaseServiceRole
       .from('planning_genere')
@@ -168,14 +147,13 @@ serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    console.log(`✅ Successfully saved ${insertData.length} planning entries (${results.filter(r => r.type === 'site').length} site, ${results.filter(r => r.type === 'administratif').length} administratif)`);
+    console.log(`✅ Successfully saved ${insertData.length} planning entries`);
 
     const response = {
       success: true,
       stats: {
         total_entries: insertData.length,
-        site_assignments: results.filter(r => r.type === 'site').length,
-        administrative_assignments: results.filter(r => r.type === 'administratif').length,
+        site_assignments: results.length,
         date_range: { start: startDate, end: endDate },
         objective_value: solution.result,
         penalties: results[0]?.penalties || {},
@@ -375,13 +353,59 @@ function buildMILPModel(
       }
     }
   }
+
+  // Count total possible Esplanade assignments per person for progressive penalty
+  const esplanadeSlotsPerPerson = new Map<string, number>();
   
-  // Track Esplanade assignments per person for progressive penalty
-  const esplanadeAssignmentsPerPerson = new Map<string, number>();
+  for (const [personId, capData] of capacitesMap) {
+    let esplanadeCount = 0;
+    for (const slot of capData.slots) {
+      for (const specialiteId of capData.specialites) {
+        for (const [_, besoin] of besoinsMap) {
+          if (besoin.date === slot.date && 
+              besoin.demi_journee === slot.demi_journee && 
+              besoin.specialite_id === specialiteId &&
+              besoin.site_id === ESPLANADE_SITE_ID &&
+              !capData.prefere_port_en_truie) {
+            esplanadeCount++;
+          }
+        }
+      }
+    }
+    if (esplanadeCount > 0) {
+      esplanadeSlotsPerPerson.set(personId, esplanadeCount);
+    }
+  }
 
   // Build variables: x_person_date_demi_site_specialite
+  const esplanadeVarMap = new Map<string, number>();
+  
   for (const [personId, capData] of capacitesMap) {
-    for (const slot of capData.slots) {
+    // Sort slots by date and demi_journee to ensure consistent ordering
+    const sortedSlots = [...capData.slots].sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return a.demi_journee === 'matin' ? -1 : 1;
+    });
+    
+    // Pre-collect all Esplanade slots for this person and sort them
+    const esplanadeSlots: Array<{date: string, demi: DemiJournee, besoin: BesoinData}> = [];
+    for (const slot of sortedSlots) {
+      for (const specialiteId of capData.specialites) {
+        for (const [_, besoin] of besoinsMap) {
+          if (besoin.date === slot.date && 
+              besoin.demi_journee === slot.demi_journee && 
+              besoin.specialite_id === specialiteId &&
+              besoin.site_id === ESPLANADE_SITE_ID &&
+              !capData.prefere_port_en_truie) {
+            esplanadeSlots.push({ date: besoin.date, demi: besoin.demi_journee, besoin });
+          }
+        }
+      }
+    }
+    
+    let esplanadeIndex = 0;
+    
+    for (const slot of sortedSlots) {
       const date = slot.date;
       const demi = slot.demi_journee;
 
@@ -414,14 +438,20 @@ function buildMILPModel(
             
             // PRIORITY 2: Progressive Esplanade penalty
             if (besoin.site_id === ESPLANADE_SITE_ID && !capData.prefere_port_en_truie) {
-              // Get current count of Esplanade assignments for this person
-              const currentCount = esplanadeAssignmentsPerPerson.get(personId) || 0;
-              // Apply progressive penalty: 1st time = 1x, 2nd time = 2x, 3rd time = 3x, etc.
-              const progressivePenalty = ESPLANADE_BASE_PENALTY * (currentCount + 1);
-              contributionPercent -= progressivePenalty;
+              esplanadeIndex++;
+              const totalEsplanadeSlots = esplanadeSlots.length;
               
-              // Track that this variable could assign to Esplanade
-              esplanadeAssignmentsPerPerson.set(personId, currentCount + 1);
+              if (totalEsplanadeSlots > 0) {
+                // Progressive penalty: slots later in the week get higher penalty
+                // This encourages spreading across people, not time
+                const progressiveMultiplier = esplanadeIndex / totalEsplanadeSlots;
+                const progressivePenalty = ESPLANADE_BASE_PENALTY * (1 + progressiveMultiplier * 2);
+                contributionPercent -= progressivePenalty;
+              } else {
+                contributionPercent -= ESPLANADE_BASE_PENALTY;
+              }
+              
+              esplanadeVarMap.set(varName, esplanadeIndex);
             }
             
             model.variables[varName] = {
@@ -438,24 +468,6 @@ function buildMILPModel(
     }
   }
   
-  // Add administrative assignment variables
-  // These are used when needs are satisfied and secretaries are available
-  for (const [personId, capData] of capacitesMap) {
-    for (const slot of capData.slots) {
-      const varName = `admin_${personId}_${slot.date}_${slot.demi_journee}`;
-      
-      // Small positive value to encourage administrative assignments when possible
-      model.variables[varName] = {
-        objective: 0.00001, // Very small to not affect main optimization
-        [`uniqueness_${personId}_${slot.date}_${slot.demi_journee}`]: 1,
-        [`admin_assignment_${slot.date}_${slot.demi_journee}`]: 1,
-      };
-      
-      model.ints[varName] = 1;
-      totalVars++;
-    }
-  }
-
   // Uniqueness constraints: each person assigned to at most 1 site/specialty per (date, demi)
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
@@ -495,15 +507,12 @@ function parseResults(
     besoin?: number;
     secretaires_assignees: string[];
     medecin_ids: string[];
-    type: 'site' | 'administratif';
+    type: 'site';
     penalties?: any;
   }[] = [];
 
   // Group site assignments by (date, demi, site, specialite)
   const assignmentGroups = new Map<string, string[]>();
-  
-  // Group administrative assignments by (date, demi)
-  const adminAssignments = new Map<string, string[]>();
 
   // Track penalties
   let siteChangeCount = 0;
@@ -511,42 +520,26 @@ function parseResults(
   const esplanadePerPerson = new Map<string, number>();
 
   for (const [varName, value] of Object.entries(solution)) {
-    if (value === 1) {
-      if (varName.startsWith('x_')) {
-        // Parse: x_person_date_demi_site_specialite
-        const parts = varName.split('_');
-        if (parts.length >= 6) {
-          const personId = parts[1];
-          const date = parts[2];
-          const demi = parts[3] as DemiJournee;
-          const siteId = parts[4];
-          const specialiteId = parts.slice(5).join('_');
+    if (value === 1 && varName.startsWith('x_')) {
+      // Parse: x_person_date_demi_site_specialite
+      const parts = varName.split('_');
+      if (parts.length >= 6) {
+        const personId = parts[1];
+        const date = parts[2];
+        const demi = parts[3] as DemiJournee;
+        const siteId = parts[4];
+        const specialiteId = parts.slice(5).join('_');
 
-          const key = `${date}|${demi}|${siteId}|${specialiteId}`;
-          if (!assignmentGroups.has(key)) {
-            assignmentGroups.set(key, []);
-          }
-          assignmentGroups.get(key)!.push(personId);
-          
-          // Track Esplanade assignments
-          if (siteId === '043899a1-a232-4c4b-9d7d-0eb44dad00ad') {
-            esplanadeAssignments++;
-            esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
-          }
+        const key = `${date}|${demi}|${siteId}|${specialiteId}`;
+        if (!assignmentGroups.has(key)) {
+          assignmentGroups.set(key, []);
         }
-      } else if (varName.startsWith('admin_')) {
-        // Parse: admin_person_date_demi
-        const parts = varName.split('_');
-        if (parts.length >= 4) {
-          const personId = parts[1];
-          const date = parts[2];
-          const demi = parts[3] as DemiJournee;
-          
-          const key = `${date}|${demi}`;
-          if (!adminAssignments.has(key)) {
-            adminAssignments.set(key, []);
-          }
-          adminAssignments.get(key)!.push(personId);
+        assignmentGroups.get(key)!.push(personId);
+        
+        // Track Esplanade assignments
+        if (siteId === '043899a1-a232-4c4b-9d7d-0eb44dad00ad') {
+          esplanadeAssignments++;
+          esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
         }
       }
     }
@@ -570,19 +563,6 @@ function parseResults(
         esplanade_assignments: esplanadeAssignments,
         esplanade_per_person: Object.fromEntries(esplanadePerPerson),
       },
-    });
-  }
-  
-  // Create results for administrative assignments
-  for (const [key, persons] of adminAssignments) {
-    const [date, demi] = key.split('|');
-    
-    results.push({
-      date,
-      demi_journee: demi as DemiJournee,
-      secretaires_assignees: persons,
-      medecin_ids: [],
-      type: 'administratif',
     });
   }
 
