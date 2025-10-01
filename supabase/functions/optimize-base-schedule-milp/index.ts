@@ -416,13 +416,21 @@ function parseResults(
 
   for (const [varName, value] of Object.entries(solution)) {
     if (varName.startsWith('x_') && value === 1) {
-      // Parse variable name: x_secId_jour_demi_specialiteId
+      // Parse variable name robustly: x_{secId}_{jour}_{demi}_{specialiteId}
       const parts = varName.split('_');
       if (parts.length >= 5) {
         const secId = parts[1];
         const jour = parseInt(parts[2]);
-        const demi = parts[3] as DemiJournee;
-        const specialiteId = parts.slice(4).join('_'); // Handle UUIDs with underscores
+
+        // Join the remaining to handle demi values containing underscores (e.g., "apres_midi")
+        const tail = parts.slice(3).join('_'); // e.g., "apres_midi_<uuid>" or "matin_<uuid>"
+        const lastUnderscore = tail.lastIndexOf('_');
+        if (lastUnderscore === -1) continue;
+
+        const demiStr = tail.substring(0, lastUnderscore);
+        const specialiteId = tail.substring(lastUnderscore + 1);
+        const demi = (demiStr === 'matin' || demiStr === 'apres_midi') ? (demiStr as DemiJournee) : undefined;
+        if (!demi) continue;
 
         const key = `${jour}|${demi}|${specialiteId}`;
         if (!assignmentGroups.has(key)) {
