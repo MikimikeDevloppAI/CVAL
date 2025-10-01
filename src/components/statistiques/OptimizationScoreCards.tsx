@@ -61,43 +61,48 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
 
                 {/* Details by day */}
                 <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2 text-xs font-medium text-muted-foreground">
-                    <div>Jour</div>
-                    <div className="text-center">Matin (7h30-12h)</div>
-                    <div className="text-center">Après-midi (13h-17h)</div>
-                  </div>
+                <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 text-xs font-medium text-muted-foreground">
+                  <div>Jour</div>
+                  <div className="text-center">Matin (7h30-12h)</div>
+                  <div className="text-center">Après-midi (13h-17h)</div>
+                  <div></div>
+                </div>
 
-                  {score.details_jours.map((jour) => (
-                    <div key={jour.jour_semaine} className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="font-medium">{jour.jour_nom}</div>
-                      
-                      {/* Morning */}
-                      <div className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Circle 
-                            className={`${getSlotStatusColor(jour.matin.besoins, jour.matin.capacites)} h-2.5 w-2.5`} 
-                            fill="currentColor"
-                          />
-                          <span className="font-medium">{jour.matin.capacites}</span>
-                          <span className="text-muted-foreground">/</span>
-                          <span className="text-muted-foreground">{jour.matin.besoins}</span>
-                        </div>
-                      </div>
-
-                      {/* Afternoon */}
-                      <div className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Circle 
-                            className={`${getSlotStatusColor(jour.apres_midi.besoins, jour.apres_midi.capacites)} h-2.5 w-2.5`} 
-                            fill="currentColor"
-                          />
-                          <span className="font-medium">{jour.apres_midi.capacites}</span>
-                          <span className="text-muted-foreground">/</span>
-                          <span className="text-muted-foreground">{jour.apres_midi.besoins}</span>
-                        </div>
+                {score.details_jours.map((jour) => (
+                  <div key={jour.jour_semaine} className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 text-xs items-center">
+                    <div className="font-medium">{jour.jour_nom}</div>
+                    
+                    {/* Morning */}
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-medium">{jour.matin.capacites}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-muted-foreground">{jour.matin.besoins}</span>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Afternoon */}
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-medium">{jour.apres_midi.capacites}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-muted-foreground">{jour.apres_midi.besoins}</span>
+                      </div>
+                    </div>
+
+                    {/* Status indicators */}
+                    <div className="flex items-center gap-1 justify-end">
+                      <Circle 
+                        className={`${getSlotStatusColor(jour.matin.besoins, jour.matin.capacites)} h-2.5 w-2.5`} 
+                        fill="currentColor"
+                      />
+                      <Circle 
+                        className={`${getSlotStatusColor(jour.apres_midi.besoins, jour.apres_midi.capacites)} h-2.5 w-2.5`} 
+                        fill="currentColor"
+                      />
+                    </div>
+                  </div>
+                ))}
                 </div>
 
                 {/* Legend */}
