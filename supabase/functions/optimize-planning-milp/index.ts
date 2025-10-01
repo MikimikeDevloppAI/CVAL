@@ -131,15 +131,15 @@ serve(async (req) => {
       .gte('date', startDate)
       .lte('date', endDate);
 
-    // Insert new planning - only site assignments
+    // Insert new planning - site and administrative assignments
     const insertData = results.map(r => ({
       date: r.date,
       type: 'medecin',
-      type_assignation: 'site',
-      site_id: r.site_id,
+      type_assignation: r.type === 'site' ? 'site' : 'administratif',
+      site_id: r.type === 'site' ? r.site_id : null,
       heure_debut: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.start : DEMI_JOURNEE_SLOTS.apres_midi.start,
       heure_fin: r.demi_journee === 'matin' ? DEMI_JOURNEE_SLOTS.matin.end : DEMI_JOURNEE_SLOTS.apres_midi.end,
-      medecins_ids: r.medecin_ids,
+      medecins_ids: r.type === 'site' ? r.medecin_ids : [],
       secretaires_ids: r.secretaires_assignees.filter(id => !id.startsWith('backup_')),
       backups_ids: r.secretaires_assignees.filter(id => id.startsWith('backup_')).map(id => id.replace('backup_', '')),
       statut: 'planifie',
@@ -475,11 +475,24 @@ function buildMILPModel(
     }
   }
   
-  // Uniqueness constraints: each person assigned to at most 1 site/specialty per (date, demi)
+  // Administrative fallback variables: ensure every person-slot is assigned somewhere
+  for (const [personId, capData] of capacitesMap) {
+    for (const slot of capData.slots) {
+      const yVarName = `y_${personId}_${slot.date}_${slot.demi_journee}`;
+      model.variables[yVarName] = {
+        objective: 0.000001,
+        [`uniqueness_${personId}_${slot.date}_${slot.demi_journee}`]: 1,
+      };
+      model.ints[yVarName] = 1;
+      totalVars++;
+    }
+  }
+
+  // Assignment constraints: each person-slot must be assigned (site or administratif)
   for (const [personId, capData] of capacitesMap) {
     for (const slot of capData.slots) {
       const constraintName = `uniqueness_${personId}_${slot.date}_${slot.demi_journee}`;
-      model.constraints[constraintName] = { max: 1 };
+      model.constraints[constraintName] = { equal: 1 };
     }
   }
 
@@ -514,39 +527,56 @@ function parseResults(
     besoin?: number;
     secretaires_assignees: string[];
     medecin_ids: string[];
-    type: 'site';
+    type: 'site' | 'administratif';
     penalties?: any;
   }[] = [];
 
   // Group site assignments by (date, demi, site, specialite)
   const assignmentGroups = new Map<string, string[]>();
+  // Group administrative assignments by (date, demi)
+  const adminGroups = new Map<string, string[]>();
 
-  // Track penalties
+  // Track penalties (site-related)
   let siteChangeCount = 0;
   let esplanadeAssignments = 0;
   const esplanadePerPerson = new Map<string, number>();
 
   for (const [varName, value] of Object.entries(solution)) {
-    if (value === 1 && varName.startsWith('x_')) {
-      // Parse: x_person_date_demi_site_specialite
-      const parts = varName.split('_');
-      if (parts.length >= 6) {
-        const personId = parts[1];
-        const date = parts[2];
-        const demi = parts[3] as DemiJournee;
-        const siteId = parts[4];
-        const specialiteId = parts.slice(5).join('_');
+    if (value === 1 && typeof varName === 'string') {
+      if (varName.startsWith('x_')) {
+        // Parse: x_person_date_demi_site_specialite
+        const parts = varName.split('_');
+        if (parts.length >= 6) {
+          const personId = parts[1];
+          const date = parts[2];
+          const demi = parts[3] as DemiJournee;
+          const siteId = parts[4];
+          const specialiteId = parts.slice(5).join('_');
 
-        const key = `${date}|${demi}|${siteId}|${specialiteId}`;
-        if (!assignmentGroups.has(key)) {
-          assignmentGroups.set(key, []);
+          const key = `${date}|${demi}|${siteId}|${specialiteId}`;
+          if (!assignmentGroups.has(key)) {
+            assignmentGroups.set(key, []);
+          }
+          assignmentGroups.get(key)!.push(personId);
+
+          // Track Esplanade assignments
+          if (siteId === '043899a1-a232-4c4b-9d7d-0eb44dad00ad') {
+            esplanadeAssignments++;
+            esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
+          }
         }
-        assignmentGroups.get(key)!.push(personId);
-        
-        // Track Esplanade assignments
-        if (siteId === '043899a1-a232-4c4b-9d7d-0eb44dad00ad') {
-          esplanadeAssignments++;
-          esplanadePerPerson.set(personId, (esplanadePerPerson.get(personId) || 0) + 1);
+      } else if (varName.startsWith('y_')) {
+        // Parse: y_person_date_demi
+        const parts = varName.split('_');
+        if (parts.length >= 4) {
+          const personId = parts[1];
+          const date = parts[2];
+          const demi = parts[3] as DemiJournee;
+          const key = `${date}|${demi}`;
+          if (!adminGroups.has(key)) {
+            adminGroups.set(key, []);
+          }
+          adminGroups.get(key)!.push(personId);
         }
       }
     }
@@ -570,6 +600,18 @@ function parseResults(
         esplanade_assignments: esplanadeAssignments,
         esplanade_per_person: Object.fromEntries(esplanadePerPerson),
       },
+    });
+  }
+
+  // Create results for administrative assignments
+  for (const [key, persons] of adminGroups) {
+    const [date, demi] = key.split('|');
+    results.push({
+      date,
+      demi_journee: demi as DemiJournee,
+      secretaires_assignees: persons,
+      medecin_ids: [],
+      type: 'administratif',
     });
   }
 
