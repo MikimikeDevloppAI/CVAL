@@ -13,10 +13,8 @@ import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
 import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
 import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
-import { PlanningOptimizer } from '@/components/planning/PlanningOptimizer';
 import { PlanningGridView } from '@/components/planning/PlanningGridView';
 import { OptimizationResult } from '@/types/planning';
-import { SimpleOptimizationViewer } from '@/components/planning/SimpleOptimizationViewer';
 import { eachDayOfInterval } from 'date-fns';
 import {
   AlertDialog,
@@ -87,7 +85,6 @@ export default function PlanningPage() {
   const [deleteCapaciteDialogOpen, setDeleteCapaciteDialogOpen] = useState(false);
   const [selectedCapacite, setSelectedCapacite] = useState<CapaciteEffective | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
-  const [simpleOptimizationResult, setSimpleOptimizationResult] = useState<any>(null);
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const { toast } = useToast();
@@ -959,11 +956,7 @@ export default function PlanningPage() {
 
         <TabsContent value="planning" className="space-y-4">
           <div className="flex flex-col gap-4 py-6">
-            <div className="flex justify-center gap-4">
-              <PlanningOptimizer
-                weekStart={currentWeekStart}
-                onOptimizationComplete={(result) => setSimpleOptimizationResult(result)}
-              />
+            <div className="flex justify-center">
               <Button 
                 onClick={handleOptimizeMILP} 
                 disabled={isOptimizingMILP}
@@ -985,13 +978,6 @@ export default function PlanningPage() {
               </Button>
             </div>
           </div>
-          
-          {simpleOptimizationResult && (
-            <SimpleOptimizationViewer 
-              result={simpleOptimizationResult}
-              specialites={specialites}
-            />
-          )}
         </TabsContent>
       </Tabs>
 
