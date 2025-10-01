@@ -93,6 +93,21 @@ serve(async (req) => {
     }
 
     console.log(`✅ Solution found with objective: ${solution.result?.toFixed(2)}`);
+    
+    // Debug: Log solution variables
+    console.log('🔍 Debug: Solution variables');
+    let xCount = 0;
+    let xValueOne = 0;
+    for (const [varName, value] of Object.entries(solution)) {
+      if (varName.startsWith('x_')) {
+        xCount++;
+        if (value === 1) xValueOne++;
+      }
+    }
+    console.log(`  Total x_ variables in solution: ${xCount}`);
+    console.log(`  x_ variables with value=1: ${xValueOne}`);
+    console.log(`  Solution feasible: ${solution.feasible}`);
+    console.log(`  Solution bounded: ${solution.bounded ?? 'unknown'}`);
 
     // 4. Parser les résultats
     const assignments = parseAssignments(solution, capacitesAgg, besoinsAgg);
@@ -378,6 +393,18 @@ function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoins
     matin: { heure_debut: '07:30:00', heure_fin: '12:00:00' },
     apres_midi: { heure_debut: '13:00:00', heure_fin: '17:00:00' }
   };
+
+  console.log('🔍 Debug parseAssignments:');
+  console.log(`  Solution keys: ${Object.keys(solution).length}`);
+  
+  // Debug: show first few solution entries
+  let count = 0;
+  for (const [key, value] of Object.entries(solution)) {
+    if (count < 5) {
+      console.log(`  ${key}: ${value}`);
+      count++;
+    }
+  }
 
   for (const [varName, value] of Object.entries(solution)) {
     if (varName.startsWith('x_') && value === 1) {
