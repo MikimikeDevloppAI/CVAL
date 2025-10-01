@@ -9,9 +9,9 @@ const corsHeaders = {
 
 // Configuration hiérarchique des poids
 const WEIGHT_SATISFACTION = 1000; // Priorité absolue
-const PENALTY_SITE_CHANGE = 10;   // Priorité secondaire niveau 1
-const PENALTY_ESPLANADE_BASE = 1; // Priorité secondaire niveau 2
-const BONUS_PREFERE_ESPLANADE = -0.5; // Bonus (pénalité négative)
+const PENALTY_SITE_CHANGE = 0.001;   // Pénalité minimale - ne doit pas interférer avec l'objectif principal
+const PENALTY_ESPLANADE_BASE = 0.0001; // Pénalité minimale progressive
+const BONUS_PREFERE_ESPLANADE = -0.0001; // Petit bonus pour préférence
 
 const ESPLANADE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
@@ -71,7 +71,8 @@ serve(async (req) => {
       endDate
     );
 
-    console.log(`✓ ${stats.totalVars} variables, ${stats.totalConstraints} constraints`);
+    console.log(`✓ ${stats.totalVars} variables (${stats.siteVars} site, ${stats.adminVars} admin), ${stats.totalConstraints} constraints`);
+    console.log(`📊 Assignments by period: ${stats.matinCount} matin, ${stats.apresMidiCount} apres_midi`);
     console.log('⚡ Solving...');
 
     const solution = solver.Solve(model);
@@ -95,10 +96,36 @@ serve(async (req) => {
     // Save to database
     console.log('💾 Saving to planning_genere...');
     
-    await supabase.from('planning_genere')
+    // Calculer les bornes de la semaine complète pour supprimer toutes les données
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    
+    // Trouver le lundi de la semaine de startDate
+    const weekStart = new Date(startDateObj);
+    const dayOfWeek = weekStart.getDay();
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Si dimanche (0), reculer de 6 jours
+    weekStart.setDate(weekStart.getDate() + diff);
+    
+    // Trouver le dimanche de la semaine de endDate
+    const weekEnd = new Date(endDateObj);
+    const dayOfWeekEnd = weekEnd.getDay();
+    const diffEnd = dayOfWeekEnd === 0 ? 0 : 7 - dayOfWeekEnd;
+    weekEnd.setDate(weekEnd.getDate() + diffEnd);
+    
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    console.log(`🗑️ Deleting existing planning from ${weekStartStr} to ${weekEndStr}`);
+    
+    // Supprimer toutes les entrées de la semaine complète
+    const { error: deleteError } = await supabase.from('planning_genere')
       .delete()
-      .gte('date', startDate)
-      .lte('date', endDate);
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr);
+      
+    if (deleteError) {
+      console.error('⚠️ Delete error:', deleteError);
+    }
 
     const insertData = results.map(r => ({
       date: r.date,
@@ -107,13 +134,15 @@ serve(async (req) => {
       site_id: r.type === 'site' ? r.site_id : null,
       heure_debut: r.demi_journee === 'matin' ? '07:30:00' : '13:00:00',
       heure_fin: r.demi_journee === 'matin' ? '12:00:00' : '17:00:00',
-      medecins_ids: r.type === 'site' ? r.medecin_ids : [],
+      medecins_ids: r.medecin_ids || [],
       secretaires_ids: r.secretaires_assignees.filter((id: string) => !id.startsWith('backup_')),
       backups_ids: r.secretaires_assignees
         .filter((id: string) => id.startsWith('backup_'))
         .map((id: string) => id.replace('backup_', '')),
       statut: 'planifie'
     }));
+    
+    console.log(`📝 Inserting ${insertData.length} entries (${insertData.filter(d => d.type_assignation === 'site').length} site, ${insertData.filter(d => d.type_assignation === 'administratif').length} admin)`);
 
     const { error: insertError } = await supabase
       .from('planning_genere')
@@ -267,6 +296,10 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
   };
 
   let totalVars = 0;
+  let siteVars = 0;
+  let adminVars = 0;
+  let matinCount = 0;
+  let apresMidiCount = 0;
 
   // Pre-calculate: which sites can each person work at for each date
   const personDateSites = new Map();
@@ -374,6 +407,10 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
 
           model.ints[varName] = 1;
           totalVars++;
+          siteVars++;
+          
+          if (demi === 'matin') matinCount++;
+          else apresMidiCount++;
         }
       }
     }
@@ -392,6 +429,7 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
       
       model.ints[yVarName] = 1;
       totalVars++;
+      adminVars++;
     }
   }
 
@@ -414,6 +452,10 @@ function buildOptimizedMILPModel(capacitesMap: Map<string, any>, besoinsMap: Map
     model,
     stats: {
       totalVars,
+      siteVars,
+      adminVars,
+      matinCount,
+      apresMidiCount,
       totalConstraints: Object.keys(model.constraints).length
     }
   };
