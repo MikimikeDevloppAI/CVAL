@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { UserCog, Stethoscope } from 'lucide-react';
 
 interface MILPOptimizationViewProps {
   assignments: AssignmentResult[];
@@ -70,6 +71,21 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
     };
   });
 
+  // Grouper les assignations administratives
+  const adminAssignments = assignments.filter(a => a.type_assignation === 'administratif');
+  const adminDayGroups = weekdaysOnly.map(day => {
+    const dateStr = format(day, 'yyyy-MM-dd');
+    const matin = adminAssignments.find(a => a.date === dateStr && a.periode === 'matin');
+    const apresMidi = adminAssignments.find(a => a.date === dateStr && a.periode === 'apres_midi');
+    
+    return {
+      date: day,
+      dateStr,
+      matin,
+      apresMidi,
+    };
+  });
+
   return (
     <div className="space-y-6">
       {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
@@ -103,6 +119,21 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
                           </Badge>
                         )}
                       </div>
+                      {matin && matin.medecins && matin.medecins.length > 0 && (
+                        <div className="mb-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {matin.medecins.map((medecin, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {medecin}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {matin && matin.secretaires.length > 0 ? (
                         <div className="space-y-1">
                           {matin.secretaires.map((sec, idx) => (
@@ -142,6 +173,21 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
                           </Badge>
                         )}
                       </div>
+                      {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 && (
+                        <div className="mb-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {apresMidi.medecins.map((medecin, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {medecin}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {apresMidi && apresMidi.secretaires.length > 0 ? (
                         <div className="space-y-1">
                           {apresMidi.secretaires.map((sec, idx) => (
@@ -173,6 +219,106 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
           </CardContent>
         </Card>
       ))}
+
+      {/* Assignations Administratives */}
+      {adminAssignments.length > 0 && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCog className="h-5 w-5" />
+              <span>Assignations Administratives</span>
+              <Badge variant="secondary">Non affecté à un site</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {adminDayGroups.map(({ date, matin, apresMidi }) => (
+                <div key={date.toISOString()} className="border rounded-lg p-4">
+                  <h4 className="font-semibold mb-3 text-lg">
+                    {format(date, 'EEEE d MMMM', { locale: fr })}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Matin */}
+                    <div className="space-y-2">
+                      <h5 className="font-medium text-sm text-muted-foreground">Matin</h5>
+                      {matin && matin.medecins && matin.medecins.length > 0 && (
+                        <div className="mb-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins concernés</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {matin.medecins.map((medecin, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {medecin}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {matin && matin.secretaires.length > 0 ? (
+                        <div className="space-y-1">
+                          {matin.secretaires.map((sec, idx) => (
+                            <div 
+                              key={idx}
+                              className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded"
+                            >
+                              <span className="font-medium">{sec.nom}</span>
+                              {sec.is_backup && (
+                                <Badge variant="secondary" className="text-xs">Backup</Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">Aucune assignation</p>
+                      )}
+                    </div>
+
+                    {/* Après-midi */}
+                    <div className="space-y-2">
+                      <h5 className="font-medium text-sm text-muted-foreground">Après-midi</h5>
+                      {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 && (
+                        <div className="mb-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins concernés</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {apresMidi.medecins.map((medecin, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {medecin}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {apresMidi && apresMidi.secretaires.length > 0 ? (
+                        <div className="space-y-1">
+                          {apresMidi.secretaires.map((sec, idx) => (
+                            <div 
+                              key={idx}
+                              className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded"
+                            >
+                              <span className="font-medium">{sec.nom}</span>
+                              {sec.is_backup && (
+                                <Badge variant="secondary" className="text-xs">Backup</Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">Aucune assignation</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
