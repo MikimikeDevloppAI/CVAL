@@ -760,7 +760,6 @@ export default function PlanningPage() {
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="border-b-2">
-                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Type</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Spécialité</th>
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Jours de présence</th>
@@ -796,11 +795,6 @@ export default function PlanningPage() {
 
                               return (
                                 <tr key={key} className={`border-b hover:bg-muted/30 ${isBloc ? 'bg-blue-50/50' : ''}`}>
-                                  <td className="p-2">
-                                    <Badge variant={isBloc ? "secondary" : "default"}>
-                                      {isBloc ? 'Bloc opératoire' : 'Médecin'}
-                                    </Badge>
-                                  </td>
                                   <td className="p-2 font-medium">
                                     {isBloc 
                                       ? <span className="text-blue-700">Intervention chirurgicale</span>
