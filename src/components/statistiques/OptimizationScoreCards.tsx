@@ -71,13 +71,6 @@ export function OptimizationScoreCards({ scores }: OptimizationScoreCardsProps) 
 
   return (
     <div className="space-y-4 mb-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Optimisation des horaires de base</h3>
-        <p className="text-sm text-muted-foreground">
-          Demi-journées optimisées (capacités ≥ besoins)
-        </p>
-      </div>
-
       {hasMissing && (
         <Card className="p-4">
           <div className="space-y-4">
