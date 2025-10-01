@@ -4,6 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { OptimizationScoreCards } from '@/components/statistiques/OptimizationScoreCards';
+import { aggregateBesoins, aggregateCapacites, optimizeBaseSchedule } from '@/lib/baseScheduleOptimization';
+import type { BaseScheduleOptimizationResult } from '@/types/baseSchedule';
 
 interface SpecialiteStats {
   specialite: string;
@@ -25,10 +28,48 @@ export default function StatistiquesPage() {
   const [selectedSpecialite, setSelectedSpecialite] = useState<string | null>(null);
   const [detailJour, setDetailJour] = useState<JourStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [optimizationResult, setOptimizationResult] = useState<BaseScheduleOptimizationResult | null>(null);
 
   useEffect(() => {
     fetchStats();
+    fetchOptimization();
   }, []);
+
+  const fetchOptimization = async () => {
+    try {
+      // Fetch all necessary data
+      const [
+        { data: horairesM, error: errorM },
+        { data: horairesS, error: errorS },
+        { data: medecins, error: errorMed },
+        { data: secretaires, error: errorSec },
+        { data: backups, error: errorBack },
+        { data: specialites, error: errorSpec }
+      ] = await Promise.all([
+        supabase.from('horaires_base_medecins').select('*').eq('actif', true),
+        supabase.from('horaires_base_secretaires').select('*').eq('actif', true),
+        supabase.from('medecins').select('*').eq('actif', true),
+        supabase.from('secretaires').select('*').eq('actif', true),
+        supabase.from('backup').select('*').eq('actif', true),
+        supabase.from('specialites').select('*')
+      ]);
+
+      if (errorM || errorS || errorMed || errorSec || errorBack || errorSpec) {
+        console.error('Error fetching optimization data');
+        return;
+      }
+
+      // Aggregate needs and capacities
+      const besoins = aggregateBesoins(horairesM || [], medecins || [], specialites || []);
+      const capacites = aggregateCapacites(horairesS || [], secretaires || [], backups || []);
+
+      // Run optimization
+      const result = optimizeBaseSchedule(besoins, capacites);
+      setOptimizationResult(result);
+    } catch (error) {
+      console.error('Error in optimization:', error);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -204,6 +245,10 @@ export default function StatistiquesPage() {
         <h1 className="text-3xl font-bold">Statistiques</h1>
         <p className="text-muted-foreground">Analyse des besoins et capacités par spécialité (heures hebdomadaires)</p>
       </div>
+
+      {optimizationResult && (
+        <OptimizationScoreCards scores={optimizationResult.scores_par_specialite} />
+      )}
 
       <Card className="border-border/50 shadow-lg">
         <CardHeader>
