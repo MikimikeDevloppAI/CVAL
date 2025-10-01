@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,6 +89,7 @@ export default function PlanningPage() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const [simpleOptimizationResult, setSimpleOptimizationResult] = useState<any>(null);
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
+  const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const { toast } = useToast();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -612,6 +613,42 @@ export default function PlanningPage() {
     }
   };
 
+  const handleOptimizeMILP = async () => {
+    setIsOptimizingMILP(true);
+    try {
+      toast({
+        title: "Optimisation MILP en cours",
+        description: "L'algorithme MILP est en train de calculer le planning optimal...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('optimize-planning-milp', {
+        body: {
+          date_debut: format(currentWeekStart, 'yyyy-MM-dd'),
+          date_fin: format(weekEnd, 'yyyy-MM-dd'),
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Optimisation MILP terminée",
+        description: `${data.stats.total_entries} assignations créées avec succès`,
+      });
+
+      // Rafraîchir le planning généré
+      fetchPlanningGenere();
+    } catch (error: any) {
+      console.error('MILP optimization error:', error);
+      toast({
+        title: "Erreur lors de l'optimisation MILP",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsOptimizingMILP(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -927,11 +964,32 @@ export default function PlanningPage() {
         </TabsContent>
 
         <TabsContent value="planning" className="space-y-4">
-          <div className="flex justify-center py-6">
-            <PlanningOptimizer
-              weekStart={currentWeekStart}
-              onOptimizationComplete={(result) => setSimpleOptimizationResult(result)}
-            />
+          <div className="flex flex-col gap-4 py-6">
+            <div className="flex justify-center gap-4">
+              <PlanningOptimizer
+                weekStart={currentWeekStart}
+                onOptimizationComplete={(result) => setSimpleOptimizationResult(result)}
+              />
+              <Button 
+                onClick={handleOptimizeMILP} 
+                disabled={isOptimizingMILP}
+                size="lg"
+                variant="default"
+                className="gap-2"
+              >
+                {isOptimizingMILP ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Optimisation MILP en cours...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Optimiser avec MILP
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
           
           {simpleOptimizationResult && (
