@@ -571,7 +571,7 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
   const xVarRegex = /^x_(.+)_(\d{4}-\d{2}-\d{2})_(matin|apres_midi)_([0-9a-f-]+)_([0-9a-f-]+)$/;
   const yVarRegex = /^y_(.+)_(\d{4}-\d{2}-\d{2})_(matin|apres_midi)$/;
 
-  // Parse site assignments
+  // Parse site assignments (x_*) and aggregate per besoinKey
   for (const varName in solution) {
     if (varName.startsWith('x_') && solution[varName] === 1) {
       const match = varName.match(xVarRegex);
@@ -579,12 +579,11 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
         console.warn(`⚠️ Skipping malformed x_ variable: ${varName}`);
         continue;
       }
-      
+
       const [, personId, date, demi, siteId, specialiteId] = match;
-      
       const besoinKey = `${date}|${demi}|${siteId}|${specialiteId}`;
       const besoin = besoinsMap.get(besoinKey);
-      
+
       if (!assignmentsByBesoin.has(besoinKey)) {
         assignmentsByBesoin.set(besoinKey, {
           date,
@@ -596,19 +595,34 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
           medecin_ids: besoin?.medecin_ids || []
         });
       }
-      
+
       assignmentsByBesoin.get(besoinKey).secretaires_assignees.push(personId);
     }
   }
 
-  // Add site assignments to results
-  for (const [_, assignment] of assignmentsByBesoin) {
+  // Ensure we have one line per site & demi-journée that has a besoin, even if 0 assignations
+  for (const [besoinKey, besoin] of besoinsMap) {
+    const key = besoinKey; // `${date}|${demi}|${site}|${spec}`
+    if (!assignmentsByBesoin.has(key)) {
+      assignmentsByBesoin.set(key, {
+        date: besoin.date,
+        demi_journee: besoin.demi_journee,
+        site_id: besoin.site_id,
+        specialite_id: besoin.specialite_id,
+        type: 'site',
+        secretaires_assignees: [],
+        medecin_ids: besoin.medecin_ids || []
+      });
+    }
+  }
+
+  // Add site assignments (including empty ones) to results
+  for (const [, assignment] of assignmentsByBesoin) {
     results.push(assignment);
   }
 
-  // Parse administrative assignments
+  // Parse administrative assignments (y_*)
   const adminBySlot = new Map<string, any>();
-  
   for (const varName in solution) {
     if (varName.startsWith('y_') && solution[varName] === 1) {
       const match = varName.match(yVarRegex);
@@ -616,10 +630,8 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
         console.warn(`⚠️ Skipping malformed y_ variable: ${varName}`);
         continue;
       }
-      
       const [, personId, date, demi] = match;
       const slotKey = `${date}|${demi}`;
-      
       if (!adminBySlot.has(slotKey)) {
         adminBySlot.set(slotKey, {
           date,
@@ -629,13 +641,12 @@ function parseResults(solution: any, capacitesMap: Map<string, any>, besoinsMap:
           medecin_ids: []
         });
       }
-      
       adminBySlot.get(slotKey).secretaires_assignees.push(personId);
     }
   }
 
   // Add administrative assignments to results
-  for (const [_, admin] of adminBySlot) {
+  for (const [, admin] of adminBySlot) {
     results.push(admin);
   }
 
