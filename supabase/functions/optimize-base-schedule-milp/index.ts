@@ -87,10 +87,33 @@ serve(async (req) => {
     const besoinsMap = buildBesoinsMap(medecins, horairesMedecins);
 
     console.log(`   Transformed to ${secretairesMap.size} secretaire slots, ${besoinsMap.size} besoin groups`);
+    
+    // Debug: Count secretaries per half-day
+    let matinCount = 0;
+    let apresMidiCount = 0;
+    for (const [_, secData] of secretairesMap) {
+      for (const h of secData.horaires) {
+        if (h.demi_journee === 'matin') matinCount++;
+        if (h.demi_journee === 'apres_midi') apresMidiCount++;
+      }
+    }
+    console.log(`   📊 Secrétaires disponibles: ${matinCount} créneaux matin, ${apresMidiCount} créneaux après-midi`);
+    
+    // Debug: Count besoins per half-day
+    let matinBesoins = 0;
+    let apresMidiBesoins = 0;
+    for (const [_, besoin] of besoinsMap) {
+      if (besoin.demi_journee === 'matin') matinBesoins++;
+      if (besoin.demi_journee === 'apres_midi') apresMidiBesoins++;
+    }
+    console.log(`   📊 Besoins: ${matinBesoins} groupes matin, ${apresMidiBesoins} groupes après-midi`);
 
     // 3. Build and solve MILP model
     console.log('🧮 Building MILP model...');
-    const model = buildMILPModel(secretairesMap, besoinsMap);
+    const { model, stats } = buildMILPModel(secretairesMap, besoinsMap);
+    
+    console.log(`   📊 Variables créées: ${stats.totalVars} (${stats.matinVars} matin, ${stats.apresMidiVars} après-midi)`);
+    console.log(`   📊 Contraintes: ${stats.totalConstraints}`);
     
     console.log('⚡ Solving MILP problem...');
     const solution = solver.Solve(model);
@@ -103,6 +126,15 @@ serve(async (req) => {
 
     // 4. Parse results
     const results = parseResults(solution, secretairesMap, besoinsMap);
+    
+    // Debug: Count assignments per half-day
+    let matinAssignments = 0;
+    let apresMidiAssignments = 0;
+    for (const r of results) {
+      if (r.demi_journee === 'matin') matinAssignments += r.capacites_assignees;
+      if (r.demi_journee === 'apres_midi') apresMidiAssignments += r.capacites_assignees;
+    }
+    console.log(`   📊 Assignations: ${matinAssignments} matin, ${apresMidiAssignments} après-midi`);
 
     // 5. Save to database
     console.log('💾 Saving results to optimisation_horaires_base...');
@@ -304,6 +336,9 @@ function buildMILPModel(
     ints: {},
   };
 
+  let matinVars = 0;
+  let apresMidiVars = 0;
+
   // Build variables: x_s_j_d_sp for each (secretaire, jour, demi_journee, specialite)
   for (const [secId, secData] of secretairesMap) {
     for (const horaire of secData.horaires) {
@@ -328,6 +363,10 @@ function buildMILPModel(
 
           // Mark as integer (binary: 0 or 1)
           model.ints[varName] = 1;
+          
+          // Count variables by half-day
+          if (demi === 'matin') matinVars++;
+          if (demi === 'apres_midi') apresMidiVars++;
         }
       }
     }
@@ -347,7 +386,15 @@ function buildMILPModel(
   // Optional: Add soft coverage constraints (we want to get close to besoin)
   // This is implicit through the objective function maximization
 
-  return model;
+  return {
+    model,
+    stats: {
+      totalVars: Object.keys(model.variables).length,
+      matinVars,
+      apresMidiVars,
+      totalConstraints: Object.keys(model.constraints).length,
+    }
+  };
 }
 
 function parseResults(
