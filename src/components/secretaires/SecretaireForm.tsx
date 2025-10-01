@@ -150,8 +150,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           if (horairesError) throw horairesError;
         }
 
-        // Regenerate capacites after updating horaires
-        await supabase.rpc('generate_capacite_effective');
+        // Regenerate capacites for this secretary only
+        const startDate = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        await supabase.rpc('recreate_secretary_capacite', {
+          p_secretaire_id: secretaire.id,
+          p_date_debut: startDate,
+          p_date_fin: endDate
+        });
 
         toast({
           title: "Succès",
@@ -202,8 +208,16 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           }
         }
 
-        // Generate capacites after creating the secretaire and horaires
-        await supabase.rpc('generate_capacite_effective');
+        // Generate capacites for this secretary only
+        if (secretaireData) {
+          const startDate = new Date().toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          await supabase.rpc('recreate_secretary_capacite', {
+            p_secretaire_id: secretaireData.id,
+            p_date_debut: startDate,
+            p_date_fin: endDate
+          });
+        }
 
         toast({
           title: "Succès",

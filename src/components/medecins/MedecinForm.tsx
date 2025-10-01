@@ -203,8 +203,14 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           if (horairesError) throw horairesError;
         }
 
-        // Regenerate besoins after updating horaires
-        await supabase.rpc('generate_besoin_effectif');
+        // Regenerate besoins for this doctor only
+        const startDate = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        await supabase.rpc('recreate_doctor_besoin', {
+          p_medecin_id: medecin.id,
+          p_date_debut: startDate,
+          p_date_fin: endDate
+        });
 
         toast({
           title: "Succès",
@@ -247,8 +253,16 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           if (horairesError) throw horairesError;
         }
 
-        // Generate besoins after creating the medecin and horaires
-        await supabase.rpc('generate_besoin_effectif');
+        // Generate besoins for this doctor only
+        if (medecinData) {
+          const startDate = new Date().toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          await supabase.rpc('recreate_doctor_besoin', {
+            p_medecin_id: medecinData.id,
+            p_date_debut: startDate,
+            p_date_fin: endDate
+          });
+        }
 
         toast({
           title: "Succès",
