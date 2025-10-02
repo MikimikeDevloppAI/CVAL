@@ -139,6 +139,17 @@ serve(async (req) => {
       }
     }
 
+    // 6. Assigner les responsables 1R et 2F pour les sites fermés
+    console.log(`\n👥 Assigning 1R and 2F responsibilities for closed sites...`);
+    await assignResponsablesForClosedSites(
+      supabaseServiceRole,
+      days,
+      sites,
+      secretaires,
+      weekStartStr,
+      weekEndStr
+    );
+
     console.log(`✅ Optimization complete!`);
 
     return new Response(JSON.stringify({
@@ -601,4 +612,137 @@ function parseAssignmentsFromSolution(
 
   console.log(`    → ${assignments.length} assignments created`);
   return assignments;
+}
+
+// Fonction pour assigner les responsables 1R et 2F aux sites fermés
+async function assignResponsablesForClosedSites(
+  supabase: any,
+  days: string[],
+  sites: any[],
+  secretaires: any[],
+  weekStartStr: string,
+  weekEndStr: string
+) {
+  // 1. Identifier les sites fermés
+  const closedSites = sites.filter(s => s.fermeture === true);
+  if (closedSites.length === 0) {
+    console.log('  No closed sites found, skipping 1R/2F assignment');
+    return;
+  }
+
+  console.log(`  Found ${closedSites.length} closed sites requiring 1R/2F assignment`);
+
+  // 2. Récupérer l'historique des 4 dernières semaines
+  const fourWeeksAgo = new Date(weekStartStr);
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+  const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
+
+  const { data: historique, error: histError } = await supabase
+    .from('assignations_1r_2f_historique')
+    .select('*')
+    .gte('date', fourWeeksAgoStr)
+    .lt('date', weekStartStr);
+
+  if (histError) {
+    console.error('  Error fetching history:', histError);
+    return;
+  }
+
+  // 3. Compter les assignations par secrétaire
+  const count1R = new Map<string, number>();
+  const count2F = new Map<string, number>();
+
+  secretaires.forEach(s => {
+    count1R.set(s.id, 0);
+    count2F.set(s.id, 0);
+  });
+
+  (historique || []).forEach((h: any) => {
+    const secId = h.secretaire_id;
+    if (!secId) return;
+    
+    if (h.type_assignation === '1r') {
+      count1R.set(secId, (count1R.get(secId) || 0) + 1);
+    } else if (h.type_assignation === '2f') {
+      count2F.set(secId, (count2F.get(secId) || 0) + 1);
+    }
+  });
+
+  console.log(`  Historical counts: ${count1R.size} secretaries tracked`);
+
+  // 4. Pour chaque jour, assigner les responsables aux sites fermés
+  for (const day of days) {
+    console.log(`  Processing ${day}...`);
+
+    for (const site of closedSites) {
+      // Récupérer les créneaux matin et après-midi pour ce site
+      const { data: creneaux, error: creneauxError } = await supabase
+        .from('planning_genere')
+        .select('*')
+        .eq('date', day)
+        .eq('site_id', site.id)
+        .in('heure_debut', ['07:30:00', '12:00:00'])
+        .order('heure_debut');
+
+      if (creneauxError || !creneaux || creneaux.length === 0) {
+        console.log(`    ⚠️ No slots found for ${site.nom} on ${day}`);
+        continue;
+      }
+
+      // Récupérer toutes les secrétaires assignées ce jour sur ce site
+      const assignedSecretaryIds = new Set<string>();
+      creneaux.forEach((c: any) => {
+        (c.secretaires_ids || []).forEach((id: string) => assignedSecretaryIds.add(id));
+      });
+
+      const availableSecretaries = Array.from(assignedSecretaryIds);
+
+      if (availableSecretaries.length < 2) {
+        console.log(`    ⚠️ Not enough secretaries for ${site.nom} (need 2, have ${availableSecretaries.length})`);
+        continue;
+      }
+
+      // Trier les secrétaires par nombre d'assignations 1R (croissant)
+      const sorted1R = [...availableSecretaries].sort((a, b) => {
+        return (count1R.get(a) || 0) - (count1R.get(b) || 0);
+      });
+
+      // Trier les secrétaires par nombre d'assignations 2F (croissant)
+      const sorted2F = [...availableSecretaries].sort((a, b) => {
+        return (count2F.get(a) || 0) - (count2F.get(b) || 0);
+      });
+
+      // Assigner 1R (celle qui a le moins de 1R)
+      const responsable1R = sorted1R[0];
+      
+      // Assigner 2F (celle qui a le moins de 2F et n'est pas la 1R)
+      let responsable2F = sorted2F[0];
+      if (responsable2F === responsable1R && sorted2F.length > 1) {
+        responsable2F = sorted2F[1];
+      }
+
+      // Mettre à jour tous les créneaux du jour pour ce site
+      const creneauIds = creneaux.map((c: any) => c.id);
+      
+      const { error: updateError } = await supabase
+        .from('planning_genere')
+        .update({
+          responsable_1r_id: responsable1R,
+          responsable_2f_id: responsable2F
+        })
+        .in('id', creneauIds);
+
+      if (updateError) {
+        console.error(`    ❌ Error updating ${site.nom}:`, updateError);
+      } else {
+        console.log(`    ✓ ${site.nom}: 1R=${responsable1R.slice(0, 8)}, 2F=${responsable2F.slice(0, 8)}`);
+        
+        // Incrémenter les compteurs pour la semaine en cours
+        count1R.set(responsable1R, (count1R.get(responsable1R) || 0) + 1);
+        count2F.set(responsable2F, (count2F.get(responsable2F) || 0) + 1);
+      }
+    }
+  }
+
+  console.log('  ✅ 1R/2F assignment complete');
 }
