@@ -477,7 +477,7 @@ function optimizePeriod(
     if (floorBesoin > 0) {
       const bonusVar = `bonus_${besoinKey}`;
       model.variables[bonusVar] = {
-        objective: -0.2,  // Bonus de 0.2 dans l'objectif
+        objective: -0.1,  // Bonus de 0.1 dans l'objectif
         [`bonus_constraint_${besoinKey}`]: -floorBesoin
       };
       model.ints[bonusVar] = 1; // Variable binaire
