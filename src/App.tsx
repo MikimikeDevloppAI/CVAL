@@ -17,6 +17,7 @@ import SitesPage from "./pages/SitesPage";
 import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
 import StatistiquesPage from "./pages/StatistiquesPage";
+import HomePage from "./pages/HomePage";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +35,8 @@ const App = () => (
                 <Layout>
                   <Routes>
                     <Route path="/planning" element={<PlanningPage />} />
-                    <Route path="/" element={
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/absences" element={
                       <PlanningProtectedRoute>
                         <AbsencesPage />
                       </PlanningProtectedRoute>

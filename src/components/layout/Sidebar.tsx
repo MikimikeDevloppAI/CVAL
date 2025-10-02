@@ -27,7 +27,7 @@ import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 const planningItems = [
   { name: 'Planning', href: '/planning', icon: Calendar },
   { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
-  { name: 'Absences', href: '/', icon: CalendarX },
+  { name: 'Absences', href: '/absences', icon: CalendarX },
   { name: 'Médecins', href: '/medecins', icon: Stethoscope },
   { name: 'Secrétaires', href: '/secretaires', icon: User },
   { name: 'Backup', href: '/backup', icon: UserCog },
