@@ -30,17 +30,31 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCreneau, setSelectedCreneau] = useState<PlanningCreneauForEdit | null>(null);
   
-  const handleEditClick = (assignment: AssignmentResult) => {
-    // Créer un objet créneau pour l'édition
+  const handleEditClick = async (assignment: AssignmentResult) => {
+    // Récupérer le vrai créneau depuis la base de données
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data, error } = await supabase
+      .from('planning_genere')
+      .select('*')
+      .eq('date', assignment.date)
+      .eq('heure_debut', assignment.periode === 'matin' ? '07:30:00' : '13:00:00')
+      .eq('site_id', assignment.site_id)
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error('Erreur lors de la récupération du créneau:', error);
+      return;
+    }
+
     const creneau: PlanningCreneauForEdit = {
-      id: assignment.creneau_besoin_id,
-      date: assignment.date,
-      heure_debut: assignment.periode === 'matin' ? '07:30:00' : '13:00:00',
-      heure_fin: assignment.periode === 'matin' ? '12:00:00' : '17:00:00',
-      site_id: assignment.site_id,
-      type_assignation: assignment.type_assignation || 'site',
-      secretaires_ids: assignment.secretaires.filter(s => !s.is_backup).map(s => s.id),
-      backups_ids: assignment.secretaires.filter(s => s.is_backup).map(s => s.id),
+      id: data.id,
+      date: data.date,
+      heure_debut: data.heure_debut,
+      heure_fin: data.heure_fin,
+      site_id: data.site_id,
+      type_assignation: data.type_assignation || 'site',
+      secretaires_ids: data.secretaires_ids || [],
+      backups_ids: data.backups_ids || [],
     };
     setSelectedCreneau(creneau);
     setEditDialogOpen(true);
