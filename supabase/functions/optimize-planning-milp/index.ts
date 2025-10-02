@@ -391,7 +391,8 @@ function optimizePeriod(
       model.variables[varName] = {
         objective: 0,
         [`cap_${secretaire.id}`]: 1, // Contrainte: max 1 assignation par secrétaire
-        [`besoin_${besoinKey}`]: 1  // Contribue au besoin
+        [`besoin_${besoinKey}`]: 1,  // Contribue à la contrainte max (arrondi)
+        [`def_besoin_${besoinKey}`]: 1 // Contribue à l'égalité: Σx + ecart = besoin
       };
 
       // Pénalité Port-en-Truie (progressive)
