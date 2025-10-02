@@ -41,13 +41,18 @@ Deno.serve(async (req) => {
     console.log('PDF generation input:', { weekStart, weekEnd, secretariesCount: secretaries.length });
     console.log('Generated HTML length:', html?.length || 0);
 
+    // Sanitize filename - remove illegal characters like /
+    const makeSafeFilename = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-');
+    const safeBaseName = makeSafeFilename(`planning_${weekStart}_${weekEnd}`);
+    console.log('Using safe filename:', safeBaseName);
+
     // Convert HTML to PDF using ConvertAPI (v2)
     // See: https://www.convertapi.com/html-to-pdf
     const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}`;
     const payload = {
       Parameters: [
         { Name: 'Html', Value: html },
-        { Name: 'FileName', Value: `planning_${weekStart}_${weekEnd}` },
+        { Name: 'FileName', Value: `${safeBaseName}.pdf` },
         { Name: 'MarginTop', Value: '10' },
         { Name: 'MarginBottom', Value: '10' },
         { Name: 'MarginLeft', Value: '10' },
@@ -79,8 +84,9 @@ Deno.serve(async (req) => {
     const pdfResponse = await fetch(pdfUrl);
     const pdfBuffer = await pdfResponse.arrayBuffer();
 
-    // Upload to Supabase Storage
-    const fileName = `planning_${weekStart}_${weekEnd}_${Date.now()}.pdf`;
+    // Upload to Supabase Storage with safe filename
+    const fileName = `${safeBaseName}_${Date.now()}.pdf`;
+    console.log('Storage fileName:', fileName);
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('planning-pdfs')
       .upload(fileName, pdfBuffer, {
