@@ -680,7 +680,7 @@ export default function PlanningPage() {
         .lte('date', weekEndStr)
         .eq('statut', 'planifie');
 
-      if (updateError) throw updateError;
+      if (updateError && !String(updateError.message || '').includes('statut_planning')) throw updateError;
 
       // Prepare secretary data for PDF
       const secretaryData = optimizationResult?.assignments.reduce((acc: any[], assignment) => {
