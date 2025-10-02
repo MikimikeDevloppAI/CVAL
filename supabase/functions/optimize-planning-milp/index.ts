@@ -450,9 +450,9 @@ function optimizePeriod(
     model.constraints[`cap_${secretaire.id}`] = { max: 1 };
   }
 
-  // 3b. Pour chaque besoin: fonction objectif simplifiée
+  // 3b. Pour chaque besoin: fonction objectif avec bonus binaire
   // Objectif: minimize (besoin - Σx) - (Σx/besoin) - bonus
-  // Avec contrainte Σx ≤ besoin (donc Σx = cap_effective)
+  // Bonus = 0.2 si Σx >= floor(besoin)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
     const floorBesoin = Math.floor(besoinValue);
@@ -460,10 +460,10 @@ function optimizePeriod(
     // Variable Σx (somme des assignations)
     const sumXVar = `sum_x_${besoinKey}`;
     model.variables[sumXVar] = {
-      // Objectif: -Σx/besoin avec bonus pour atteindre floor(besoin)
-      objective: (-1 / besoinValue) + (floorBesoin > 0 ? (-50 / floorBesoin) : 0),
+      objective: -1 / besoinValue,     // Terme -(Σx/besoin)
       [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
-      [`def_ecart_${besoinKey}`]: -1   // Pour (besoin - Σx)
+      [`def_ecart_${besoinKey}`]: -1,  // Pour (besoin - Σx)
+      [`bonus_constraint_${besoinKey}`]: -floorBesoin  // Pour bonus si Σx >= floor(besoin)
     };
     
     // Variable d'écart: (besoin - Σx)
@@ -472,6 +472,20 @@ function optimizePeriod(
       objective: 1, // Minimiser (besoin - Σx)
       [`def_ecart_${besoinKey}`]: 1
     };
+
+    // Variable binaire bonus (activée si Σx >= floor(besoin))
+    if (floorBesoin > 0) {
+      const bonusVar = `bonus_${besoinKey}`;
+      model.variables[bonusVar] = {
+        objective: -0.2,  // Bonus de 0.2 dans l'objectif
+        [`bonus_constraint_${besoinKey}`]: 1
+      };
+      model.ints[bonusVar] = 1; // Variable binaire
+      
+      // Contrainte: Σx - floor(besoin) * bonus >= 0
+      // Si bonus=1, alors Σx doit être >= floor(besoin)
+      model.constraints[`bonus_constraint_${besoinKey}`] = { min: 0 };
+    }
 
     // Contrainte: Σx définie par les variables x
     model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
