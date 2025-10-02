@@ -803,11 +803,11 @@ export default function PlanningPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="besoins" className="w-full">
+      <Tabs defaultValue="planning" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="planning">Planning Généré</TabsTrigger>
           <TabsTrigger value="besoins">Besoins ({besoins.length})</TabsTrigger>
           <TabsTrigger value="capacites">Capacités ({capacites.length})</TabsTrigger>
-          <TabsTrigger value="planning">Planning Généré</TabsTrigger>
         </TabsList>
 
         <TabsContent value="besoins" className="space-y-4">
