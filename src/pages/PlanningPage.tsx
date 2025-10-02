@@ -679,7 +679,7 @@ export default function PlanningPage() {
 
       toast({
         title: "Optimisation MILP terminée",
-        description: `${data.stats.total_entries} assignations créées avec succès`,
+        description: `${data?.assignments_count || 0} assignations créées avec succès`,
       });
 
       // Rafraîchir le planning généré
