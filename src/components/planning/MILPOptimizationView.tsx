@@ -24,6 +24,12 @@ interface PlanningCreneauForEdit {
   type_assignation?: string;
   secretaires_ids?: string[];
   backups_ids?: string[];
+  type?: string;
+  medecins_ids?: string[];
+  responsable_1r_id?: string;
+  responsable_2f_id?: string;
+  statut?: string;
+  version_planning?: number;
 }
 
 export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
@@ -55,6 +61,12 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
       type_assignation: data.type_assignation || 'site',
       secretaires_ids: data.secretaires_ids || [],
       backups_ids: data.backups_ids || [],
+      type: data.type,
+      medecins_ids: data.medecins_ids,
+      responsable_1r_id: data.responsable_1r_id,
+      responsable_2f_id: data.responsable_2f_id,
+      statut: data.statut,
+      version_planning: data.version_planning,
     };
     setSelectedCreneau(creneau);
     setEditDialogOpen(true);

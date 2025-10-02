@@ -19,6 +19,12 @@ interface PlanningCreneau {
   type_assignation?: string;
   secretaires_ids?: string[];
   backups_ids?: string[];
+  type?: string;
+  medecins_ids?: string[];
+  responsable_1r_id?: string;
+  responsable_2f_id?: string;
+  statut?: string;
+  version_planning?: number;
 }
 
 interface EditPlanningCreneauDialogProps {
@@ -87,16 +93,27 @@ export function EditPlanningCreneauDialog({
         secretaires.find(s => s.id === id && s.isBackup)
       );
 
+      // Préparer les données de mise à jour en préservant les champs existants
+      const updateData: any = {
+        heure_debut: heureDebut,
+        heure_fin: heureFin,
+        type_assignation: typeAssignation,
+        site_id: typeAssignation === 'site' ? (siteId || null) : null,
+        secretaires_ids: secretairesIds,
+        backups_ids: backupsIds,
+      };
+
+      // Préserver les champs qui ne doivent pas être modifiés
+      if (creneau.type) updateData.type = creneau.type;
+      if (creneau.medecins_ids) updateData.medecins_ids = creneau.medecins_ids;
+      if (creneau.responsable_1r_id !== undefined) updateData.responsable_1r_id = creneau.responsable_1r_id;
+      if (creneau.responsable_2f_id !== undefined) updateData.responsable_2f_id = creneau.responsable_2f_id;
+      if (creneau.statut) updateData.statut = creneau.statut;
+      if (creneau.version_planning) updateData.version_planning = creneau.version_planning;
+
       const { error } = await supabase
         .from('planning_genere')
-        .update({
-          heure_debut: heureDebut,
-          heure_fin: heureFin,
-          type_assignation: typeAssignation,
-          site_id: typeAssignation === 'site' ? siteId : null,
-          secretaires_ids: secretairesIds,
-          backups_ids: backupsIds,
-        })
+        .update(updateData)
         .eq('id', creneau.id);
 
       if (error) throw error;
