@@ -90,6 +90,7 @@ export default function PlanningPage() {
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
+  const [confirmRegenerateDialogOpen, setConfirmRegenerateDialogOpen] = useState(false);
   const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -730,8 +731,11 @@ export default function PlanningPage() {
       });
 
       // Store the PDF URL
-      if (data.pdfUrl) {
+      if (data?.pdfUrl) {
+        console.log('PDF URL received:', data.pdfUrl);
         setGeneratedPdfUrl(data.pdfUrl);
+      } else {
+        console.warn('No PDF URL in response:', data);
       }
 
       fetchPlanningGenere();
@@ -748,8 +752,41 @@ export default function PlanningPage() {
     }
   };
 
+  const checkIfPlanningConfirmed = async (): Promise<boolean> => {
+    const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+    const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+    
+    const { data, error } = await supabase
+      .from('planning_genere')
+      .select('statut')
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr)
+      .eq('statut', 'confirme')
+      .limit(1);
+    
+    if (error) {
+      console.error('Error checking planning status:', error);
+      return false;
+    }
+    
+    return (data && data.length > 0);
+  };
+
   const handleOptimizeMILP = async () => {
+    // Check if planning is already confirmed
+    const isConfirmed = await checkIfPlanningConfirmed();
+    
+    if (isConfirmed) {
+      setConfirmRegenerateDialogOpen(true);
+      return;
+    }
+    
+    executeOptimizeMILP();
+  };
+
+  const executeOptimizeMILP = async () => {
     setIsOptimizingMILP(true);
+    setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
     try {
       toast({
         title: "Optimisation MILP en cours",
@@ -1276,6 +1313,30 @@ export default function PlanningPage() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteCapacite} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRegenerateDialogOpen} onOpenChange={setConfirmRegenerateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Régénérer le planning ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ce planning a déjà été validé et confirmé. Êtes-vous sûr de vouloir le régénérer ? 
+              Cette action supprimera le planning actuel et le PDF généré.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                setConfirmRegenerateDialogOpen(false);
+                executeOptimizeMILP();
+              }}
+              className="bg-primary"
+            >
+              Régénérer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
