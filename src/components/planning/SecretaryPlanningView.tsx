@@ -69,7 +69,8 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
       .from('planning_genere')
       .select('*')
       .eq('date', date)
-      .eq('heure_debut', heureDebut);
+      .eq('heure_debut', heureDebut)
+      .or(`secretaires_ids.cs.{${secretaireId}},backups_ids.cs.{${secretaireId}}`);
     
     // Ajouter le filtre site_id seulement s'il est défini
     if (siteId) {
@@ -78,8 +79,13 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
 
     const { data, error } = await query.maybeSingle();
 
-    if (error || !data) {
+    if (error) {
       console.error('Erreur lors de la récupération du créneau:', error);
+      return;
+    }
+
+    if (!data) {
+      console.error('Aucun créneau trouvé pour cette secrétaire');
       return;
     }
 
