@@ -403,13 +403,13 @@ function optimizePeriod(
         objective: 0,
         [`cap_${secretaire.id}`]: 1, // Contrainte: max 1 assignation par secrétaire
         [`besoin_${besoinKey}`]: 1,  // Contribue à la contrainte max (arrondi)
-        [`def_besoin_${besoinKey}`]: 1 // Contribue à l'égalité: Σx + ecart = besoin
+        [`cap_eff_sum_${besoinKey}`]: 1 // Pour cap_effective ≤ Σx
       };
 
-      // Pénalité Port-en-Truie (progressive)
+      // Pénalité Port-en-Truie (exponentielle: 0.0001 × 2^n)
       if (site_id === SITE_PORT_EN_TRUIE && !secretaire.prefere_port_en_truie) {
         const currentCount = portEnTruieCounter.get(secretaire.id) || 0;
-        model.variables[varName].objective += PENALTY_PORT_EN_TRUIE_BASE * (1 + currentCount);
+        model.variables[varName].objective += 0.0001 * Math.pow(2, currentCount);
       }
 
       // Pénalité changement de site (si après-midi et site différent du matin)
@@ -450,20 +450,38 @@ function optimizePeriod(
     model.constraints[`cap_${secretaire.id}`] = { max: 1 };
   }
 
-  // 3b. Pour chaque besoin: capacité <= besoin
-  // On ajoute des variables d'écart pour minimiser (besoin - capacite)²
+  // 3b. Pour chaque besoin: nouvelle fonction objectif
+  // Objectif: minimize (besoin - cap_effective) - (cap_effective/besoin) - bonus
+  // Où cap_effective = min(Σx, besoin)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
+    const floorBesoin = Math.floor(besoinValue);
     
-    // Variable d'écart (manque de capacité)
+    // Variable cap_effective = min(Σx, besoin)
+    const capEffectiveVar = `cap_effective_${besoinKey}`;
+    model.variables[capEffectiveVar] = {
+      // Objectif: -(cap_effective/besoin) avec bonus implicite pour floor(besoin)
+      objective: (-1 / besoinValue) + (floorBesoin > 0 ? (-50 / floorBesoin) : 0),
+      [`cap_eff_sum_${besoinKey}`]: -1,  // cap_effective ≤ Σx
+      [`cap_eff_max_${besoinKey}`]: 1,   // cap_effective ≤ besoin
+      [`def_ecart_${besoinKey}`]: -1     // Pour l'écart
+    };
+    
+    // Variable d'écart: (besoin - cap_effective)
     const ecartVar = `ecart_${besoinKey}`;
     model.variables[ecartVar] = {
-      objective: 1000 * besoinValue, // Poids fort pour satisfaire les besoins
-      [`def_besoin_${besoinKey}`]: 1
+      objective: 1, // Minimiser (besoin - cap_effective)
+      [`def_ecart_${besoinKey}`]: 1
     };
 
-    // Contrainte: Σx + ecart = besoin
-    model.constraints[`def_besoin_${besoinKey}`] = { equal: besoinValue };
+    // Contraintes pour cap_effective
+    model.constraints[`cap_eff_sum_${besoinKey}`] = { max: 0 };  // cap_effective ≤ Σx
+    model.constraints[`cap_eff_max_${besoinKey}`] = { max: besoinValue }; // cap_effective ≤ besoin
+    
+    // Contrainte: ecart = besoin - cap_effective
+    model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
+    
+    // Contrainte: capacité assignée ≤ besoin (arrondi supérieur)
     model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
   }
 
