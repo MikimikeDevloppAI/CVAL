@@ -16,6 +16,7 @@ import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
 import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView';
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
+import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -88,6 +89,7 @@ export default function PlanningPage() {
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
+  const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -1031,27 +1033,35 @@ export default function PlanningPage() {
 
           {optimizationResult && (
             <div className="space-y-4">
-              <div className="flex justify-center">
-                <div className="inline-flex rounded-lg border p-1 bg-muted">
-                  <Button
-                    variant={planningView === 'site' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setPlanningView('site')}
-                    className="gap-2"
-                  >
-                    <Building2 className="h-4 w-4" />
-                    Par site
-                  </Button>
-                  <Button
-                    variant={planningView === 'secretary' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setPlanningView('secretary')}
-                    className="gap-2"
-                  >
-                    <Users className="h-4 w-4" />
-                    Par secrétaire
-                  </Button>
+              <div className="flex justify-between items-center">
+                <div className="flex-1 flex justify-center">
+                  <div className="inline-flex rounded-lg border p-1 bg-muted">
+                    <Button
+                      variant={planningView === 'site' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setPlanningView('site')}
+                      className="gap-2"
+                    >
+                      <Building2 className="h-4 w-4" />
+                      Par site
+                    </Button>
+                    <Button
+                      variant={planningView === 'secretary' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setPlanningView('secretary')}
+                      className="gap-2"
+                    >
+                      <Users className="h-4 w-4" />
+                      Par secrétaire
+                    </Button>
+                  </div>
                 </div>
+                {canManage && (
+                  <Button onClick={() => setAddPlanningDialogOpen(true)} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Ajouter un créneau
+                  </Button>
+                )}
               </div>
 
               {planningView === 'site' ? (
@@ -1059,11 +1069,13 @@ export default function PlanningPage() {
                   assignments={optimizationResult.assignments}
                   weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
                   specialites={specialites}
+                  onRefresh={fetchPlanningGenere}
                 />
               ) : (
                 <SecretaryPlanningView
                   assignments={optimizationResult.assignments}
                   weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+                  onRefresh={fetchPlanningGenere}
                 />
               )}
             </div>
@@ -1091,6 +1103,12 @@ export default function PlanningPage() {
         open={addCapaciteDialogOpen}
         onOpenChange={setAddCapaciteDialogOpen}
         onSuccess={fetchData}
+      />
+
+      <AddPlanningCreneauDialog
+        open={addPlanningDialogOpen}
+        onOpenChange={setAddPlanningDialogOpen}
+        onSuccess={fetchPlanningGenere}
       />
 
       <EditCapaciteDialog

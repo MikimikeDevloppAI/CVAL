@@ -1,17 +1,51 @@
 import { AssignmentResult } from '@/types/planning';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { UserCog, Stethoscope } from 'lucide-react';
+import { UserCog, Stethoscope, Edit } from 'lucide-react';
+import { useState } from 'react';
+import { EditPlanningCreneauDialog } from './EditPlanningCreneauDialog';
 
 interface MILPOptimizationViewProps {
   assignments: AssignmentResult[];
   weekDays: Date[];
   specialites: { id: string; nom: string }[];
+  onRefresh?: () => void;
 }
 
-export function MILPOptimizationView({ assignments, weekDays, specialites }: MILPOptimizationViewProps) {
+interface PlanningCreneauForEdit {
+  id: string;
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+  site_id?: string;
+  type_assignation?: string;
+  secretaires_ids?: string[];
+  backups_ids?: string[];
+}
+
+export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedCreneau, setSelectedCreneau] = useState<PlanningCreneauForEdit | null>(null);
+  
+  const handleEditClick = (assignment: AssignmentResult) => {
+    // Créer un objet créneau pour l'édition
+    const creneau: PlanningCreneauForEdit = {
+      id: assignment.creneau_besoin_id,
+      date: assignment.date,
+      heure_debut: assignment.periode === 'matin' ? '07:30:00' : '13:00:00',
+      heure_fin: assignment.periode === 'matin' ? '12:00:00' : '17:00:00',
+      site_id: assignment.site_id,
+      type_assignation: assignment.type_assignation || 'site',
+      secretaires_ids: assignment.secretaires.filter(s => !s.is_backup).map(s => s.id),
+      backups_ids: assignment.secretaires.filter(s => s.is_backup).map(s => s.id),
+    };
+    setSelectedCreneau(creneau);
+    setEditDialogOpen(true);
+  };
+
   // Filtrer les jours ouvrés (lundi à vendredi)
   const weekdaysOnly = weekDays.filter(d => {
     const dow = d.getDay();
@@ -109,15 +143,26 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h5 className="font-medium text-sm text-muted-foreground">Matin</h5>
-                        {matin && (
-                          <Badge 
-                            variant="outline" 
-                            className={getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}
-                          >
-                            {getSatisfactionPercentage(matin.nombre_assigne, matin.nombre_requis)}% 
-                            ({matin.nombre_assigne}/{matin.nombre_requis})
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {matin && onRefresh && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClick(matin)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {matin && (
+                            <Badge 
+                              variant="outline" 
+                              className={getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}
+                            >
+                              {getSatisfactionPercentage(matin.nombre_assigne, matin.nombre_requis)}% 
+                              ({matin.nombre_assigne}/{matin.nombre_requis})
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       {matin && matin.medecins && matin.medecins.length > 0 && (
                         <div className="mb-2">
@@ -163,15 +208,26 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h5 className="font-medium text-sm text-muted-foreground">Après-midi</h5>
-                        {apresMidi && (
-                          <Badge 
-                            variant="outline"
-                            className={getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}
-                          >
-                            {getSatisfactionPercentage(apresMidi.nombre_assigne, apresMidi.nombre_requis)}%
-                            ({apresMidi.nombre_assigne}/{apresMidi.nombre_requis})
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {apresMidi && onRefresh && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClick(apresMidi)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {apresMidi && (
+                            <Badge 
+                              variant="outline"
+                              className={getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}
+                            >
+                              {getSatisfactionPercentage(apresMidi.nombre_assigne, apresMidi.nombre_requis)}%
+                              ({apresMidi.nombre_assigne}/{apresMidi.nombre_requis})
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 && (
                         <div className="mb-2">
@@ -319,6 +375,15 @@ export function MILPOptimizationView({ assignments, weekDays, specialites }: MIL
           </CardContent>
         </Card>
       )}
+
+      <EditPlanningCreneauDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        creneau={selectedCreneau}
+        onSuccess={() => {
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 }

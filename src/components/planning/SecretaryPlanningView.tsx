@@ -8,6 +8,7 @@ import { User, Calendar, MapPin, Clock } from 'lucide-react';
 interface SecretaryPlanningViewProps {
   assignments: AssignmentResult[];
   weekDays: Date[];
+  onRefresh?: () => void;
 }
 
 interface SecretaryData {
