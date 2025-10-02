@@ -513,15 +513,11 @@ function parseAssignmentsFromSolution(
   secretairesDispos: any[],
   portEnTruieCounter: Map<string, number>
 ): any[] {
-  const assignments: any[] = [];
-  const assignedPerBesoin = new Map<string, number>();
-
+  // Regrouper les secrétaires par site
+  const assignmentsBySite = new Map<string, string[]>(); // site_id -> secretary_ids
+  const adminSecretaries: string[] = [];
+  
   // Extraire les assignations
-  const candidates: any[] = [];
-  
-  // Log pour debug
-  console.log(`    DEBUG: solution keys:`, Object.keys(solution).slice(0, 10));
-  
   for (const [varName, value] of Object.entries(solution)) {
     // Ignorer les métadonnées du solver
     if (varName === 'feasible' || varName === 'result' || varName === 'bounded' || varName === 'isIntegral') continue;
@@ -532,85 +528,61 @@ function parseAssignmentsFromSolution(
     
     if (parts[1] === 'admin') {
       // Assignation administrative
-      candidates.push({
-        secretary_id,
-        site_id: null,
-        specialite_id: null,
-        is_admin: true,
-        value
-      });
+      adminSecretaries.push(secretary_id);
     } else {
       const site_id = parts[1];
-      const specialite_id = parts.slice(2).join('_');
-      candidates.push({
-        secretary_id,
-        site_id,
-        specialite_id,
-        is_admin: false,
-        value
-      });
-    }
-  }
-
-  // Trier par valeur décroissante (priorité aux assignations fermes)
-  candidates.sort((a, b) => b.value - a.value);
-
-  const usedSecretaries = new Set<string>();
-
-  // Traiter les assignations
-  for (const candidate of candidates) {
-    if (usedSecretaries.has(candidate.secretary_id)) continue;
-
-    if (candidate.is_admin) {
-      // Assignation administrative
-      assignments.push({
-        date,
-        site_id: null,
-        type: 'secretaire',
-        heure_debut: periodeTime.heure_debut,
-        heure_fin: periodeTime.heure_fin,
-        secretaires_ids: [candidate.secretary_id],
-        backups_ids: [],
-        medecins_ids: [],
-        type_assignation: 'administratif',
-        statut: 'planifie'
-      });
-      usedSecretaries.add(candidate.secretary_id);
-    } else {
-      // Assignation à un site
-      const besoinKey = `${candidate.site_id}|${candidate.specialite_id}`;
-      const besoin = besoinsParSite.get(besoinKey);
       
-      if (!besoin) continue;
-
-      const currentAssigned = assignedPerBesoin.get(besoinKey) || 0;
-      if (currentAssigned >= Math.ceil(besoin.besoin)) continue;
-
-      assignments.push({
-        date,
-        site_id: candidate.site_id,
-        type: 'secretaire',
-        heure_debut: periodeTime.heure_debut,
-        heure_fin: periodeTime.heure_fin,
-        secretaires_ids: [candidate.secretary_id],
-        backups_ids: [],
-        medecins_ids: besoin.medecin_ids || [],
-        type_assignation: 'site',
-        statut: 'planifie'
-      });
-
-      // Mettre à jour le compteur Port-en-Truie
-      if (candidate.site_id === SITE_PORT_EN_TRUIE) {
-        const currentCount = portEnTruieCounter.get(candidate.secretary_id) || 0;
-        portEnTruieCounter.set(candidate.secretary_id, currentCount + 1);
+      if (!assignmentsBySite.has(site_id)) {
+        assignmentsBySite.set(site_id, []);
       }
-
-      assignedPerBesoin.set(besoinKey, currentAssigned + 1);
-      usedSecretaries.add(candidate.secretary_id);
+      assignmentsBySite.get(site_id)!.push(secretary_id);
+      
+      // Mettre à jour le compteur Port-en-Truie
+      if (site_id === SITE_PORT_EN_TRUIE) {
+        const currentCount = portEnTruieCounter.get(secretary_id) || 0;
+        portEnTruieCounter.set(secretary_id, currentCount + 1);
+      }
     }
   }
 
-  console.log(`    → ${assignments.length} assignments created`);
+  const assignments: any[] = [];
+
+  // Créer une ligne par besoin (même si non satisfait)
+  for (const [besoinKey, besoin] of besoinsParSite) {
+    const [site_id, specialite_id] = besoinKey.split('|');
+    const assignedSecretaries = assignmentsBySite.get(site_id) || [];
+    
+    assignments.push({
+      date,
+      site_id,
+      type: 'secretaire',
+      heure_debut: periodeTime.heure_debut,
+      heure_fin: periodeTime.heure_fin,
+      secretaires_ids: assignedSecretaries,
+      backups_ids: [],
+      medecins_ids: besoin.medecin_ids || [],
+      type_assignation: 'site',
+      statut: 'planifie'
+    });
+  }
+
+  // Créer une ligne pour les tâches administratives si nécessaire
+  if (adminSecretaries.length > 0) {
+    assignments.push({
+      date,
+      site_id: null,
+      type: 'secretaire',
+      heure_debut: periodeTime.heure_debut,
+      heure_fin: periodeTime.heure_fin,
+      secretaires_ids: adminSecretaries,
+      backups_ids: [],
+      medecins_ids: [],
+      type_assignation: 'administratif',
+      statut: 'planifie'
+    });
+  }
+
+  console.log(`    → ${assignments.length} assignments created (${assignmentsBySite.size} sites)`);
   return assignments;
 }
 
