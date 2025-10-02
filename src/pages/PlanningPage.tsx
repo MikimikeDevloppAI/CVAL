@@ -677,7 +677,8 @@ export default function PlanningPage() {
         .from('planning_genere')
         .update({ statut: 'confirme' })
         .gte('date', weekStartStr)
-        .lte('date', weekEndStr);
+        .lte('date', weekEndStr)
+        .eq('statut', 'planifie');
 
       if (updateError) throw updateError;
 
