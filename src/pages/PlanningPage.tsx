@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -88,6 +88,7 @@ export default function PlanningPage() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -664,6 +665,82 @@ export default function PlanningPage() {
     }
   };
 
+  const handleValidateAndGeneratePDF = async () => {
+    try {
+      setIsGeneratingPDF(true);
+
+      // Update all planning status to 'confirme' for the current week
+      const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+      const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+      const { error: updateError } = await supabase
+        .from('planning_genere')
+        .update({ statut: 'confirme' })
+        .gte('date', weekStartStr)
+        .lte('date', weekEndStr);
+
+      if (updateError) throw updateError;
+
+      // Prepare secretary data for PDF
+      const secretaryData = optimizationResult?.assignments.reduce((acc: any[], assignment) => {
+        assignment.secretaires.forEach((sec) => {
+          let secretary = acc.find((s) => s.id === sec.id);
+          if (!secretary) {
+            secretary = {
+              id: sec.id,
+              name: sec.nom,
+              assignments: [],
+            };
+            acc.push(secretary);
+          }
+
+          secretary.assignments.push({
+            date: format(new Date(assignment.date), 'dd/MM/yyyy'),
+            periode: assignment.periode === 'matin' ? 'Matin (7h30-12h00)' : 'Après-midi (12h00-17h30)',
+            site: assignment.site_nom,
+            medecins: assignment.medecins,
+            is1R: sec.is_1r || false,
+            is2F: sec.is_2f || false,
+            type: assignment.type_assignation || 'site',
+          });
+        });
+        return acc;
+      }, []);
+
+      // Call edge function to generate PDF
+      const { data, error } = await supabase.functions.invoke('generate-planning-pdf', {
+        body: {
+          weekStart: format(currentWeekStart, 'dd/MM/yyyy'),
+          weekEnd: format(weekEnd, 'dd/MM/yyyy'),
+          secretaries: secretaryData,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Planning validé et PDF généré avec succès !",
+      });
+
+      // Download the PDF
+      if (data.pdfUrl) {
+        window.open(data.pdfUrl, '_blank');
+      }
+
+      fetchPlanningGenere();
+    } catch (error) {
+      console.error('Error validating and generating PDF:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider et générer le PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const handleOptimizeMILP = async () => {
     setIsOptimizingMILP(true);
     try {
@@ -1007,7 +1084,7 @@ export default function PlanningPage() {
         <TabsContent value="planning" className="space-y-4">
           {canManage && (
             <div className="flex flex-col gap-4 py-6">
-              <div className="flex justify-center">
+              <div className="flex justify-center gap-4">
                 <Button 
                   onClick={handleOptimizeMILP} 
                   disabled={isOptimizingMILP}
@@ -1024,6 +1101,25 @@ export default function PlanningPage() {
                     <>
                       <Zap className="h-4 w-4" />
                       Optimiser avec MILP
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleValidateAndGeneratePDF} 
+                  disabled={isGeneratingPDF}
+                  size="lg"
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  {isGeneratingPDF ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Génération PDF en cours...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" />
+                      Valider et générer PDF
                     </>
                   )}
                 </Button>
