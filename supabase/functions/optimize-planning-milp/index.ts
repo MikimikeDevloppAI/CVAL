@@ -697,13 +697,12 @@ async function assignResponsablesForClosedSites(
     console.log(`  Processing ${day}...`);
 
     for (const site of closedSites) {
-      // Récupérer les créneaux matin et après-midi pour ce site
+      // Récupérer TOUS les créneaux (matin et après-midi) pour ce site
       const { data: creneaux, error: creneauxError } = await supabase
         .from('planning_genere')
         .select('*')
         .eq('date', day)
         .eq('site_id', site.id)
-        .in('heure_debut', ['07:30:00', '12:00:00'])
         .order('heure_debut');
 
       if (creneauxError || !creneaux || creneaux.length === 0) {
