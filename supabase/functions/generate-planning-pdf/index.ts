@@ -46,12 +46,28 @@ Deno.serve(async (req) => {
     const safeBaseName = makeSafeFilename(`planning_${weekStart}_${weekEnd}`);
     console.log('Using safe filename:', safeBaseName);
 
-    // Convert HTML to PDF using ConvertAPI (v2)
+    // Encode HTML to Base64 for ConvertAPI File parameter
+    const encoder = new TextEncoder();
+    const htmlBytes = encoder.encode(html);
+    let binary = '';
+    for (let i = 0; i < htmlBytes.length; i++) {
+      binary += String.fromCharCode(htmlBytes[i]);
+    }
+    const base64Html = btoa(binary);
+    console.log('Base64 HTML length:', base64Html.length);
+
+    // Convert HTML to PDF using ConvertAPI (v2) with File/FileValue
     // See: https://www.convertapi.com/html-to-pdf
     const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}`;
     const payload = {
       Parameters: [
-        { Name: 'Html', Value: html },
+        { 
+          Name: 'File', 
+          FileValue: { 
+            Name: `${safeBaseName}.html`, 
+            Data: base64Html 
+          } 
+        },
         { Name: 'FileName', Value: `${safeBaseName}.pdf` },
         { Name: 'MarginTop', Value: '10' },
         { Name: 'MarginBottom', Value: '10' },
