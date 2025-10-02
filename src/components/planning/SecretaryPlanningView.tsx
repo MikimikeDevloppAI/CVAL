@@ -175,7 +175,9 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
           
           <CardContent className="pt-4">
             <div className="space-y-3">
-              {secretary.weekSchedule.map(({ date, dateStr, matin, apresMidi }) => (
+              {secretary.weekSchedule
+                .filter(({ matin, apresMidi }) => matin || apresMidi)
+                .map(({ date, dateStr, matin, apresMidi }) => (
                 <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
                   <div className="mb-2 pb-2 border-b">
                     <h4 className="font-medium text-sm">
