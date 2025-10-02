@@ -462,8 +462,8 @@ function optimizePeriod(
     model.variables[sumXVar] = {
       objective: -1 / besoinValue,     // Terme -(Σx/besoin)
       [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
-      [`def_ecart_${besoinKey}`]: -1,  // Pour (besoin - Σx)
-      [`bonus_constraint_${besoinKey}`]: -floorBesoin  // Pour bonus si Σx >= floor(besoin)
+      [`def_ecart_${besoinKey}`]: 1,   // sumX + ecart = besoin
+      [`bonus_constraint_${besoinKey}`]: 1  // Pour bonus si Σx >= floor(besoin)
     };
     
     // Variable d'écart: (besoin - Σx)
@@ -478,7 +478,7 @@ function optimizePeriod(
       const bonusVar = `bonus_${besoinKey}`;
       model.variables[bonusVar] = {
         objective: -0.2,  // Bonus de 0.2 dans l'objectif
-        [`bonus_constraint_${besoinKey}`]: 1
+        [`bonus_constraint_${besoinKey}`]: -floorBesoin
       };
       model.ints[bonusVar] = 1; // Variable binaire
       
