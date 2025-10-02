@@ -632,16 +632,18 @@ async function assignResponsablesForClosedSites(
 
   console.log(`  Found ${closedSites.length} closed sites requiring 1R/2F assignment`);
 
-  // 2. Récupérer l'historique des 4 dernières semaines
+  // 2. Récupérer l'historique des 4 dernières semaines depuis planning_genere
   const fourWeeksAgo = new Date(weekStartStr);
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
   const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
 
   const { data: historique, error: histError } = await supabase
-    .from('assignations_1r_2f_historique')
-    .select('*')
+    .from('planning_genere')
+    .select('responsable_1r_id, responsable_2f_id, date')
     .gte('date', fourWeeksAgoStr)
-    .lt('date', weekStartStr);
+    .lt('date', weekStartStr)
+    .not('responsable_1r_id', 'is', null)
+    .or('responsable_2f_id.not.is.null');
 
   if (histError) {
     console.error('  Error fetching history:', histError);
@@ -658,17 +660,15 @@ async function assignResponsablesForClosedSites(
   });
 
   (historique || []).forEach((h: any) => {
-    const secId = h.secretaire_id;
-    if (!secId) return;
-    
-    if (h.type_assignation === '1r') {
-      count1R.set(secId, (count1R.get(secId) || 0) + 1);
-    } else if (h.type_assignation === '2f') {
-      count2F.set(secId, (count2F.get(secId) || 0) + 1);
+    if (h.responsable_1r_id) {
+      count1R.set(h.responsable_1r_id, (count1R.get(h.responsable_1r_id) || 0) + 1);
+    }
+    if (h.responsable_2f_id) {
+      count2F.set(h.responsable_2f_id, (count2F.get(h.responsable_2f_id) || 0) + 1);
     }
   });
 
-  console.log(`  Historical counts: ${count1R.size} secretaries tracked`);
+  console.log(`  Historical counts from planning_genere: ${historique?.length || 0} records analyzed`);
 
   // 4. Pour chaque jour, assigner les responsables aux sites fermés
   for (const day of days) {
