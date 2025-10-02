@@ -9,17 +9,9 @@ const corsHeaders = {
 
 const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
-const DEMI_JOURNEE_SLOTS = {
-  matin: { start: '07:30:00', end: '12:00:00' },
-  apres_midi: { start: '13:00:00', end: '17:00:00' }
-};
-
-// Poids pour l'objectif
-const WEIGHTS = {
-  satisfaction: 10000,      // Priorité absolue: minimiser écart au carré
-  changement_site: 50,      // Pénalité si changement site matin/après-midi
-  port_en_truie: 10         // Pénalité légère pour Port-en-Truie
-};
+// Pénalités
+const PENALTY_SITE_CHANGE = 0.001;
+const PENALTY_PORT_EN_TRUIE_BASE = 0.0001; // Base pour pénalité progressive
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -27,7 +19,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Starting simplified MILP planning optimization');
+    console.log('🚀 Starting day-by-day MILP planning optimization');
     
     const supabaseServiceRole = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -41,103 +33,59 @@ serve(async (req) => {
 
     console.log(`📊 Period: ${startDate} to ${endDate}`);
 
-    // 1. Récupérer les données
+    // 1. Récupérer toutes les données nécessaires
     console.log('📥 Fetching data...');
-    const { data: capacites, error: capError } = await supabaseServiceRole
-      .from('capacite_effective')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .eq('actif', true);
     
-    if (capError) {
-      console.error('❌ Error fetching capacités:', capError);
-      throw capError;
-    }
+    const [
+      { data: medecins, error: medError },
+      { data: secretaires, error: secError },
+      { data: sites, error: siteError },
+      { data: specialites, error: specError },
+      { data: capacites, error: capError },
+      { data: besoins, error: besError }
+    ] = await Promise.all([
+      supabaseServiceRole.from('medecins').select('*').eq('actif', true),
+      supabaseServiceRole.from('secretaires').select('*').eq('actif', true),
+      supabaseServiceRole.from('sites').select('*').eq('actif', true),
+      supabaseServiceRole.from('specialites').select('*'),
+      supabaseServiceRole.from('capacite_effective')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('actif', true),
+      supabaseServiceRole.from('besoin_effectif')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('actif', true)
+    ]);
 
-    const { data: besoins, error: besError } = await supabaseServiceRole
-      .from('besoin_effectif')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .eq('actif', true);
-    
-    if (besError) {
-      console.error('❌ Error fetching besoins:', besError);
-      throw besError;
-    }
+    if (medError) throw medError;
+    if (secError) throw secError;
+    if (siteError) throw siteError;
+    if (specError) throw specError;
+    if (capError) throw capError;
+    if (besError) throw besError;
 
+    console.log(`✓ ${medecins.length} médecins, ${secretaires.length} secrétaires, ${sites.length} sites`);
     console.log(`✓ ${capacites.length} capacités, ${besoins.length} besoins`);
 
-    // 2. Agréger par (date, site, demi_journee, specialite)
-    const capacitesAgg = aggregateCapacites(capacites);
-    const besoinsAgg = aggregateBesoins(besoins);
+    // Créer des maps pour accès rapide
+    const medecinMap = new Map(medecins.map(m => [m.id, m]));
+    const secretaireMap = new Map(secretaires.map(s => [s.id, s]));
+    const siteMap = new Map(sites.map(s => [s.id, s]));
 
-    console.log(`✓ Aggregated to ${capacitesAgg.size} capacity groups, ${besoinsAgg.size} besoin groups`);
+    // 2. Générer la liste des jours à optimiser
+    const days = generateDaysList(startDate, endDate);
+    console.log(`📅 Processing ${days.length} days`);
 
-    // 3. Construire et résoudre le modèle MILP
-    const { model, stats } = buildOptimizationModel(capacitesAgg, besoinsAgg);
-    
-    console.log(`🧮 Model: ${stats.totalVars} variables, ${stats.totalConstraints} constraints`);
-    if (stats?.relaxed) {
-      console.log('ℹ️ Using LP relaxation (no integer constraints) for performance.');
-    }
-    console.log('⚡ Solving optimization problem...');
-    
-    const startTime = Date.now();
-    const solution = solver.Solve(model);
-    const solveTime = Date.now() - startTime;
-    
-    console.log(`⏱️ Solved in ${solveTime}ms`);
-
-    if (!solution.feasible) {
-      console.error('❌ Problem is infeasible');
-      throw new Error('Problem is infeasible - no valid solution found');
-    }
-
-    console.log(`✅ Solution found with objective: ${solution.result?.toFixed(2)}`);
-    
-    // Debug: Log solution variables
-    console.log('🔍 Debug: Solution variables');
-    let xCount = 0;
-    let xValueOne = 0;
-    for (const [varName, value] of Object.entries(solution)) {
-      if (varName.startsWith('x_')) {
-        xCount++;
-        if (value === 1) xValueOne++;
-      }
-    }
-    console.log(`  Total x_ variables in solution: ${xCount}`);
-    console.log(`  x_ variables with value=1: ${xValueOne}`);
-    console.log(`  Solution feasible: ${solution.feasible}`);
-    console.log(`  Solution bounded: ${solution.bounded ?? 'unknown'}`);
-
-    // 4. Parser les résultats
-    const assignments = parseAssignments(solution, capacitesAgg, besoinsAgg);
-
-    // 5. Sauvegarder dans la base
-    console.log('💾 Saving assignments...');
-    
-    // Calculer les bornes de la semaine complète
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    
-    const weekStart = new Date(startDateObj);
-    const dayOfWeek = weekStart.getDay();
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    weekStart.setDate(weekStart.getDate() + diff);
-    
-    const weekEnd = new Date(endDateObj);
-    const dayOfWeekEnd = weekEnd.getDay();
-    const diffEnd = dayOfWeekEnd === 0 ? 0 : 7 - dayOfWeekEnd;
-    weekEnd.setDate(weekEnd.getDate() + diffEnd);
-    
+    // 3. Supprimer les anciennes assignations pour la période
+    const weekStart = getWeekStart(new Date(startDate));
+    const weekEnd = getWeekEnd(new Date(endDate));
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
     
     console.log(`🗑️ Deleting existing planning from ${weekStartStr} to ${weekEndStr}`);
-    
-    // Supprimer les anciennes assignations
     const { error: deleteError } = await supabaseServiceRole
       .from('planning_genere')
       .delete()
@@ -148,11 +96,42 @@ serve(async (req) => {
       console.error('⚠️ Delete error:', deleteError);
     }
 
-    // Insérer les nouvelles
-    if (assignments.length > 0) {
+    // 4. Traiter jour par jour
+    const allAssignments: any[] = [];
+    const portEnTruieCounter = new Map<string, number>(); // secretary_id -> count
+
+    for (const day of days) {
+      console.log(`\n📆 Processing ${day}...`);
+      
+      // Filtrer les données pour ce jour
+      const dayCapacites = capacites.filter(c => c.date === day);
+      const dayBesoins = besoins.filter(b => b.date === day);
+
+      if (dayBesoins.length === 0) {
+        console.log(`  ⏭️ No besoins for ${day}, skipping`);
+        continue;
+      }
+
+      // Optimiser ce jour (matin et après-midi séparément)
+      const dayAssignments = await optimizeDay(
+        day,
+        dayCapacites,
+        dayBesoins,
+        secretaireMap,
+        medecinMap,
+        siteMap,
+        portEnTruieCounter
+      );
+
+      allAssignments.push(...dayAssignments);
+    }
+
+    // 5. Sauvegarder les assignations
+    if (allAssignments.length > 0) {
+      console.log(`\n💾 Saving ${allAssignments.length} assignments...`);
       const { error: insertError } = await supabaseServiceRole
         .from('planning_genere')
-        .insert(assignments);
+        .insert(allAssignments);
       
       if (insertError) {
         console.error('❌ Error inserting assignments:', insertError);
@@ -160,16 +139,12 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✅ Saved ${assignments.length} assignments`);
-
-    // Statistiques
-    const stats_result = calculateStats(assignments, besoinsAgg);
+    console.log(`✅ Optimization complete!`);
 
     return new Response(JSON.stringify({
       success: true,
-      stats: stats_result,
-      assignments: assignments.length,
-      solve_time_ms: solveTime
+      assignments_count: allAssignments.length,
+      days_processed: days.length
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -185,110 +160,206 @@ serve(async (req) => {
   }
 });
 
-function aggregateCapacites(capacites: any[]) {
-  const map = new Map();
-
-  for (const cap of capacites) {
-    const isSecretary = cap.secretaire_id != null;
-    const personId = isSecretary ? cap.secretaire_id : cap.backup_id;
-    
-    if (!personId) continue;
-
-    for (const specialite of cap.specialites || []) {
-      // Déterminer demi-journées
-      const demiJournees = getDemiJournees(cap.heure_debut, cap.heure_fin);
-      
-      for (const dj of demiJournees) {
-        const key = `${cap.date}|${dj}|${specialite}`;
-        
-        if (!map.has(key)) {
-          map.set(key, {
-            date: cap.date,
-            demi_journee: dj,
-            specialite_id: specialite,
-            personnes: []
-          });
-        }
-        
-        map.get(key).personnes.push({
-          person_id: personId,
-          is_secretary: isSecretary,
-          capacite_id: cap.id
-        });
-      }
-    }
+function generateDaysList(startDate: string, endDate: string): string[] {
+  const days: string[] = [];
+  const current = new Date(startDate);
+  const end = new Date(endDate);
+  
+  while (current <= end) {
+    days.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 1);
   }
-
-  return map;
+  
+  return days;
 }
 
-function aggregateBesoins(besoins: any[]) {
-  const map = new Map();
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function getWeekEnd(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? 0 : 7 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+async function optimizeDay(
+  date: string,
+  capacites: any[],
+  besoins: any[],
+  secretaireMap: Map<string, any>,
+  medecinMap: Map<string, any>,
+  siteMap: Map<string, any>,
+  portEnTruieCounter: Map<string, number>
+): Promise<any[]> {
+  const assignments: any[] = [];
+
+  // Traiter matin et après-midi séparément
+  for (const periode of ['matin', 'apres_midi'] as const) {
+    const periodeTime = periode === 'matin' 
+      ? { heure_debut: '07:30:00', heure_fin: '12:00:00' }
+      : { heure_debut: '13:00:00', heure_fin: '17:00:00' };
+
+    console.log(`  ⏰ ${periode.toUpperCase()}`);
+
+    // 1. Calculer les besoins par (site, specialite) pour cette période
+    const besoinsParSite = calculateBesoins(besoins, medecinMap, periode, periodeTime);
+    
+    if (besoinsParSite.size === 0) {
+      console.log(`    No besoins for ${periode}`);
+      continue;
+    }
+
+    // 2. Identifier les secrétaires disponibles pour cette période
+    const secretairesDispos = getAvailableSecretaries(capacites, secretaireMap, periode, periodeTime);
+    
+    if (secretairesDispos.length === 0) {
+      console.log(`    No secretaries available for ${periode}`);
+      continue;
+    }
+
+    console.log(`    ${besoinsParSite.size} besoins, ${secretairesDispos.length} secretaries available`);
+
+    // 3. Construire et résoudre le modèle MILP pour cette demi-journée
+    const periodAssignments = optimizePeriod(
+      date,
+      periode,
+      periodeTime,
+      besoinsParSite,
+      secretairesDispos,
+      assignments, // Pour détecter les changements de site
+      portEnTruieCounter
+    );
+
+    assignments.push(...periodAssignments);
+  }
+
+  return assignments;
+}
+
+function calculateBesoins(
+  besoins: any[],
+  medecinMap: Map<string, any>,
+  periode: 'matin' | 'apres_midi',
+  periodeTime: { heure_debut: string; heure_fin: string }
+): Map<string, any> {
+  const besoinsMap = new Map<string, any>();
 
   for (const besoin of besoins) {
-    const demiJournees = getDemiJournees(besoin.heure_debut, besoin.heure_fin);
+    // Vérifier si le besoin chevauche cette période
+    if (!overlaps(besoin.heure_debut, besoin.heure_fin, periodeTime.heure_debut, periodeTime.heure_fin)) {
+      continue;
+    }
+
+    const key = `${besoin.site_id}|${besoin.specialite_id || 'default'}`;
     
-    for (const dj of demiJournees) {
-      const key = `${besoin.date}|${besoin.site_id}|${dj}|${besoin.specialite_id}`;
-      
-      if (!map.has(key)) {
-        map.set(key, {
-          date: besoin.date,
-          site_id: besoin.site_id,
-          demi_journee: dj,
-          specialite_id: besoin.specialite_id,
-          besoin: 0,
-          medecin_ids: [],
-          type: besoin.type
-        });
+    if (!besoinsMap.has(key)) {
+      besoinsMap.set(key, {
+        site_id: besoin.site_id,
+        specialite_id: besoin.specialite_id,
+        besoin: 0,
+        medecin_ids: []
+      });
+    }
+
+    const entry = besoinsMap.get(key);
+    
+    // Calculer le besoin en secrétaires
+    if (besoin.type === 'medecin' && besoin.medecin_id) {
+      const medecin = medecinMap.get(besoin.medecin_id);
+      if (medecin) {
+        const proportion = calculateOverlapProportion(
+          besoin.heure_debut,
+          besoin.heure_fin,
+          periodeTime.heure_debut,
+          periodeTime.heure_fin
+        );
+        entry.besoin += (medecin.besoin_secretaires || 1.2) * proportion;
+        if (!entry.medecin_ids.includes(besoin.medecin_id)) {
+          entry.medecin_ids.push(besoin.medecin_id);
+        }
       }
-      
-      // Proportion de la demi-journée couverte
-      const proportion = calculateOverlap(besoin.heure_debut, besoin.heure_fin, dj);
-      const entry = map.get(key);
-      entry.besoin += parseFloat(besoin.nombre_secretaires_requis) * proportion;
-      
-      if (besoin.medecin_id && !entry.medecin_ids.includes(besoin.medecin_id)) {
-        entry.medecin_ids.push(besoin.medecin_id);
-      }
+    } else if (besoin.type === 'bloc_operatoire') {
+      const proportion = calculateOverlapProportion(
+        besoin.heure_debut,
+        besoin.heure_fin,
+        periodeTime.heure_debut,
+        periodeTime.heure_fin
+      );
+      entry.besoin += (besoin.nombre_secretaires_requis || 1) * proportion;
     }
   }
 
-  return map;
+  return besoinsMap;
 }
 
-function getDemiJournees(debut: string, fin: string): string[] {
-  const djs = [];
-  
-  // Overlap avec matin
-  if (debut < '12:00:00' && fin > '07:30:00') {
-    djs.push('matin');
-  }
-  
-  // Overlap avec après-midi
-  if (debut < '17:00:00' && fin > '13:00:00') {
-    djs.push('apres_midi');
-  }
-  
-  return djs;
+function overlaps(start1: string, end1: string, start2: string, end2: string): boolean {
+  return start1 < end2 && end1 > start2;
 }
 
-function calculateOverlap(debut: string, fin: string, dj: string): number {
-  const djSlot = DEMI_JOURNEE_SLOTS[dj as keyof typeof DEMI_JOURNEE_SLOTS];
-  const overlapStart = debut > djSlot.start ? debut : djSlot.start;
-  const overlapEnd = fin < djSlot.end ? fin : djSlot.end;
+function calculateOverlapProportion(
+  start1: string,
+  end1: string,
+  start2: string,
+  end2: string
+): number {
+  const overlapStart = start1 > start2 ? start1 : start2;
+  const overlapEnd = end1 < end2 ? end1 : end2;
   
   if (overlapStart >= overlapEnd) return 0;
   
-  const overlapMs = new Date(`2000-01-01T${overlapEnd}`).getTime() - 
-                    new Date(`2000-01-01T${overlapStart}`).getTime();
-  const totalMs = new Date(`2000-01-01T${djSlot.end}`).getTime() - 
-                  new Date(`2000-01-01T${djSlot.start}`).getTime();
+  const overlapMs = timeToMs(overlapEnd) - timeToMs(overlapStart);
+  const totalMs = timeToMs(end2) - timeToMs(start2);
   
   return Math.max(0, Math.min(1, overlapMs / totalMs));
 }
 
-function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<string, any>) {
+function timeToMs(time: string): number {
+  const [h, m, s] = time.split(':').map(Number);
+  return ((h * 60 + m) * 60 + (s || 0)) * 1000;
+}
+
+function getAvailableSecretaries(
+  capacites: any[],
+  secretaireMap: Map<string, any>,
+  periode: 'matin' | 'apres_midi',
+  periodeTime: { heure_debut: string; heure_fin: string }
+): any[] {
+  const availableSet = new Set<string>();
+
+  for (const cap of capacites) {
+    if (!cap.secretaire_id && !cap.backup_id) continue;
+    
+    // Vérifier si la capacité chevauche cette période
+    if (!overlaps(cap.heure_debut, cap.heure_fin, periodeTime.heure_debut, periodeTime.heure_fin)) {
+      continue;
+    }
+
+    const secretaire_id = cap.secretaire_id || cap.backup_id;
+    availableSet.add(secretaire_id);
+  }
+
+  return Array.from(availableSet)
+    .map(id => secretaireMap.get(id))
+    .filter(s => s != null);
+}
+
+function optimizePeriod(
+  date: string,
+  periode: 'matin' | 'apres_midi',
+  periodeTime: { heure_debut: string; heure_fin: string },
+  besoinsParSite: Map<string, any>,
+  secretairesDispos: any[],
+  previousAssignments: any[],
+  portEnTruieCounter: Map<string, number>
+): any[] {
+  // 1. Construire le modèle MILP
   const model: any = {
     optimize: 'objective',
     opType: 'min',
@@ -297,282 +368,229 @@ function buildOptimizationModel(capacitesAgg: Map<string, any>, besoinsAgg: Map<
     ints: {}
   };
 
-  let totalVars = 0;
-  let totalConstraints = 0;
-  let xVarCount = 0;
-  let relaxed = false;
-  const personSitesByDate = new Map(); // Pour détecter changements de site
+  const slotsBySecretary = new Map<string, string[]>(); // secretary_id -> [slot_keys]
 
-  // Variables: x_{person}_{date}_{site}_{dj}_{spec}
-  // = 1 si personne assignée à (date, site, dj, spec)
-  
-  for (const [besoinKey, besoin] of besoinsAgg) {
-    const capKey = `${besoin.date}|${besoin.demi_journee}|${besoin.specialite_id}`;
-    const capacite = capacitesAgg.get(capKey);
-    
-    if (!capacite) continue;
+  // 2. Créer les créneaux possibles pour chaque secrétaire
+  for (const secretaire of secretairesDispos) {
+    const slots: string[] = [];
 
-    for (const person of capacite.personnes) {
-      const varName = `x_${person.person_id}_${besoin.date}_${besoin.site_id}_${besoin.demi_journee}_${besoin.specialite_id}`;
+    // Créneaux par site/spécialité où elle a la compétence
+    for (const [besoinKey, besoin] of besoinsParSite) {
+      const [site_id, specialite_id] = besoinKey.split('|');
       
-      // Contribution à la capacité du besoin
-      const besoinConstraint = `besoin_${besoinKey}`;
-      
+      // Vérifier si la secrétaire a la spécialité
+      if (specialite_id !== 'default' && !secretaire.specialites?.includes(specialite_id)) {
+        continue;
+      }
+
+      const slotKey = `${secretaire.id}_${site_id}_${specialite_id}`;
+      slots.push(slotKey);
+
+      // Créer la variable
+      const varName = `x_${slotKey}`;
       model.variables[varName] = {
         objective: 0,
-        [`def_ecart_${besoinKey}`]: 1, // Contribue à satisfaire le besoin
-        [`cap_${person.person_id}_${besoin.date}_${besoin.demi_journee}`]: 1
+        [`cap_${secretaire.id}`]: 1, // Contrainte: max 1 assignation par secrétaire
+        [`besoin_${besoinKey}`]: 1  // Contribue au besoin
       };
-      
-      // Pénalité Port-en-Truie
-      if (besoin.site_id === SITE_PORT_EN_TRUIE) {
-        model.variables[varName].objective += WEIGHTS.port_en_truie;
+
+      // Pénalité Port-en-Truie (progressive)
+      if (site_id === SITE_PORT_EN_TRUIE && !secretaire.prefere_port_en_truie) {
+        const currentCount = portEnTruieCounter.get(secretaire.id) || 0;
+        model.variables[varName].objective += PENALTY_PORT_EN_TRUIE_BASE * (1 + currentCount);
       }
-      
-      // Tracking pour changement de site
-      const dateKey = `${person.person_id}_${besoin.date}`;
-      if (!personSitesByDate.has(dateKey)) {
-        personSitesByDate.set(dateKey, new Set());
-      }
-      personSitesByDate.get(dateKey).add(besoin.site_id);
-      
-      model.ints[varName] = 1;
-      xVarCount++;
-      totalVars++;
-    }
-  }
 
-  // Si trop de variables entières, on bascule en relaxation LP pour éviter les timeouts
-  if (xVarCount > 220) {
-    console.log(`⚠️ Large model detected with ${xVarCount} integer x vars - switching to LP relaxation`);
-    model.ints = {}; // remove integer constraints
-    relaxed = true;
-  }
-
-  // Contrainte 1: Chaque personne affectée max 1 fois par (date, demi_journee)
-  const personDateDj = new Set();
-  for (const varName of Object.keys(model.variables)) {
-    const parts = varName.split('_');
-    const personId = parts[1];
-    const date = parts[2];
-    const dj = parts[4];
-    personDateDj.add(`${personId}_${date}_${dj}`);
-  }
-  
-  for (const key of personDateDj) {
-    model.constraints[`cap_${key}`] = { max: 1 };
-    totalConstraints++;
-  }
-
-  // Contrainte 2: Pour chaque besoin, on veut que la capacité assignée soit <= besoin
-  // On crée aussi des variables d'écart pour pénaliser les besoins non satisfaits
-  for (const [besoinKey, besoin] of besoinsAgg) {
-    const besoinValue = besoin.besoin; // Garder la valeur réelle (peut être décimale)
-    
-    // Variable d'écart (représente le manque de capacité)
-    const ecartVarName = `ecart_${besoinKey}`;
-    model.variables[ecartVarName] = {
-      objective: WEIGHTS.satisfaction * Math.max(1, besoinValue), // Pénalité proportionnelle au besoin
-      [`def_ecart_${besoinKey}`]: 1
-    };
-    totalVars++;
-    
-    // Contrainte: Σx + ecart >= besoin (on veut satisfaire le besoin)
-    // Réécrit comme: Σx + ecart = besoin (pour simplifier)
-    model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
-    totalConstraints++;
-  }
-
-  // Pénalité changement de site (si matin et après-midi sur sites différents)
-  for (const [dateKey, sites] of personSitesByDate) {
-    if (sites.size > 1) {
-      // Ajouter une pénalité dans l'objectif pour les variables de l'après-midi
-      const [personId, date] = dateKey.split('_');
-      for (const varName of Object.keys(model.variables)) {
-        if (varName.includes(`_${personId}_${date}_`) && varName.includes('_apres_midi_')) {
-          model.variables[varName].objective = 
-            (model.variables[varName].objective || 0) + WEIGHTS.changement_site;
+      // Pénalité changement de site (si après-midi et site différent du matin)
+      if (periode === 'apres_midi') {
+        const morningAssignment = previousAssignments.find(
+          a => a.date === date && 
+               a.heure_debut === '07:30:00' &&
+               (a.secretaires_ids?.includes(secretaire.id) || a.backups_ids?.includes(secretaire.id))
+        );
+        
+        if (morningAssignment && morningAssignment.site_id !== site_id) {
+          model.variables[varName].objective += PENALTY_SITE_CHANGE;
         }
       }
+
+      model.ints[varName] = 1;
     }
+
+    // Ajouter l'option administrative
+    const adminSlotKey = `${secretaire.id}_admin`;
+    slots.push(adminSlotKey);
+    
+    const adminVarName = `x_${adminSlotKey}`;
+    model.variables[adminVarName] = {
+      objective: 0,
+      [`cap_${secretaire.id}`]: 1
+    };
+    model.ints[adminVarName] = 1;
+
+    slotsBySecretary.set(secretaire.id, slots);
   }
 
-  return { model, stats: { totalVars, totalConstraints, xVars: xVarCount, relaxed } };
+  // 3. Contraintes
+  // 3a. Chaque secrétaire max 1 assignation
+  for (const secretaire of secretairesDispos) {
+    model.constraints[`cap_${secretaire.id}`] = { max: 1 };
+  }
+
+  // 3b. Pour chaque besoin: capacité <= besoin
+  // On ajoute des variables d'écart pour minimiser (besoin - capacite)²
+  for (const [besoinKey, besoin] of besoinsParSite) {
+    const besoinValue = besoin.besoin;
+    
+    // Variable d'écart (manque de capacité)
+    const ecartVar = `ecart_${besoinKey}`;
+    model.variables[ecartVar] = {
+      objective: 1000 * besoinValue, // Poids fort pour satisfaire les besoins
+      [`def_besoin_${besoinKey}`]: 1
+    };
+
+    // Contrainte: Σx + ecart = besoin
+    model.constraints[`def_besoin_${besoinKey}`] = { equal: besoinValue };
+    model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
+  }
+
+  // 4. Résoudre
+  console.log(`    Solving MILP with ${Object.keys(model.variables).length} variables...`);
+  const solution = solver.Solve(model);
+
+  if (!solution.feasible) {
+    console.log('    ⚠️ Infeasible, trying LP relaxation...');
+    model.ints = {};
+    const relaxedSolution = solver.Solve(model);
+    if (!relaxedSolution.feasible) {
+      console.log('    ❌ Still infeasible');
+      return [];
+    }
+    return parseAssignmentsFromSolution(
+      date,
+      periode,
+      periodeTime,
+      relaxedSolution,
+      besoinsParSite,
+      secretairesDispos,
+      portEnTruieCounter
+    );
+  }
+
+  console.log(`    ✅ Solved with objective: ${solution.result?.toFixed(4)}`);
+
+  // 5. Parser la solution
+  return parseAssignmentsFromSolution(
+    date,
+    periode,
+    periodeTime,
+    solution,
+    besoinsParSite,
+    secretairesDispos,
+    portEnTruieCounter
+  );
 }
 
-function parseAssignments(solution: any, capacitesAgg: Map<string, any>, besoinsAgg: Map<string, any>) {
+function parseAssignmentsFromSolution(
+  date: string,
+  periode: 'matin' | 'apres_midi',
+  periodeTime: { heure_debut: string; heure_fin: string },
+  solution: any,
+  besoinsParSite: Map<string, any>,
+  secretairesDispos: any[],
+  portEnTruieCounter: Map<string, number>
+): any[] {
   const assignments: any[] = [];
-  const djToTime = {
-    matin: { heure_debut: '07:30:00', heure_fin: '12:00:00' },
-    apres_midi: { heure_debut: '13:00:00', heure_fin: '17:00:00' }
-  };
+  const assignedPerBesoin = new Map<string, number>();
 
-  console.log('🔍 Debug parseAssignments:');
-  console.log(`  Solution keys: ${Object.keys(solution).length}`);
-  
-  // Debug: show first few solution entries
-  let count = 0;
-  for (const [key, value] of Object.entries(solution)) {
-    if (count < 5) {
-      console.log(`  ${key}: ${value}`);
-      count++;
-    }
-  }
-
-  // Build besoin info map
-  const besoinInfo = new Map<string, any>();
-  for (const [key, besoin] of besoinsAgg) {
-    besoinInfo.set(key, {
-      max: Math.ceil(besoin.besoin || 0),
-      assigned: 0,
-      type: besoin.type,
-      medecin_ids: besoin.medecin_ids || []
-    });
-  }
-
-  type Candidate = {
-    varName: string;
-    value: number;
-    personId: string;
-    date: string;
-    siteId: string;
-    dj: string;
-    specId: string;
-    besoinKey: string;
-    times: { heure_debut: string; heure_fin: string };
-  };
-
-  const candidates: Candidate[] = [];
+  // Extraire les assignations
+  const candidates: any[] = [];
   
   for (const [varName, value] of Object.entries(solution)) {
-    if (typeof value !== 'number') continue;
-    if (!varName.startsWith('x_') || value <= 0) continue;
-
-    const parts = varName.split('_');
-    const personId = parts[1];
-    const date = parts[2];
-    const siteId = parts[3];
-    const dj = parts[4];
-    const specId = parts.slice(5).join('_');
-    const times = djToTime[dj as keyof typeof djToTime];
-    const besoinKey = `${date}|${siteId}|${dj}|${specId}`;
-
-    if (!times) continue;
-
-    candidates.push({
-      varName,
-      value,
-      personId,
-      date,
-      siteId,
-      dj,
-      specId,
-      besoinKey,
-      times
-    });
-  }
-
-  // Greedy extraction: 1) take all exact 1's, 2) fill rest with highest fractional values
-  const usedPersonDj = new Set<string>();
-
-  // Initialize besoinInfo.assigned from any pre-existing context (kept at 0)
-  // Pass 1: exact binaries
-  for (const c of candidates) {
-    if (c.value !== 1) continue;
-    const info = besoinInfo.get(c.besoinKey);
-    if (!info || info.max <= 0) continue;
-    if (info.assigned >= info.max) continue;
-
-    const usedKey = `${c.personId}|${c.date}|${c.dj}`;
-    if (usedPersonDj.has(usedKey)) continue;
-
-    assignments.push({
-      date: c.date,
-      site_id: c.siteId,
-      type: 'secretaire',
-      heure_debut: c.times.heure_debut,
-      heure_fin: c.times.heure_fin,
-      secretaires_ids: [c.personId],
-      backups_ids: [],
-      medecins_ids: info?.medecin_ids || [],
-      type_assignation: 'site',
-      statut: 'planifie'
-    });
-
-    usedPersonDj.add(usedKey);
-    info.assigned++;
-  }
-
-  // Pass 2: fractional values (descending)
-  const fractional = candidates.filter(c => c.value > 0 && c.value < 1).sort((a, b) => b.value - a.value);
-  for (const c of fractional) {
-    const info = besoinInfo.get(c.besoinKey);
-    if (!info || info.max <= 0) continue;
-    if (info.assigned >= info.max) continue;
-
-    const usedKey = `${c.personId}|${c.date}|${c.dj}`;
-    if (usedPersonDj.has(usedKey)) continue;
-
-    assignments.push({
-      date: c.date,
-      site_id: c.siteId,
-      type: 'secretaire',
-      heure_debut: c.times.heure_debut,
-      heure_fin: c.times.heure_fin,
-      secretaires_ids: [c.personId],
-      backups_ids: [],
-      medecins_ids: info?.medecin_ids || [],
-      type_assignation: 'site',
-      statut: 'planifie'
-    });
-
-    usedPersonDj.add(usedKey);
-    info.assigned++;
-  }
-
-  return assignments;
-}
-
-function calculateStats(assignments: any[], besoinsAgg: Map<string, any>) {
-  let totalBesoins = 0;
-  let totalAssignments = 0;
-  let satisfait = 0;
-  let partiel = 0;
-  let nonSatisfait = 0;
-
-  // Calculer par besoin
-  for (const [besoinKey, besoin] of besoinsAgg) {
-    const besoinValue = besoin.besoin;
-    totalBesoins += besoinValue;
+    if (!varName.startsWith('x_') || typeof value !== 'number' || value <= 0) continue;
     
-    // Compter les assignations pour ce besoin
-    const [date, siteId, dj, specId] = besoinKey.split('|');
-    const assigned = assignments.filter(a => 
-      a.date === date && 
-      a.site_id === siteId && 
-      a.heure_debut === DEMI_JOURNEE_SLOTS[dj as keyof typeof DEMI_JOURNEE_SLOTS].start &&
-      a.secretaires_ids.some((sid: string) => sid) // Au moins une secrétaire
-    ).length;
+    const parts = varName.substring(2).split('_');
+    const secretary_id = parts[0];
     
-    totalAssignments += assigned;
-    
-    if (assigned >= Math.ceil(besoinValue)) {
-      satisfait++;
-    } else if (assigned > 0) {
-      partiel++;
+    if (parts[1] === 'admin') {
+      // Assignation administrative
+      candidates.push({
+        secretary_id,
+        site_id: null,
+        specialite_id: null,
+        is_admin: true,
+        value
+      });
     } else {
-      nonSatisfait++;
+      const site_id = parts[1];
+      const specialite_id = parts.slice(2).join('_');
+      candidates.push({
+        secretary_id,
+        site_id,
+        specialite_id,
+        is_admin: false,
+        value
+      });
     }
   }
 
-  return {
-    total_besoins: Math.round(totalBesoins * 10) / 10,
-    total_assignments: totalAssignments,
-    satisfaction_rate: totalBesoins > 0 
-      ? ((totalAssignments / totalBesoins) * 100).toFixed(1) + '%' 
-      : '0%',
-    satisfait,
-    partiel,
-    non_satisfait: nonSatisfait
-  };
+  // Trier par valeur décroissante (priorité aux assignations fermes)
+  candidates.sort((a, b) => b.value - a.value);
+
+  const usedSecretaries = new Set<string>();
+
+  // Traiter les assignations
+  for (const candidate of candidates) {
+    if (usedSecretaries.has(candidate.secretary_id)) continue;
+
+    if (candidate.is_admin) {
+      // Assignation administrative
+      assignments.push({
+        date,
+        site_id: null,
+        type: 'secretaire',
+        heure_debut: periodeTime.heure_debut,
+        heure_fin: periodeTime.heure_fin,
+        secretaires_ids: [candidate.secretary_id],
+        backups_ids: [],
+        medecins_ids: [],
+        type_assignation: 'administratif',
+        statut: 'planifie'
+      });
+      usedSecretaries.add(candidate.secretary_id);
+    } else {
+      // Assignation à un site
+      const besoinKey = `${candidate.site_id}|${candidate.specialite_id}`;
+      const besoin = besoinsParSite.get(besoinKey);
+      
+      if (!besoin) continue;
+
+      const currentAssigned = assignedPerBesoin.get(besoinKey) || 0;
+      if (currentAssigned >= Math.ceil(besoin.besoin)) continue;
+
+      assignments.push({
+        date,
+        site_id: candidate.site_id,
+        type: 'secretaire',
+        heure_debut: periodeTime.heure_debut,
+        heure_fin: periodeTime.heure_fin,
+        secretaires_ids: [candidate.secretary_id],
+        backups_ids: [],
+        medecins_ids: besoin.medecin_ids || [],
+        type_assignation: 'site',
+        statut: 'planifie'
+      });
+
+      // Mettre à jour le compteur Port-en-Truie
+      if (candidate.site_id === SITE_PORT_EN_TRUIE) {
+        const currentCount = portEnTruieCounter.get(candidate.secretary_id) || 0;
+        portEnTruieCounter.set(candidate.secretary_id, currentCount + 1);
+      }
+
+      assignedPerBesoin.set(besoinKey, currentAssigned + 1);
+      usedSecretaries.add(candidate.secretary_id);
+    }
+  }
+
+  console.log(`    → ${assignments.length} assignments created`);
+  return assignments;
 }
