@@ -901,6 +901,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      handle_horaire_medecin_insert_logic: {
+        Args: { p_horaire: Record<string, unknown> }
+        Returns: undefined
+      }
+      handle_horaire_secretaire_insert_logic: {
+        Args: { p_horaire: Record<string, unknown> }
+        Returns: undefined
+      }
       has_planning_access: {
         Args: Record<PropertyKey, never>
         Returns: boolean

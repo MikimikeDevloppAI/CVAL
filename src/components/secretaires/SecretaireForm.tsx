@@ -113,21 +113,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         if (secretaireError) throw secretaireError;
 
-        // Supprimer les capacités effectives futures pour ce secrétaire avant de recréer
-        await supabase
-          .from('capacite_effective')
-          .delete()
-          .eq('secretaire_id', secretaire.id)
-          .gte('date', new Date().toISOString().split('T')[0]);
-
         // Mettre à jour les horaires
-        // D'abord supprimer les anciens horaires
+        // D'abord supprimer les anciens horaires (triggers géreront capacite_effective)
         await supabase
           .from('horaires_base_secretaires')
           .delete()
           .eq('secretaire_id', secretaire.id);
 
-        // Puis insérer les nouveaux horaires actifs
+        // Puis insérer les nouveaux horaires actifs (triggers créeront capacite_effective)
         const horairesActifs = data.horaires.filter(horaire => 
           horaire.jourTravaille && 
           horaire.heureDebut && 
@@ -149,15 +142,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
           if (horairesError) throw horairesError;
         }
-
-        // Regenerate capacites for this secretary only
-        const startDate = new Date().toISOString().split('T')[0];
-        const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        await supabase.rpc('recreate_secretary_capacite', {
-          p_secretaire_id: secretaire.id,
-          p_date_debut: startDate,
-          p_date_fin: endDate
-        });
 
         toast({
           title: "Succès",
@@ -183,7 +167,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         if (secretaireError) throw secretaireError;
 
-        // Créer les horaires (seulement les jours travaillés)
+        // Créer les horaires (triggers créeront automatiquement capacite_effective)
         if (secretaireData) {
           const horairesActifs = data.horaires.filter(horaire => 
             horaire.jourTravaille && 
@@ -206,17 +190,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
             if (horairesError) throw horairesError;
           }
-        }
-
-        // Generate capacites for this secretary only
-        if (secretaireData) {
-          const startDate = new Date().toISOString().split('T')[0];
-          const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          await supabase.rpc('recreate_secretary_capacite', {
-            p_secretaire_id: secretaireData.id,
-            p_date_debut: startDate,
-            p_date_fin: endDate
-          });
         }
 
         toast({

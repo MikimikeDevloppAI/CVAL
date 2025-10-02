@@ -169,21 +169,14 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         if (medecinError) throw medecinError;
 
-        // Supprimer les besoins effectifs futurs pour ce médecin avant de recréer
-        await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('medecin_id', medecin.id)
-          .gte('date', new Date().toISOString().split('T')[0]);
-
         // Mettre à jour les horaires
-        // D'abord supprimer les anciens horaires
+        // D'abord supprimer les anciens horaires (triggers géreront besoin_effectif)
         await supabase
           .from('horaires_base_medecins')
           .delete()
           .eq('medecin_id', medecin.id);
 
-        // Puis insérer les nouveaux horaires
+        // Puis insérer les nouveaux horaires (triggers créeront besoin_effectif)
         if (data.horaires.length > 0) {
           const horairesData = data.horaires.map(horaire => ({
             medecin_id: medecin.id,
@@ -202,15 +195,6 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
           if (horairesError) throw horairesError;
         }
-
-        // Regenerate besoins for this doctor only
-        const startDate = new Date().toISOString().split('T')[0];
-        const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        await supabase.rpc('recreate_doctor_besoin', {
-          p_medecin_id: medecin.id,
-          p_date_debut: startDate,
-          p_date_fin: endDate
-        });
 
         toast({
           title: "Succès",
@@ -233,7 +217,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
 
         if (medecinError) throw medecinError;
 
-        // Créer les horaires
+        // Créer les horaires (triggers créeront automatiquement besoin_effectif)
         if (medecinData && data.horaires.length > 0) {
           const horairesData = data.horaires.map(horaire => ({
             medecin_id: medecinData.id,
@@ -251,17 +235,6 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             .insert(horairesData);
 
           if (horairesError) throw horairesError;
-        }
-
-        // Generate besoins for this doctor only
-        if (medecinData) {
-          const startDate = new Date().toISOString().split('T')[0];
-          const endDate = new Date(Date.now() + 52 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          await supabase.rpc('recreate_doctor_besoin', {
-            p_medecin_id: medecinData.id,
-            p_date_debut: startDate,
-            p_date_fin: endDate
-          });
         }
 
         toast({
