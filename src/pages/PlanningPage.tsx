@@ -89,12 +89,17 @@ export default function PlanningPage() {
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+
+  useEffect(() => {
+    setGeneratedPdfUrl(null); // Reset PDF URL when week changes
+  }, [currentWeekStart]);
 
   useEffect(() => {
     fetchData();
@@ -724,9 +729,9 @@ export default function PlanningPage() {
         description: "Planning validé et PDF généré avec succès !",
       });
 
-      // Download the PDF
+      // Store the PDF URL
       if (data.pdfUrl) {
-        window.open(data.pdfUrl, '_blank');
+        setGeneratedPdfUrl(data.pdfUrl);
       }
 
       fetchPlanningGenere();
@@ -1106,25 +1111,37 @@ export default function PlanningPage() {
                     </>
                   )}
                 </Button>
-                <Button 
-                  onClick={handleValidateAndGeneratePDF} 
-                  disabled={isGeneratingPDF}
-                  size="lg"
-                  variant="secondary"
-                  className="gap-2"
-                >
-                  {isGeneratingPDF ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Génération PDF en cours...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4" />
-                      Valider et générer PDF
-                    </>
-                  )}
-                </Button>
+                {generatedPdfUrl ? (
+                  <Button 
+                    onClick={() => window.open(generatedPdfUrl, '_blank')} 
+                    size="lg"
+                    variant="default"
+                    className="gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Télécharger le PDF
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleValidateAndGeneratePDF} 
+                    disabled={isGeneratingPDF}
+                    size="lg"
+                    variant="secondary"
+                    className="gap-2"
+                  >
+                    {isGeneratingPDF ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Génération PDF en cours...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4" />
+                        Valider et générer PDF
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           )}
