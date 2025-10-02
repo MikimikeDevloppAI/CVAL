@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     // Convert HTML to PDF using ConvertAPI (v2) with File/FileValue
     // See: https://www.convertapi.com/html-to-pdf
-    const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}`;
+    const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}&StoreFile=true`;
     const payload = {
       Parameters: [
         { 
