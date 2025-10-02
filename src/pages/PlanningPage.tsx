@@ -1034,7 +1034,7 @@ export default function PlanningPage() {
           {optimizationResult && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <div className="flex-1 flex justify-center">
+                <div className="flex-1 flex justify-start">
                   <div className="inline-flex rounded-lg border p-1 bg-muted">
                     <Button
                       variant={planningView === 'site' ? 'default' : 'ghost'}
