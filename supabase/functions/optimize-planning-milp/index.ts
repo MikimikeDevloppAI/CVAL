@@ -470,7 +470,8 @@ function optimizePeriod(
     const ecartVar = `ecart_${besoinKey}`;
     model.variables[ecartVar] = {
       objective: 1, // Minimiser (besoin - Σx)
-      [`def_ecart_${besoinKey}`]: 1
+      [`def_ecart_${besoinKey}`]: 1,
+      min: 0  // Force ecart >= 0, donc Σx <= besoin
     };
 
     // Variable binaire bonus (activée si Σx >= floor(besoin))
@@ -493,8 +494,8 @@ function optimizePeriod(
     // Contrainte: ecart = besoin - Σx
     model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
     
-    // Contrainte: Σx ≤ besoin (arrondi supérieur)
-    model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
+    // Contrainte: Σx ≤ besoin (pas d'arrondi pour garder ratio <= 1)
+    model.constraints[`besoin_${besoinKey}`] = { max: besoinValue };
   }
 
   // 4. Résoudre
