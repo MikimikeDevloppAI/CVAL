@@ -101,6 +101,7 @@ export function EditPlanningCreneauDialog({
         site_id: typeAssignation === 'site' ? (siteId || null) : null,
         secretaires_ids: secretairesIds,
         backups_ids: backupsIds,
+        statut: 'planifie',
       };
 
       // Préserver les champs qui ne doivent pas être modifiés
@@ -108,7 +109,6 @@ export function EditPlanningCreneauDialog({
       if (creneau.medecins_ids) updateData.medecins_ids = creneau.medecins_ids;
       if (creneau.responsable_1r_id !== undefined) updateData.responsable_1r_id = creneau.responsable_1r_id;
       if (creneau.responsable_2f_id !== undefined) updateData.responsable_2f_id = creneau.responsable_2f_id;
-      if (creneau.statut) updateData.statut = creneau.statut;
       if (creneau.version_planning) updateData.version_planning = creneau.version_planning;
 
       const { error } = await supabase
