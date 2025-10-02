@@ -460,7 +460,7 @@ function optimizePeriod(
     // Variable Σx (somme des assignations)
     const sumXVar = `sum_x_${besoinKey}`;
     model.variables[sumXVar] = {
-      objective: -1 / besoinValue,     // Terme -(Σx/besoin)
+      objective: -10 / besoinValue,    // Terme -(Σx/besoin) avec coefficient -10 pour favoriser l'équité
       [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
       [`def_ecart_${besoinKey}`]: 1,   // sumX + ecart = besoin
       [`bonus_constraint_${besoinKey}`]: 1  // Pour bonus si Σx >= floor(besoin)
