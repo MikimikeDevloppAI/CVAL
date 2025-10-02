@@ -513,11 +513,14 @@ function parseAssignmentsFromSolution(
   secretairesDispos: any[],
   portEnTruieCounter: Map<string, number>
 ): any[] {
-  // Regrouper les secrétaires par site
+  // Regrouper les secrétaires par site (en s'assurant qu'une secrétaire n'apparaît qu'une fois)
   const assignmentsBySite = new Map<string, string[]>(); // site_id -> secretary_ids
   const adminSecretaries: string[] = [];
+  const usedSecretaries = new Set<string>(); // Pour éviter les doublons
   
-  // Extraire les assignations
+  // Trier les assignations par valeur pour prioriser les meilleures
+  const assignments: Array<{secretary_id: string, site_id: string | null, value: number, is_admin: boolean}> = [];
+  
   for (const [varName, value] of Object.entries(solution)) {
     // Ignorer les métadonnées du solver
     if (varName === 'feasible' || varName === 'result' || varName === 'bounded' || varName === 'isIntegral') continue;
@@ -527,32 +530,48 @@ function parseAssignmentsFromSolution(
     const secretary_id = parts[0];
     
     if (parts[1] === 'admin') {
-      // Assignation administrative
-      adminSecretaries.push(secretary_id);
+      assignments.push({ secretary_id, site_id: null, value, is_admin: true });
     } else {
       const site_id = parts[1];
+      assignments.push({ secretary_id, site_id, value, is_admin: false });
+    }
+  }
+  
+  // Trier par valeur décroissante pour prioriser les meilleures assignations
+  assignments.sort((a, b) => b.value - a.value);
+  
+  // Traiter les assignations en s'assurant qu'une secrétaire n'est assignée qu'une fois
+  for (const assignment of assignments) {
+    if (usedSecretaries.has(assignment.secretary_id)) continue;
+    
+    if (assignment.is_admin) {
+      adminSecretaries.push(assignment.secretary_id);
+      usedSecretaries.add(assignment.secretary_id);
+    } else {
+      const site_id = assignment.site_id!;
       
       if (!assignmentsBySite.has(site_id)) {
         assignmentsBySite.set(site_id, []);
       }
-      assignmentsBySite.get(site_id)!.push(secretary_id);
+      assignmentsBySite.get(site_id)!.push(assignment.secretary_id);
+      usedSecretaries.add(assignment.secretary_id);
       
       // Mettre à jour le compteur Port-en-Truie
       if (site_id === SITE_PORT_EN_TRUIE) {
-        const currentCount = portEnTruieCounter.get(secretary_id) || 0;
-        portEnTruieCounter.set(secretary_id, currentCount + 1);
+        const currentCount = portEnTruieCounter.get(assignment.secretary_id) || 0;
+        portEnTruieCounter.set(assignment.secretary_id, currentCount + 1);
       }
     }
   }
 
-  const assignments: any[] = [];
+  const result: any[] = [];
 
   // Créer une ligne par besoin (même si non satisfait)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const [site_id, specialite_id] = besoinKey.split('|');
     const assignedSecretaries = assignmentsBySite.get(site_id) || [];
     
-    assignments.push({
+    result.push({
       date,
       site_id,
       type: 'secretaire',
@@ -568,7 +587,7 @@ function parseAssignmentsFromSolution(
 
   // Créer une ligne pour les tâches administratives si nécessaire
   if (adminSecretaries.length > 0) {
-    assignments.push({
+    result.push({
       date,
       site_id: null,
       type: 'secretaire',
@@ -582,8 +601,8 @@ function parseAssignmentsFromSolution(
     });
   }
 
-  console.log(`    → ${assignments.length} assignments created (${assignmentsBySite.size} sites)`);
-  return assignments;
+  console.log(`    → ${result.length} assignments created (${assignmentsBySite.size} sites, ${usedSecretaries.size} secretaries)`);
+  return result;
 }
 
 // Fonction pour assigner les responsables 1R et 2F aux sites fermés
