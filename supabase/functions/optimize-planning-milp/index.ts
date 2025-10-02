@@ -401,9 +401,9 @@ function optimizePeriod(
       const varName = `x_${slotKey}`;
       model.variables[varName] = {
         objective: 0,
-        [`cap_${secretaire.id}`]: 1, // Contrainte: max 1 assignation par secrétaire
-        [`besoin_${besoinKey}`]: 1,  // Contribue à la contrainte max (arrondi)
-        [`cap_eff_sum_${besoinKey}`]: 1 // Pour cap_effective ≤ Σx
+        [`cap_${secretaire.id}`]: 1,     // Contrainte: max 1 assignation par secrétaire
+        [`besoin_${besoinKey}`]: 1,      // Contribue à la contrainte max (arrondi)
+        [`sum_x_${besoinKey}`]: 1        // Pour calculer Σx
       };
 
       // Pénalité Port-en-Truie (exponentielle: 0.0001 × 2^n)
@@ -450,38 +450,36 @@ function optimizePeriod(
     model.constraints[`cap_${secretaire.id}`] = { max: 1 };
   }
 
-  // 3b. Pour chaque besoin: nouvelle fonction objectif
-  // Objectif: minimize (besoin - cap_effective) - (cap_effective/besoin) - bonus
-  // Où cap_effective = min(Σx, besoin)
+  // 3b. Pour chaque besoin: fonction objectif simplifiée
+  // Objectif: minimize (besoin - Σx) - (Σx/besoin) - bonus
+  // Avec contrainte Σx ≤ besoin (donc Σx = cap_effective)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
     const floorBesoin = Math.floor(besoinValue);
     
-    // Variable cap_effective = min(Σx, besoin)
-    const capEffectiveVar = `cap_effective_${besoinKey}`;
-    model.variables[capEffectiveVar] = {
-      // Objectif: -(cap_effective/besoin) avec bonus implicite pour floor(besoin)
+    // Variable Σx (somme des assignations)
+    const sumXVar = `sum_x_${besoinKey}`;
+    model.variables[sumXVar] = {
+      // Objectif: -Σx/besoin avec bonus pour atteindre floor(besoin)
       objective: (-1 / besoinValue) + (floorBesoin > 0 ? (-50 / floorBesoin) : 0),
-      [`cap_eff_sum_${besoinKey}`]: -1,  // cap_effective ≤ Σx
-      [`cap_eff_max_${besoinKey}`]: 1,   // cap_effective ≤ besoin
-      [`def_ecart_${besoinKey}`]: -1     // Pour l'écart
+      [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
+      [`def_ecart_${besoinKey}`]: -1   // Pour (besoin - Σx)
     };
     
-    // Variable d'écart: (besoin - cap_effective)
+    // Variable d'écart: (besoin - Σx)
     const ecartVar = `ecart_${besoinKey}`;
     model.variables[ecartVar] = {
-      objective: 1, // Minimiser (besoin - cap_effective)
+      objective: 1, // Minimiser (besoin - Σx)
       [`def_ecart_${besoinKey}`]: 1
     };
 
-    // Contraintes pour cap_effective
-    model.constraints[`cap_eff_sum_${besoinKey}`] = { max: 0 };  // cap_effective ≤ Σx
-    model.constraints[`cap_eff_max_${besoinKey}`] = { max: besoinValue }; // cap_effective ≤ besoin
+    // Contrainte: Σx définie par les variables x
+    model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
     
-    // Contrainte: ecart = besoin - cap_effective
+    // Contrainte: ecart = besoin - Σx
     model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
     
-    // Contrainte: capacité assignée ≤ besoin (arrondi supérieur)
+    // Contrainte: Σx ≤ besoin (arrondi supérieur)
     model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
   }
 
