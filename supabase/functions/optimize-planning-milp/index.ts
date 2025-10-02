@@ -505,8 +505,13 @@ function parseAssignmentsFromSolution(
   // Extraire les assignations
   const candidates: any[] = [];
   
+  // Log pour debug
+  console.log(`    DEBUG: solution keys:`, Object.keys(solution).slice(0, 10));
+  
   for (const [varName, value] of Object.entries(solution)) {
-    if (!varName.startsWith('x_') || typeof value !== 'number' || value <= 0) continue;
+    // Ignorer les métadonnées du solver
+    if (varName === 'feasible' || varName === 'result' || varName === 'bounded' || varName === 'isIntegral') continue;
+    if (!varName.startsWith('x_') || typeof value !== 'number' || value <= 0.01) continue;
     
     const parts = varName.substring(2).split('_');
     const secretary_id = parts[0];
