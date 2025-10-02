@@ -25,7 +25,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { weekStart, weekEnd, secretaries } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const weekStart: string = String(body?.weekStart || '');
+    const weekEnd: string = String(body?.weekEnd || '');
+    const secretaries: Secretary[] = Array.isArray(body?.secretaries) ? body.secretaries : [];
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -35,53 +38,41 @@ Deno.serve(async (req) => {
 
     // Generate HTML content
     const html = generatePlanningHTML(secretaries, weekStart, weekEnd);
+    console.log('PDF generation input:', { weekStart, weekEnd, secretariesCount: secretaries.length });
+    console.log('Generated HTML length:', html?.length || 0);
 
-    // Convert HTML to PDF using ConvertAPI
-    const convertApiResponse = await fetch('https://v2.convertapi.com/convert/html/to/pdf', {
+    // Convert HTML to PDF using ConvertAPI (v2)
+    // See: https://www.convertapi.com/html-to-pdf
+    const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}`;
+    const payload = {
+      Parameters: [
+        { Name: 'Html', Value: html },
+        { Name: 'FileName', Value: `planning_${weekStart}_${weekEnd}` },
+        { Name: 'MarginTop', Value: '10' },
+        { Name: 'MarginBottom', Value: '10' },
+        { Name: 'MarginLeft', Value: '10' },
+        { Name: 'MarginRight', Value: '10' },
+        { Name: 'PageSize', Value: 'a4' },
+      ],
+    };
+
+    const convertApiResponse = await fetch(convertUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        Parameters: [
-          {
-            Name: 'File',
-            Value: btoa(html),
-          },
-          {
-            Name: 'FileName',
-            Value: `planning_${weekStart}_${weekEnd}.pdf`,
-          },
-          {
-            Name: 'MarginTop',
-            Value: '10',
-          },
-          {
-            Name: 'MarginBottom',
-            Value: '10',
-          },
-          {
-            Name: 'MarginLeft',
-            Value: '10',
-          },
-          {
-            Name: 'MarginRight',
-            Value: '10',
-          },
-          {
-            Name: 'PageSize',
-            Value: 'a4',
-          },
-        ],
-        Secret: convertApiSecret,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
     if (!convertApiResponse.ok) {
-      throw new Error('Failed to generate PDF');
+      const errorText = await convertApiResponse.text();
+      console.error('ConvertAPI error:', convertApiResponse.status, errorText);
+      throw new Error(`ConvertAPI failed (${convertApiResponse.status}): ${errorText}`);
     }
 
     const pdfData = await convertApiResponse.json();
+    if (!pdfData?.Files?.[0]?.Url) {
+      console.error('ConvertAPI unexpected response:', pdfData);
+      throw new Error('ConvertAPI returned no file URL');
+    }
     const pdfUrl = pdfData.Files[0].Url;
 
     // Download the PDF from ConvertAPI

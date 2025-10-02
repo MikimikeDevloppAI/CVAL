@@ -713,7 +713,7 @@ export default function PlanningPage() {
         body: {
           weekStart: format(currentWeekStart, 'dd/MM/yyyy'),
           weekEnd: format(weekEnd, 'dd/MM/yyyy'),
-          secretaries: secretaryData,
+          secretaries: secretaryData || [],
         },
       });
 
@@ -730,11 +730,12 @@ export default function PlanningPage() {
       }
 
       fetchPlanningGenere();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error validating and generating PDF:', error);
+      const message = error?.message || (typeof error === 'string' ? error : 'Impossible de valider et générer le PDF');
       toast({
         title: "Erreur",
-        description: "Impossible de valider et générer le PDF",
+        description: message.length > 180 ? message.slice(0, 180) + '…' : message,
         variant: "destructive",
       });
     } finally {
