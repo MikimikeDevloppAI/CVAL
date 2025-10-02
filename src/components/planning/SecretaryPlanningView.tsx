@@ -1,14 +1,29 @@
+import { useState } from 'react';
 import { AssignmentResult } from '@/types/planning';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Calendar, MapPin, Clock } from 'lucide-react';
+import { User, Calendar, MapPin, Clock, Edit } from 'lucide-react';
+import { EditPlanningCreneauDialog } from './EditPlanningCreneauDialog';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SecretaryPlanningViewProps {
   assignments: AssignmentResult[];
   weekDays: Date[];
   onRefresh?: () => void;
+}
+
+interface PlanningCreneauForEdit {
+  id: string;
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+  site_id?: string;
+  type_assignation?: string;
+  secretaires_ids?: string[];
+  backups_ids?: string[];
 }
 
 interface SecretaryData {
@@ -25,6 +40,7 @@ interface SecretaryData {
     dateStr: string;
     matin?: {
       site_nom?: string;
+      site_id?: string;
       medecins: string[];
       is_1r?: boolean;
       is_2f?: boolean;
@@ -32,6 +48,7 @@ interface SecretaryData {
     };
     apresMidi?: {
       site_nom?: string;
+      site_id?: string;
       medecins: string[];
       is_1r?: boolean;
       is_2f?: boolean;
@@ -40,7 +57,45 @@ interface SecretaryData {
   }>;
 }
 
-export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanningViewProps) {
+export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: SecretaryPlanningViewProps) {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedCreneau, setSelectedCreneau] = useState<PlanningCreneauForEdit | null>(null);
+
+  const handleEditClick = async (secretaireId: string, date: string, periode: 'matin' | 'apres_midi', siteId?: string) => {
+    // Récupérer le vrai créneau depuis la base de données
+    const heureDebut = periode === 'matin' ? '07:30:00' : '13:00:00';
+    
+    const query = supabase
+      .from('planning_genere')
+      .select('*')
+      .eq('date', date)
+      .eq('heure_debut', heureDebut);
+    
+    // Ajouter le filtre site_id seulement s'il est défini
+    if (siteId) {
+      query.eq('site_id', siteId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error || !data) {
+      console.error('Erreur lors de la récupération du créneau:', error);
+      return;
+    }
+
+    const creneau: PlanningCreneauForEdit = {
+      id: data.id,
+      date: data.date,
+      heure_debut: data.heure_debut,
+      heure_fin: data.heure_fin,
+      site_id: data.site_id,
+      type_assignation: data.type_assignation || 'site',
+      secretaires_ids: data.secretaires_ids || [],
+      backups_ids: data.backups_ids || [],
+    };
+    setSelectedCreneau(creneau);
+    setEditDialogOpen(true);
+  };
   // Filtrer les jours ouvrés (lundi à vendredi)
   const weekdaysOnly = weekDays.filter(d => {
     const dow = d.getDay();
@@ -100,6 +155,7 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
       if (daySchedule) {
         const assignmentData = {
           site_nom: assignment.site_nom,
+          site_id: assignment.site_id,
           medecins: assignment.medecins,
           is_1r: sec.is_1r,
           is_2f: sec.is_2f,
@@ -230,6 +286,16 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
                           <span className="text-xs text-muted-foreground italic">-</span>
                         )}
                       </div>
+                      {matin && onRefresh && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
 
                     {/* Après-midi */}
@@ -275,6 +341,16 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
                           <span className="text-xs text-muted-foreground italic">-</span>
                         )}
                       </div>
+                      {apresMidi && onRefresh && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -283,6 +359,15 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
           </CardContent>
         </Card>
       ))}
+
+      <EditPlanningCreneauDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        creneau={selectedCreneau}
+        onSuccess={() => {
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 }
