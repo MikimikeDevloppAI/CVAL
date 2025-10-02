@@ -198,7 +198,7 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {secretaries.map(secretary => (
         <Card key={secretary.id} className="overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10">
+          <CardHeader className="bg-white">
             <div className="space-y-3">
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
@@ -206,23 +206,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
               </CardTitle>
               
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {secretary.totalAssignments} assignations
-                </Badge>
-                
-                {secretary.siteAssignments > 0 && (
-                  <Badge variant="outline">
-                    {secretary.siteAssignments} sur site
-                  </Badge>
-                )}
-                
-                {secretary.adminAssignments > 0 && (
-                  <Badge variant="outline" className="bg-gray-100">
-                    {secretary.adminAssignments} admin
-                  </Badge>
-                )}
-                
                 {secretary.is1RCount > 0 && (
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                     1R: {secretary.is1RCount}
