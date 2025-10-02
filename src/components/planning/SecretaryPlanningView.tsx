@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { AssignmentResult } from '@/types/planning';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Calendar, MapPin } from 'lucide-react';
-import { SecretaryWeekView } from './SecretaryWeekView';
+import { User, Calendar, MapPin, Clock } from 'lucide-react';
 
 interface SecretaryPlanningViewProps {
   assignments: AssignmentResult[];
@@ -21,22 +19,32 @@ interface SecretaryData {
   sites: string[];
   is1RCount: number;
   is2FCount: number;
-}
-
-export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanningViewProps) {
-  const [selectedSecretary, setSelectedSecretary] = useState<string | null>(null);
-  const [selectedSecretaryData, setSelectedSecretaryData] = useState<{
-    name: string;
-    assignments: Array<{
-      date: string;
-      periode: 'matin' | 'apres_midi';
+  weekSchedule: Array<{
+    date: Date;
+    dateStr: string;
+    matin?: {
       site_nom?: string;
       medecins: string[];
       is_1r?: boolean;
       is_2f?: boolean;
       type_assignation: 'site' | 'administratif';
-    }>;
-  } | null>(null);
+    };
+    apresMidi?: {
+      site_nom?: string;
+      medecins: string[];
+      is_1r?: boolean;
+      is_2f?: boolean;
+      type_assignation: 'site' | 'administratif';
+    };
+  }>;
+}
+
+export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanningViewProps) {
+  // Filtrer les jours ouvrés (lundi à vendredi)
+  const weekdaysOnly = weekDays.filter(d => {
+    const dow = d.getDay();
+    return dow !== 0 && dow !== 6;
+  });
 
   // Regrouper les assignations par secrétaire
   const secretaryMap = new Map<string, SecretaryData>();
@@ -47,6 +55,17 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
       const name = sec.nom;
 
       if (!secretaryMap.has(key)) {
+        // Créer le planning de la semaine pour cette secrétaire
+        const weekSchedule = weekdaysOnly.map(day => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          return {
+            date: day,
+            dateStr,
+            matin: undefined,
+            apresMidi: undefined,
+          };
+        });
+
         secretaryMap.set(key, {
           id: key,
           name,
@@ -56,6 +75,7 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
           sites: [],
           is1RCount: 0,
           is2FCount: 0,
+          weekSchedule,
         });
       }
 
@@ -73,6 +93,24 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
 
       if (sec.is_1r) data.is1RCount++;
       if (sec.is_2f) data.is2FCount++;
+
+      // Ajouter l'assignation au planning de la semaine
+      const daySchedule = data.weekSchedule.find(d => d.dateStr === assignment.date);
+      if (daySchedule) {
+        const assignmentData = {
+          site_nom: assignment.site_nom,
+          medecins: assignment.medecins,
+          is_1r: sec.is_1r,
+          is_2f: sec.is_2f,
+          type_assignation: assignment.type_assignation || 'site',
+        };
+
+        if (assignment.periode === 'matin') {
+          daySchedule.matin = assignmentData;
+        } else {
+          daySchedule.apresMidi = assignmentData;
+        }
+      }
     });
   });
 
@@ -81,119 +119,167 @@ export function SecretaryPlanningView({ assignments, weekDays }: SecretaryPlanni
     (a, b) => b.totalAssignments - a.totalAssignments
   );
 
-  const handleSecretaryClick = (secretaryId: string, secretaryName: string) => {
-    // Récupérer toutes les assignations de cette secrétaire
-    const secretaryAssignments = assignments
-      .filter(a => a.secretaires.some(s => s.id === secretaryId))
-      .map(a => {
-        const sec = a.secretaires.find(s => s.id === secretaryId)!;
-        return {
-          date: a.date,
-          periode: a.periode,
-          site_nom: a.site_nom,
-          medecins: a.medecins,
-          is_1r: sec.is_1r,
-          is_2f: sec.is_2f,
-          type_assignation: a.type_assignation || 'site',
-        };
-      });
-
-    setSelectedSecretaryData({
-      name: secretaryName,
-      assignments: secretaryAssignments,
-    });
-    setSelectedSecretary(secretaryId);
-  };
-
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {secretaries.map(secretary => (
-          <Card
-            key={secretary.id}
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => handleSecretaryClick(secretary.id, secretary.name)}
-          >
-            <CardHeader>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {secretaries.map(secretary => (
+        <Card key={secretary.id} className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10">
+            <div className="space-y-3">
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
                 <span className="truncate">{secretary.name}</span>
               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>Assignations</span>
-                </div>
-                <Badge variant="secondary" className="text-base font-semibold">
-                  {secretary.totalAssignments}
+              
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {secretary.totalAssignments} assignations
                 </Badge>
+                
+                {secretary.siteAssignments > 0 && (
+                  <Badge variant="outline">
+                    {secretary.siteAssignments} sur site
+                  </Badge>
+                )}
+                
+                {secretary.adminAssignments > 0 && (
+                  <Badge variant="outline" className="bg-gray-100">
+                    {secretary.adminAssignments} admin
+                  </Badge>
+                )}
+                
+                {secretary.is1RCount > 0 && (
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    1R: {secretary.is1RCount}
+                  </Badge>
+                )}
+                
+                {secretary.is2FCount > 0 && (
+                  <Badge variant="outline">
+                    2F: {secretary.is2FCount}
+                  </Badge>
+                )}
               </div>
 
-              {secretary.siteAssignments > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Sur site</span>
-                    <span className="font-medium">{secretary.siteAssignments}</span>
+              {secretary.sites.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {secretary.sites.map(site => (
+                    <Badge key={site} variant="outline" className="text-xs">
+                      {site.split(' - ')[0]}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          
+          <CardContent className="pt-4">
+            <div className="space-y-3">
+              {secretary.weekSchedule.map(({ date, dateStr, matin, apresMidi }) => (
+                <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                  <div className="mb-2 pb-2 border-b">
+                    <h4 className="font-medium text-sm">
+                      {format(date, 'EEEE d MMM', { locale: fr })}
+                    </h4>
                   </div>
-                  {secretary.sites.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {secretary.sites.slice(0, 3).map(site => (
-                        <Badge key={site} variant="outline" className="text-xs">
-                          {site.split(' - ')[0]}
-                        </Badge>
-                      ))}
-                      {secretary.sites.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{secretary.sites.length - 3}
-                        </Badge>
-                      )}
+                  
+                  <div className="space-y-2">
+                    {/* Matin */}
+                    <div className="flex gap-2 items-start">
+                      <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                        <Clock className="h-3 w-3" />
+                        07:30-12:00
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {matin ? (
+                          <div className="space-y-1">
+                            {matin.type_assignation === 'administratif' ? (
+                              <Badge variant="outline" className="bg-gray-100 text-xs">
+                                Administratif
+                              </Badge>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+                                  <span className="font-medium text-sm truncate">
+                                    {matin.site_nom?.split(' - ')[0]}
+                                  </span>
+                                  {matin.is_1r && (
+                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                      1R
+                                    </Badge>
+                                  )}
+                                  {matin.is_2f && (
+                                    <Badge variant="outline" className="text-xs">
+                                      2F
+                                    </Badge>
+                                  )}
+                                </div>
+                                {matin.medecins.length > 0 && (
+                                  <div className="text-xs text-muted-foreground line-clamp-1">
+                                    {matin.medecins.join(', ')}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">-</span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {secretary.adminAssignments > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Administratif</span>
-                  <span className="font-medium">{secretary.adminAssignments}</span>
+                    {/* Après-midi */}
+                    <div className="flex gap-2 items-start">
+                      <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                        <Clock className="h-3 w-3" />
+                        13:00-17:00
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {apresMidi ? (
+                          <div className="space-y-1">
+                            {apresMidi.type_assignation === 'administratif' ? (
+                              <Badge variant="outline" className="bg-gray-100 text-xs">
+                                Administratif
+                              </Badge>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+                                  <span className="font-medium text-sm truncate">
+                                    {apresMidi.site_nom?.split(' - ')[0]}
+                                  </span>
+                                  {apresMidi.is_1r && (
+                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                      1R
+                                    </Badge>
+                                  )}
+                                  {apresMidi.is_2f && (
+                                    <Badge variant="outline" className="text-xs">
+                                      2F
+                                    </Badge>
+                                  )}
+                                </div>
+                                {apresMidi.medecins.length > 0 && (
+                                  <div className="text-xs text-muted-foreground line-clamp-1">
+                                    {apresMidi.medecins.join(', ')}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">-</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-
-              {(secretary.is1RCount > 0 || secretary.is2FCount > 0) && (
-                <div className="flex gap-2 pt-2 border-t">
-                  {secretary.is1RCount > 0 && (
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                      1R: {secretary.is1RCount}
-                    </Badge>
-                  )}
-                  {secretary.is2FCount > 0 && (
-                    <Badge variant="outline">
-                      2F: {secretary.is2FCount}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {selectedSecretaryData && (
-        <SecretaryWeekView
-          open={selectedSecretary !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedSecretary(null);
-              setSelectedSecretaryData(null);
-            }
-          }}
-          secretaryName={selectedSecretaryData.name}
-          assignments={selectedSecretaryData.assignments}
-          weekDays={weekDays}
-        />
-      )}
-    </>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }

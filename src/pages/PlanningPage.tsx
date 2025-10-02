@@ -87,6 +87,7 @@ export default function PlanningPage() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [isOptimizingMILP, setIsOptimizingMILP] = useState(false);
+  const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -723,11 +724,10 @@ export default function PlanningPage() {
       </div>
 
       <Tabs defaultValue="besoins" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="besoins">Besoins ({besoins.length})</TabsTrigger>
           <TabsTrigger value="capacites">Capacités ({capacites.length})</TabsTrigger>
-          <TabsTrigger value="planning">Par site</TabsTrigger>
-          <TabsTrigger value="secretaires">Par secrétaire</TabsTrigger>
+          <TabsTrigger value="planning">Planning Généré</TabsTrigger>
         </TabsList>
 
         <TabsContent value="besoins" className="space-y-4">
@@ -1030,49 +1030,42 @@ export default function PlanningPage() {
           )}
 
           {optimizationResult && (
-            <MILPOptimizationView
-              assignments={optimizationResult.assignments}
-              weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
-              specialites={specialites}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="secretaires" className="space-y-4">
-          {canManage && (
-            <div className="flex flex-col gap-4 py-6">
+            <div className="space-y-4">
               <div className="flex justify-center">
-                <Button 
-                  onClick={handleOptimizeMILP} 
-                  disabled={isOptimizingMILP}
-                  size="lg"
-                  variant="default"
-                  className="gap-2"
-                >
-                  {isOptimizingMILP ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Optimisation MILP en cours...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Optimiser avec MILP
-                    </>
-                  )}
-                </Button>
+                <div className="inline-flex rounded-lg border p-1 bg-muted">
+                  <Button
+                    variant={planningView === 'site' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setPlanningView('site')}
+                    className="gap-2"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Par site
+                  </Button>
+                  <Button
+                    variant={planningView === 'secretary' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setPlanningView('secretary')}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Par secrétaire
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
 
-          {optimizationResult ? (
-            <SecretaryPlanningView
-              assignments={optimizationResult.assignments}
-              weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
-            />
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              Aucun planning généré pour cette semaine. Cliquez sur "Optimiser avec MILP" pour générer le planning.
+              {planningView === 'site' ? (
+                <MILPOptimizationView
+                  assignments={optimizationResult.assignments}
+                  weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+                  specialites={specialites}
+                />
+              ) : (
+                <SecretaryPlanningView
+                  assignments={optimizationResult.assignments}
+                  weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+                />
+              )}
             </div>
           )}
         </TabsContent>
