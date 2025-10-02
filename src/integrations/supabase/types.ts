@@ -77,58 +77,6 @@ export type Database = {
           },
         ]
       }
-      assignations_1r_2f_historique: {
-        Row: {
-          backup_id: string | null
-          created_at: string
-          date: string
-          id: string
-          secretaire_id: string | null
-          site_id: string
-          type_assignation: string
-        }
-        Insert: {
-          backup_id?: string | null
-          created_at?: string
-          date: string
-          id?: string
-          secretaire_id?: string | null
-          site_id: string
-          type_assignation: string
-        }
-        Update: {
-          backup_id?: string | null
-          created_at?: string
-          date?: string
-          id?: string
-          secretaire_id?: string | null
-          site_id?: string
-          type_assignation?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "assignations_1r_2f_historique_backup_id_fkey"
-            columns: ["backup_id"]
-            isOneToOne: false
-            referencedRelation: "backup"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assignations_1r_2f_historique_secretaire_id_fkey"
-            columns: ["secretaire_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assignations_1r_2f_historique_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       backup: {
         Row: {
           actif: boolean
@@ -881,10 +829,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cleanup_old_assignations_1r_2f: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       create_besoin_from_bloc: {
         Args: { p_bloc_id: string }
         Returns: undefined
