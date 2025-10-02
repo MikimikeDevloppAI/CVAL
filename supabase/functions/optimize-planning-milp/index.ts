@@ -414,7 +414,8 @@ function optimizePeriod(
         }
       }
 
-      model.ints[varName] = 1;
+      // LP mode: integers disabled for performance
+      // model.ints[varName] = 1;
     }
 
     // Ajouter l'option administrative
@@ -426,7 +427,8 @@ function optimizePeriod(
       objective: 0,
       [`cap_${secretaire.id}`]: 1
     };
-    model.ints[adminVarName] = 1;
+    // LP mode: integers disabled for performance
+    // model.ints[adminVarName] = 1;
 
     slotsBySecretary.set(secretaire.id, slots);
   }
@@ -455,7 +457,7 @@ function optimizePeriod(
   }
 
   // 4. Résoudre
-  console.log(`    Solving MILP with ${Object.keys(model.variables).length} variables...`);
+  console.log(`    Solving LP (relaxation) with ${Object.keys(model.variables).length} variables...`);
   const solution = solver.Solve(model);
 
   if (!solution.feasible) {
