@@ -8,6 +8,7 @@ import { fr } from 'date-fns/locale';
 import { UserCog, Stethoscope, Edit } from 'lucide-react';
 import { useState } from 'react';
 import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
+import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 
 interface MILPOptimizationViewProps {
   assignments: AssignmentResult[];
@@ -117,8 +118,14 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
+      {/* Rapport des besoins non satisfaits */}
+      <UnsatisfiedNeedsReport 
+        assignments={assignments}
+        weekDays={weekDays}
+        onRefresh={onRefresh}
+      />
+      
+      <div className="space-y-4">{groupedBySite.map(({ siteName, specialite, dayGroups }) => (
           <Card key={siteName} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-lg">
