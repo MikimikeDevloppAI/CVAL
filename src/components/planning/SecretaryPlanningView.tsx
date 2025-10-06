@@ -258,11 +258,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                         </Badge>
                                       )}
                                     </div>
-                                    {matin.medecins.length > 0 && (
-                                      <div className="text-xs text-muted-foreground line-clamp-1">
-                                        {matin.medecins.join(', ')}
-                                      </div>
-                                    )}
                                   </>
                                 )}
                               </div>
@@ -315,11 +310,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                           </Badge>
                                         )}
                                       </div>
-                                      {matin.medecins.length > 0 && (
-                                        <div className="text-xs text-muted-foreground line-clamp-1">
-                                          {matin.medecins.join(', ')}
-                                        </div>
-                                      )}
                                     </>
                                   )}
                                 </div>
@@ -370,11 +360,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                           </Badge>
                                         )}
                                       </div>
-                                      {apresMidi.medecins.length > 0 && (
-                                        <div className="text-xs text-muted-foreground line-clamp-1">
-                                          {apresMidi.medecins.join(', ')}
-                                        </div>
-                                      )}
                                     </>
                                   )}
                                 </div>
