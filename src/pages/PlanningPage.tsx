@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1223,58 +1223,66 @@ export default function PlanningPage() {
 
         <TabsContent value="planning" className="space-y-4">
           {canManage && (
-            <div className="flex flex-col gap-6 py-6">
-              {/* Status Badge */}
+            <div className="flex flex-col gap-4 py-4 bg-card rounded-lg border">
+              {/* Status Header */}
               {currentPlanningId && (
-                <div className="flex justify-center">
-                  <Badge 
-                    variant={currentPlanningStatus === 'valide' ? 'default' : 'secondary'}
-                    className={`text-lg px-6 py-3 ${currentPlanningStatus === 'valide' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'}`}
-                  >
-                    {currentPlanningStatus === 'valide' ? (
-                      <>
-                        <CheckCircle className="h-5 w-5 mr-2" />
-                        Planning validé
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="h-5 w-5 mr-2" />
-                        Planning en cours
-                      </>
-                    )}
-                  </Badge>
+                <div className="flex items-center justify-center gap-2 text-sm border-b pb-4">
+                  {currentPlanningStatus === 'valide' ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-success" />
+                      <span className="font-medium">Planning validé</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">Planning en cours</span>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex justify-center gap-4 flex-wrap">
-                <Button 
-                  onClick={handleOptimizeMILP} 
-                  disabled={isOptimizingMILP}
-                  size="lg"
-                  variant={currentPlanningStatus === 'valide' ? 'outline' : 'default'}
-                  className="gap-2 min-w-[200px]"
-                >
-                  {isOptimizingMILP ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Optimisation...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      {currentPlanningStatus === 'valide' ? 'Réoptimiser' : 'Optimiser avec MILP'}
-                    </>
-                  )}
-                </Button>
+              <div className="flex justify-center gap-3 flex-wrap px-4">
+                {(!currentPlanningId || currentPlanningStatus !== 'valide') && (
+                  <Button 
+                    onClick={handleOptimizeMILP} 
+                    disabled={isOptimizingMILP}
+                    size="default"
+                    className="gap-2"
+                  >
+                    {isOptimizingMILP ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Optimisation...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4" />
+                        Optimiser avec MILP
+                      </>
+                    )}
+                  </Button>
+                )}
+                
+                {currentPlanningId && optimizationResult && (
+                  <Button 
+                    onClick={() => setSelectDatesDialogOpen(true)}
+                    disabled={isOptimizingMILP}
+                    size="default"
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Réoptimiser des jours
+                  </Button>
+                )}
                 
                 {currentPlanningId && currentPlanningStatus === 'en_cours' && optimizationResult && (
                   <Button 
                     onClick={validatePlanning} 
                     disabled={isValidatingPlanning || isGeneratingPDF}
-                    size="lg"
-                    variant="default"
-                    className="gap-2 bg-green-600 hover:bg-green-700 min-w-[200px]"
+                    size="default"
+                    className="gap-2"
                   >
                     {isValidatingPlanning || isGeneratingPDF ? (
                       <>
@@ -1293,22 +1301,15 @@ export default function PlanningPage() {
                 {generatedPdfUrl && (
                   <Button 
                     onClick={() => window.open(generatedPdfUrl, '_blank')} 
-                    size="lg"
-                    variant="secondary"
-                    className="gap-2 min-w-[200px]"
+                    size="default"
+                    variant="outline"
+                    className="gap-2"
                   >
                     <FileText className="h-4 w-4" />
                     Télécharger le PDF
                   </Button>
                 )}
               </div>
-
-              {/* Info Message */}
-              {currentPlanningStatus === 'valide' && (
-                <p className="text-center text-sm text-muted-foreground">
-                  Le planning est validé. Vous pouvez le réoptimiser pour des jours spécifiques si nécessaire.
-                </p>
-              )}
             </div>
           )}
 
