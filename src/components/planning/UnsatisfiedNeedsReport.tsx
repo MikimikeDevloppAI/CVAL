@@ -179,8 +179,9 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
         });
       }
 
-      // Générer des suggestions
+      // Générer des suggestions - Séparer les suggestions prioritaires
       const newSuggestions: Suggestion[] = [];
+      const prioritySuggestions: Suggestion[] = [];
 
       for (const need of unsatisfiedNeeds) {
         // Trouver des secrétaires flexibles qui peuvent travailler un jour de plus
@@ -198,17 +199,24 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
             );
 
             if (!alreadyWorking) {
-              newSuggestions.push({
+              const suggestion: Suggestion = {
                 secretaire: sec,
                 type: 'assign',
                 target_need: need,
-              });
+              };
+
+              // Si la secrétaire n'a pas encore utilisé de jours supplémentaires, c'est prioritaire
+              if (joursSupplementairesUtilises === 0) {
+                prioritySuggestions.push(suggestion);
+              } else {
+                newSuggestions.push(suggestion);
+              }
             }
           }
         }
       }
 
-      setSuggestions(newSuggestions);
+      setSuggestions([...prioritySuggestions, ...newSuggestions]);
       setNeedsAnalyzed(true);
     } catch (error) {
       console.error('Erreur lors de l\'analyse des besoins:', error);
@@ -391,6 +399,54 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Suggestions prioritaires - Secrétaires sans jours supplémentaires utilisés */}
+          {suggestions.length > 0 && suggestions.some(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0) && (
+            <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
+              <h4 className="font-semibold text-base mb-3 flex items-center gap-2 text-green-800">
+                ⭐ Secrétaires disponibles (pas de jours supplémentaires utilisés)
+              </h4>
+              <div className="space-y-2">
+                {suggestions
+                  .filter(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0)
+                  .map((suggestion, idx) => {
+                    const joursSupplementairesUtilises = suggestion.secretaire.assigned_days - suggestion.secretaire.base_days;
+                    return (
+                      <div key={idx} className="border rounded-lg p-3 bg-white border-green-300">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-green-800">
+                              {suggestion.secretaire.first_name} {suggestion.secretaire.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Peut travailler à {suggestion.target_need.site_nom} le{' '}
+                              {format(suggestion.target_need.dateObj, 'd MMMM', { locale: fr })}
+                            </div>
+                            <div className="text-xs text-green-700 mt-1 font-medium">
+                              {joursSupplementairesUtilises}/{suggestion.secretaire.nombre_jours_supplementaires} jours supp. utilisés
+                            </div>
+                          </div>
+                          
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={async () => {
+                              setSelectedNeed(suggestion.target_need);
+                              setSelectedSecretaryId(suggestion.secretaire.id);
+                              await handleAssignSecretary();
+                              setNeedsAnalyzed(false);
+                            }}
+                          >
+                            Assigner
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {/* Liste des besoins groupés par site */}
           <div className="space-y-4">
             {needsBySite.map(({ siteName, needs }) => (
