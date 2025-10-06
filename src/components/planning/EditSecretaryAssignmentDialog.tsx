@@ -106,39 +106,45 @@ export function EditSecretaryAssignmentDialog({
       
       setSites(filteredSites);
 
-      // Récupérer les créneaux matin et après-midi
-      const [matinRes, amRes] = await Promise.all([
-        supabase
-          .from('planning_genere')
-          .select('*')
-          .eq('date', date)
-          .eq('heure_debut', '07:30:00')
-          .eq('site_id', siteId || '')
-          .maybeSingle(),
-        supabase
-          .from('planning_genere')
-          .select('*')
-          .eq('date', date)
-          .eq('heure_debut', '13:00:00')
-          .eq('site_id', siteId || '')
-          .maybeSingle()
-      ]);
+      // Récupérer tous les créneaux de ce jour pour trouver ceux où cette secrétaire est assignée
+      const { data: allCreneaux, error: creneauxError } = await supabase
+        .from('planning_genere')
+        .select('*')
+        .eq('date', date);
 
-      setCreneauMatin(matinRes.data);
-      setCreneauAM(amRes.data);
+      if (creneauxError) throw creneauxError;
 
-      // Définir le site sélectionné par défaut
-      if (siteId) {
-        setSelectedSiteId(siteId);
-        const site = sitesData?.find(s => s.id === siteId);
-        setSiteHasFermeture(site?.fermeture || false);
+      // Trouver les créneaux où cette secrétaire est assignée
+      const matinCreneau = allCreneaux?.find(c => 
+        c.heure_debut === '07:30:00' && 
+        (c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId))
+      );
+      const amCreneau = allCreneaux?.find(c => 
+        c.heure_debut === '13:00:00' && 
+        (c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId))
+      );
+
+      setCreneauMatin(matinCreneau || null);
+      setCreneauAM(amCreneau || null);
+
+      // Définir le site sélectionné par défaut à partir du créneau trouvé
+      const currentCreneau = period === 'matin' ? matinCreneau : amCreneau;
+      if (currentCreneau) {
+        if (currentCreneau.type_assignation === 'administratif' || !currentCreneau.site_id) {
+          setSelectedSiteId('administratif');
+          setSiteHasFermeture(false);
+        } else {
+          setSelectedSiteId(currentCreneau.site_id);
+          const site = filteredSites.find(s => s.id === currentCreneau.site_id);
+          setSiteHasFermeture(site?.fermeture || false);
+        }
       }
 
       // Déterminer les rôles actuels
-      if (matinRes.data?.responsable_1r_id === secretaryId || amRes.data?.responsable_1r_id === secretaryId) {
+      if (matinCreneau?.responsable_1r_id === secretaryId || amCreneau?.responsable_1r_id === secretaryId) {
         setIs1R(true);
       }
-      if (matinRes.data?.responsable_2f_id === secretaryId || amRes.data?.responsable_2f_id === secretaryId) {
+      if (matinCreneau?.responsable_2f_id === secretaryId || amCreneau?.responsable_2f_id === secretaryId) {
         setIs2F(true);
       }
 
