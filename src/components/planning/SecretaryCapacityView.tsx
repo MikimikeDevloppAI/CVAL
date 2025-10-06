@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,11 +55,58 @@ interface SecretaryGroup {
   specialites: string[];
 }
 
+interface HoraireBase {
+  jour_semaine: number;
+  heure_debut: string;
+  heure_fin: string;
+}
+
 export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefresh }: SecretaryCapacityViewProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSecretary, setSelectedSecretary] = useState<SecretaryGroup | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'journee'>('journee');
+  const [horairesBase, setHorairesBase] = useState<Map<string, HoraireBase[]>>(new Map());
+
+  // Récupérer les horaires de base pour toutes les secrétaires
+  useEffect(() => {
+    const fetchHorairesBase = async () => {
+      const secretaireIds = Array.from(new Set(
+        capacites
+          .filter(cap => cap.secretaire_id)
+          .map(cap => cap.secretaire_id!)
+      ));
+
+      if (secretaireIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('horaires_base_secretaires')
+        .select('secretaire_id, jour_semaine, heure_debut, heure_fin')
+        .in('secretaire_id', secretaireIds)
+        .eq('actif', true);
+
+      if (error) {
+        console.error('Erreur lors de la récupération des horaires de base:', error);
+        return;
+      }
+
+      const horaireMap = new Map<string, HoraireBase[]>();
+      data?.forEach(horaire => {
+        if (!horaireMap.has(horaire.secretaire_id)) {
+          horaireMap.set(horaire.secretaire_id, []);
+        }
+        horaireMap.get(horaire.secretaire_id)!.push({
+          jour_semaine: horaire.jour_semaine,
+          heure_debut: horaire.heure_debut,
+          heure_fin: horaire.heure_fin,
+        });
+      });
+
+      setHorairesBase(horaireMap);
+    };
+
+    fetchHorairesBase();
+  }, [capacites]);
 
   // Regrouper les capacités par secrétaire
   const secretariesGroups: SecretaryGroup[] = [];
@@ -162,6 +209,26 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
     }
   };
 
+  // Vérifier si une capacité est un ajout manuel (hors horaires de base)
+  const isManualAddition = (cap: CapaciteEffective): boolean => {
+    if (!cap.secretaire_id) return false;
+    
+    const horaires = horairesBase.get(cap.secretaire_id);
+    if (!horaires || horaires.length === 0) return true;
+
+    const date = new Date(cap.date);
+    const jourSemaine = date.getDay() === 0 ? 7 : date.getDay(); // Convertir dimanche (0) en 7
+
+    // Vérifier si ce jour/horaire correspond à un horaire de base
+    const matchingHoraire = horaires.find(h => 
+      h.jour_semaine === jourSemaine &&
+      h.heure_debut === cap.heure_debut &&
+      h.heure_fin === cap.heure_fin
+    );
+
+    return !matchingHoraire;
+  };
+
   // Obtenir les dates disponibles (jours où la secrétaire ne travaille pas encore)
   // Exclure samedi (6) et dimanche (0)
   const getAvailableDates = (secretary: SecretaryGroup) => {
@@ -214,8 +281,18 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex-1">
-                            <div className="font-medium text-sm">
-                              {format(new Date(cap.date), 'EEEE d MMM', { locale: fr })}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">
+                                {format(new Date(cap.date), 'EEEE d MMM', { locale: fr })}
+                              </span>
+                              {isManualAddition(cap) && (
+                                <Badge 
+                                  variant="outline" 
+                                  className="h-5 px-1.5 bg-green-500/10 text-green-600 border-green-500/20"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {cap.heure_debut.slice(0, 5)} - {cap.heure_fin.slice(0, 5)}
