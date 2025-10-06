@@ -455,7 +455,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
       </div>
 
       {/* Assignations Administratives */}
-      {adminAssignments.length > 0 && (
+      {adminAssignments.length > 0 && adminAssignments.some(a => a.secretaires && a.secretaires.length > 0) && (
         <Card className="border-primary/20">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
