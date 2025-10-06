@@ -131,16 +131,25 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
               
               <CollapsibleContent>
                 <CardContent className="pt-6">
-                  <div className="space-y-6">
+                  {/* Grille horizontale des jours */}
+                  <div className="grid grid-cols-5 gap-4">
                     {dayGroups.map(({ date, dateStr, matin, apresMidi }) => (
-                      <div key={dateStr} className="border rounded-lg overflow-hidden">
-                        <div className="bg-muted/30 px-4 py-2">
-                          <div className="font-medium text-sm">
-                            {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
+                      <div key={dateStr} className="border rounded-lg overflow-hidden flex flex-col">
+                        {/* En-tête du jour */}
+                        <div className="bg-muted/30 px-3 py-2 text-center border-b">
+                          <div className="font-medium text-xs">
+                            {format(date, 'EEE', { locale: fr })}
+                          </div>
+                          <div className="text-lg font-semibold">
+                            {format(date, 'd', { locale: fr })}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(date, 'MMM', { locale: fr })}
                           </div>
                         </div>
                         
-                        <div className="space-y-4 p-4">
+                        {/* Secrétaires du jour */}
+                        <div className="space-y-3 p-3 flex-1">
                           {(() => {
                             // Déterminer les secrétaires uniques avec leurs périodes
                             const secretariesByPeriod = new Map<string, { matin: boolean; apresMidi: boolean; sec: any }>();
@@ -171,81 +180,84 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                               });
                             }
 
+                            if (secretariesByPeriod.size === 0) {
+                              return (
+                                <div className="text-xs text-muted-foreground text-center py-4">
+                                  Aucune assignation
+                                </div>
+                              );
+                            }
+
                             return Array.from(secretariesByPeriod.values()).map(({ matin: hasMatin, apresMidi: hasApresMidi, sec }) => {
                               const isFullDay = hasMatin && hasApresMidi;
                               const periodData = hasMatin ? sec.matinData : sec.apresMidiData;
                               
                               return (
-                                <div key={sec.id} className="border rounded-lg p-3 space-y-2">
+                                <div key={sec.id} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                                   {/* Secrétaire info */}
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex flex-col gap-1">
                                     <button
                                       onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                      className="flex items-center gap-2 hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                      className="flex items-center gap-1 hover:bg-primary/10 px-1.5 py-1 rounded transition-colors text-left"
                                     >
-                                      <User className="h-4 w-4 text-primary" />
-                                      <span className="font-medium underline decoration-dotted">{sec.nom}</span>
-                                      {periodData.site_fermeture && sec.is_1r && (
-                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                      )}
-                                      {periodData.site_fermeture && sec.is_2f && (
-                                        <Badge variant="outline" className="text-xs">2F</Badge>
-                                      )}
+                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-xs underline decoration-dotted line-clamp-2">{sec.nom}</span>
                                     </button>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground">
-                                        {periodData.nombre_assigne} / {periodData.nombre_requis}
-                                      </span>
-                                      {periodData.status === 'satisfait' && (
-                                        <Badge className="bg-green-600 text-xs">Satisfait</Badge>
-                                      )}
-                                      {periodData.status === 'arrondi_inferieur' && (
-                                        <Badge className="bg-yellow-600 text-xs">Partiel</Badge>
-                                      )}
-                                      {periodData.status === 'non_satisfait' && (
-                                        <Badge variant="destructive" className="text-xs">Non satisfait</Badge>
-                                      )}
-                                    </div>
+                                    
+                                    {/* Badges 1R / 2F */}
+                                    {periodData.site_fermeture && (sec.is_1r || sec.is_2f) && (
+                                      <div className="flex gap-1 px-1.5">
+                                        {sec.is_1r && (
+                                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0">1R</Badge>
+                                        )}
+                                        {sec.is_2f && (
+                                          <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Barre de temps visuelle */}
-                                  <div className="flex gap-1 h-2">
-                                    {/* Matin */}
+                                  <div className="flex gap-0.5 h-1.5">
                                     <div 
                                       className={`flex-1 rounded-l ${
                                         hasMatin 
                                           ? 'bg-primary' 
                                           : 'bg-muted'
                                       }`}
-                                      title={hasMatin ? '07:30-12:00' : 'Non assigné'}
+                                      title={hasMatin ? 'Matin' : ''}
                                     />
-                                    {/* Après-midi */}
                                     <div 
                                       className={`flex-1 rounded-r ${
                                         hasApresMidi 
                                           ? 'bg-primary' 
                                           : 'bg-muted'
                                       }`}
-                                      title={hasApresMidi ? '13:00-17:00' : 'Non assigné'}
+                                      title={hasApresMidi ? 'Après-midi' : ''}
                                     />
                                   </div>
 
-                                  {/* Horaire et médecins */}
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <div className="flex items-center gap-1">
-                                      {isFullDay ? (
-                                        <span className="font-medium">07:30 - 17:00</span>
-                                      ) : hasMatin ? (
-                                        <span className="font-medium">07:30 - 12:00 (Matin)</span>
-                                      ) : (
-                                        <span className="font-medium">13:00 - 17:00 (Après-midi)</span>
-                                      )}
-                                    </div>
-                                    {periodData.medecins && periodData.medecins.length > 0 && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="line-clamp-1">{periodData.medecins.join(', ')}</span>
-                                      </>
+                                  {/* Horaire */}
+                                  <div className="text-xs text-muted-foreground px-1.5">
+                                    {isFullDay ? (
+                                      <span className="font-medium">Journée</span>
+                                    ) : hasMatin ? (
+                                      <span className="font-medium">Matin</span>
+                                    ) : (
+                                      <span className="font-medium">AM</span>
+                                    )}
+                                  </div>
+
+                                  {/* Status badge */}
+                                  <div className="px-1.5">
+                                    {periodData.status === 'satisfait' && (
+                                      <Badge className="bg-green-600 text-xs w-full justify-center py-0">OK</Badge>
+                                    )}
+                                    {periodData.status === 'arrondi_inferieur' && (
+                                      <Badge className="bg-yellow-600 text-xs w-full justify-center py-0">Partiel</Badge>
+                                    )}
+                                    {periodData.status === 'non_satisfait' && (
+                                      <Badge variant="destructive" className="text-xs w-full justify-center py-0">KO</Badge>
                                     )}
                                   </div>
                                 </div>
