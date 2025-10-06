@@ -76,30 +76,43 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
     return Math.round((assigned / required) * 100);
   };
 
-  // Grouper par site/spécialité
-  const groupedBySite = Array.from(specialitesWithAssignments).map(siteName => {
-    const siteAssignments = assignments.filter(a => a.site_nom === siteName);
-    
-    // Grouper par jour et demi-journée
-    const dayGroups = weekdaysOnly.map(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const matin = siteAssignments.find(a => a.date === dateStr && a.periode === 'matin');
-      const apresMidi = siteAssignments.find(a => a.date === dateStr && a.periode === 'apres_midi');
+  // Grouper par site/spécialité et trier avec Administratif et Bloc opératoire en premier
+  const groupedBySite = Array.from(specialitesWithAssignments)
+    .map(siteName => {
+      const siteAssignments = assignments.filter(a => a.site_nom === siteName);
       
-      return {
-        date: day,
-        dateStr,
-        matin,
-        apresMidi,
-      };
-    });
+      // Grouper par jour et demi-journée
+      const dayGroups = weekdaysOnly.map(day => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const matin = siteAssignments.find(a => a.date === dateStr && a.periode === 'matin');
+        const apresMidi = siteAssignments.find(a => a.date === dateStr && a.periode === 'apres_midi');
+        
+        return {
+          date: day,
+          dateStr,
+          matin,
+          apresMidi,
+        };
+      });
 
-    return {
-      siteName,
-      specialite: getSpecialiteNom(siteName),
-      dayGroups,
-    };
-  });
+      return {
+        siteName,
+        specialite: getSpecialiteNom(siteName),
+        dayGroups,
+      };
+    })
+    .sort((a, b) => {
+      // Administratif en premier
+      if (a.siteName.toLowerCase().includes('administratif')) return -1;
+      if (b.siteName.toLowerCase().includes('administratif')) return 1;
+      
+      // Bloc opératoire en deuxième
+      if (a.siteName.toLowerCase().includes('bloc')) return -1;
+      if (b.siteName.toLowerCase().includes('bloc')) return 1;
+      
+      // Puis ordre alphabétique
+      return a.siteName.localeCompare(b.siteName);
+    });
 
   // Grouper les assignations administratives
   const adminAssignments = assignments.filter(a => a.type_assignation === 'administratif');
