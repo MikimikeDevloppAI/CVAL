@@ -27,11 +27,14 @@ serve(async (req) => {
     );
 
     // Parse date range from request
-    const { date_debut, date_fin } = await req.json().catch(() => ({}));
+    const { date_debut, date_fin, selected_dates } = await req.json().catch(() => ({}));
     const startDate = date_debut || new Date().toISOString().split('T')[0];
     const endDate = date_fin || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     console.log(`📊 Period: ${startDate} to ${endDate}`);
+    if (selected_dates && selected_dates.length > 0) {
+      console.log(`📅 Selected dates for reoptimization: ${selected_dates.join(', ')}`);
+    }
 
     // 1. Récupérer toutes les données nécessaires
     console.log('📥 Fetching data...');
@@ -76,7 +79,9 @@ serve(async (req) => {
     const siteMap = new Map(sites.map(s => [s.id, s]));
 
     // 2. Générer la liste des jours à optimiser
-    const days = generateDaysList(startDate, endDate);
+    const days = selected_dates && selected_dates.length > 0 
+      ? selected_dates 
+      : generateDaysList(startDate, endDate);
     console.log(`📅 Processing ${days.length} days`);
 
     // 3. Gérer le planning pour cette semaine
@@ -121,16 +126,32 @@ serve(async (req) => {
         throw updateError;
       }
       
-      // Supprimer les anciennes assignations liées à ce planning
+      // Supprimer les anciennes assignations liées à ce planning pour les dates spécifiées
       console.log(`🗑️ Deleting old assignments for planning ${planningId}`);
-      const { error: deleteError } = await supabaseServiceRole
-        .from('planning_genere')
-        .delete()
-        .eq('planning_id', planningId);
       
-      if (deleteError) {
-        console.error('⚠️ Delete error:', deleteError);
-        throw deleteError;
+      if (selected_dates && selected_dates.length > 0) {
+        // Supprimer uniquement pour les dates sélectionnées
+        const { error: deleteError } = await supabaseServiceRole
+          .from('planning_genere')
+          .delete()
+          .eq('planning_id', planningId)
+          .in('date', selected_dates);
+        
+        if (deleteError) {
+          console.error('⚠️ Delete error:', deleteError);
+          throw deleteError;
+        }
+      } else {
+        // Supprimer tout pour ce planning
+        const { error: deleteError } = await supabaseServiceRole
+          .from('planning_genere')
+          .delete()
+          .eq('planning_id', planningId);
+        
+        if (deleteError) {
+          console.error('⚠️ Delete error:', deleteError);
+          throw deleteError;
+        }
       }
     } else {
       // Créer un nouveau planning

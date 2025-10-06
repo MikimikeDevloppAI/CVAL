@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle2 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningVi
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SiteClosingIndicator } from '@/components/planning/SiteClosingIndicator';
+import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -98,6 +99,7 @@ export default function PlanningPage() {
   const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null);
   const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
   const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
+  const [selectDatesDialogOpen, setSelectDatesDialogOpen] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -176,11 +178,28 @@ export default function PlanningPage() {
       )
       .subscribe();
 
+    // Real-time updates for planning
+    const planningMetaChannel = supabase
+      .channel('planning-meta-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning'
+        },
+        () => {
+          fetchCurrentPlanning();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(besoinChannel);
       supabase.removeChannel(capaciteChannel);
       supabase.removeChannel(blocChannel);
       supabase.removeChannel(planningChannel);
+      supabase.removeChannel(planningMetaChannel);
     };
   }, [currentWeekStart]);
 
@@ -814,30 +833,61 @@ export default function PlanningPage() {
   };
 
   const handleOptimizeMILP = async () => {
-    // Check if planning is already confirmed
-    const isConfirmed = await checkIfPlanningConfirmed();
-    
-    if (isConfirmed) {
-      setConfirmRegenerateDialogOpen(true);
+    // Si le planning est validé, ouvrir le dialog de sélection de dates
+    if (currentPlanningStatus === 'valide') {
+      setSelectDatesDialogOpen(true);
       return;
     }
     
+    // Sinon optimiser toute la semaine
     executeOptimizeMILP();
   };
 
-  const executeOptimizeMILP = async () => {
+  const executeOptimizeMILP = async (selectedDates?: string[]) => {
     setIsOptimizingMILP(true);
     setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
+    
+    // Si on réoptimise un planning validé, le repasser en cours
+    if (currentPlanningStatus === 'valide' && currentPlanningId) {
+      try {
+        const { error } = await supabase
+          .from('planning')
+          .update({
+            statut: 'en_cours',
+            pdf_url: null,
+            validated_at: null,
+            validated_by: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentPlanningId);
+        
+        if (error) throw error;
+        setCurrentPlanningStatus('en_cours');
+      } catch (error: any) {
+        console.error('Error resetting planning status:', error);
+      }
+    }
+    
     try {
+      const dateDebut = selectedDates && selectedDates.length > 0 
+        ? selectedDates[0] 
+        : format(currentWeekStart, 'yyyy-MM-dd');
+      const dateFin = selectedDates && selectedDates.length > 0
+        ? selectedDates[selectedDates.length - 1]
+        : format(weekEnd, 'yyyy-MM-dd');
+
       toast({
         title: "Optimisation MILP en cours",
-        description: "L'algorithme MILP est en train de calculer le planning optimal...",
+        description: selectedDates 
+          ? `Réoptimisation de ${selectedDates.length} jour${selectedDates.length > 1 ? 's' : ''}...`
+          : "L'algorithme MILP est en train de calculer le planning optimal...",
       });
 
       const { data, error } = await supabase.functions.invoke('optimize-planning-milp', {
         body: {
-          date_debut: format(currentWeekStart, 'yyyy-MM-dd'),
-          date_fin: format(weekEnd, 'yyyy-MM-dd'),
+          date_debut: dateDebut,
+          date_fin: dateFin,
+          selected_dates: selectedDates,
         },
       });
 
@@ -879,19 +929,41 @@ export default function PlanningPage() {
     }
 
     setIsValidatingPlanning(true);
+    setIsGeneratingPDF(true);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('validate-planning', {
+      // 1. D'abord générer le PDF
+      toast({
+        title: "Génération du PDF en cours",
+        description: "Le planning est en cours de génération...",
+      });
+
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-planning-pdf', {
         body: {
-          planning_id: currentPlanningId,
-          pdf_url: generatedPdfUrl,
+          date_debut: format(currentWeekStart, 'yyyy-MM-dd'),
+          date_fin: format(weekEnd, 'yyyy-MM-dd'),
         },
       });
 
-      if (error) throw error;
+      if (pdfError) throw pdfError;
+
+      const pdfUrl = pdfData?.pdf_url;
+
+      // 2. Ensuite valider le planning avec l'URL du PDF
+      const { error: validateError } = await supabase.functions.invoke('validate-planning', {
+        body: {
+          planning_id: currentPlanningId,
+          pdf_url: pdfUrl,
+        },
+      });
+
+      if (validateError) throw validateError;
+
+      setGeneratedPdfUrl(pdfUrl);
 
       toast({
         title: "Planning validé",
-        description: "Le planning a été validé avec succès",
+        description: "Le planning a été validé et le PDF généré avec succès",
       });
 
       // Refresh data
@@ -905,6 +977,7 @@ export default function PlanningPage() {
       });
     } finally {
       setIsValidatingPlanning(false);
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -1154,88 +1227,92 @@ export default function PlanningPage() {
 
         <TabsContent value="planning" className="space-y-4">
           {canManage && (
-            <div className="flex flex-col gap-4 py-6">
+            <div className="flex flex-col gap-6 py-6">
+              {/* Status Badge */}
+              {currentPlanningId && (
+                <div className="flex justify-center">
+                  <Badge 
+                    variant={currentPlanningStatus === 'valide' ? 'default' : 'secondary'}
+                    className={`text-lg px-6 py-3 ${currentPlanningStatus === 'valide' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'}`}
+                  >
+                    {currentPlanningStatus === 'valide' ? (
+                      <>
+                        <CheckCircle2 className="h-5 w-5 mr-2" />
+                        Planning validé
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-5 w-5 mr-2" />
+                        Planning en cours
+                      </>
+                    )}
+                  </Badge>
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex justify-center gap-4 flex-wrap">
                 <Button 
                   onClick={handleOptimizeMILP} 
-                  disabled={isOptimizingMILP || currentPlanningStatus === 'valide'}
+                  disabled={isOptimizingMILP}
                   size="lg"
-                  variant="default"
-                  className="gap-2"
+                  variant={currentPlanningStatus === 'valide' ? 'outline' : 'default'}
+                  className="gap-2 min-w-[200px]"
                 >
                   {isOptimizingMILP ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Optimisation MILP en cours...
+                      Optimisation...
                     </>
                   ) : (
                     <>
                       <Zap className="h-4 w-4" />
-                      Optimiser avec MILP
+                      {currentPlanningStatus === 'valide' ? 'Réoptimiser' : 'Optimiser avec MILP'}
                     </>
                   )}
                 </Button>
                 
-                {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                {currentPlanningId && currentPlanningStatus === 'en_cours' && optimizationResult && (
                   <Button 
                     onClick={validatePlanning} 
-                    disabled={isValidatingPlanning}
+                    disabled={isValidatingPlanning || isGeneratingPDF}
                     size="lg"
                     variant="default"
-                    className="gap-2 bg-green-600 hover:bg-green-700"
+                    className="gap-2 bg-green-600 hover:bg-green-700 min-w-[200px]"
                   >
-                    {isValidatingPlanning ? (
+                    {isValidatingPlanning || isGeneratingPDF ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Validation en cours...
+                        {isGeneratingPDF ? 'Génération PDF...' : 'Validation...'}
                       </>
                     ) : (
                       <>
-                        <FileText className="h-4 w-4" />
-                        Valider le planning
+                        <CheckCircle2 className="h-4 w-4" />
+                        Valider et générer PDF
                       </>
                     )}
                   </Button>
                 )}
-
-                {currentPlanningStatus === 'valide' && (
-                  <Badge variant="default" className="text-lg px-4 py-2 bg-green-600">
-                    ✓ Planning validé
-                  </Badge>
-                )}
                 
-                {generatedPdfUrl ? (
+                {generatedPdfUrl && (
                   <Button 
                     onClick={() => window.open(generatedPdfUrl, '_blank')} 
                     size="lg"
                     variant="secondary"
-                    className="gap-2"
+                    className="gap-2 min-w-[200px]"
                   >
                     <FileText className="h-4 w-4" />
                     Télécharger le PDF
                   </Button>
-                ) : currentPlanningStatus === 'valide' && (
-                  <Button 
-                    onClick={handleValidateAndGeneratePDF} 
-                    disabled={isGeneratingPDF}
-                    size="lg"
-                    variant="secondary"
-                    className="gap-2"
-                  >
-                    {isGeneratingPDF ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Génération PDF en cours...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4" />
-                        Générer PDF
-                      </>
-                    )}
-                  </Button>
                 )}
               </div>
+
+              {/* Info Message */}
+              {currentPlanningStatus === 'valide' && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Le planning est validé. Vous pouvez le réoptimiser pour des jours spécifiques si nécessaire.
+                </p>
+              )}
             </div>
           )}
 
@@ -1397,6 +1474,14 @@ export default function PlanningPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SelectDatesForOptimizationDialog
+        open={selectDatesDialogOpen}
+        onOpenChange={setSelectDatesDialogOpen}
+        weekDays={weekDays}
+        onOptimize={executeOptimizeMILP}
+        isOptimizing={isOptimizingMILP}
+      />
     </div>
   );
 }
