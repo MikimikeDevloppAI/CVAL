@@ -943,55 +943,22 @@ export default function PlanningPage() {
     }
 
     setIsValidatingPlanning(true);
-    setIsGeneratingPDF(true);
-    
     try {
-      // 1. D'abord générer le PDF
-      toast({
-        title: "Génération du PDF en cours",
-        description: "Le planning est en cours de génération...",
-      });
-
-      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-planning-pdf', {
-        body: {
-          date_debut: format(currentWeekStart, 'yyyy-MM-dd'),
-          date_fin: format(weekEnd, 'yyyy-MM-dd'),
-        },
-      });
-
-      if (pdfError) throw pdfError;
-
-      const pdfUrl = pdfData?.pdf_url;
-
-      // 2. Ensuite valider le planning avec l'URL du PDF
-      const { error: validateError } = await supabase.functions.invoke('validate-planning', {
-        body: {
-          planning_id: currentPlanningId,
-          pdf_url: pdfUrl,
-        },
-      });
-
-      if (validateError) throw validateError;
-
-      setGeneratedPdfUrl(pdfUrl);
-
-      toast({
-        title: "Planning validé",
-        description: "Le planning a été validé et le PDF généré avec succès",
-      });
-
-      // Refresh data
-      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
+      // Délègue au flux unique qui génère le PDF et enregistre l'URL
+      await handleValidateAndGeneratePDF();
     } catch (error: any) {
       console.error('Validation error:', error);
-      toast({
-        title: "Erreur lors de la validation",
-        description: error.message,
-        variant: "destructive",
-      });
+      // handleValidateAndGeneratePDF gère déjà les toasts d'erreur,
+      // on ne duplique pas sauf si un message explicite est disponible
+      if (error?.message) {
+        toast({
+          title: "Erreur lors de la validation",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsValidatingPlanning(false);
-      setIsGeneratingPDF(false);
     }
   };
 
