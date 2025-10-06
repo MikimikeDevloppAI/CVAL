@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,6 +29,14 @@ export function SelectDatesForOptimizationDialog({
     const dayOfWeek = d.getDay();
     return dayOfWeek !== 0 && dayOfWeek !== 6;
   });
+
+  // Initialiser avec tous les jours sélectionnés quand le dialog s'ouvre
+  useEffect(() => {
+    if (open && weekdaysOnly.length > 0) {
+      setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
+      setSelectAll(true);
+    }
+  }, [open, weekDays]);
 
   const handleToggleDate = (date: string) => {
     const newDates = selectedDates.includes(date)
