@@ -42,6 +42,7 @@ interface CreneauData {
   backups_ids: string[];
   responsable_1r_id?: string;
   responsable_2f_id?: string;
+  responsable_3f_id?: string;
   medecins_ids?: string[];
   type?: string;
   statut?: string;
@@ -72,6 +73,7 @@ export function EditSecretaryAssignmentDialog({
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'both'>('both');
   const [is1R, setIs1R] = useState(false);
   const [is2F, setIs2F] = useState(false);
+  const [is3F, setIs3F] = useState(false);
   const [switchMode, setSwitchMode] = useState(false);
   const [selectedSwitchSecretaire, setSelectedSwitchSecretaire] = useState<string>('');
 
@@ -157,15 +159,19 @@ export function EditSecretaryAssignmentDialog({
           const site = filteredSites.find(s => s.id === currentCreneau.site_id);
           setSiteHasFermeture(site?.fermeture || false);
         }
+      } else {
+        // Si aucun créneau trouvé, essayer de définir depuis siteId prop
+        if (siteId) {
+          setSelectedSiteId(siteId);
+          const site = filteredSites.find(s => s.id === siteId);
+          setSiteHasFermeture(site?.fermeture || false);
+        }
       }
 
       // Déterminer les rôles actuels
-      if (matinCreneau?.responsable_1r_id === secretaryId || amCreneau?.responsable_1r_id === secretaryId) {
-        setIs1R(true);
-      }
-      if (matinCreneau?.responsable_2f_id === secretaryId || amCreneau?.responsable_2f_id === secretaryId) {
-        setIs2F(true);
-      }
+      setIs1R(matinCreneau?.responsable_1r_id === secretaryId || amCreneau?.responsable_1r_id === secretaryId);
+      setIs2F(matinCreneau?.responsable_2f_id === secretaryId || amCreneau?.responsable_2f_id === secretaryId);
+      setIs3F(matinCreneau?.responsable_3f_id === secretaryId || amCreneau?.responsable_3f_id === secretaryId);
 
       // Récupérer toutes les secrétaires et backups avec les mêmes spécialités
       if (secData?.specialites && secData.specialites.length > 0) {
@@ -314,6 +320,9 @@ export function EditSecretaryAssignmentDialog({
         if (oldCreneau.responsable_2f_id === secretaryId) {
           oldUpdateData.responsable_2f_id = null;
         }
+        if (oldCreneau.responsable_3f_id === secretaryId) {
+          oldUpdateData.responsable_3f_id = null;
+        }
 
         await supabase
           .from('planning_genere')
@@ -348,6 +357,7 @@ export function EditSecretaryAssignmentDialog({
           if (siteHasFermeture) {
             if (is1R) targetUpdateData.responsable_1r_id = secretaryId;
             if (is2F) targetUpdateData.responsable_2f_id = secretaryId;
+            if (is3F) targetUpdateData.responsable_3f_id = secretaryId;
           }
 
           await supabase
@@ -373,6 +383,7 @@ export function EditSecretaryAssignmentDialog({
           if (siteHasFermeture) {
             if (is1R) newCreneauData.responsable_1r_id = secretaryId;
             if (is2F) newCreneauData.responsable_2f_id = secretaryId;
+            if (is3F) newCreneauData.responsable_3f_id = secretaryId;
           }
 
           await supabase
@@ -537,6 +548,14 @@ export function EditSecretaryAssignmentDialog({
                       <span className="text-sm">Responsable 2F (Fond)</span>
                     </div>
                     <Switch checked={is2F} onCheckedChange={setIs2F} />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">3F</Badge>
+                      <span className="text-sm">Responsable 3F</span>
+                    </div>
+                    <Switch checked={is3F} onCheckedChange={setIs3F} />
                   </div>
                 </div>
               )}
