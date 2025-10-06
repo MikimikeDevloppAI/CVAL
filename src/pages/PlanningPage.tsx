@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1237,7 +1237,7 @@ export default function PlanningPage() {
                   >
                     {currentPlanningStatus === 'valide' ? (
                       <>
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
+                        <CheckCircle className="h-5 w-5 mr-2" />
                         Planning validé
                       </>
                     ) : (
@@ -1287,7 +1287,7 @@ export default function PlanningPage() {
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CheckCircle className="h-4 w-4" />
                         Valider et générer PDF
                       </>
                     )}
