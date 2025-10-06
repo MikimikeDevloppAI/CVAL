@@ -14,22 +14,12 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { CalendarIcon, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 
 const capaciteSchema = z.object({
-  secretaire_id: z.string().min(1, 'Secrétaire ou backup requis'),
-  heure_debut: z.string().min(1, 'Heure de début requise'),
-  heure_fin: z.string().min(1, 'Heure de fin requise'),
-  specialites: z.array(z.string()).min(1, 'Au moins une spécialité requise'),
-}).refine((data) => {
-  if (data.heure_debut && data.heure_fin) {
-    return data.heure_debut < data.heure_fin;
-  }
-  return true;
-}, {
-  message: "L'heure de début doit être avant l'heure de fin",
-  path: ["heure_debut"],
+  secretaire_id: z.string().min(1, 'Secrétaire requis'),
+  periode: z.enum(['matin', 'apres_midi', 'journee']),
 });
 
 type CapaciteFormData = z.infer<typeof capaciteSchema>;
@@ -42,8 +32,6 @@ interface AddCapaciteDialogProps {
 
 export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapaciteDialogProps) {
   const [secretaires, setSecretaires] = useState<{ id: string; first_name: string; name: string; specialites: string[] }[]>([]);
-  const [backup, setBackup] = useState<{ id: string; first_name: string; name: string; specialites: string[] }[]>([]);
-  const [specialites, setSpecialites] = useState<{ id: string; nom: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -53,25 +41,19 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
     resolver: zodResolver(capaciteSchema),
     defaultValues: {
       secretaire_id: '',
-      heure_debut: '07:30',
-      heure_fin: '17:30',
-      specialites: [],
+      periode: 'matin',
     },
   });
 
-  const selectedSecretaireId = form.watch('secretaire_id');
-
   useEffect(() => {
     const fetchData = async () => {
-      const [{ data: secretairesData }, { data: backupData }, { data: specialitesData }] = await Promise.all([
-        supabase.from('secretaires').select('id, first_name, name, specialites').eq('actif', true).order('name'),
-        supabase.from('backup').select('id, first_name, name, specialites').eq('actif', true).order('name'),
-        supabase.from('specialites').select('id, nom').order('nom'),
-      ]);
+      const { data: secretairesData } = await supabase
+        .from('secretaires')
+        .select('id, first_name, name, specialites')
+        .eq('actif', true)
+        .order('name');
       
       setSecretaires(secretairesData || []);
-      setBackup(backupData || []);
-      setSpecialites(specialitesData || []);
     };
 
     if (open) {
@@ -80,16 +62,6 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
       form.reset();
     }
   }, [open, form]);
-
-  // Auto-sélectionner les spécialités de la personne sélectionnée
-  useEffect(() => {
-    if (selectedSecretaireId) {
-      const personne = [...secretaires, ...backup].find(p => p.id === selectedSecretaireId);
-      if (personne && personne.specialites) {
-        form.setValue('specialites', personne.specialites);
-      }
-    }
-  }, [selectedSecretaireId, secretaires, backup, form]);
 
   const handleDateSelect = (dates: Date[] | undefined) => {
     if (dates) {
@@ -113,24 +85,35 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
 
     setLoading(true);
     try {
-      // Déterminer si c'est un secrétaire ou un backup
-      const isBackup = backup.some(b => b.id === data.secretaire_id);
+      // Déterminer les horaires selon la période
+      let heureDebut: string;
+      let heureFin: string;
+      
+      if (data.periode === 'journee') {
+        heureDebut = '07:30:00';
+        heureFin = '17:00:00';
+      } else if (data.periode === 'matin') {
+        heureDebut = '07:30:00';
+        heureFin = '12:00:00';
+      } else {
+        heureDebut = '13:00:00';
+        heureFin = '17:00:00';
+      }
+
+      // Récupérer les spécialités de la secrétaire
+      const secretaire = secretaires.find(s => s.id === data.secretaire_id);
+      const specialites = secretaire?.specialites || [];
       
       await Promise.all(
         selectedDates.map(date => {
-          const insertData: any = {
+          const insertData = {
             date: format(date, 'yyyy-MM-dd'),
-            heure_debut: data.heure_debut,
-            heure_fin: data.heure_fin,
-            specialites: data.specialites,
+            secretaire_id: data.secretaire_id,
+            heure_debut: heureDebut,
+            heure_fin: heureFin,
+            specialites: specialites,
             actif: true,
           };
-
-          if (isBackup) {
-            insertData.backup_id = data.secretaire_id;
-          } else {
-            insertData.secretaire_id = data.secretaire_id;
-          }
 
           return supabase
             .from('capacite_effective')
@@ -224,38 +207,19 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
               name="secretaire_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Secrétaire ou Backup *</FormLabel>
+                  <FormLabel>Secrétaire *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner une personne" />
+                        <SelectValue placeholder="Sélectionner une secrétaire" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {secretaires.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            Secrétaires
-                          </div>
-                          {secretaires.map((sec) => (
-                            <SelectItem key={sec.id} value={sec.id}>
-                              {sec.first_name} {sec.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      {backup.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            Backup
-                          </div>
-                          {backup.map((bkp) => (
-                            <SelectItem key={bkp.id} value={bkp.id}>
-                              {bkp.first_name} {bkp.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
+                      {secretaires.map((sec) => (
+                        <SelectItem key={sec.id} value={sec.id}>
+                          {sec.first_name} {sec.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -265,70 +229,46 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
 
             <FormField
               control={form.control}
-              name="specialites"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Spécialités *</FormLabel>
-                  <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
-                    {specialites.map((spec) => (
-                      <FormField
-                        key={spec.id}
-                        control={form.control}
-                        name="specialites"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(spec.id)}
-                                onCheckedChange={(checked) => {
-                                  return checked
-                                    ? field.onChange([...field.value, spec.id])
-                                    : field.onChange(field.value?.filter((value) => value !== spec.id));
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                              {spec.nom}
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                    ))}
-                  </div>
+              name="periode"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Période *</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="matin" />
+                        </FormControl>
+                        <FormLabel className="font-normal cursor-pointer">
+                          Matin (07:30 - 12:00)
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="apres_midi" />
+                        </FormControl>
+                        <FormLabel className="font-normal cursor-pointer">
+                          Après-midi (13:00 - 17:00)
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="journee" />
+                        </FormControl>
+                        <FormLabel className="font-normal cursor-pointer">
+                          Journée complète (07:30 - 17:00)
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="heure_debut"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Heure de début</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="time" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="heure_fin"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Heure de fin</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="time" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
