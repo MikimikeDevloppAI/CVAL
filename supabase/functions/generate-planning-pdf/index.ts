@@ -60,10 +60,10 @@ Deno.serve(async (req) => {
       Parameters: [
         { Name: 'File', FileValue: { Name: `${safeBaseName}.html`, Data: base64Html } },
         { Name: 'FileName', Value: `${safeBaseName}.pdf` },
-        { Name: 'MarginTop', Value: '10' },
-        { Name: 'MarginBottom', Value: '10' },
-        { Name: 'MarginLeft', Value: '10' },
-        { Name: 'MarginRight', Value: '10' },
+        { Name: 'MarginTop', Value: '0' },
+        { Name: 'MarginBottom', Value: '0' },
+        { Name: 'MarginLeft', Value: '0' },
+        { Name: 'MarginRight', Value: '0' },
         { Name: 'PageSize', Value: 'a4' },
       ],
     };
