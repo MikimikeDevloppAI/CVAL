@@ -18,7 +18,7 @@ import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
-import { ClosingResponsiblesStatus } from '@/components/planning/ClosingResponsiblesStatus';
+import { SiteClosingIndicator } from '@/components/planning/SiteClosingIndicator';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -849,8 +849,6 @@ export default function PlanningPage() {
         </Button>
       </div>
 
-      <ClosingResponsiblesStatus weekDays={weekDays} />
-
       <Tabs defaultValue="planning" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="planning">Planning Généré</TabsTrigger>
@@ -904,10 +902,17 @@ export default function PlanningPage() {
                   <Card key={site.id}>
                     <CardHeader className="bg-primary/5">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                          <Building2 className="h-6 w-6 text-primary" />
-                          {site.nom}
-                        </CardTitle>
+                        <div className="flex flex-col gap-2">
+                          <CardTitle className="flex items-center gap-2">
+                            <Building2 className="h-6 w-6 text-primary" />
+                            {site.nom}
+                          </CardTitle>
+                          <SiteClosingIndicator 
+                            siteId={site.id} 
+                            siteName={site.nom} 
+                            weekDays={weekDays} 
+                          />
+                        </div>
                         <div className="flex items-center gap-4">
                           {canManage && (
                             <Button
