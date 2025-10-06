@@ -302,7 +302,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                             </div>
                           </div>
                           
-                          {/* Pourcentages */}
+                          {/* Capacité / Besoin */}
                           {matin && (
                             <div className="flex gap-1 justify-center">
                               {sameSatisfaction ? (
@@ -310,7 +310,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   variant="outline" 
                                   className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                 >
-                                  {percentMatin}%
+                                  {matin.nombre_assigne}/{Math.ceil(matin.nombre_requis)}
                                 </Badge>
                               ) : (
                                 <>
@@ -318,14 +318,14 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                     variant="outline" 
                                     className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                   >
-                                    Matin:{percentMatin}%
+                                    Matin: {matin.nombre_assigne}/{Math.ceil(matin.nombre_requis)}
                                   </Badge>
                                   {apresMidi && (
                                     <Badge 
                                       variant="outline" 
                                       className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
                                     >
-                                      Après-midi:{percentAM}%
+                                      Après-midi: {apresMidi.nombre_assigne}/{Math.ceil(apresMidi.nombre_requis)}
                                     </Badge>
                                   )}
                                 </>
@@ -427,7 +427,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           </div>
                         </div>
                         
-                        {/* Pourcentages */}
+                        {/* Capacité / Besoin */}
                         <div className="flex gap-1 justify-center">
                           {matin && apresMidi ? (
                             sameSatisfaction ? (
@@ -435,7 +435,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 variant="outline" 
                                 className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                               >
-                                {percentMatin}%
+                                {matin.nombre_assigne}/{Math.ceil(matin.nombre_requis)}
                               </Badge>
                             ) : (
                               <>
@@ -443,13 +443,13 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   variant="outline" 
                                   className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                 >
-                                  Matin:{percentMatin}%
+                                  Matin: {matin.nombre_assigne}/{Math.ceil(matin.nombre_requis)}
                                 </Badge>
                                 <Badge 
                                   variant="outline" 
                                   className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
                                 >
-                                  Après-midi:{percentAM}%
+                                  Après-midi: {apresMidi.nombre_assigne}/{Math.ceil(apresMidi.nombre_requis)}
                                 </Badge>
                               </>
                             )
@@ -458,14 +458,14 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               variant="outline" 
                               className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                             >
-                              Matin:{percentMatin}%
+                              Matin: {matin.nombre_assigne}/{Math.ceil(matin.nombre_requis)}
                             </Badge>
                           ) : apresMidi ? (
                             <Badge 
                               variant="outline" 
                               className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
                             >
-                              Après-midi:{percentAM}%
+                              Après-midi: {apresMidi.nombre_assigne}/{Math.ceil(apresMidi.nombre_requis)}
                             </Badge>
                           ) : null}
                         </div>
