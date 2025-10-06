@@ -383,9 +383,9 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
 
   return (
     <>
-      <Card className="mb-6 border-orange-200 bg-orange-50">
+      <Card className="mb-6 border-border bg-white">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-orange-800">
+          <CardTitle className="flex items-center gap-2 text-foreground">
             <AlertCircle className="h-5 w-5" />
             Besoins non satisfaits ({unsatisfiedNeeds.length})
           </CardTitle>
