@@ -1243,39 +1243,24 @@ export default function PlanningPage() {
 
               {/* Action Buttons */}
               <div className="flex justify-center gap-3 flex-wrap px-4">
-                {(!currentPlanningId || currentPlanningStatus !== 'valide') && (
-                  <Button 
-                    onClick={handleOptimizeMILP} 
-                    disabled={isOptimizingMILP}
-                    size="default"
-                    className="gap-2"
-                  >
-                    {isOptimizingMILP ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Optimisation...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-4 w-4" />
-                        Optimiser avec MILP
-                      </>
-                    )}
-                  </Button>
-                )}
-                
-                {currentPlanningId && optimizationResult && (
-                  <Button 
-                    onClick={() => setSelectDatesDialogOpen(true)}
-                    disabled={isOptimizingMILP}
-                    size="default"
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Réoptimiser des jours
-                  </Button>
-                )}
+                <Button 
+                  onClick={() => executeOptimizeMILP()} 
+                  disabled={isOptimizingMILP}
+                  size="default"
+                  className="gap-2"
+                >
+                  {isOptimizingMILP ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Optimisation...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      {currentPlanningId ? 'Réoptimiser' : 'Optimiser'}
+                    </>
+                  )}
+                </Button>
                 
                 {currentPlanningId && currentPlanningStatus === 'en_cours' && optimizationResult && (
                   <Button 
