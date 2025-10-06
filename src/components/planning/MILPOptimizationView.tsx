@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { UserCog, Stethoscope, Edit } from 'lucide-react';
 import { useState } from 'react';
-import { EditPlanningCreneauDialog } from './EditPlanningCreneauDialog';
+import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
 
 interface MILPOptimizationViewProps {
   assignments: AssignmentResult[];
@@ -16,60 +16,28 @@ interface MILPOptimizationViewProps {
   onRefresh?: () => void;
 }
 
-interface PlanningCreneauForEdit {
+interface SecretaryForEdit {
   id: string;
+  nom: string;
   date: string;
-  heure_debut: string;
-  heure_fin: string;
+  periode: 'matin' | 'apres_midi';
   site_id?: string;
-  type_assignation?: string;
-  secretaires_ids?: string[];
-  backups_ids?: string[];
-  type?: string;
-  medecins_ids?: string[];
-  responsable_1r_id?: string;
-  responsable_2f_id?: string;
-  statut?: string;
-  version_planning?: number;
+  site_nom?: string;
 }
 
 export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedCreneau, setSelectedCreneau] = useState<PlanningCreneauForEdit | null>(null);
+  const [selectedSecretary, setSelectedSecretary] = useState<SecretaryForEdit | null>(null);
   
-  const handleEditClick = async (assignment: AssignmentResult) => {
-    // Récupérer le vrai créneau depuis la base de données
-    const { supabase } = await import('@/integrations/supabase/client');
-    const { data, error } = await supabase
-      .from('planning_genere')
-      .select('*')
-      .eq('date', assignment.date)
-      .eq('heure_debut', assignment.periode === 'matin' ? '07:30:00' : '13:00:00')
-      .eq('site_id', assignment.site_id)
-      .maybeSingle();
-
-    if (error || !data) {
-      console.error('Erreur lors de la récupération du créneau:', error);
-      return;
-    }
-
-    const creneau: PlanningCreneauForEdit = {
-      id: data.id,
-      date: data.date,
-      heure_debut: data.heure_debut,
-      heure_fin: data.heure_fin,
-      site_id: data.site_id,
-      type_assignation: data.type_assignation || 'site',
-      secretaires_ids: data.secretaires_ids || [],
-      backups_ids: data.backups_ids || [],
-      type: data.type,
-      medecins_ids: data.medecins_ids,
-      responsable_1r_id: data.responsable_1r_id,
-      responsable_2f_id: data.responsable_2f_id,
-      statut: data.statut,
-      version_planning: data.version_planning,
-    };
-    setSelectedCreneau(creneau);
+  const handleEditClick = (secretary: any, assignment: AssignmentResult) => {
+    setSelectedSecretary({
+      id: secretary.id,
+      nom: secretary.nom,
+      date: assignment.date,
+      periode: assignment.periode,
+      site_id: assignment.site_id,
+      site_nom: assignment.site_nom,
+    });
     setEditDialogOpen(true);
   };
 
@@ -231,17 +199,17 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               </div>
                               <div className="flex flex-wrap gap-1 justify-center">
                                 {medecinsBoth.map((medecin, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
                                     {medecin}
                                   </Badge>
                                 ))}
                                 {medecinsMatinOnly.map((medecin, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
                                     {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
                                   </Badge>
                                 ))}
                                 {medecinsAMOnly.map((medecin, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
                                     {medecin} <span className="ml-0.5 text-muted-foreground">(AM)</span>
                                   </Badge>
                                 ))}
@@ -256,16 +224,16 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                             <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                               <div className="flex items-center gap-1">
                                 <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                {onRefresh && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                    onClick={() => handleEditClick(matin!)}
-                                  >
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                )}
+                                  {onRefresh && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                      onClick={() => handleEditClick(sec, matin!)}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  )}
                               </div>
                               
                               {(sec.is_1r || sec.is_2f || sec.is_backup) && (
@@ -359,27 +327,27 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                         {/* Médecins */}
                         {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
                           <div className="space-y-1">
-                            <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-                              <Stethoscope className="h-3 w-3" />
-                              <span>Médecins</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1 justify-center">
-                              {medecinsBoth.map((medecin, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
-                                  {medecin}
-                                </Badge>
-                              ))}
-                              {medecinsMatinOnly.map((medecin, idx) => (
-                                <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
-                                  {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
-                                </Badge>
-                              ))}
-                              {medecinsAMOnly.map((medecin, idx) => (
-                                <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
-                                  {medecin} <span className="ml-0.5 text-muted-foreground">(AM)</span>
-                                </Badge>
-                              ))}
-                            </div>
+                              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                                <Stethoscope className="h-3 w-3" />
+                                <span>Médecins</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {medecinsBoth.map((medecin, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {medecin}
+                                  </Badge>
+                                ))}
+                                {medecinsMatinOnly.map((medecin, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
+                                  </Badge>
+                                ))}
+                                {medecinsAMOnly.map((medecin, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(AM)</span>
+                                  </Badge>
+                                ))}
+                              </div>
                           </div>
                         )}
                       </div>
@@ -426,16 +394,16 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                                 <div className="flex items-center gap-1">
                                   <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                  {assignment && onRefresh && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                      onClick={() => handleEditClick(assignment)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                  )}
+                                    {assignment && onRefresh && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                        onClick={() => handleEditClick(sec, assignment)}
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                    )}
                                 </div>
                                 
                                 {(sec.is_1r || sec.is_2f || sec.is_backup) && (
@@ -489,7 +457,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
       {/* Assignations Administratives */}
       {adminAssignments.length > 0 && (
         <Card className="border-primary/20">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
               <UserCog className="h-5 w-5" />
               <span>Assignations Administratives</span>
@@ -497,75 +465,58 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="grid grid-cols-5 gap-4">
               {adminDayGroups.map(({ date, matin, apresMidi }) => {
-                // Déterminer si on peut fusionner matin et après-midi
                 const canMerge = matin && apresMidi && 
                   JSON.stringify(matin.secretaires.map(s => s.id).sort()) === 
                   JSON.stringify(apresMidi.secretaires.map(s => s.id).sort());
 
                 if (canMerge) {
-                  // Affichage fusionné (journée complète)
                   return (
-                    <div key={date.toISOString()} className="border rounded-lg p-4">
-                      <h4 className="font-semibold mb-3 text-lg">
-                        {format(date, 'EEEE d MMMM', { locale: fr })}
-                      </h4>
+                    <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
+                      <div className="bg-muted/30 px-3 py-2 border-b">
+                        <div className="text-center">
+                          <div className="font-medium text-xs">
+                            {format(date, 'EEE', { locale: fr })}
+                          </div>
+                          <div className="text-lg font-semibold">
+                            {format(date, 'd', { locale: fr })}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(date, 'MMM', { locale: fr })}
+                          </div>
+                        </div>
+                      </div>
                       
-                      <div className="space-y-3">
+                      <div className="p-3 space-y-3 flex-1">
                         {matin!.secretaires.map((sec, idx) => (
-                          <div key={idx} className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className="font-medium truncate">{sec.nom}</span>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {sec.is_backup && (
-                                    <Badge variant="secondary" className="text-xs">Backup</Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">07:30-17:00</span>
+                          <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
+                              {onRefresh && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                  onClick={() => handleEditClick(sec, matin!)}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              )}
                             </div>
                             
-                            <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                              <div className="absolute inset-0 bg-primary" />
+                            {sec.is_backup && (
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                            )}
+
+                            <div className="flex gap-0.5 h-1.5">
+                              <div className="flex-1 rounded-l bg-primary" />
+                              <div className="flex-1 rounded-r bg-primary" />
                             </div>
 
-                            {/* Médecins */}
-                            {(matin!.medecins && matin!.medecins.length > 0) || (apresMidi!.medecins && apresMidi!.medecins.length > 0) ? (
-                              <div className="space-y-2">
-                                {matin!.medecins && matin!.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Médecins matin</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {matin!.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {apresMidi!.medecins && apresMidi!.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Médecins après-midi</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {apresMidi!.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : null}
+                            <div className="text-xs text-muted-foreground text-center">
+                              <span className="font-medium">Journée</span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -573,15 +524,23 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                   );
                 }
 
-                // Affichage séparé (matin et/ou après-midi seulement)
                 return (
-                  <div key={date.toISOString()} className="border rounded-lg p-4">
-                    <h4 className="font-semibold mb-3 text-lg">
-                      {format(date, 'EEEE d MMMM', { locale: fr })}
-                    </h4>
+                  <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
+                    <div className="bg-muted/30 px-3 py-2 border-b">
+                      <div className="text-center">
+                        <div className="font-medium text-xs">
+                          {format(date, 'EEE', { locale: fr })}
+                        </div>
+                        <div className="text-lg font-semibold">
+                          {format(date, 'd', { locale: fr })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(date, 'MMM', { locale: fr })}
+                        </div>
+                      </div>
+                    </div>
                     
-                    <div className="space-y-3">
-                      {/* Grouper toutes les secrétaires uniques */}
+                    <div className="p-3 space-y-3 flex-1">
                       {(() => {
                         const allSecretaires = new Map();
                         
@@ -605,64 +564,58 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           });
                         }
 
+                        if (allSecretaires.size === 0) {
+                          return (
+                            <div className="text-xs text-muted-foreground text-center py-4">
+                              Aucune assignation
+                            </div>
+                          );
+                        }
+
                         return Array.from(allSecretaires.values()).map((sec, idx) => {
                           const hasMatin = sec.periods.includes('matin');
                           const hasApresMidi = sec.periods.includes('apresMidi');
-                          const timeDisplay = hasMatin && hasApresMidi ? '07:30-17:00' : 
-                                             hasMatin ? '07:30-12:00' : '13:00-17:00';
+                          const isFullDay = hasMatin && hasApresMidi;
+                          const assignment = hasMatin ? matin : apresMidi;
                           
                           return (
-                            <div key={idx} className="space-y-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="font-medium truncate">{sec.nom}</span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    {sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs">Backup</Badge>
-                                    )}
-                                  </div>
-                                </div>
-                                <span className="text-sm text-muted-foreground whitespace-nowrap">{timeDisplay}</span>
+                            <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
+                                {assignment && onRefresh && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                    onClick={() => handleEditClick(sec, assignment)}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                               
-                              <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                                <div className="flex h-full">
-                                  <div className={`flex-1 ${hasMatin ? 'bg-primary' : 'bg-transparent'}`} />
-                                  <div className={`flex-1 ${hasApresMidi ? 'bg-primary' : 'bg-transparent'}`} />
-                                </div>
+                              {sec.is_backup && (
+                                <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                              )}
+
+                              <div className="flex gap-0.5 h-1.5">
+                                <div 
+                                  className={`flex-1 rounded-l ${hasMatin ? 'bg-primary' : 'bg-muted'}`}
+                                  title={hasMatin ? 'Matin' : ''}
+                                />
+                                <div 
+                                  className={`flex-1 rounded-r ${hasApresMidi ? 'bg-primary' : 'bg-muted'}`}
+                                  title={hasApresMidi ? 'Après-midi' : ''}
+                                />
                               </div>
 
-                              {/* Médecins */}
-                              <div className="space-y-2">
-                                {matin && hasMatin && matin.medecins && matin.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Médecins matin</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {matin.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {apresMidi && hasApresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Médecins après-midi</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {apresMidi.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
+                              <div className="text-xs text-muted-foreground text-center">
+                                {isFullDay ? (
+                                  <span className="font-medium">Journée</span>
+                                ) : hasMatin ? (
+                                  <span className="font-medium">Matin</span>
+                                ) : (
+                                  <span className="font-medium">AM</span>
                                 )}
                               </div>
                             </div>
@@ -678,14 +631,20 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
         </Card>
       )}
 
-      <EditPlanningCreneauDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        creneau={selectedCreneau}
-        onSuccess={() => {
-          if (onRefresh) onRefresh();
-        }}
-      />
+      {selectedSecretary && (
+        <EditSecretaryAssignmentDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          secretaryId={selectedSecretary.id}
+          date={selectedSecretary.date}
+          period={selectedSecretary.periode}
+          siteId={selectedSecretary.site_id}
+          onSuccess={() => {
+            if (onRefresh) onRefresh();
+            setSelectedSecretary(null);
+          }}
+        />
+      )}
     </div>
   );
 }
