@@ -149,9 +149,9 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="columns-1 lg:columns-2 xl:columns-3 gap-4 space-y-4">
         {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
-          <Card key={siteName} className="hover:shadow-md transition-shadow">
+          <Card key={siteName} className="hover:shadow-md transition-shadow break-inside-avoid mb-4">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-lg">
                 <span className="truncate">{siteName}</span>
@@ -166,9 +166,10 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                     JSON.stringify(matin.secretaires.map(s => s.id).sort()) === 
                     JSON.stringify(apresMidi.secretaires.map(s => s.id).sort());
 
-                  // Calculer le pourcentage de satisfaction global
-                  const totalAssigne = (matin?.nombre_assigne || 0) + (apresMidi?.nombre_assigne || 0);
-                  const totalRequis = (matin?.nombre_requis || 0) + (apresMidi?.nombre_requis || 0);
+                  // Calculer les pourcentages matin et après-midi
+                  const percentMatin = matin ? getSatisfactionPercentage(matin.nombre_assigne, matin.nombre_requis) : 0;
+                  const percentAM = apresMidi ? getSatisfactionPercentage(apresMidi.nombre_assigne, apresMidi.nombre_requis) : 0;
+                  const sameSatisfaction = percentMatin === percentAM;
 
                   // Regrouper les médecins matin/après-midi
                   const medecinsMatinSet = new Set(matin?.medecins || []);
@@ -185,12 +186,31 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           <h4 className="font-semibold text-sm">
                             {format(date, 'EEE d MMM', { locale: fr })}
                           </h4>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${getSatisfactionColor(totalAssigne, totalRequis)}`}
-                          >
-                            {getSatisfactionPercentage(totalAssigne, totalRequis)}% ({totalAssigne}/{totalRequis})
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {sameSatisfaction ? (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                              >
+                                {percentMatin}% ({matin!.nombre_assigne}/{matin!.nombre_requis})
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                >
+                                  M: {percentMatin}%
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
+                                >
+                                  AM: {percentAM}%
+                                </Badge>
+                              </>
+                            )}
+                          </div>
                         </div>
                         
                         {/* Médecins regroupés */}
@@ -275,8 +295,14 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 </div>
                               </div>
                               
-                              <div className="relative h-1.5 w-32 bg-muted rounded-full overflow-hidden">
-                                <div className="absolute inset-0 bg-primary rounded-full" />
+                              <div className="relative">
+                                <div className="relative h-4 w-48 bg-muted rounded-lg overflow-hidden border border-border">
+                                  <div className="absolute inset-0 bg-primary" />
+                                </div>
+                                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                                  <span>Matin</span>
+                                  <span>Après-midi</span>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -292,12 +318,47 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                         <h4 className="font-semibold text-sm">
                           {format(date, 'EEE d MMM', { locale: fr })}
                         </h4>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${getSatisfactionColor(totalAssigne, totalRequis)}`}
-                        >
-                          {getSatisfactionPercentage(totalAssigne, totalRequis)}% ({totalAssigne}/{totalRequis})
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {matin && apresMidi ? (
+                            sameSatisfaction ? (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                              >
+                                {percentMatin}% ({matin.nombre_assigne}/{matin.nombre_requis})
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                                >
+                                  M: {percentMatin}%
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                                >
+                                  AM: {percentAM}%
+                                </Badge>
+                              </>
+                            )
+                          ) : matin ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                            >
+                              Matin: {percentMatin}%
+                            </Badge>
+                          ) : apresMidi ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                            >
+                              AM: {percentAM}%
+                            </Badge>
+                          ) : null}
+                        </div>
                       </div>
                       
                       {/* Médecins regroupés */}
@@ -414,10 +475,14 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   </div>
                                 </div>
                                 
-                                <div className="relative h-1.5 w-32 bg-muted rounded-full overflow-hidden">
-                                  <div className="flex h-full">
-                                    <div className={`flex-1 ${hasMatin ? 'bg-primary rounded-l-full' : 'bg-transparent'}`} />
-                                    <div className={`flex-1 ${hasApresMidi ? 'bg-primary rounded-r-full' : 'bg-transparent'}`} />
+                                <div className="relative">
+                                  <div className="relative h-4 w-48 bg-muted rounded-lg overflow-hidden border border-border flex">
+                                    <div className={`flex-1 ${hasMatin ? 'bg-primary' : 'bg-transparent'} border-r border-border`} />
+                                    <div className={`flex-1 ${hasApresMidi ? 'bg-primary' : 'bg-transparent'}`} />
+                                  </div>
+                                  <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                                    <span className={hasMatin ? 'font-medium' : ''}>Matin</span>
+                                    <span className={hasApresMidi ? 'font-medium' : ''}>Après-midi</span>
                                   </div>
                                 </div>
                               </div>
