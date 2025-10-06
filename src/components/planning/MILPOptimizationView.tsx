@@ -3,12 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { UserCog, Stethoscope, Edit } from 'lucide-react';
-import { useState } from 'react';
+import { UserCog, Stethoscope, Edit, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
 import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MILPOptimizationViewProps {
   assignments: AssignmentResult[];
@@ -26,9 +28,35 @@ interface SecretaryForEdit {
   site_nom?: string;
 }
 
+interface SiteClosureStatus {
+  siteId: string;
+  siteName: string;
+  needsClosure: boolean;
+  isValid: boolean;
+  issues: { date: string; problems: string[] }[];
+}
+
 export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedSecretary, setSelectedSecretary] = useState<SecretaryForEdit | null>(null);
+  const [sitesWithClosure, setSitesWithClosure] = useState<{ id: string; nom: string }[]>([]);
+  
+  // Charger les sites avec fermeture activée
+  useEffect(() => {
+    const loadSitesWithClosure = async () => {
+      const { data, error } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('fermeture', true)
+        .eq('actif', true);
+      
+      if (!error && data) {
+        setSitesWithClosure(data);
+      }
+    };
+    
+    loadSitesWithClosure();
+  }, []);
   
   const handleEditClick = (secretary: any, assignment: AssignmentResult) => {
     setSelectedSecretary({
@@ -75,6 +103,60 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
     if (required === 0) return 0;
     return Math.round((assigned / required) * 100);
   };
+
+  // Calculer les statuts de fermeture pour chaque site
+  const closureStatuses = useMemo<Map<string, SiteClosureStatus>>(() => {
+    const statusMap = new Map<string, SiteClosureStatus>();
+    
+    sitesWithClosure.forEach(site => {
+      const issues: { date: string; problems: string[] }[] = [];
+      
+      weekdaysOnly.forEach(day => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const dayAssignments = assignments.filter(
+          a => a.site_nom === site.nom && a.date === dateStr
+        );
+        
+        // Compter les 1R et 2F pour ce jour
+        const count1R = dayAssignments.reduce((sum, a) => 
+          sum + a.secretaires.filter(s => s.is_1r).length, 0
+        );
+        const count2F = dayAssignments.reduce((sum, a) => 
+          sum + a.secretaires.filter(s => s.is_2f).length, 0
+        );
+        
+        const dayProblems: string[] = [];
+        if (count1R === 0) {
+          dayProblems.push('Aucun 1R');
+        } else if (count1R > 1) {
+          dayProblems.push(`${count1R} × 1R`);
+        }
+        
+        if (count2F === 0) {
+          dayProblems.push('Aucun 2F');
+        } else if (count2F > 1) {
+          dayProblems.push(`${count2F} × 2F`);
+        }
+        
+        if (dayProblems.length > 0) {
+          issues.push({
+            date: format(day, 'dd/MM', { locale: fr }),
+            problems: dayProblems
+          });
+        }
+      });
+      
+      statusMap.set(site.nom, {
+        siteId: site.id,
+        siteName: site.nom,
+        needsClosure: true,
+        isValid: issues.length === 0,
+        issues
+      });
+    });
+    
+    return statusMap;
+  }, [sitesWithClosure, assignments, weekdaysOnly]);
 
   // Grouper par site/spécialité et trier avec Administratif et Bloc opératoire en premier
   const groupedBySite = Array.from(specialitesWithAssignments)
@@ -143,7 +225,44 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-lg">
                 <span className="truncate">{siteName}</span>
-                <Badge variant="outline" className="ml-2 flex-shrink-0">{specialite}</Badge>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Badge variant="outline">{specialite}</Badge>
+                  {closureStatuses.has(siteName) && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {closureStatuses.get(siteName)!.isValid ? (
+                            <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200 cursor-help">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Fermeture ✓
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 border-red-300 hover:bg-red-200 cursor-help">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Fermeture ⚠
+                            </Badge>
+                          )}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {closureStatuses.get(siteName)!.isValid ? (
+                            <p className="text-sm">
+                              Tous les jours ont exactement 1 × 1R et 1 × 2F
+                            </p>
+                          ) : (
+                            <div className="text-sm space-y-1">
+                              <p className="font-semibold">Problèmes détectés:</p>
+                              {closureStatuses.get(siteName)!.issues.map((issue, idx) => (
+                                <p key={idx}>
+                                  <span className="font-medium">{issue.date}:</span> {issue.problems.join(', ')}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
