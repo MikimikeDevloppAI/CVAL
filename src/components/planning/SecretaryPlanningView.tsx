@@ -204,20 +204,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                 <User className="h-5 w-5 text-primary" />
                 <span className="truncate">{secretary.name}</span>
               </CardTitle>
-              
-              <div className="flex flex-wrap gap-2">
-                {secretary.is1RCount > 0 && (
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    1R: {secretary.is1RCount}
-                  </Badge>
-                )}
-                
-                {secretary.is2FCount > 0 && (
-                  <Badge variant="outline">
-                    2F: {secretary.is2FCount}
-                  </Badge>
-                )}
-              </div>
             </div>
           </CardHeader>
           
