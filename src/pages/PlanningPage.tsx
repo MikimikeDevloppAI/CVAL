@@ -18,7 +18,6 @@ import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
-import { SiteClosingIndicator } from '@/components/planning/SiteClosingIndicator';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
@@ -1066,11 +1065,6 @@ export default function PlanningPage() {
                             <Building2 className="h-6 w-6 text-primary" />
                             {site.nom}
                           </CardTitle>
-                          <SiteClosingIndicator 
-                            siteId={site.id} 
-                            siteName={site.nom} 
-                            weekDays={weekDays} 
-                          />
                         </div>
                         <div className="flex items-center gap-4">
                           {canManage && (
