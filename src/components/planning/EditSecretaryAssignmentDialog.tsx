@@ -587,12 +587,6 @@ export function EditSecretaryAssignmentDialog({
                 </div>
               )}
 
-              {!siteHasFermeture && selectedSiteId && (
-                <p className="text-xs text-muted-foreground italic">
-                  Ce site n'a pas de fermeture, les rôles ne sont pas disponibles.
-                </p>
-              )}
-
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSave} disabled={loading} className="flex-1">
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
