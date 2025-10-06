@@ -131,6 +131,15 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
         return dow !== 0 && dow !== 6;
       });
 
+      // Récupérer les informations des sites avec leurs spécialités
+      const { data: sitesData, error: sitesError } = await supabase
+        .from('sites')
+        .select('id, specialite_id');
+
+      if (sitesError) throw sitesError;
+
+      const sitesMap = new Map(sitesData?.map(s => [s.id, s.specialite_id]) || []);
+
       // Récupérer les infos des secrétaires flexibles
       const { data: secretaires, error: secError } = await supabase
         .from('secretaires')
@@ -184,9 +193,15 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
       const prioritySuggestions: Suggestion[] = [];
 
       for (const need of unsatisfiedNeeds) {
+        // Récupérer la spécialité du site
+        const siteSpecialiteId = sitesMap.get(need.site_id);
+
         // Trouver des secrétaires flexibles qui peuvent travailler un jour de plus
         for (const sec of secretariesInfo) {
           if (!sec.flexible_jours_supplementaires) continue;
+          
+          // Vérifier que la secrétaire a la bonne spécialité
+          if (siteSpecialiteId && !sec.specialites.includes(siteSpecialiteId)) continue;
           
           const joursSupplementairesUtilises = sec.assigned_days - sec.base_days;
           const joursSupplementairesRestants = sec.nombre_jours_supplementaires - joursSupplementairesUtilises;
@@ -226,6 +241,28 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
     }
   }, [unsatisfiedNeeds, weekDays, assignments]);
 
+  // Regrouper les suggestions par secrétaire
+  const suggestionsBySecretary = useMemo(() => {
+    const grouped = new Map<string, { secretaire: SecretaryInfo; needs: UnsatisfiedNeed[] }>();
+    
+    suggestions.forEach(suggestion => {
+      const secId = suggestion.secretaire.id;
+      if (!grouped.has(secId)) {
+        grouped.set(secId, {
+          secretaire: suggestion.secretaire,
+          needs: [],
+        });
+      }
+      grouped.get(secId)!.needs.push(suggestion.target_need);
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => {
+      const aUsed = a.secretaire.assigned_days - a.secretaire.base_days;
+      const bUsed = b.secretaire.assigned_days - b.secretaire.base_days;
+      // Tri: celles sans jours supp utilisés en premier
+      return aUsed - bUsed;
+    });
+  }, [suggestions]);
   // Regrouper les besoins par site et trier alphabétiquement
   const needsBySite = useMemo(() => {
     const grouped = unsatisfiedNeeds.reduce((acc, need) => {
@@ -399,46 +436,68 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Suggestions prioritaires - Secrétaires sans jours supplémentaires utilisés */}
-          {suggestions.length > 0 && suggestions.some(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0) && (
+          {/* Suggestions prioritaires - Secrétaires disponibles groupées */}
+          {suggestionsBySecretary.length > 0 && suggestionsBySecretary.some(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0) && (
             <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
               <h4 className="font-semibold text-base mb-3 flex items-center gap-2 text-green-800">
                 ⭐ Secrétaires disponibles (pas de jours supplémentaires utilisés)
               </h4>
-              <div className="space-y-2">
-                {suggestions
+              <div className="space-y-3">
+                {suggestionsBySecretary
                   .filter(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0)
                   .map((suggestion, idx) => {
                     const joursSupplementairesUtilises = suggestion.secretaire.assigned_days - suggestion.secretaire.base_days;
                     return (
                       <div key={idx} className="border rounded-lg p-3 bg-white border-green-300">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="text-sm font-semibold text-green-800">
-                              {suggestion.secretaire.first_name} {suggestion.secretaire.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Peut travailler à {suggestion.target_need.site_nom} le{' '}
-                              {format(suggestion.target_need.dateObj, 'd MMMM', { locale: fr })}
-                            </div>
-                            <div className="text-xs text-green-700 mt-1 font-medium">
-                              {joursSupplementairesUtilises}/{suggestion.secretaire.nombre_jours_supplementaires} jours supp. utilisés
-                            </div>
+                        <div className="mb-2">
+                          <div className="text-sm font-semibold text-green-800">
+                            {suggestion.secretaire.first_name} {suggestion.secretaire.name}
                           </div>
-                          
-                          <Button 
-                            size="sm" 
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={async () => {
-                              setSelectedNeed(suggestion.target_need);
-                              setSelectedSecretaryId(suggestion.secretaire.id);
-                              await handleAssignSecretary();
-                              setNeedsAnalyzed(false);
-                            }}
-                          >
-                            Assigner
-                          </Button>
+                          <div className="text-xs text-green-700 mt-1 font-medium">
+                            {joursSupplementairesUtilises}/{suggestion.secretaire.nombre_jours_supplementaires} jours supp. utilisés
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2 mt-3">
+                          <div className="text-xs font-medium text-muted-foreground">
+                            Peut être assigné(e) sur :
+                          </div>
+                          {suggestion.needs.map((need, needIdx) => (
+                            <div key={needIdx} className="flex items-center justify-between gap-2 bg-green-50 p-2 rounded border border-green-200">
+                              <div className="flex-1">
+                                <div className="text-xs font-medium">{need.site_nom}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {format(need.dateObj, 'EEEE d MMMM', { locale: fr })}
+                                </div>
+                                <div className="flex gap-1 mt-1">
+                                  {need.matin_manquant > 0 && (
+                                    <Badge variant="destructive" className="text-xs h-5">
+                                      Matin: -{need.matin_manquant}
+                                    </Badge>
+                                  )}
+                                  {need.apres_midi_manquant > 0 && (
+                                    <Badge variant="destructive" className="text-xs h-5">
+                                      Après-midi: -{need.apres_midi_manquant}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                className="bg-green-600 hover:bg-green-700 h-8"
+                                onClick={async () => {
+                                  setSelectedNeed(need);
+                                  setSelectedSecretaryId(suggestion.secretaire.id);
+                                  await handleAssignSecretary();
+                                  setNeedsAnalyzed(false);
+                                }}
+                              >
+                                Assigner
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
