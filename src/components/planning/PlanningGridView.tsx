@@ -11,9 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 interface PlanningGridViewProps {
   assignments: AssignmentResult[];
   weekDays: Date[];
+  onRefresh?: () => void;
 }
 
-export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProps) {
+export function PlanningGridView({ assignments, weekDays, onRefresh }: PlanningGridViewProps) {
   const [selectedSecretary, setSelectedSecretary] = useState<{
     name: string;
     id: string;
@@ -279,9 +280,11 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
         <SecretaryWeekView
           open={true}
           onOpenChange={(open) => !open && setSelectedSecretary(null)}
+          secretaryId={selectedSecretary.id}
           secretaryName={selectedSecretary.name}
           assignments={getSecretaryAssignments(selectedSecretary.id)}
           weekDays={weekDays}
+          onRefresh={onRefresh}
         />
       )}
     </>

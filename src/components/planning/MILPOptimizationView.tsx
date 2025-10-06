@@ -6,9 +6,10 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { UserCog, Stethoscope, Edit, CheckCircle2, AlertCircle } from 'lucide-react';
+import { UserCog, Stethoscope, Edit, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
+import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -39,6 +40,14 @@ interface SiteClosureStatus {
 export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedSecretary, setSelectedSecretary] = useState<SecretaryForEdit | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [secretaryToDelete, setSecretaryToDelete] = useState<{
+    id: string;
+    nom: string;
+    date: string;
+    hasMatin: boolean;
+    hasApresMidi: boolean;
+  } | null>(null);
   const [sitesWithClosure, setSitesWithClosure] = useState<{ id: string; nom: string }[]>([]);
   
   // Charger les sites avec fermeture activée
@@ -68,6 +77,17 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
       site_nom: assignment.site_nom,
     });
     setEditDialogOpen(true);
+  };
+
+  const handleDeleteClick = (secretary: any, date: string, hasMatin: boolean, hasApresMidi: boolean) => {
+    setSecretaryToDelete({
+      id: secretary.id,
+      nom: secretary.nom,
+      date,
+      hasMatin,
+      hasApresMidi,
+    });
+    setDeleteDialogOpen(true);
   };
 
   // Filtrer les jours ouvrés (lundi à vendredi)
@@ -368,14 +388,24 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               <div className="flex items-center gap-1">
                                 <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
                                   {onRefresh && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                      onClick={() => handleEditClick(sec, matin!)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
+                                    <div className="ml-auto flex gap-1 flex-shrink-0">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0"
+                                        onClick={() => handleEditClick(sec, matin!)}
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                                        onClick={() => handleDeleteClick(sec, matin!.date, true, true)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   )}
                               </div>
                               
@@ -541,14 +571,24 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 <div className="flex items-center gap-1">
                                   <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
                                     {assignment && onRefresh && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                        onClick={() => handleEditClick(sec, assignment)}
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
+                                      <div className="ml-auto flex gap-1 flex-shrink-0">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0"
+                                          onClick={() => handleEditClick(sec, assignment)}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                                          onClick={() => handleDeleteClick(sec, assignment.date, hasMatin, hasApresMidi)}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     )}
                                 </div>
                                 
@@ -791,6 +831,22 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
           onSuccess={() => {
             if (onRefresh) onRefresh();
             setSelectedSecretary(null);
+          }}
+        />
+      )}
+
+      {secretaryToDelete && (
+        <DeleteSecretaryDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          secretaryId={secretaryToDelete.id}
+          secretaryName={secretaryToDelete.nom}
+          date={secretaryToDelete.date}
+          hasMatinAssignment={secretaryToDelete.hasMatin}
+          hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
+          onSuccess={() => {
+            onRefresh?.();
+            setSecretaryToDelete(null);
           }}
         />
       )}

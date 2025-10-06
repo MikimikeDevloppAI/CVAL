@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Calendar, MapPin, Clock, Edit } from 'lucide-react';
+import { User, Calendar, MapPin, Clock, Edit, X } from 'lucide-react';
 import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
+import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 
 interface SecretaryPlanningViewProps {
   assignments: AssignmentResult[];
@@ -55,11 +56,31 @@ interface SecretaryData {
 export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: SecretaryPlanningViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogState, setEditDialogState] = useState<EditDialogState | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [secretaryToDelete, setSecretaryToDelete] = useState<{
+    id: string;
+    nom: string;
+    date: string;
+    hasMatin: boolean;
+    hasApresMidi: boolean;
+  } | null>(null);
 
   const handleEditClick = (secretaryId: string, dateStr: string, period: 'matin' | 'apres_midi', siteId?: string) => {
     setEditDialogState({ secretaryId, date: dateStr, period, siteId });
     setEditDialogOpen(true);
   };
+
+  const handleDeleteClick = (secretaryId: string, secretaryName: string, date: string, hasMatin: boolean, hasApresMidi: boolean) => {
+    setSecretaryToDelete({
+      id: secretaryId,
+      nom: secretaryName,
+      date,
+      hasMatin,
+      hasApresMidi,
+    });
+    setDeleteDialogOpen(true);
+  };
+
   // Filtrer les jours ouvrés (lundi à vendredi)
   const weekdaysOnly = weekDays.filter(d => {
     const dow = d.getDay();
@@ -209,14 +230,24 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                               </div>
                             </div>
                             {onRefresh && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             )}
                           </div>
                         );
@@ -264,14 +295,24 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                               )}
                             </div>
                             {matin && onRefresh && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, !!apresMidi)}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             )}
                           </div>
 
@@ -314,14 +355,24 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                               )}
                             </div>
                             {apresMidi && onRefresh && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, !!matin, true)}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </>
@@ -345,6 +396,22 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
           siteId={editDialogState.siteId}
           onSuccess={() => {
             if (onRefresh) onRefresh();
+          }}
+        />
+      )}
+
+      {secretaryToDelete && (
+        <DeleteSecretaryDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          secretaryId={secretaryToDelete.id}
+          secretaryName={secretaryToDelete.nom}
+          date={secretaryToDelete.date}
+          hasMatinAssignment={secretaryToDelete.hasMatin}
+          hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
+          onSuccess={() => {
+            onRefresh?.();
+            setSecretaryToDelete(null);
           }}
         />
       )}
