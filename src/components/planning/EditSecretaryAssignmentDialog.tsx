@@ -178,7 +178,8 @@ export function EditSecretaryAssignmentDialog({
 
       if (shouldUpdateMatin && creneauMatin) {
         const updateData: any = {
-          site_id: selectedSiteId || creneauMatin.site_id,
+          site_id: selectedSiteId === 'administratif' ? null : selectedSiteId || creneauMatin.site_id,
+          type_assignation: selectedSiteId === 'administratif' ? 'administratif' : 'site',
         };
 
         // Ajouter les rôles seulement si le site a fermeture
@@ -199,7 +200,8 @@ export function EditSecretaryAssignmentDialog({
 
       if (shouldUpdateAM && creneauAM) {
         const updateData: any = {
-          site_id: selectedSiteId || creneauAM.site_id,
+          site_id: selectedSiteId === 'administratif' ? null : selectedSiteId || creneauAM.site_id,
+          type_assignation: selectedSiteId === 'administratif' ? 'administratif' : 'site',
         };
 
         // Ajouter les rôles seulement si le site a fermeture
@@ -348,29 +350,6 @@ export function EditSecretaryAssignmentDialog({
 
             <TabsContent value="modify" className="space-y-4">
               <div className="space-y-2">
-                <Label>Site</Label>
-                <Select 
-                  value={selectedSiteId} 
-                  onValueChange={(value) => {
-                    setSelectedSiteId(value);
-                    const site = sites.find(s => s.id === value);
-                    setSiteHasFermeture(site?.fermeture || false);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map(site => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.nom} {site.fermeture && '(Fermeture)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label>Période à modifier</Label>
                 <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
                   <SelectTrigger>
@@ -380,6 +359,34 @@ export function EditSecretaryAssignmentDialog({
                     <SelectItem value="both">Toute la journée</SelectItem>
                     <SelectItem value="matin">Matin uniquement</SelectItem>
                     <SelectItem value="apres_midi">Après-midi uniquement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Site</Label>
+                <Select 
+                  value={selectedSiteId} 
+                  onValueChange={(value) => {
+                    setSelectedSiteId(value);
+                    if (value === 'administratif') {
+                      setSiteHasFermeture(false);
+                    } else {
+                      const site = sites.find(s => s.id === value);
+                      setSiteHasFermeture(site?.fermeture || false);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="administratif">Administratif</SelectItem>
+                    {sites.map(site => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom} {site.fermeture && '(Fermeture)'}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
