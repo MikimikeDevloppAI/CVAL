@@ -70,11 +70,12 @@ export function EditPlanningCreneauDialog({
   useEffect(() => {
     const fetchData = async () => {
       const [sitesRes, secretairesRes, backupsRes] = await Promise.all([
-        supabase.from('sites').select('*').eq('actif', true),
-        supabase.from('secretaires').select('*').eq('actif', true),
-        supabase.from('backup').select('*').eq('actif', true),
+        supabase.from('sites').select('*').eq('actif', true).order('nom'),
+        supabase.from('secretaires').select('*').eq('actif', true).order('name'),
+        supabase.from('backup').select('*').eq('actif', true).order('name'),
       ]);
 
+      // Toujours inclure tous les sites actifs dans le dialogue de modification
       if (sitesRes.data) setSites(sitesRes.data);
       
       const allSecretaires = [
