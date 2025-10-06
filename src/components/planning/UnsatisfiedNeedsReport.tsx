@@ -139,7 +139,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
 
       if (secError) throw secError;
 
-      // 3. Calculer les jours de base et assignés pour chaque secrétaire
+      // Calculer les jours de base et assignés pour chaque secrétaire
       const secretariesInfo: SecretaryInfo[] = [];
 
       for (const sec of secretaires || []) {
@@ -217,6 +217,25 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
       setLoading(false);
     }
   }, [unsatisfiedNeeds, weekDays, assignments]);
+
+  // Regrouper les besoins par site et trier alphabétiquement
+  const needsBySite = useMemo(() => {
+    const grouped = unsatisfiedNeeds.reduce((acc, need) => {
+      if (!acc[need.site_nom]) {
+        acc[need.site_nom] = [];
+      }
+      acc[need.site_nom].push(need);
+      return acc;
+    }, {} as Record<string, UnsatisfiedNeed[]>);
+
+    // Trier les sites alphabétiquement et trier les jours par date
+    return Object.entries(grouped)
+      .sort(([siteA], [siteB]) => siteA.localeCompare(siteB))
+      .map(([siteName, needs]) => ({
+        siteName,
+        needs: needs.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime()),
+      }));
+  }, [unsatisfiedNeeds]);
 
   const handleNeedClick = async (need: UnsatisfiedNeed) => {
     setSelectedNeed(need);
@@ -349,25 +368,6 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
       </Card>
     );
   }
-
-  // Regrouper les besoins par site et trier alphabétiquement
-  const needsBySite = useMemo(() => {
-    const grouped = unsatisfiedNeeds.reduce((acc, need) => {
-      if (!acc[need.site_nom]) {
-        acc[need.site_nom] = [];
-      }
-      acc[need.site_nom].push(need);
-      return acc;
-    }, {} as Record<string, UnsatisfiedNeed[]>);
-
-    // Trier les sites alphabétiquement et trier les jours par date
-    return Object.entries(grouped)
-      .sort(([siteA], [siteB]) => siteA.localeCompare(siteB))
-      .map(([siteName, needs]) => ({
-        siteName,
-        needs: needs.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime()),
-      }));
-  }, [unsatisfiedNeeds]);
 
   if (unsatisfiedNeeds.length === 0) {
     return (
