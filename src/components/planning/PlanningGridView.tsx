@@ -140,228 +140,118 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                           </div>
                         </div>
                         
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse">
-                            <thead>
-                              <tr className="bg-muted/20">
-                                <th className="text-left p-3 font-medium text-sm border-b w-32">Horaire</th>
-                                <th className="text-left p-3 font-medium text-sm border-b">Médecins</th>
-                                <th className="text-left p-3 font-medium text-sm border-b">Secrétaires assignées</th>
-                                <th className="text-center p-3 font-medium text-sm border-b w-24">Nombre</th>
-                                <th className="text-center p-3 font-medium text-sm border-b w-32">Statut</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                // Déterminer si on peut regrouper matin/après-midi
-                                const canMerge = matin && apresMidi && 
-                                  matin.secretaires.length === apresMidi.secretaires.length &&
-                                  matin.secretaires.every((matinSec, idx) => 
-                                    apresMidi.secretaires[idx]?.id === matinSec.id
-                                  );
-
-                                if (canMerge) {
-                                  // Journée complète regroupée
-                                  return (
-                                    <tr className="border-b bg-white">
-                                      <td className="p-3">
-                                        <div className="font-medium">07:30 - 17:00</div>
-                                        <div className="text-xs text-muted-foreground">Journée complète</div>
-                                      </td>
-                                      <td className="p-3">
-                                        {matin && matin.medecins && matin.medecins.length > 0 ? (
-                                          <div className="space-y-1">
-                                            {matin.medecins.map((med, idx) => (
-                                              <div key={idx} className="text-sm font-medium">
-                                                {med}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-muted-foreground">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3">
-                                        <div className="space-y-1">
-                                          {matin!.secretaires.map(sec => (
-                                            <button
-                                              key={sec.id}
-                                              onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                              className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
-                                            >
-                                              <User className="h-3 w-3 text-primary" />
-                                              <span className="underline decoration-dotted">{sec.nom}</span>
-                                              {matin!.site_fermeture && sec.is_1r && (
-                                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                              )}
-                                              {matin!.site_fermeture && sec.is_2f && (
-                                                <Badge variant="outline" className="text-xs">2F</Badge>
-                                              )}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        <span className="font-medium">
-                                          {matin!.nombre_assigne} / {matin!.nombre_requis}
-                                        </span>
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        {matin!.status === 'satisfait' && (
-                                          <Badge className="bg-green-600">Satisfait</Badge>
-                                        )}
-                                        {matin!.status === 'arrondi_inferieur' && (
-                                          <Badge className="bg-yellow-600">Partiel</Badge>
-                                        )}
-                                        {matin!.status === 'non_satisfait' && (
-                                          <Badge variant="destructive">Non satisfait</Badge>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
+                        <div className="space-y-4 p-4">
+                          {(() => {
+                            // Déterminer les secrétaires uniques avec leurs périodes
+                            const secretariesByPeriod = new Map<string, { matin: boolean; apresMidi: boolean; sec: any }>();
+                            
+                            if (matin) {
+                              matin.secretaires.forEach(sec => {
+                                secretariesByPeriod.set(sec.id, { 
+                                  matin: true, 
+                                  apresMidi: false,
+                                  sec: { ...sec, matinData: matin }
+                                });
+                              });
+                            }
+                            
+                            if (apresMidi) {
+                              apresMidi.secretaires.forEach(sec => {
+                                const existing = secretariesByPeriod.get(sec.id);
+                                if (existing) {
+                                  existing.apresMidi = true;
+                                  existing.sec.apresMidiData = apresMidi;
+                                } else {
+                                  secretariesByPeriod.set(sec.id, { 
+                                    matin: false, 
+                                    apresMidi: true,
+                                    sec: { ...sec, apresMidiData: apresMidi }
+                                  });
                                 }
+                              });
+                            }
 
-                                // Affichage séparé matin et après-midi
-                                return (
-                                  <>
+                            return Array.from(secretariesByPeriod.values()).map(({ matin: hasMatin, apresMidi: hasApresMidi, sec }) => {
+                              const isFullDay = hasMatin && hasApresMidi;
+                              const periodData = hasMatin ? sec.matinData : sec.apresMidiData;
+                              
+                              return (
+                                <div key={sec.id} className="border rounded-lg p-3 space-y-2">
+                                  {/* Secrétaire info */}
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
+                                      className="flex items-center gap-2 hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                    >
+                                      <User className="h-4 w-4 text-primary" />
+                                      <span className="font-medium underline decoration-dotted">{sec.nom}</span>
+                                      {periodData.site_fermeture && sec.is_1r && (
+                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
+                                      )}
+                                      {periodData.site_fermeture && sec.is_2f && (
+                                        <Badge variant="outline" className="text-xs">2F</Badge>
+                                      )}
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">
+                                        {periodData.nombre_assigne} / {periodData.nombre_requis}
+                                      </span>
+                                      {periodData.status === 'satisfait' && (
+                                        <Badge className="bg-green-600 text-xs">Satisfait</Badge>
+                                      )}
+                                      {periodData.status === 'arrondi_inferieur' && (
+                                        <Badge className="bg-yellow-600 text-xs">Partiel</Badge>
+                                      )}
+                                      {periodData.status === 'non_satisfait' && (
+                                        <Badge variant="destructive" className="text-xs">Non satisfait</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Barre de temps visuelle */}
+                                  <div className="flex gap-1 h-2">
                                     {/* Matin */}
-                                    <tr className="border-b bg-white">
-                                      <td className="p-3">
-                                        <div className="font-medium">07:30 - 12:00</div>
-                                      </td>
-                                      <td className="p-3">
-                                        {matin && matin.medecins && matin.medecins.length > 0 ? (
-                                          <div className="space-y-1">
-                                            {matin.medecins.map((med, idx) => (
-                                              <div key={idx} className="text-sm font-medium">
-                                                {med}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-muted-foreground">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3">
-                                        {matin ? (
-                                          <div className="space-y-1">
-                                            {matin.secretaires.map(sec => (
-                                              <button
-                                                key={sec.id}
-                                                onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                                className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
-                                              >
-                                                <User className="h-3 w-3 text-primary" />
-                                                <span className="underline decoration-dotted">{sec.nom}</span>
-                                                {matin.site_fermeture && sec.is_1r && (
-                                                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                                )}
-                                                {matin.site_fermeture && sec.is_2f && (
-                                                  <Badge variant="outline" className="text-xs">2F</Badge>
-                                                )}
-                                              </button>
-                                            ))}
-                                            {matin.secretaires.length === 0 && (
-                                              <span className="text-sm text-muted-foreground">Aucune assignation</span>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-muted-foreground">Pas de besoin</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        {matin ? (
-                                          <span className="font-medium">
-                                            {matin.nombre_assigne} / {matin.nombre_requis}
-                                          </span>
-                                        ) : (
-                                          <span className="text-muted-foreground">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        {matin?.status === 'satisfait' && (
-                                          <Badge className="bg-green-600">Satisfait</Badge>
-                                        )}
-                                        {matin?.status === 'arrondi_inferieur' && (
-                                          <Badge className="bg-yellow-600">Partiel</Badge>
-                                        )}
-                                        {matin?.status === 'non_satisfait' && (
-                                          <Badge variant="destructive">Non satisfait</Badge>
-                                        )}
-                                      </td>
-                                    </tr>
-                                    
+                                    <div 
+                                      className={`flex-1 rounded-l ${
+                                        hasMatin 
+                                          ? 'bg-primary' 
+                                          : 'bg-muted'
+                                      }`}
+                                      title={hasMatin ? '07:30-12:00' : 'Non assigné'}
+                                    />
                                     {/* Après-midi */}
-                                    <tr className="bg-white">
-                                      <td className="p-3">
-                                        <div className="font-medium">13:00 - 17:00</div>
-                                      </td>
-                                      <td className="p-3">
-                                        {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 ? (
-                                          <div className="space-y-1">
-                                            {apresMidi.medecins.map((med, idx) => (
-                                              <div key={idx} className="text-sm font-medium">
-                                                {med}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-muted-foreground">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3">
-                                        {apresMidi ? (
-                                          <div className="space-y-1">
-                                            {apresMidi.secretaires.map(sec => (
-                                              <button
-                                                key={sec.id}
-                                                onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                                className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
-                                              >
-                                                <User className="h-3 w-3 text-primary" />
-                                                <span className="underline decoration-dotted">{sec.nom}</span>
-                                                {apresMidi.site_fermeture && sec.is_1r && (
-                                                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                                )}
-                                                {apresMidi.site_fermeture && sec.is_2f && (
-                                                  <Badge variant="outline" className="text-xs">2F</Badge>
-                                                )}
-                                              </button>
-                                            ))}
-                                            {apresMidi.secretaires.length === 0 && (
-                                              <span className="text-sm text-muted-foreground">Aucune assignation</span>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-muted-foreground">Pas de besoin</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        {apresMidi ? (
-                                          <span className="font-medium">
-                                            {apresMidi.nombre_assigne} / {apresMidi.nombre_requis}
-                                          </span>
-                                        ) : (
-                                          <span className="text-muted-foreground">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3 text-center">
-                                        {apresMidi?.status === 'satisfait' && (
-                                          <Badge className="bg-green-600">Satisfait</Badge>
-                                        )}
-                                        {apresMidi?.status === 'arrondi_inferieur' && (
-                                          <Badge className="bg-yellow-600">Partiel</Badge>
-                                        )}
-                                        {apresMidi?.status === 'non_satisfait' && (
-                                          <Badge variant="destructive">Non satisfait</Badge>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  </>
-                                );
-                              })()}
-                            </tbody>
-                          </table>
+                                    <div 
+                                      className={`flex-1 rounded-r ${
+                                        hasApresMidi 
+                                          ? 'bg-primary' 
+                                          : 'bg-muted'
+                                      }`}
+                                      title={hasApresMidi ? '13:00-17:00' : 'Non assigné'}
+                                    />
+                                  </div>
+
+                                  {/* Horaire et médecins */}
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-1">
+                                      {isFullDay ? (
+                                        <span className="font-medium">07:30 - 17:00</span>
+                                      ) : hasMatin ? (
+                                        <span className="font-medium">07:30 - 12:00 (Matin)</span>
+                                      ) : (
+                                        <span className="font-medium">13:00 - 17:00 (Après-midi)</span>
+                                      )}
+                                    </div>
+                                    {periodData.medecins && periodData.medecins.length > 0 && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="line-clamp-1">{periodData.medecins.join(', ')}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     ))}
