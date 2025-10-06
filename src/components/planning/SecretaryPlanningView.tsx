@@ -218,16 +218,6 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                   </Badge>
                 )}
               </div>
-
-              {secretary.sites.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {secretary.sites.map(site => (
-                    <Badge key={site} variant="outline" className="text-xs">
-                      {site.split(' - ')[0]}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </div>
           </CardHeader>
           
