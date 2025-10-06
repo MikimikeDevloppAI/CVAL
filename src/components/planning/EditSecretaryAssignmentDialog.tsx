@@ -287,53 +287,114 @@ export function EditSecretaryAssignmentDialog({
       const shouldUpdateMatin = selectedPeriod === 'matin' || selectedPeriod === 'both';
       const shouldUpdateAM = selectedPeriod === 'apres_midi' || selectedPeriod === 'both';
 
-      if (shouldUpdateMatin && creneauMatin) {
-        const updateData: any = {
-          site_id: selectedSiteId === 'administratif' ? null : selectedSiteId || creneauMatin.site_id,
-          type_assignation: selectedSiteId === 'administratif' ? 'administratif' : 'site',
+      // Fonction pour déplacer une secrétaire d'un créneau à un autre
+      const moveSecretaryToCreneau = async (
+        oldCreneau: CreneauData, 
+        newSiteId: string | null, 
+        newTypeAssignation: string,
+        periode: 'matin' | 'apres_midi'
+      ) => {
+        const heureDebut = periode === 'matin' ? '07:30:00' : '13:00:00';
+        const heureFin = periode === 'matin' ? '12:00:00' : '17:00:00';
+
+        // Étape 1: Retirer la secrétaire de l'ancien créneau
+        const isBackup = oldCreneau.backups_ids?.includes(secretaryId);
+        const newSecretairesIds = (oldCreneau.secretaires_ids || []).filter(id => id !== secretaryId);
+        const newBackupsIds = (oldCreneau.backups_ids || []).filter(id => id !== secretaryId);
+        
+        const oldUpdateData: any = {
+          secretaires_ids: newSecretairesIds,
+          backups_ids: newBackupsIds,
         };
 
-        // Ajouter les rôles seulement si le site a fermeture
-        if (siteHasFermeture) {
-          updateData.responsable_1r_id = is1R ? secretaryId : creneauMatin.responsable_1r_id === secretaryId ? null : creneauMatin.responsable_1r_id;
-          updateData.responsable_2f_id = is2F ? secretaryId : creneauMatin.responsable_2f_id === secretaryId ? null : creneauMatin.responsable_2f_id;
-        } else {
-          // Si pas de fermeture, retirer les rôles s'ils existaient
-          if (creneauMatin.responsable_1r_id === secretaryId) updateData.responsable_1r_id = null;
-          if (creneauMatin.responsable_2f_id === secretaryId) updateData.responsable_2f_id = null;
+        // Retirer les rôles si la secrétaire les avait
+        if (oldCreneau.responsable_1r_id === secretaryId) {
+          oldUpdateData.responsable_1r_id = null;
+        }
+        if (oldCreneau.responsable_2f_id === secretaryId) {
+          oldUpdateData.responsable_2f_id = null;
         }
 
         await supabase
           .from('planning_genere')
-          .update(updateData)
-          .eq('id', creneauMatin.id);
+          .update(oldUpdateData)
+          .eq('id', oldCreneau.id);
+
+        // Étape 2: Trouver ou créer le créneau de destination
+        const { data: targetCreneauData } = await supabase
+          .from('planning_genere')
+          .select('*')
+          .eq('date', date)
+          .eq('heure_debut', heureDebut)
+          .eq('site_id', newSiteId)
+          .eq('type_assignation', newTypeAssignation)
+          .maybeSingle();
+
+        if (targetCreneauData) {
+          // Le créneau existe, ajouter la secrétaire
+          const updatedSecretairesIds = isBackup 
+            ? targetCreneauData.secretaires_ids || []
+            : [...(targetCreneauData.secretaires_ids || []), secretaryId];
+          const updatedBackupsIds = isBackup
+            ? [...(targetCreneauData.backups_ids || []), secretaryId]
+            : targetCreneauData.backups_ids || [];
+
+          const targetUpdateData: any = {
+            secretaires_ids: updatedSecretairesIds,
+            backups_ids: updatedBackupsIds,
+          };
+
+          // Ajouter les rôles si applicable et que le site a fermeture
+          if (siteHasFermeture) {
+            if (is1R) targetUpdateData.responsable_1r_id = secretaryId;
+            if (is2F) targetUpdateData.responsable_2f_id = secretaryId;
+          }
+
+          await supabase
+            .from('planning_genere')
+            .update(targetUpdateData)
+            .eq('id', targetCreneauData.id);
+        } else {
+          // Le créneau n'existe pas, le créer
+          const newCreneauData: any = {
+            date,
+            heure_debut: heureDebut,
+            heure_fin: heureFin,
+            site_id: newSiteId,
+            type_assignation: newTypeAssignation,
+            type: 'medecin',
+            statut: 'planifie',
+            secretaires_ids: isBackup ? [] : [secretaryId],
+            backups_ids: isBackup ? [secretaryId] : [],
+            medecins_ids: oldCreneau.medecins_ids || [],
+          };
+
+          // Ajouter les rôles si applicable et que le site a fermeture
+          if (siteHasFermeture) {
+            if (is1R) newCreneauData.responsable_1r_id = secretaryId;
+            if (is2F) newCreneauData.responsable_2f_id = secretaryId;
+          }
+
+          await supabase
+            .from('planning_genere')
+            .insert(newCreneauData);
+        }
+      };
+
+      const newTypeAssignation = selectedSiteId === 'administratif' ? 'administratif' : 'site';
+      const newSiteId = selectedSiteId === 'administratif' ? null : (selectedSiteId || null);
+
+      if (shouldUpdateMatin && creneauMatin) {
+        await moveSecretaryToCreneau(creneauMatin, newSiteId, newTypeAssignation, 'matin');
       }
 
       if (shouldUpdateAM && creneauAM) {
-        const updateData: any = {
-          site_id: selectedSiteId === 'administratif' ? null : selectedSiteId || creneauAM.site_id,
-          type_assignation: selectedSiteId === 'administratif' ? 'administratif' : 'site',
-        };
-
-        // Ajouter les rôles seulement si le site a fermeture
-        if (siteHasFermeture) {
-          updateData.responsable_1r_id = is1R ? secretaryId : creneauAM.responsable_1r_id === secretaryId ? null : creneauAM.responsable_1r_id;
-          updateData.responsable_2f_id = is2F ? secretaryId : creneauAM.responsable_2f_id === secretaryId ? null : creneauAM.responsable_2f_id;
-        } else {
-          // Si pas de fermeture, retirer les rôles s'ils existaient
-          if (creneauAM.responsable_1r_id === secretaryId) updateData.responsable_1r_id = null;
-          if (creneauAM.responsable_2f_id === secretaryId) updateData.responsable_2f_id = null;
-        }
-
-        await supabase
-          .from('planning_genere')
-          .update(updateData)
-          .eq('id', creneauAM.id);
+        await moveSecretaryToCreneau(creneauAM, newSiteId, newTypeAssignation, 'apres_midi');
       }
 
       toast({
         title: 'Modification enregistrée',
-        description: 'Les rôles ont été mis à jour avec succès.',
+        description: 'L\'assignation a été mise à jour avec succès.',
       });
       onSuccess();
       onOpenChange(false);
