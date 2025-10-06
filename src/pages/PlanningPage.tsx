@@ -18,6 +18,7 @@ import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
+import { ClosingResponsiblesStatus } from '@/components/planning/ClosingResponsiblesStatus';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -847,6 +848,8 @@ export default function PlanningPage() {
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <ClosingResponsiblesStatus weekDays={weekDays} />
 
       <Tabs defaultValue="planning" className="w-full">
         <TabsList className="grid w-full grid-cols-3">

@@ -23,6 +23,7 @@ interface PlanningCreneau {
   medecins_ids?: string[];
   responsable_1r_id?: string;
   responsable_2f_id?: string;
+  responsable_3f_id?: string;
   statut?: string;
   version_planning?: number;
 }
@@ -49,6 +50,9 @@ export function EditPlanningCreneauDialog({
   const [siteId, setSiteId] = useState<string>('');
   const [secretaires, setSecretaires] = useState<any[]>([]);
   const [selectedSecretaires, setSelectedSecretaires] = useState<string[]>([]);
+  const [responsable1R, setResponsable1R] = useState<string>('');
+  const [responsable2F, setResponsable2F] = useState<string>('');
+  const [responsable3F, setResponsable3F] = useState<string>('');
 
   useEffect(() => {
     if (creneau) {
@@ -57,6 +61,9 @@ export function EditPlanningCreneauDialog({
       setTypeAssignation(creneau.type_assignation as 'site' | 'administratif' || 'site');
       setSiteId(creneau.site_id || '');
       setSelectedSecretaires([...(creneau.secretaires_ids || []), ...(creneau.backups_ids || [])]);
+      setResponsable1R(creneau.responsable_1r_id || '');
+      setResponsable2F(creneau.responsable_2f_id || '');
+      setResponsable3F(creneau.responsable_3f_id || '');
     }
   }, [creneau]);
 
@@ -102,13 +109,14 @@ export function EditPlanningCreneauDialog({
         secretaires_ids: secretairesIds,
         backups_ids: backupsIds,
         statut: 'planifie',
+        responsable_1r_id: responsable1R || null,
+        responsable_2f_id: responsable2F || null,
+        responsable_3f_id: responsable3F || null,
       };
 
       // Préserver les champs qui ne doivent pas être modifiés
       if (creneau.type) updateData.type = creneau.type;
       if (creneau.medecins_ids) updateData.medecins_ids = creneau.medecins_ids;
-      if (creneau.responsable_1r_id !== undefined) updateData.responsable_1r_id = creneau.responsable_1r_id;
-      if (creneau.responsable_2f_id !== undefined) updateData.responsable_2f_id = creneau.responsable_2f_id;
       if (creneau.version_planning) updateData.version_planning = creneau.version_planning;
 
       const { error } = await supabase
@@ -248,6 +256,60 @@ export function EditPlanningCreneauDialog({
                   </span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Responsables de Fermeture</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="responsable1R" className="text-xs">1R</Label>
+                <Select value={responsable1R} onValueChange={setResponsable1R}>
+                  <SelectTrigger id="responsable1R">
+                    <SelectValue placeholder="1R" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucun</SelectItem>
+                    {secretaires.filter(s => !s.isBackup).map(sec => (
+                      <SelectItem key={sec.id} value={sec.id}>
+                        {sec.first_name} {sec.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="responsable2F" className="text-xs">2F</Label>
+                <Select value={responsable2F} onValueChange={setResponsable2F}>
+                  <SelectTrigger id="responsable2F">
+                    <SelectValue placeholder="2F" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucun</SelectItem>
+                    {secretaires.filter(s => !s.isBackup).map(sec => (
+                      <SelectItem key={sec.id} value={sec.id}>
+                        {sec.first_name} {sec.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="responsable3F" className="text-xs">3F</Label>
+                <Select value={responsable3F} onValueChange={setResponsable3F}>
+                  <SelectTrigger id="responsable3F">
+                    <SelectValue placeholder="3F" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucun</SelectItem>
+                    {secretaires.filter(s => !s.isBackup).map(sec => (
+                      <SelectItem key={sec.id} value={sec.id}>
+                        {sec.first_name} {sec.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 

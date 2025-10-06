@@ -606,6 +606,7 @@ export type Database = {
           medecins_ids: string[] | null
           responsable_1r_id: string | null
           responsable_2f_id: string | null
+          responsable_3f_id: string | null
           secretaires_ids: string[] | null
           site_id: string | null
           statut: Database["public"]["Enums"]["statut_planning"]
@@ -624,6 +625,7 @@ export type Database = {
           medecins_ids?: string[] | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
+          responsable_3f_id?: string | null
           secretaires_ids?: string[] | null
           site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
@@ -642,6 +644,7 @@ export type Database = {
           medecins_ids?: string[] | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
+          responsable_3f_id?: string | null
           secretaires_ids?: string[] | null
           site_id?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
@@ -651,6 +654,13 @@ export type Database = {
           version_planning?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "planning_genere_responsable_3f_id_fkey"
+            columns: ["responsable_3f_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planning_genere_site_id_fkey"
             columns: ["site_id"]
