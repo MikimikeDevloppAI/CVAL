@@ -229,7 +229,7 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                       if (canMerge) {
                         // Journée complète au même endroit
                         return (
-                          <div className="flex gap-2 items-start">
+                          <div className="flex gap-2 items-center">
                             <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
                               <Clock className="h-3 w-3" />
                               07:30-17:00
@@ -280,7 +280,7 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                       return (
                         <>
                           {/* Matin */}
-                          <div className="flex gap-2 items-start">
+                          <div className="flex gap-2 items-center">
                             <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
                               <Clock className="h-3 w-3" />
                               07:30-12:00
@@ -330,7 +330,7 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                           </div>
 
                           {/* Après-midi */}
-                          <div className="flex gap-2 items-start">
+                          <div className="flex gap-2 items-center">
                             <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
                               <Clock className="h-3 w-3" />
                               13:00-17:00
