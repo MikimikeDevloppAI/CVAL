@@ -35,7 +35,12 @@ export function SelectDatesForOptimizationDialog({
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
-      setSelectedDates(weekDays.map(d => format(d, 'yyyy-MM-dd')));
+      // Ne sélectionner que les jours de semaine (lundi à vendredi)
+      const weekdaysOnly = weekDays.filter(d => {
+        const dayOfWeek = d.getDay();
+        return dayOfWeek !== 0 && dayOfWeek !== 6;
+      });
+      setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
     } else {
       setSelectedDates([]);
     }
@@ -79,32 +84,37 @@ export function SelectDatesForOptimizationDialog({
           </div>
 
           <div className="space-y-3">
-            {weekDays.map((day) => {
-              const dateStr = format(day, 'yyyy-MM-dd');
-              const isSelected = selectedDates.includes(dateStr);
-              
-              return (
-                <div
-                  key={dateStr}
-                  className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent transition-colors"
-                >
-                  <Checkbox
-                    id={dateStr}
-                    checked={isSelected}
-                    onCheckedChange={() => {
-                      handleToggleDate(dateStr);
-                      setSelectAll(false);
-                    }}
-                  />
-                  <label
-                    htmlFor={dateStr}
-                    className="flex-1 text-sm font-medium leading-none cursor-pointer"
+            {weekDays
+              .filter(day => {
+                const dayOfWeek = day.getDay();
+                return dayOfWeek !== 0 && dayOfWeek !== 6; // Exclure dimanche (0) et samedi (6)
+              })
+              .map((day) => {
+                const dateStr = format(day, 'yyyy-MM-dd');
+                const isSelected = selectedDates.includes(dateStr);
+                
+                return (
+                  <div
+                    key={dateStr}
+                    className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent transition-colors"
                   >
-                    {format(day, 'EEEE d MMMM', { locale: fr })}
-                  </label>
-                </div>
-              );
-            })}
+                    <Checkbox
+                      id={dateStr}
+                      checked={isSelected}
+                      onCheckedChange={() => {
+                        handleToggleDate(dateStr);
+                        setSelectAll(false);
+                      }}
+                    />
+                    <label
+                      htmlFor={dateStr}
+                      className="flex-1 text-sm font-medium leading-none cursor-pointer"
+                    >
+                      {format(day, 'EEEE d MMMM', { locale: fr })}
+                    </label>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
