@@ -791,15 +791,28 @@ export default function PlanningPage() {
         description: "Planning validé et PDF généré avec succès !",
       });
 
-      // Store the PDF URL
+      // Store the PDF URL and validate planning
       if (data?.pdfUrl) {
         console.log('PDF URL received:', data.pdfUrl);
         setGeneratedPdfUrl(data.pdfUrl);
+
+        // Validate planning with PDF URL
+        const { error: validateError } = await supabase.functions.invoke('validate-planning', {
+          body: {
+            planning_id: currentPlanningId,
+            pdf_url: data.pdfUrl,
+          },
+        });
+
+        if (validateError) {
+          console.error('Error validating planning:', validateError);
+          throw validateError;
+        }
       } else {
         console.warn('No PDF URL in response:', data);
       }
 
-      fetchPlanningGenere();
+      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
     } catch (error: any) {
       console.error('Error validating and generating PDF:', error);
       const message = error?.message || (typeof error === 'string' ? error : 'Impossible de valider et générer le PDF');
