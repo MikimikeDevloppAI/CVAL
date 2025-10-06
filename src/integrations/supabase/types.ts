@@ -885,6 +885,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      swap_secretaries: {
+        Args: {
+          p_date: string
+          p_period: string
+          p_secretary_id_1: string
+          p_secretary_id_2: string
+        }
+        Returns: Json
+      }
       weekly_planning_maintenance: {
         Args: Record<PropertyKey, never>
         Returns: undefined

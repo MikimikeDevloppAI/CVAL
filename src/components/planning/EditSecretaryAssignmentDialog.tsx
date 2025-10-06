@@ -62,6 +62,8 @@ export function EditSecretaryAssignmentDialog({
   const [loadingData, setLoadingData] = useState(true);
   const [currentSecretaire, setCurrentSecretaire] = useState<Secretaire | null>(null);
   const [availableSecretaires, setAvailableSecretaires] = useState<Secretaire[]>([]);
+  const [allSecretaires, setAllSecretaires] = useState<Secretaire[]>([]);
+  const [currentSiteSpecialiteId, setCurrentSiteSpecialiteId] = useState<string | null>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [siteHasFermeture, setSiteHasFermeture] = useState(false);
@@ -78,6 +80,22 @@ export function EditSecretaryAssignmentDialog({
       loadData();
     }
   }, [open, secretaryId, date]);
+
+  // Refresh available secretaries when period changes
+  useEffect(() => {
+    if (open && allSecretaires.length > 0 && currentSecretaire) {
+      // Filter based on selected period
+      const filtered = allSecretaires.filter(sec => {
+        // Check if secretary has required specialties for both sites
+        const hasSpecForCurrentSite = currentSiteSpecialiteId ? 
+          (sec.specialites || []).includes(currentSiteSpecialiteId) : true;
+        
+        return hasSpecForCurrentSite;
+      });
+
+      setAvailableSecretaires(filtered);
+    }
+  }, [selectedPeriod, open, allSecretaires, currentSiteSpecialiteId, currentSecretaire]);
 
   const loadData = async () => {
     setLoadingData(true);
@@ -182,7 +200,8 @@ export function EditSecretaryAssignmentDialog({
         
         // Récupérer le site actuel pour vérifier sa spécialité
         const currentSite = filteredSites.find(s => s.id === currentSiteId);
-        const currentSiteSpecialiteId = currentSite?.specialite_id;
+        const currentSiteSpecialiteIdValue = currentSite?.specialite_id;
+        setCurrentSiteSpecialiteId(currentSiteSpecialiteIdValue || null);
 
         // Créer une map des assignations par secrétaire
         const assignmentMap = new Map<string, { siteName: string; siteId?: string; typeAssignation?: string }>();
@@ -234,7 +253,7 @@ export function EditSecretaryAssignmentDialog({
           }
           
           // Vérification bidirectionnelle : la secrétaire cible doit pouvoir prendre la place actuelle
-          if (currentSiteSpecialiteId && !sec.specialites?.includes(currentSiteSpecialiteId)) {
+          if (currentSiteSpecialiteIdValue && !sec.specialites?.includes(currentSiteSpecialiteIdValue)) {
             return false; // La secrétaire cible n'a pas la spécialité du site actuel
           }
           
@@ -247,6 +266,7 @@ export function EditSecretaryAssignmentDialog({
           current_site: assignmentMap.get(sec.id)?.siteName
         }));
 
+        setAllSecretaires(allSec);
         setAvailableSecretaires(allSec);
       }
     } catch (error: any) {
@@ -329,257 +349,46 @@ export function EditSecretaryAssignmentDialog({
   };
 
   const handleSwitch = async () => {
-    if (!selectedSwitchSecretaire) {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: 'Veuillez sélectionner une secrétaire à échanger.',
-      });
-      return;
-    }
-
+    if (!selectedSwitchSecretaire || !date) return;
+    
     setLoading(true);
     try {
-      const shouldUpdateMatin = selectedPeriod === 'matin' || selectedPeriod === 'both';
-      const shouldUpdateAM = selectedPeriod === 'apres_midi' || selectedPeriod === 'both';
-
-      // Récupérer tous les créneaux du jour pour trouver les assignations des deux secrétaires
-      const { data: allCreneaux, error: creneauxError } = await supabase
-        .from('planning_genere')
-        .select('*')
-        .eq('date', date);
-
-      if (creneauxError) throw creneauxError;
-
-      // Fonction pour échanger les IDs dans un tableau
-      const swapInArray = (arr: string[] | null, id1: string, id2: string): string[] => {
-        if (!arr) return [];
-        return arr.map(id => {
-          if (id === id1) return id2;
-          if (id === id2) return id1;
-          return id;
-        });
-      };
-
-      // Fonction pour retirer un ID d'un tableau
-      const removeFromArray = (arr: string[] | null, id: string): string[] => {
-        if (!arr) return [];
-        return arr.filter(item => item !== id);
-      };
-
-      // Fonction pour ajouter un ID à un tableau
-      const addToArray = (arr: string[] | null, id: string): string[] => {
-        const currentArray = arr || [];
-        if (currentArray.includes(id)) return currentArray;
-        return [...currentArray, id];
-      };
-
-      // Traiter les créneaux matin si nécessaire
-      if (shouldUpdateMatin) {
-        const matinCreneaux = allCreneaux?.filter(c => c.heure_debut === '07:30:00') || [];
-        
-        // Trouver le créneau de la secrétaire actuelle
-        const currentSecMatinCreneau = matinCreneaux.find(c => 
-          c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId)
-        );
-        
-        // Trouver le créneau de la secrétaire à échanger
-        const switchSecMatinCreneau = matinCreneaux.find(c => 
-          c.secretaires_ids?.includes(selectedSwitchSecretaire) || c.backups_ids?.includes(selectedSwitchSecretaire)
-        );
-
-        // Mettre à jour le créneau de la secrétaire actuelle
-        if (currentSecMatinCreneau) {
-          const isCurrentInSecretaires = currentSecMatinCreneau.secretaires_ids?.includes(secretaryId);
-          const isSwitchInSecretaires = switchSecMatinCreneau?.secretaires_ids?.includes(selectedSwitchSecretaire);
-          
-          let newSecretairesIds = currentSecMatinCreneau.secretaires_ids || [];
-          let newBackupsIds = currentSecMatinCreneau.backups_ids || [];
-          
-          if (isCurrentInSecretaires) {
-            newSecretairesIds = removeFromArray(newSecretairesIds, secretaryId);
-            if (isSwitchInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, selectedSwitchSecretaire);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, selectedSwitchSecretaire);
-            }
-          } else {
-            newBackupsIds = removeFromArray(newBackupsIds, secretaryId);
-            if (isSwitchInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, selectedSwitchSecretaire);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, selectedSwitchSecretaire);
-            }
-          }
-
-          let newResp1R = currentSecMatinCreneau.responsable_1r_id;
-          let newResp2F = currentSecMatinCreneau.responsable_2f_id;
-          if (newResp1R === secretaryId) newResp1R = selectedSwitchSecretaire;
-          if (newResp2F === secretaryId) newResp2F = selectedSwitchSecretaire;
-
-          await supabase
-            .from('planning_genere')
-            .update({
-              secretaires_ids: newSecretairesIds,
-              backups_ids: newBackupsIds,
-              responsable_1r_id: newResp1R,
-              responsable_2f_id: newResp2F,
-            })
-            .eq('id', currentSecMatinCreneau.id);
-        }
-
-        // Mettre à jour le créneau de la secrétaire à échanger
-        if (switchSecMatinCreneau) {
-          const isCurrentInSecretaires = currentSecMatinCreneau?.secretaires_ids?.includes(secretaryId);
-          const isSwitchInSecretaires = switchSecMatinCreneau.secretaires_ids?.includes(selectedSwitchSecretaire);
-          
-          let newSecretairesIds = switchSecMatinCreneau.secretaires_ids || [];
-          let newBackupsIds = switchSecMatinCreneau.backups_ids || [];
-          
-          if (isSwitchInSecretaires) {
-            newSecretairesIds = removeFromArray(newSecretairesIds, selectedSwitchSecretaire);
-            if (isCurrentInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, secretaryId);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, secretaryId);
-            }
-          } else {
-            newBackupsIds = removeFromArray(newBackupsIds, selectedSwitchSecretaire);
-            if (isCurrentInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, secretaryId);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, secretaryId);
-            }
-          }
-
-          let newResp1R = switchSecMatinCreneau.responsable_1r_id;
-          let newResp2F = switchSecMatinCreneau.responsable_2f_id;
-          if (newResp1R === selectedSwitchSecretaire) newResp1R = secretaryId;
-          if (newResp2F === selectedSwitchSecretaire) newResp2F = secretaryId;
-
-          await supabase
-            .from('planning_genere')
-            .update({
-              secretaires_ids: newSecretairesIds,
-              backups_ids: newBackupsIds,
-              responsable_1r_id: newResp1R,
-              responsable_2f_id: newResp2F,
-            })
-            .eq('id', switchSecMatinCreneau.id);
-        }
+      // Determine period parameter for the RPC function
+      let periodParam: string;
+      if (!selectedPeriod || selectedPeriod === 'both') {
+        periodParam = 'both';
+      } else {
+        periodParam = selectedPeriod;
       }
 
-      // Traiter les créneaux après-midi si nécessaire
-      if (shouldUpdateAM) {
-        const amCreneaux = allCreneaux?.filter(c => c.heure_debut === '13:00:00') || [];
-        
-        // Trouver le créneau de la secrétaire actuelle
-        const currentSecAMCreneau = amCreneaux.find(c => 
-          c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId)
-        );
-        
-        // Trouver le créneau de la secrétaire à échanger
-        const switchSecAMCreneau = amCreneaux.find(c => 
-          c.secretaires_ids?.includes(selectedSwitchSecretaire) || c.backups_ids?.includes(selectedSwitchSecretaire)
-        );
-
-        // Mettre à jour le créneau de la secrétaire actuelle
-        if (currentSecAMCreneau) {
-          const isCurrentInSecretaires = currentSecAMCreneau.secretaires_ids?.includes(secretaryId);
-          const isSwitchInSecretaires = switchSecAMCreneau?.secretaires_ids?.includes(selectedSwitchSecretaire);
-          
-          let newSecretairesIds = currentSecAMCreneau.secretaires_ids || [];
-          let newBackupsIds = currentSecAMCreneau.backups_ids || [];
-          
-          if (isCurrentInSecretaires) {
-            newSecretairesIds = removeFromArray(newSecretairesIds, secretaryId);
-            if (isSwitchInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, selectedSwitchSecretaire);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, selectedSwitchSecretaire);
-            }
-          } else {
-            newBackupsIds = removeFromArray(newBackupsIds, secretaryId);
-            if (isSwitchInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, selectedSwitchSecretaire);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, selectedSwitchSecretaire);
-            }
-          }
-
-          let newResp1R = currentSecAMCreneau.responsable_1r_id;
-          let newResp2F = currentSecAMCreneau.responsable_2f_id;
-          if (newResp1R === secretaryId) newResp1R = selectedSwitchSecretaire;
-          if (newResp2F === secretaryId) newResp2F = selectedSwitchSecretaire;
-
-          await supabase
-            .from('planning_genere')
-            .update({
-              secretaires_ids: newSecretairesIds,
-              backups_ids: newBackupsIds,
-              responsable_1r_id: newResp1R,
-              responsable_2f_id: newResp2F,
-            })
-            .eq('id', currentSecAMCreneau.id);
-        }
-
-        // Mettre à jour le créneau de la secrétaire à échanger
-        if (switchSecAMCreneau) {
-          const isCurrentInSecretaires = currentSecAMCreneau?.secretaires_ids?.includes(secretaryId);
-          const isSwitchInSecretaires = switchSecAMCreneau.secretaires_ids?.includes(selectedSwitchSecretaire);
-          
-          let newSecretairesIds = switchSecAMCreneau.secretaires_ids || [];
-          let newBackupsIds = switchSecAMCreneau.backups_ids || [];
-          
-          if (isSwitchInSecretaires) {
-            newSecretairesIds = removeFromArray(newSecretairesIds, selectedSwitchSecretaire);
-            if (isCurrentInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, secretaryId);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, secretaryId);
-            }
-          } else {
-            newBackupsIds = removeFromArray(newBackupsIds, selectedSwitchSecretaire);
-            if (isCurrentInSecretaires) {
-              newSecretairesIds = addToArray(newSecretairesIds, secretaryId);
-            } else {
-              newBackupsIds = addToArray(newBackupsIds, secretaryId);
-            }
-          }
-
-          let newResp1R = switchSecAMCreneau.responsable_1r_id;
-          let newResp2F = switchSecAMCreneau.responsable_2f_id;
-          if (newResp1R === selectedSwitchSecretaire) newResp1R = secretaryId;
-          if (newResp2F === selectedSwitchSecretaire) newResp2F = secretaryId;
-
-          await supabase
-            .from('planning_genere')
-            .update({
-              secretaires_ids: newSecretairesIds,
-              backups_ids: newBackupsIds,
-              responsable_1r_id: newResp1R,
-              responsable_2f_id: newResp2F,
-            })
-            .eq('id', switchSecAMCreneau.id);
-        }
-      }
-
-      toast({
-        title: 'Échange effectué',
-        description: 'Les secrétaires ont été échangées avec succès.',
+      // Call the transactional swap function
+      const { data, error } = await supabase.rpc('swap_secretaries', {
+        p_date: date,
+        p_period: periodParam,
+        p_secretary_id_1: secretaryId,
+        p_secretary_id_2: selectedSwitchSecretaire,
       });
-      onSuccess();
-      onOpenChange(false);
-    } catch (error: any) {
+
+      if (error) throw error;
+
       toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: error.message,
+        title: "Succès",
+        description: "L'échange a été effectué avec succès.",
+      });
+      onOpenChange(false);
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error switching assignments:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Une erreur est survenue lors de l'échange.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
 
   if (!currentSecretaire) return null;
 
