@@ -179,6 +179,10 @@ export function EditSecretaryAssignmentDialog({
         );
         const currentSiteId = currentAssignment?.site_id;
         const currentTypeAssignation = currentAssignment?.type_assignation;
+        
+        // Récupérer le site actuel pour vérifier sa spécialité
+        const currentSite = filteredSites.find(s => s.id === currentSiteId);
+        const currentSiteSpecialiteId = currentSite?.specialite_id;
 
         // Créer une map des assignations par secrétaire
         const assignmentMap = new Map<string, { siteName: string; siteId?: string; typeAssignation?: string }>();
@@ -227,6 +231,11 @@ export function EditSecretaryAssignmentDialog({
           }
           if (currentSiteId && assignmentInfo.siteId === currentSiteId) {
             return false; // Même site
+          }
+          
+          // Vérification bidirectionnelle : la secrétaire cible doit pouvoir prendre la place actuelle
+          if (currentSiteSpecialiteId && !sec.specialites?.includes(currentSiteSpecialiteId)) {
+            return false; // La secrétaire cible n'a pas la spécialité du site actuel
           }
           
           // Accepter les assignations administratives ou sur des sites compatibles
