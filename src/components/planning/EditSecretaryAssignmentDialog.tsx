@@ -171,8 +171,17 @@ export function EditSecretaryAssignmentDialog({
           .select('*, sites(nom)')
           .eq('date', date);
 
+        // Déterminer le site actuel de la secrétaire pour la période concernée
+        const currentAssignment = assignmentsData?.find(a => 
+          (a.secretaires_ids?.includes(secretaryId) || a.backups_ids?.includes(secretaryId)) &&
+          ((selectedPeriod === 'matin' || selectedPeriod === 'both') && a.heure_debut === '07:30:00' ||
+           (selectedPeriod === 'apres_midi' || selectedPeriod === 'both') && a.heure_debut === '13:00:00')
+        );
+        const currentSiteId = currentAssignment?.site_id;
+        const currentTypeAssignation = currentAssignment?.type_assignation;
+
         // Créer une map des assignations par secrétaire
-        const assignmentMap = new Map<string, string>();
+        const assignmentMap = new Map<string, { siteName: string; siteId?: string; typeAssignation?: string }>();
         assignmentsData?.forEach(assignment => {
           const period = assignment.heure_debut === '07:30:00' ? 'matin' : 'apres_midi';
           const targetPeriod = selectedPeriod === 'both' ? period : selectedPeriod;
@@ -183,7 +192,11 @@ export function EditSecretaryAssignmentDialog({
                 const siteName = assignment.type_assignation === 'administratif' 
                   ? 'Administratif' 
                   : (assignment.sites as any)?.nom || 'Site inconnu';
-                assignmentMap.set(secId, siteName);
+                assignmentMap.set(secId, {
+                  siteName,
+                  siteId: assignment.site_id,
+                  typeAssignation: assignment.type_assignation
+                });
               }
             });
           }
@@ -192,14 +205,14 @@ export function EditSecretaryAssignmentDialog({
         // Récupérer les sites compatibles pour filtrer
         const compatibleSiteIds = filteredSites.map(s => s.id);
 
-        // Filtrer les secrétaires pour ne garder que celles sur des sites compatibles
+        // Filtrer les secrétaires pour ne garder que celles sur des sites compatibles et différents
         const allSec = [
           ...(secretairesRes.data || []),
           ...(backupsRes.data || []).map(b => ({ ...b, is_backup: true }))
         ].filter(sec => {
           // Vérifier si la secrétaire a une assignation ce jour-là
-          const hasAssignment = assignmentMap.has(sec.id);
-          if (!hasAssignment) return false;
+          const assignmentInfo = assignmentMap.get(sec.id);
+          if (!assignmentInfo) return false;
 
           // Vérifier si l'assignation est sur un site compatible ou administratif
           const assignment = assignmentsData?.find(a => 
@@ -207,6 +220,14 @@ export function EditSecretaryAssignmentDialog({
           );
           
           if (!assignment) return false;
+
+          // Exclure si sur le même site que la secrétaire actuelle
+          if (currentTypeAssignation === 'administratif' && assignmentInfo.typeAssignation === 'administratif') {
+            return false; // Les deux sont en administratif
+          }
+          if (currentSiteId && assignmentInfo.siteId === currentSiteId) {
+            return false; // Même site
+          }
           
           // Accepter les assignations administratives ou sur des sites compatibles
           return assignment.type_assignation === 'administratif' || 
@@ -214,7 +235,7 @@ export function EditSecretaryAssignmentDialog({
                  compatibleSiteIds.includes(assignment.site_id);
         }).map(sec => ({
           ...sec,
-          current_site: assignmentMap.get(sec.id)
+          current_site: assignmentMap.get(sec.id)?.siteName
         }));
 
         setAvailableSecretaires(allSec);
