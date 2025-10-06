@@ -59,7 +59,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSecretary, setSelectedSecretary] = useState<SecretaryGroup | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi'>('matin');
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
 
   // Regrouper les capacités par secrétaire
   const secretariesGroups: SecretaryGroup[] = [];
@@ -121,8 +121,19 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
     }
 
     try {
-      const heureDebut = selectedPeriod === 'matin' ? '07:30:00' : '13:00:00';
-      const heureFin = selectedPeriod === 'matin' ? '12:00:00' : '17:00:00';
+      let heureDebut: string;
+      let heureFin: string;
+
+      if (selectedPeriod === 'journee') {
+        heureDebut = '07:30:00';
+        heureFin = '17:00:00';
+      } else if (selectedPeriod === 'matin') {
+        heureDebut = '07:30:00';
+        heureFin = '12:00:00';
+      } else {
+        heureDebut = '13:00:00';
+        heureFin = '17:00:00';
+      }
 
       const insertData: any = {
         date: selectedDate,
@@ -210,7 +221,9 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                                 ? 'Matin'
                                 : cap.heure_debut === '13:00:00' && cap.heure_fin === '17:00:00'
                                 ? 'Après-midi'
-                                : 'Journée complète'}
+                                : cap.heure_debut === '07:30:00' && cap.heure_fin === '17:00:00'
+                                ? 'Journée complète'
+                                : 'Autre horaire'}
                             </div>
                           </div>
                           {canManage && (
@@ -269,13 +282,14 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Période</label>
-              <Select value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as 'matin' | 'apres_midi')}>
+              <Select value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as 'matin' | 'apres_midi' | 'journee')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="matin">Matin (07:30 - 12:00)</SelectItem>
                   <SelectItem value="apres_midi">Après-midi (13:00 - 17:00)</SelectItem>
+                  <SelectItem value="journee">Journée complète (07:30 - 17:00)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
