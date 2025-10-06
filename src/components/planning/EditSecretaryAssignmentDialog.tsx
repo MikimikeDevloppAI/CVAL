@@ -91,14 +91,20 @@ export function EditSecretaryAssignmentDialog({
       if (secError) throw secError;
       setCurrentSecretaire(secData);
 
-      // Récupérer tous les sites
+      // Récupérer tous les sites correspondant aux spécialités de la secrétaire
       const { data: sitesData, error: sitesError } = await supabase
         .from('sites')
         .select('*')
         .eq('actif', true);
 
       if (sitesError) throw sitesError;
-      setSites(sitesData || []);
+      
+      // Filtrer les sites selon les spécialités de la secrétaire
+      const filteredSites = sitesData?.filter(site => 
+        !site.specialite_id || secData.specialites?.includes(site.specialite_id)
+      ) || [];
+      
+      setSites(filteredSites);
 
       // Récupérer les créneaux matin et après-midi
       const [matinRes, amRes] = await Promise.all([
