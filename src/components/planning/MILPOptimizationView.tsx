@@ -149,9 +149,9 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
   return (
     <div className="space-y-6">
-      <div className="columns-1 lg:columns-2 xl:columns-3 gap-4 space-y-4">
+      <div className="space-y-4">
         {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
-          <Card key={siteName} className="hover:shadow-md transition-shadow break-inside-avoid mb-4">
+          <Card key={siteName} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-lg">
                 <span className="truncate">{siteName}</span>
@@ -159,7 +159,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="grid grid-cols-5 gap-4">
                 {dayGroups.map(({ date, matin, apresMidi }) => {
                   // Déterminer si on peut fusionner matin et après-midi
                   const canMerge = matin && apresMidi && 
@@ -181,129 +181,85 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                   if (canMerge) {
                     // Affichage fusionné (journée complète)
                     return (
-                      <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-sm">
-                            {format(date, 'EEE d MMM', { locale: fr })}
-                          </h4>
-                          <div className="flex items-center gap-2">
-                            {sameSatisfaction ? (
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
-                              >
-                                {percentMatin}% ({matin!.nombre_assigne}/{matin!.nombre_requis})
-                              </Badge>
-                            ) : (
-                              <>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
-                                >
-                                  M: {percentMatin}%
-                                </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
-                                >
-                                  AM: {percentAM}%
-                                </Badge>
-                              </>
-                            )}
+                      <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
+                        <div className="bg-muted/30 px-3 py-2 text-center border-b">
+                          <div className="font-medium text-xs">
+                            {format(date, 'EEE', { locale: fr })}
+                          </div>
+                          <div className="text-lg font-semibold">
+                            {format(date, 'd', { locale: fr })}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(date, 'MMM', { locale: fr })}
                           </div>
                         </div>
                         
-                        {/* Médecins regroupés */}
-                        {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
-                          <div className="mb-3 pb-3 border-b">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                              <Stethoscope className="h-3 w-3" />
-                              <span>Médecins</span>
-                            </div>
-                            <div className="space-y-1.5">
-                              {medecinsBoth.length > 0 && (
-                                <div>
-                                  <span className="text-xs text-muted-foreground mr-2">Journée:</span>
-                                  <div className="inline-flex flex-wrap gap-1">
-                                    {medecinsBoth.map((medecin, idx) => (
-                                      <Badge key={idx} variant="outline" className="text-xs">
-                                        {medecin}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {medecinsMatinOnly.length > 0 && (
-                                <div>
-                                  <span className="text-xs text-muted-foreground mr-2">Matin:</span>
-                                  <div className="inline-flex flex-wrap gap-1">
-                                    {medecinsMatinOnly.map((medecin, idx) => (
-                                      <Badge key={idx} variant="outline" className="text-xs">
-                                        {medecin}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {medecinsAMOnly.length > 0 && (
-                                <div>
-                                  <span className="text-xs text-muted-foreground mr-2">AM:</span>
-                                  <div className="inline-flex flex-wrap gap-1">
-                                    {medecinsAMOnly.map((medecin, idx) => (
-                                      <Badge key={idx} variant="outline" className="text-xs">
-                                        {medecin}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Secrétaires */}
-                        <div className="space-y-2">
+                        <div className="p-3 space-y-3 flex-1">
+                          {/* Secrétaires */}
                           {matin!.secretaires.map((sec, idx) => (
-                            <div key={idx} className="space-y-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="font-medium text-sm truncate">{sec.nom}</span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    {sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
-                                    )}
-                                    {sec.is_1r && (
-                                      <Badge variant="default" className="text-xs px-1.5 py-0">1R</Badge>
-                                    )}
-                                    {sec.is_2f && (
-                                      <Badge variant="default" className="text-xs px-1.5 py-0">2F</Badge>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">07:30-17:00</span>
+                            <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
                                   {onRefresh && (
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 w-7 p-0"
+                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
                                       onClick={() => handleEditClick(matin!)}
                                     >
                                       <Edit className="h-3 w-3" />
                                     </Button>
                                   )}
                                 </div>
+                                
+                                {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                                  <div className="flex gap-1">
+                                    {sec.is_backup && (
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                    )}
+                                    {sec.is_1r && (
+                                      <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
+                                    )}
+                                    {sec.is_2f && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              
-                              <div className="relative">
-                                <div className="relative h-4 w-48 bg-muted rounded-lg overflow-hidden border border-border">
-                                  <div className="absolute inset-0 bg-primary" />
-                                </div>
-                                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
-                                  <span>Matin</span>
-                                  <span>Après-midi</span>
-                                </div>
+
+                              <div className="flex gap-0.5 h-1.5">
+                                <div className="flex-1 rounded-l bg-primary" title="Matin" />
+                                <div className="flex-1 rounded-r bg-primary" title="Après-midi" />
                               </div>
+
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Journée</span>
+                              </div>
+
+                              {sameSatisfaction ? (
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                >
+                                  {percentMatin}%
+                                </Badge>
+                              ) : (
+                                <div className="flex gap-1">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                  >
+                                    M:{percentMatin}%
+                                  </Badge>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
+                                  >
+                                    AM:{percentAM}%
+                                  </Badge>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -313,178 +269,149 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
                   // Affichage séparé (matin et/ou après-midi seulement)
                   return (
-                    <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-sm">
-                          {format(date, 'EEE d MMM', { locale: fr })}
-                        </h4>
-                        <div className="flex items-center gap-2">
-                          {matin && apresMidi ? (
-                            sameSatisfaction ? (
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                              >
-                                {percentMatin}% ({matin.nombre_assigne}/{matin.nombre_requis})
-                              </Badge>
-                            ) : (
-                              <>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                                >
-                                  M: {percentMatin}%
-                                </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
-                                >
-                                  AM: {percentAM}%
-                                </Badge>
-                              </>
-                            )
-                          ) : matin ? (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                            >
-                              Matin: {percentMatin}%
-                            </Badge>
-                          ) : apresMidi ? (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
-                            >
-                              AM: {percentAM}%
-                            </Badge>
-                          ) : null}
+                    <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
+                      <div className="bg-muted/30 px-3 py-2 text-center border-b">
+                        <div className="font-medium text-xs">
+                          {format(date, 'EEE', { locale: fr })}
+                        </div>
+                        <div className="text-lg font-semibold">
+                          {format(date, 'd', { locale: fr })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(date, 'MMM', { locale: fr })}
                         </div>
                       </div>
                       
-                      {/* Médecins regroupés */}
-                      {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
-                        <div className="mb-3 pb-3 border-b">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                            <Stethoscope className="h-3 w-3" />
-                            <span>Médecins</span>
-                          </div>
-                          <div className="space-y-1.5">
-                            {medecinsBoth.length > 0 && (
-                              <div>
-                                <span className="text-xs text-muted-foreground mr-2">Journée:</span>
-                                <div className="inline-flex flex-wrap gap-1">
-                                  {medecinsBoth.map((medecin, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {medecin}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {medecinsMatinOnly.length > 0 && (
-                              <div>
-                                <span className="text-xs text-muted-foreground mr-2">Matin:</span>
-                                <div className="inline-flex flex-wrap gap-1">
-                                  {medecinsMatinOnly.map((medecin, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {medecin}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {medecinsAMOnly.length > 0 && (
-                              <div>
-                                <span className="text-xs text-muted-foreground mr-2">AM:</span>
-                                <div className="inline-flex flex-wrap gap-1">
-                                  {medecinsAMOnly.map((medecin, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {medecin}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Secrétaires */}
-                      <div className="space-y-2">
-                        {/* Grouper toutes les secrétaires uniques */}
+                      <div className="p-3 space-y-3 flex-1">
                         {(() => {
-                        const allSecretaires = new Map();
-                        
-                        if (matin) {
-                          matin.secretaires.forEach(sec => {
-                            if (!allSecretaires.has(sec.id)) {
-                              allSecretaires.set(sec.id, { ...sec, periods: ['matin'] });
-                            } else {
-                              allSecretaires.get(sec.id).periods.push('matin');
-                            }
-                          });
-                        }
-                        
-                        if (apresMidi) {
-                          apresMidi.secretaires.forEach(sec => {
-                            if (!allSecretaires.has(sec.id)) {
-                              allSecretaires.set(sec.id, { ...sec, periods: ['apresMidi'] });
-                            } else {
-                              allSecretaires.get(sec.id).periods.push('apresMidi');
-                            }
-                          });
-                        }
+                          const allSecretaires = new Map();
+                          
+                          if (matin) {
+                            matin.secretaires.forEach(sec => {
+                              if (!allSecretaires.has(sec.id)) {
+                                allSecretaires.set(sec.id, { ...sec, periods: ['matin'] });
+                              } else {
+                                allSecretaires.get(sec.id).periods.push('matin');
+                              }
+                            });
+                          }
+                          
+                          if (apresMidi) {
+                            apresMidi.secretaires.forEach(sec => {
+                              if (!allSecretaires.has(sec.id)) {
+                                allSecretaires.set(sec.id, { ...sec, periods: ['apresMidi'] });
+                              } else {
+                                allSecretaires.get(sec.id).periods.push('apresMidi');
+                              }
+                            });
+                          }
+
+                          if (allSecretaires.size === 0) {
+                            return (
+                              <div className="text-xs text-muted-foreground text-center py-4">
+                                Aucune assignation
+                              </div>
+                            );
+                          }
 
                           return Array.from(allSecretaires.values()).map((sec, idx) => {
                             const hasMatin = sec.periods.includes('matin');
                             const hasApresMidi = sec.periods.includes('apresMidi');
-                            const timeDisplay = hasMatin && hasApresMidi ? '07:30-17:00' : 
-                                               hasMatin ? '07:30-12:00' : '13:00-17:00';
-                            
+                            const isFullDay = hasMatin && hasApresMidi;
                             const assignment = hasMatin ? matin : apresMidi;
                             
                             return (
-                              <div key={idx} className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="font-medium text-sm truncate">{sec.nom}</span>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      {sec.is_backup && (
-                                        <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
-                                      )}
-                                      {sec.is_1r && (
-                                        <Badge variant="default" className="text-xs px-1.5 py-0">1R</Badge>
-                                      )}
-                                      {sec.is_2f && (
-                                        <Badge variant="default" className="text-xs px-1.5 py-0">2F</Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{timeDisplay}</span>
+                              <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
                                     {assignment && onRefresh && (
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 w-7 p-0"
+                                        className="h-5 w-5 p-0 ml-auto flex-shrink-0"
                                         onClick={() => handleEditClick(assignment)}
                                       >
                                         <Edit className="h-3 w-3" />
                                       </Button>
                                     )}
                                   </div>
+                                  
+                                  {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                                    <div className="flex gap-1">
+                                      {sec.is_backup && (
+                                        <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                      )}
+                                      {sec.is_1r && (
+                                        <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
+                                      )}
+                                      {sec.is_2f && (
+                                        <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                
-                                <div className="relative">
-                                  <div className="relative h-4 w-48 bg-muted rounded-lg overflow-hidden border border-border flex">
-                                    <div className={`flex-1 ${hasMatin ? 'bg-primary' : 'bg-transparent'} border-r border-border`} />
-                                    <div className={`flex-1 ${hasApresMidi ? 'bg-primary' : 'bg-transparent'}`} />
-                                  </div>
-                                  <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
-                                    <span className={hasMatin ? 'font-medium' : ''}>Matin</span>
-                                    <span className={hasApresMidi ? 'font-medium' : ''}>Après-midi</span>
-                                  </div>
+
+                                <div className="flex gap-0.5 h-1.5">
+                                  <div 
+                                    className={`flex-1 rounded-l ${hasMatin ? 'bg-primary' : 'bg-muted'}`}
+                                    title={hasMatin ? 'Matin' : ''}
+                                  />
+                                  <div 
+                                    className={`flex-1 rounded-r ${hasApresMidi ? 'bg-primary' : 'bg-muted'}`}
+                                    title={hasApresMidi ? 'Après-midi' : ''}
+                                  />
                                 </div>
+
+                                <div className="text-xs text-muted-foreground">
+                                  {isFullDay ? (
+                                    <span className="font-medium">Journée</span>
+                                  ) : hasMatin ? (
+                                    <span className="font-medium">Matin</span>
+                                  ) : (
+                                    <span className="font-medium">AM</span>
+                                  )}
+                                </div>
+
+                                {matin && apresMidi ? (
+                                  sameSatisfaction ? (
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                                    >
+                                      {percentMatin}%
+                                    </Badge>
+                                  ) : (
+                                    <div className="flex gap-1">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                                      >
+                                        M:{percentMatin}%
+                                      </Badge>
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                                      >
+                                        AM:{percentAM}%
+                                      </Badge>
+                                    </div>
+                                  )
+                                ) : matin ? (
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                                  >
+                                    {percentMatin}%
+                                  </Badge>
+                                ) : apresMidi ? (
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                                  >
+                                    {percentAM}%
+                                  </Badge>
+                                ) : null}
                               </div>
                             );
                           });
