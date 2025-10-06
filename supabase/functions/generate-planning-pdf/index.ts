@@ -175,7 +175,7 @@ body { font-family: Arial, sans-serif; padding: 20px; background: #f9fafb; }
 .badge-admin { background: #e5e7eb; color: #374151; }
 </style></head><body>
 <div class="header">
-<img src="https://xvuugxjseavbxpxhfprb.supabase.co/storage/v1/object/public/planning-pdfs/clinique-logo.png" class="logo" onerror="this.style.display='none'">
+<img src="https://xvuugxjseavbxpxhfprb.supabase.co/storage/v1/object/public/logo/clinique-logo.png" class="logo" onerror="this.style.display='none'">
 <h1>Planning des Secrétaires</h1>
 <p class="period">Semaine du ${weekStart} au ${weekEnd}</p>
 </div>
