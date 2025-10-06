@@ -24,22 +24,31 @@ export function SelectDatesForOptimizationDialog({
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(true);
 
+  // Filtrer uniquement les jours de semaine (lundi à vendredi)
+  const weekdaysOnly = weekDays.filter(d => {
+    const dayOfWeek = d.getDay();
+    return dayOfWeek !== 0 && dayOfWeek !== 6;
+  });
+
   const handleToggleDate = (date: string) => {
-    setSelectedDates(prev =>
-      prev.includes(date)
-        ? prev.filter(d => d !== date)
-        : [...prev, date]
-    );
+    const newDates = selectedDates.includes(date)
+      ? selectedDates.filter(d => d !== date)
+      : [...selectedDates, date];
+    
+    setSelectedDates(newDates);
+    
+    // Si tous les jours sont sélectionnés, cocher "Toute la semaine"
+    if (newDates.length === weekdaysOnly.length) {
+      setSelectAll(true);
+    } else {
+      setSelectAll(false);
+    }
   };
 
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
-      // Ne sélectionner que les jours de semaine (lundi à vendredi)
-      const weekdaysOnly = weekDays.filter(d => {
-        const dayOfWeek = d.getDay();
-        return dayOfWeek !== 0 && dayOfWeek !== 6;
-      });
+      // Sélectionner tous les jours de semaine
       setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
     } else {
       setSelectedDates([]);
@@ -101,10 +110,7 @@ export function SelectDatesForOptimizationDialog({
                     <Checkbox
                       id={dateStr}
                       checked={isSelected}
-                      onCheckedChange={() => {
-                        handleToggleDate(dateStr);
-                        setSelectAll(false);
-                      }}
+                      onCheckedChange={() => handleToggleDate(dateStr)}
                     />
                     <label
                       htmlFor={dateStr}
