@@ -166,21 +166,20 @@ export function EditSecretaryAssignmentDialog({
         if (currentCreneau.type_assignation === 'administratif' || !currentCreneau.site_id) {
           preselectedSiteId = 'administratif';
         } else {
-          preselectedSiteId = currentCreneau.site_id;
+          // Vérifier que le site actuel est compatible avec les spécialités
+          const siteInFiltered = filteredSites.find(s => s.id === currentCreneau.site_id);
+          if (siteInFiltered) {
+            preselectedSiteId = currentCreneau.site_id;
+          } else {
+            // Site incompatible, ne pas présélectionner
+            preselectedSiteId = '';
+          }
         }
       } else if (siteId) {
-        preselectedSiteId = siteId;
-      }
-
-      // S'assurer que le site présélectionné est dans la liste filteredSites
-      if (preselectedSiteId && preselectedSiteId !== 'administratif') {
-        const siteInFiltered = filteredSites.find(s => s.id === preselectedSiteId);
-        if (!siteInFiltered) {
-          // Ajouter le site à la liste s'il n'y est pas
-          const originalSite = allSites.find(s => s.id === preselectedSiteId);
-          if (originalSite) {
-            filteredSites.push(originalSite);
-          }
+        // Vérifier que le site prop est compatible
+        const siteInFiltered = filteredSites.find(s => s.id === siteId);
+        if (siteInFiltered) {
+          preselectedSiteId = siteId;
         }
       }
 
