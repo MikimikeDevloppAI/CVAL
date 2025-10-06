@@ -502,7 +502,17 @@ export function EditSecretaryAssignmentDialog({
     }
   };
 
-
+  const handleRoleToggle = (role: '1R' | '2F' | '3F', checked: boolean) => {
+    if (checked) {
+      setIs1R(role === '1R');
+      setIs2F(role === '2F');
+      setIs3F(role === '3F');
+    } else {
+      if (role === '1R') setIs1R(false);
+      if (role === '2F') setIs2F(false);
+      if (role === '3F') setIs3F(false);
+    }
+  };
   if (!currentSecretaire) return null;
 
   return (
@@ -577,17 +587,17 @@ export function EditSecretaryAssignmentDialog({
                   
                   <div className="flex items-center justify-between">
                     <Badge variant="default" className="text-xs">1R</Badge>
-                    <Switch checked={is1R} onCheckedChange={setIs1R} />
+                    <Switch checked={is1R} onCheckedChange={(v) => handleRoleToggle('1R', v)} />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <Badge variant="outline" className="text-xs">2F</Badge>
-                    <Switch checked={is2F} onCheckedChange={setIs2F} />
+                    <Switch checked={is2F} onCheckedChange={(v) => handleRoleToggle('2F', v)} />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className="text-xs">3F</Badge>
-                    <Switch checked={is3F} onCheckedChange={setIs3F} />
+                    <Switch checked={is3F} onCheckedChange={(v) => handleRoleToggle('3F', v)} />
                   </div>
                 </div>
               )}
