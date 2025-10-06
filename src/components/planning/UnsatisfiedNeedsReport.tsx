@@ -210,6 +210,17 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
     
     // Trouver les secrétaires disponibles (qui ne travaillent pas ce jour-là)
     try {
+      // Récupérer les infos du site pour obtenir sa spécialité
+      const { data: site, error: siteError } = await supabase
+        .from('sites')
+        .select('specialite_id')
+        .eq('id', need.site_id)
+        .maybeSingle();
+
+      if (siteError) throw siteError;
+
+      const siteSpecialiteId = site?.specialite_id;
+
       const { data: secretaires, error } = await supabase
         .from('secretaires')
         .select('*')
@@ -218,11 +229,18 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
       if (error) throw error;
 
       const available = secretaires?.filter(sec => {
+        // Vérifier qu'elle ne travaille pas déjà ce jour-là
         const alreadyWorking = assignments.some(a => 
           a.date === need.date && 
           a.secretaires.some(s => s.secretaire_id === sec.id || s.backup_id === sec.id)
         );
-        return !alreadyWorking;
+        
+        // Vérifier que la secrétaire a la spécialité du site
+        const hasMatchingSpeciality = siteSpecialiteId 
+          ? (sec.specialites || []).includes(siteSpecialiteId)
+          : true; // Si pas de spécialité définie pour le site, on accepte toutes les secrétaires
+
+        return !alreadyWorking && hasMatchingSpeciality;
       }).map(sec => ({
         id: sec.id,
         name: sec.name || '',
