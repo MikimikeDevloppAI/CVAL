@@ -185,7 +185,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   variant="outline" 
                                   className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
                                 >
-                                  M:{percentMatin}%
+                                  Matin:{percentMatin}%
                                 </Badge>
                                 <Badge 
                                   variant="outline" 
@@ -212,7 +212,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 ))}
                                 {medecinsMatinOnly.map((medecin, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(Matin)</span>
                                   </Badge>
                                 ))}
                                 {medecinsAMOnly.map((medecin, idx) => (
@@ -304,7 +304,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   variant="outline" 
                                   className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                 >
-                                  M:{percentMatin}%
+                                  Matin:{percentMatin}%
                                 </Badge>
                                 <Badge 
                                   variant="outline" 
@@ -319,7 +319,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               variant="outline" 
                               className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                             >
-                              M:{percentMatin}%
+                              Matin:{percentMatin}%
                             </Badge>
                           ) : apresMidi ? (
                             <Badge 
@@ -346,7 +346,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 ))}
                                 {medecinsMatinOnly.map((medecin, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(Matin)</span>
                                   </Badge>
                                 ))}
                                 {medecinsAMOnly.map((medecin, idx) => (
