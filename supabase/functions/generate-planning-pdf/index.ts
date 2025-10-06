@@ -154,14 +154,26 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
 <html><head><meta charset="utf-8"><title>Planning</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: Arial, sans-serif; padding: 20px; background: #f9fafb; }
+body { font-family: Arial, sans-serif; padding: 0; background: #f9fafb; }
 
-/* Header et footer invisibles pour espacement sur chaque page */
+/* Header et footer sur chaque page */
 @page {
-  margin-top: 40px;
-  margin-bottom: 40px;
+  margin: 0;
+  @top-center {
+    content: "";
+    background: #f9fafb;
+    height: 40px;
+    width: 100%;
+  }
+  @bottom-center {
+    content: "";
+    background: #f9fafb;
+    height: 40px;
+    width: 100%;
+  }
 }
 
+.content-wrapper { padding: 40px 20px; }
 .header { text-align: center; margin-bottom: 30px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
 .header h1 { font-size: 28px; color: #1f2937; margin-bottom: 8px; font-weight: 700; }
@@ -181,6 +193,7 @@ body { font-family: Arial, sans-serif; padding: 20px; background: #f9fafb; }
 .badge-2f { background: #fef3c7; color: #92400e; }
 .badge-admin { background: #e5e7eb; color: #374151; }
 </style></head><body>
+<div class="content-wrapper">
 <div class="header">
 <img src="https://xvuugxjseavbxpxhfprb.supabase.co/storage/v1/object/public/logo/clinique-logo.png" class="logo" onerror="this.style.display='none'">
 <h1>Planning des Secrétaires</h1>
@@ -189,6 +202,7 @@ body { font-family: Arial, sans-serif; padding: 20px; background: #f9fafb; }
 <div class="grid">
 <div>${col1.map(sec => renderCard(sec, getDayName)).join('')}</div>
 <div>${col2.map(sec => renderCard(sec, getDayName)).join('')}</div>
+</div>
 </div></body></html>`;
 }
 
