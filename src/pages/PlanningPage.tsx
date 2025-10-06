@@ -1303,12 +1303,6 @@ export default function PlanningPage() {
                     </Button>
                   </div>
                 </div>
-                {canManage && (
-                  <Button onClick={() => setAddPlanningDialogOpen(true)} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Ajouter un créneau
-                  </Button>
-                )}
               </div>
 
               {planningView === 'site' ? (
