@@ -182,7 +182,126 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                     // Affichage fusionné (journée complète)
                     return (
                       <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
-                        <div className="bg-muted/30 px-3 py-2 text-center border-b">
+                        <div className="bg-muted/30 px-3 py-2 border-b space-y-2">
+                          <div className="text-center">
+                            <div className="font-medium text-xs">
+                              {format(date, 'EEE', { locale: fr })}
+                            </div>
+                            <div className="text-lg font-semibold">
+                              {format(date, 'd', { locale: fr })}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(date, 'MMM', { locale: fr })}
+                            </div>
+                          </div>
+                          
+                          {/* Pourcentages */}
+                          <div className="flex gap-1 justify-center">
+                            {sameSatisfaction ? (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                              >
+                                {percentMatin}%
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                >
+                                  M:{percentMatin}%
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
+                                >
+                                  AM:{percentAM}%
+                                </Badge>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Médecins */}
+                          {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                                <Stethoscope className="h-3 w-3" />
+                                <span>Médecins</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {medecinsBoth.map((medecin, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    {medecin}
+                                  </Badge>
+                                ))}
+                                {medecinsMatinOnly.map((medecin, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
+                                  </Badge>
+                                ))}
+                                {medecinsAMOnly.map((medecin, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                    {medecin} <span className="ml-0.5 text-muted-foreground">(AM)</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="p-3 space-y-3 flex-1">
+                          {/* Secrétaires */}
+                          {matin!.secretaires.map((sec, idx) => (
+                            <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
+                                {onRefresh && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                    onClick={() => handleEditClick(matin!)}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                                <div className="flex gap-1">
+                                  {sec.is_backup && (
+                                    <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                  )}
+                                  {sec.is_1r && (
+                                    <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
+                                  )}
+                                  {sec.is_2f && (
+                                    <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex gap-0.5 h-1.5">
+                                <div className="flex-1 rounded-l bg-primary" title="Matin" />
+                                <div className="flex-1 rounded-r bg-primary" title="Après-midi" />
+                              </div>
+
+                              <div className="text-xs text-muted-foreground text-center">
+                                <span className="font-medium">Journée</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Affichage séparé (matin et/ou après-midi seulement)
+                  return (
+                    <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
+                      <div className="bg-muted/30 px-3 py-2 border-b space-y-2">
+                        <div className="text-center">
                           <div className="font-medium text-xs">
                             {format(date, 'EEE', { locale: fr })}
                           </div>
@@ -194,92 +313,75 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           </div>
                         </div>
                         
-                        <div className="p-3 space-y-3 flex-1">
-                          {/* Secrétaires */}
-                          {matin!.secretaires.map((sec, idx) => (
-                            <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                  {onRefresh && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                      onClick={() => handleEditClick(matin!)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                                
-                                {(sec.is_1r || sec.is_2f || sec.is_backup) && (
-                                  <div className="flex gap-1">
-                                    {sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
-                                    )}
-                                    {sec.is_1r && (
-                                      <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
-                                    )}
-                                    {sec.is_2f && (
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex gap-0.5 h-1.5">
-                                <div className="flex-1 rounded-l bg-primary" title="Matin" />
-                                <div className="flex-1 rounded-r bg-primary" title="Après-midi" />
-                              </div>
-
-                              <div className="text-xs text-muted-foreground">
-                                <span className="font-medium">Journée</span>
-                              </div>
-
-                              {sameSatisfaction ? (
+                        {/* Pourcentages */}
+                        <div className="flex gap-1 justify-center">
+                          {matin && apresMidi ? (
+                            sameSatisfaction ? (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                              >
+                                {percentMatin}%
+                              </Badge>
+                            ) : (
+                              <>
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                  className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                 >
-                                  {percentMatin}%
+                                  M:{percentMatin}%
                                 </Badge>
-                              ) : (
-                                <div className="flex gap-1">
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
-                                  >
-                                    M:{percentMatin}%
-                                  </Badge>
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
-                                  >
-                                    AM:{percentAM}%
-                                  </Badge>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                                >
+                                  AM:{percentAM}%
+                                </Badge>
+                              </>
+                            )
+                          ) : matin ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                            >
+                              M:{percentMatin}%
+                            </Badge>
+                          ) : apresMidi ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                            >
+                              AM:{percentAM}%
+                            </Badge>
+                          ) : null}
                         </div>
-                      </div>
-                    );
-                  }
 
-                  // Affichage séparé (matin et/ou après-midi seulement)
-                  return (
-                    <div key={date.toISOString()} className="border rounded-lg overflow-hidden flex flex-col">
-                      <div className="bg-muted/30 px-3 py-2 text-center border-b">
-                        <div className="font-medium text-xs">
-                          {format(date, 'EEE', { locale: fr })}
-                        </div>
-                        <div className="text-lg font-semibold">
-                          {format(date, 'd', { locale: fr })}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(date, 'MMM', { locale: fr })}
-                        </div>
+                        {/* Médecins */}
+                        {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                              <Stethoscope className="h-3 w-3" />
+                              <span>Médecins</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {medecinsBoth.map((medecin, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  {medecin}
+                                </Badge>
+                              ))}
+                              {medecinsMatinOnly.map((medecin, idx) => (
+                                <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                  {medecin} <span className="ml-0.5 text-muted-foreground">(M)</span>
+                                </Badge>
+                              ))}
+                              {medecinsAMOnly.map((medecin, idx) => (
+                                <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/50">
+                                  {medecin} <span className="ml-0.5 text-muted-foreground">(AM)</span>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="p-3 space-y-3 flex-1">
@@ -322,35 +424,33 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                             
                             return (
                               <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
-                                <div className="flex flex-col gap-1">
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                    {assignment && onRefresh && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                        onClick={() => handleEditClick(assignment)}
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                  
-                                  {(sec.is_1r || sec.is_2f || sec.is_backup) && (
-                                    <div className="flex gap-1">
-                                      {sec.is_backup && (
-                                        <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
-                                      )}
-                                      {sec.is_1r && (
-                                        <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
-                                      )}
-                                      {sec.is_2f && (
-                                        <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
-                                      )}
-                                    </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
+                                  {assignment && onRefresh && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 ml-auto flex-shrink-0"
+                                      onClick={() => handleEditClick(assignment)}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
                                   )}
                                 </div>
+                                
+                                {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                                  <div className="flex gap-1">
+                                    {sec.is_backup && (
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                    )}
+                                    {sec.is_1r && (
+                                      <Badge className="text-xs px-1.5 py-0 bg-blue-100 text-blue-800">1R</Badge>
+                                    )}
+                                    {sec.is_2f && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                    )}
+                                  </div>
+                                )}
 
                                 <div className="flex gap-0.5 h-1.5">
                                   <div 
@@ -363,7 +463,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   />
                                 </div>
 
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-muted-foreground text-center">
                                   {isFullDay ? (
                                     <span className="font-medium">Journée</span>
                                   ) : hasMatin ? (
@@ -372,46 +472,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                     <span className="font-medium">AM</span>
                                   )}
                                 </div>
-
-                                {matin && apresMidi ? (
-                                  sameSatisfaction ? (
-                                    <Badge 
-                                      variant="outline" 
-                                      className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                                    >
-                                      {percentMatin}%
-                                    </Badge>
-                                  ) : (
-                                    <div className="flex gap-1">
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                                      >
-                                        M:{percentMatin}%
-                                      </Badge>
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-xs flex-1 justify-center py-0 ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
-                                      >
-                                        AM:{percentAM}%
-                                      </Badge>
-                                    </div>
-                                  )
-                                ) : matin ? (
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
-                                  >
-                                    {percentMatin}%
-                                  </Badge>
-                                ) : apresMidi ? (
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs w-full justify-center py-0 ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
-                                  >
-                                    {percentAM}%
-                                  </Badge>
-                                ) : null}
                               </div>
                             );
                           });
