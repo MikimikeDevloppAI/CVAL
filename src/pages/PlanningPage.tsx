@@ -98,6 +98,7 @@ export default function PlanningPage() {
   const { canManage } = useCanManagePlanning();
 
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+  const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
 
   useEffect(() => {
     setGeneratedPdfUrl(null); // Reset PDF URL when week changes
@@ -1052,7 +1053,7 @@ export default function PlanningPage() {
           ) : (
             <SecretaryCapacityView
               capacites={capacites}
-              weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+              weekDays={weekDays}
               canManage={canManage}
               onRefresh={fetchCapacites}
             />
@@ -1153,14 +1154,14 @@ export default function PlanningPage() {
               {planningView === 'site' ? (
                 <MILPOptimizationView
                   assignments={optimizationResult.assignments}
-                  weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+                  weekDays={weekDays}
                   specialites={specialites}
                   onRefresh={fetchPlanningGenere}
                 />
               ) : (
                 <SecretaryPlanningView
                   assignments={optimizationResult.assignments}
-                  weekDays={eachDayOfInterval({ start: currentWeekStart, end: weekEnd })}
+                  weekDays={weekDays}
                   onRefresh={fetchPlanningGenere}
                 />
               )}
