@@ -138,11 +138,19 @@ export function EditSecretaryAssignmentDialog({
       // Trouver les créneaux où cette secrétaire est assignée
       const matinCreneau = allCreneaux?.find(c => 
         c.heure_debut === '07:30:00' && 
-        (c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId))
+        (c.secretaires_ids?.includes(secretaryId) || 
+         c.backups_ids?.includes(secretaryId) ||
+         c.responsable_1r_id === secretaryId ||
+         c.responsable_2f_id === secretaryId ||
+         c.responsable_3f_id === secretaryId)
       );
       const amCreneau = allCreneaux?.find(c => 
         c.heure_debut === '13:00:00' && 
-        (c.secretaires_ids?.includes(secretaryId) || c.backups_ids?.includes(secretaryId))
+        (c.secretaires_ids?.includes(secretaryId) || 
+         c.backups_ids?.includes(secretaryId) ||
+         c.responsable_1r_id === secretaryId ||
+         c.responsable_2f_id === secretaryId ||
+         c.responsable_3f_id === secretaryId)
       );
 
       setCreneauMatin(matinCreneau || null);
