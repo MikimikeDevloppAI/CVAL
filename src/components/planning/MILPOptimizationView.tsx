@@ -171,31 +171,35 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           </div>
                           
                           {/* Pourcentages */}
-                          <div className="flex gap-1 justify-center">
-                            {sameSatisfaction ? (
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
-                              >
-                                {percentMatin}%
-                              </Badge>
-                            ) : (
-                              <>
+                          {matin && (
+                            <div className="flex gap-1 justify-center">
+                              {sameSatisfaction ? (
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(matin!.nombre_assigne, matin!.nombre_requis)}`}
+                                  className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
                                 >
-                                  Matin:{percentMatin}%
+                                  {percentMatin}%
                                 </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${getSatisfactionColor(apresMidi!.nombre_assigne, apresMidi!.nombre_requis)}`}
-                                >
-                                  Après-midi:{percentAM}%
-                                </Badge>
-                              </>
-                            )}
-                          </div>
+                              ) : (
+                                <>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${getSatisfactionColor(matin.nombre_assigne, matin.nombre_requis)}`}
+                                  >
+                                    Matin:{percentMatin}%
+                                  </Badge>
+                                  {apresMidi && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs ${getSatisfactionColor(apresMidi.nombre_assigne, apresMidi.nombre_requis)}`}
+                                    >
+                                      Après-midi:{percentAM}%
+                                    </Badge>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
 
                           {/* Médecins */}
                           {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
