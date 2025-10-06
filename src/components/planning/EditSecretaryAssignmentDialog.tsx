@@ -79,9 +79,10 @@ export function EditSecretaryAssignmentDialog({
 
   useEffect(() => {
     if (open) {
+      setSelectedPeriod(period);
       loadData();
     }
-  }, [open, secretaryId, date]);
+  }, [open, secretaryId, date, period]);
 
   // Refresh available secretaries when period changes
   useEffect(() => {
@@ -112,7 +113,7 @@ export function EditSecretaryAssignmentDialog({
       if (secError) throw secError;
       setCurrentSecretaire(secData);
 
-      // Récupérer tous les sites correspondant aux spécialités de la secrétaire
+      // Récupérer tous les sites
       const { data: sitesData, error: sitesError } = await supabase
         .from('sites')
         .select('*')
@@ -120,12 +121,12 @@ export function EditSecretaryAssignmentDialog({
 
       if (sitesError) throw sitesError;
       
-      // Filtrer les sites selon les spécialités de la secrétaire
-      const filteredSites = sitesData?.filter(site => 
-        !site.specialite_id || secData.specialites?.includes(site.specialite_id)
-      ) || [];
+      const allSites = sitesData || [];
       
-      setSites(filteredSites);
+      // Filtrer les sites selon les spécialités de la secrétaire
+      const filteredSites = allSites.filter(site => 
+        !site.specialite_id || secData.specialites?.includes(site.specialite_id)
+      );
 
       // Récupérer tous les créneaux de ce jour pour trouver ceux où cette secrétaire est assignée
       const { data: allCreneaux, error: creneauxError } = await supabase
@@ -135,9 +136,9 @@ export function EditSecretaryAssignmentDialog({
 
       if (creneauxError) throw creneauxError;
 
-      // Trouver les créneaux où cette secrétaire est assignée
+      // Trouver les créneaux où cette secrétaire est assignée (utiliser des plages horaires)
       const matinCreneau = allCreneaux?.find(c => 
-        c.heure_debut === '07:30:00' && 
+        c.heure_debut < '12:00:00' && 
         (c.secretaires_ids?.includes(secretaryId) || 
          c.backups_ids?.includes(secretaryId) ||
          c.responsable_1r_id === secretaryId ||
@@ -145,7 +146,7 @@ export function EditSecretaryAssignmentDialog({
          c.responsable_3f_id === secretaryId)
       );
       const amCreneau = allCreneaux?.find(c => 
-        c.heure_debut === '13:00:00' && 
+        c.heure_debut >= '12:00:00' && 
         (c.secretaires_ids?.includes(secretaryId) || 
          c.backups_ids?.includes(secretaryId) ||
          c.responsable_1r_id === secretaryId ||
@@ -158,22 +159,40 @@ export function EditSecretaryAssignmentDialog({
 
       // Définir le site sélectionné par défaut à partir du créneau trouvé
       const currentCreneau = period === 'matin' ? matinCreneau : amCreneau;
+      
+      // Déterminer le site présélectionné
+      let preselectedSiteId = '';
       if (currentCreneau) {
         if (currentCreneau.type_assignation === 'administratif' || !currentCreneau.site_id) {
-          setSelectedSiteId('administratif');
-          setSiteHasFermeture(false);
+          preselectedSiteId = 'administratif';
         } else {
-          setSelectedSiteId(currentCreneau.site_id);
-          const site = filteredSites.find(s => s.id === currentCreneau.site_id);
-          setSiteHasFermeture(site?.fermeture || false);
+          preselectedSiteId = currentCreneau.site_id;
         }
+      } else if (siteId) {
+        preselectedSiteId = siteId;
+      }
+
+      // S'assurer que le site présélectionné est dans la liste filteredSites
+      if (preselectedSiteId && preselectedSiteId !== 'administratif') {
+        const siteInFiltered = filteredSites.find(s => s.id === preselectedSiteId);
+        if (!siteInFiltered) {
+          // Ajouter le site à la liste s'il n'y est pas
+          const originalSite = allSites.find(s => s.id === preselectedSiteId);
+          if (originalSite) {
+            filteredSites.push(originalSite);
+          }
+        }
+      }
+
+      setSites(filteredSites);
+      setSelectedSiteId(preselectedSiteId);
+
+      // Calculer siteHasFermeture depuis allSites
+      if (preselectedSiteId && preselectedSiteId !== 'administratif') {
+        const site = allSites.find(s => s.id === preselectedSiteId);
+        setSiteHasFermeture(site?.fermeture || false);
       } else {
-        // Si aucun créneau trouvé, essayer de définir depuis siteId prop
-        if (siteId) {
-          setSelectedSiteId(siteId);
-          const site = filteredSites.find(s => s.id === siteId);
-          setSiteHasFermeture(site?.fermeture || false);
-        }
+        setSiteHasFermeture(false);
       }
 
       // Déterminer les rôles actuels
