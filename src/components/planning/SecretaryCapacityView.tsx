@@ -297,15 +297,6 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                             <div className="text-xs text-muted-foreground">
                               {cap.heure_debut.slice(0, 5)} - {cap.heure_fin.slice(0, 5)}
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {cap.heure_debut === '07:30:00' && cap.heure_fin === '12:00:00' 
-                                ? 'Matin'
-                                : cap.heure_debut === '13:00:00' && cap.heure_fin === '17:00:00'
-                                ? 'Après-midi'
-                                : cap.heure_debut === '07:30:00' && cap.heure_fin === '17:00:00'
-                                ? 'Journée complète'
-                                : 'Autre horaire'}
-                            </div>
                           </div>
                           {canManage && (
                             <Button
