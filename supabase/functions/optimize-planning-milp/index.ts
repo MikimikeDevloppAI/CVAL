@@ -79,21 +79,80 @@ serve(async (req) => {
     const days = generateDaysList(startDate, endDate);
     console.log(`📅 Processing ${days.length} days`);
 
-    // 3. Supprimer les anciennes assignations pour la période
+    // 3. Gérer le planning pour cette semaine
     const weekStart = getWeekStart(new Date(startDate));
     const weekEnd = getWeekEnd(new Date(endDate));
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
     
-    console.log(`🗑️ Deleting existing planning from ${weekStartStr} to ${weekEndStr}`);
-    const { error: deleteError } = await supabaseServiceRole
-      .from('planning_genere')
-      .delete()
-      .gte('date', weekStartStr)
-      .lte('date', weekEndStr);
+    console.log(`📋 Managing planning for week ${weekStartStr} to ${weekEndStr}`);
     
-    if (deleteError) {
-      console.error('⚠️ Delete error:', deleteError);
+    // Chercher si un planning existe déjà pour cette semaine
+    const { data: existingPlanning, error: planningFetchError } = await supabaseServiceRole
+      .from('planning')
+      .select('*')
+      .eq('date_debut', weekStartStr)
+      .eq('date_fin', weekEndStr)
+      .maybeSingle();
+    
+    if (planningFetchError) {
+      console.error('⚠️ Error fetching planning:', planningFetchError);
+      throw planningFetchError;
+    }
+    
+    let planningId: string;
+    
+    if (existingPlanning) {
+      // Mettre à jour le planning existant
+      console.log(`🔄 Updating existing planning ${existingPlanning.id}`);
+      planningId = existingPlanning.id;
+      
+      const { error: updateError } = await supabaseServiceRole
+        .from('planning')
+        .update({
+          date_generation: new Date().toISOString(),
+          statut: 'en_cours',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', planningId);
+      
+      if (updateError) {
+        console.error('⚠️ Error updating planning:', updateError);
+        throw updateError;
+      }
+      
+      // Supprimer les anciennes assignations liées à ce planning
+      console.log(`🗑️ Deleting old assignments for planning ${planningId}`);
+      const { error: deleteError } = await supabaseServiceRole
+        .from('planning_genere')
+        .delete()
+        .eq('planning_id', planningId);
+      
+      if (deleteError) {
+        console.error('⚠️ Delete error:', deleteError);
+        throw deleteError;
+      }
+    } else {
+      // Créer un nouveau planning
+      console.log(`✨ Creating new planning for week ${weekStartStr} to ${weekEndStr}`);
+      const { data: newPlanning, error: insertError } = await supabaseServiceRole
+        .from('planning')
+        .insert({
+          date_debut: weekStartStr,
+          date_fin: weekEndStr,
+          date_generation: new Date().toISOString(),
+          statut: 'en_cours'
+        })
+        .select()
+        .single();
+      
+      if (insertError || !newPlanning) {
+        console.error('⚠️ Error creating planning:', insertError);
+        throw insertError;
+      }
+      
+      planningId = newPlanning.id;
+      console.log(`✓ Created planning ${planningId}`);
     }
 
     // 4. Traiter jour par jour
@@ -123,6 +182,9 @@ serve(async (req) => {
         portEnTruieCounter
       );
 
+      // Ajouter le planning_id à chaque assignation
+      dayAssignments.forEach(a => a.planning_id = planningId);
+      
       allAssignments.push(...dayAssignments);
     }
 
@@ -154,6 +216,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
+      planning_id: planningId,
       assignments_count: allAssignments.length,
       days_processed: days.length
     }), {

@@ -95,6 +95,9 @@ export default function PlanningPage() {
   const [confirmRegenerateDialogOpen, setConfirmRegenerateDialogOpen] = useState(false);
   const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
+  const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null);
+  const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
+  const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -184,7 +187,14 @@ export default function PlanningPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchSites(), fetchSpecialites(), fetchBesoins(), fetchCapacites(), fetchPlanningGenere()]);
+      await Promise.all([
+        fetchSites(), 
+        fetchSpecialites(), 
+        fetchBesoins(), 
+        fetchCapacites(), 
+        fetchPlanningGenere(),
+        fetchCurrentPlanning()
+      ]);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       toast({
@@ -429,6 +439,34 @@ export default function PlanningPage() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement du planning généré:', error);
+    }
+  };
+
+  const fetchCurrentPlanning = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('planning')
+        .select('*')
+        .eq('date_debut', format(currentWeekStart, 'yyyy-MM-dd'))
+        .eq('date_fin', format(weekEnd, 'yyyy-MM-dd'))
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching planning:', error);
+        return;
+      }
+
+      if (data) {
+        setCurrentPlanningId(data.id);
+        setCurrentPlanningStatus(data.statut as 'en_cours' | 'valide');
+        setGeneratedPdfUrl(data.pdf_url);
+      } else {
+        setCurrentPlanningId(null);
+        setCurrentPlanningStatus('en_cours');
+        setGeneratedPdfUrl(null);
+      }
+    } catch (error) {
+      console.error('Error fetching current planning:', error);
     }
   };
 
@@ -805,13 +843,19 @@ export default function PlanningPage() {
 
       if (error) throw error;
 
+      // Sauvegarder le planning_id
+      if (data?.planning_id) {
+        setCurrentPlanningId(data.planning_id);
+        setCurrentPlanningStatus('en_cours');
+      }
+
       toast({
         title: "Optimisation MILP terminée",
         description: `${data?.assignments_count || 0} assignations créées avec succès`,
       });
 
       // Rafraîchir le planning généré
-      fetchPlanningGenere();
+      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
     } catch (error: any) {
       console.error('MILP optimization error:', error);
       toast({
@@ -821,6 +865,46 @@ export default function PlanningPage() {
       });
     } finally {
       setIsOptimizingMILP(false);
+    }
+  };
+
+  const validatePlanning = async () => {
+    if (!currentPlanningId) {
+      toast({
+        title: "Erreur",
+        description: "Aucun planning à valider",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsValidatingPlanning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-planning', {
+        body: {
+          planning_id: currentPlanningId,
+          pdf_url: generatedPdfUrl,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Planning validé",
+        description: "Le planning a été validé avec succès",
+      });
+
+      // Refresh data
+      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
+    } catch (error: any) {
+      console.error('Validation error:', error);
+      toast({
+        title: "Erreur lors de la validation",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidatingPlanning(false);
     }
   };
 
@@ -1071,10 +1155,10 @@ export default function PlanningPage() {
         <TabsContent value="planning" className="space-y-4">
           {canManage && (
             <div className="flex flex-col gap-4 py-6">
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-4 flex-wrap">
                 <Button 
                   onClick={handleOptimizeMILP} 
-                  disabled={isOptimizingMILP}
+                  disabled={isOptimizingMILP || currentPlanningStatus === 'valide'}
                   size="lg"
                   variant="default"
                   className="gap-2"
@@ -1091,17 +1175,46 @@ export default function PlanningPage() {
                     </>
                   )}
                 </Button>
+                
+                {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                  <Button 
+                    onClick={validatePlanning} 
+                    disabled={isValidatingPlanning}
+                    size="lg"
+                    variant="default"
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    {isValidatingPlanning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Validation en cours...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4" />
+                        Valider le planning
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {currentPlanningStatus === 'valide' && (
+                  <Badge variant="default" className="text-lg px-4 py-2 bg-green-600">
+                    ✓ Planning validé
+                  </Badge>
+                )}
+                
                 {generatedPdfUrl ? (
                   <Button 
                     onClick={() => window.open(generatedPdfUrl, '_blank')} 
                     size="lg"
-                    variant="default"
+                    variant="secondary"
                     className="gap-2"
                   >
                     <FileText className="h-4 w-4" />
                     Télécharger le PDF
                   </Button>
-                ) : (
+                ) : currentPlanningStatus === 'valide' && (
                   <Button 
                     onClick={handleValidateAndGeneratePDF} 
                     disabled={isGeneratingPDF}
@@ -1117,7 +1230,7 @@ export default function PlanningPage() {
                     ) : (
                       <>
                         <FileText className="h-4 w-4" />
-                        Valider et générer PDF
+                        Générer PDF
                       </>
                     )}
                   </Button>

@@ -595,6 +595,45 @@ export type Database = {
           },
         ]
       }
+      planning: {
+        Row: {
+          created_at: string
+          date_debut: string
+          date_fin: string
+          date_generation: string
+          id: string
+          pdf_url: string | null
+          statut: string
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          date_debut: string
+          date_fin: string
+          date_generation?: string
+          id?: string
+          pdf_url?: string | null
+          statut?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          date_debut?: string
+          date_fin?: string
+          date_generation?: string
+          id?: string
+          pdf_url?: string | null
+          statut?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: []
+      }
       planning_genere: {
         Row: {
           backups_ids: string[] | null
@@ -604,6 +643,7 @@ export type Database = {
           heure_fin: string
           id: string
           medecins_ids: string[] | null
+          planning_id: string | null
           responsable_1r_id: string | null
           responsable_2f_id: string | null
           responsable_3f_id: string | null
@@ -623,6 +663,7 @@ export type Database = {
           heure_fin: string
           id?: string
           medecins_ids?: string[] | null
+          planning_id?: string | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
           responsable_3f_id?: string | null
@@ -642,6 +683,7 @@ export type Database = {
           heure_fin?: string
           id?: string
           medecins_ids?: string[] | null
+          planning_id?: string | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
           responsable_3f_id?: string | null
@@ -654,6 +696,13 @@ export type Database = {
           version_planning?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "planning_genere_planning_id_fkey"
+            columns: ["planning_id"]
+            isOneToOne: false
+            referencedRelation: "planning"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planning_genere_responsable_3f_id_fkey"
             columns: ["responsable_3f_id"]

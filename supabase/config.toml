@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.generate-planning-pdf]
 verify_jwt = false
+
+[functions.validate-planning]
+verify_jwt = false
