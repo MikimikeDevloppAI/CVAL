@@ -166,27 +166,46 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                     JSON.stringify(matin.secretaires.map(s => s.id).sort()) === 
                     JSON.stringify(apresMidi.secretaires.map(s => s.id).sort());
 
+                  // Calculer le pourcentage de satisfaction global
+                  const totalAssigne = (matin?.nombre_assigne || 0) + (apresMidi?.nombre_assigne || 0);
+                  const totalRequis = (matin?.nombre_requis || 0) + (apresMidi?.nombre_requis || 0);
+
+                  // Regrouper les médecins matin/après-midi
+                  const medecinsMatinSet = new Set(matin?.medecins || []);
+                  const medecinsAMSet = new Set(apresMidi?.medecins || []);
+                  const medecinsBoth = [...medecinsMatinSet].filter(m => medecinsAMSet.has(m));
+                  const medecinsMatinOnly = [...medecinsMatinSet].filter(m => !medecinsAMSet.has(m));
+                  const medecinsAMOnly = [...medecinsAMSet].filter(m => !medecinsMatinSet.has(m));
+
                   if (canMerge) {
                     // Affichage fusionné (journée complète)
                     return (
                       <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
-                        <h4 className="font-semibold mb-3 text-sm">
-                          {format(date, 'EEE d MMM', { locale: fr })}
-                        </h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-sm">
+                            {format(date, 'EEE d MMM', { locale: fr })}
+                          </h4>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${getSatisfactionColor(totalAssigne, totalRequis)}`}
+                          >
+                            {getSatisfactionPercentage(totalAssigne, totalRequis)}% ({totalAssigne}/{totalRequis})
+                          </Badge>
+                        </div>
                         
-                        {/* Médecins en premier - une seule fois */}
-                        {((matin!.medecins && matin!.medecins.length > 0) || (apresMidi!.medecins && apresMidi!.medecins.length > 0)) && (
+                        {/* Médecins regroupés */}
+                        {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
                           <div className="mb-3 pb-3 border-b">
                             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                               <Stethoscope className="h-3 w-3" />
                               <span>Médecins</span>
                             </div>
                             <div className="space-y-1.5">
-                              {matin!.medecins && matin!.medecins.length > 0 && (
+                              {medecinsBoth.length > 0 && (
                                 <div>
-                                  <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                  <span className="text-xs text-muted-foreground mr-2">Journée:</span>
                                   <div className="inline-flex flex-wrap gap-1">
-                                    {matin!.medecins.map((medecin, idx) => (
+                                    {medecinsBoth.map((medecin, idx) => (
                                       <Badge key={idx} variant="outline" className="text-xs">
                                         {medecin}
                                       </Badge>
@@ -194,11 +213,23 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   </div>
                                 </div>
                               )}
-                              {apresMidi!.medecins && apresMidi!.medecins.length > 0 && (
+                              {medecinsMatinOnly.length > 0 && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                  <div className="inline-flex flex-wrap gap-1">
+                                    {medecinsMatinOnly.map((medecin, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        {medecin}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {medecinsAMOnly.length > 0 && (
                                 <div>
                                   <span className="text-xs text-muted-foreground mr-2">AM:</span>
                                   <div className="inline-flex flex-wrap gap-1">
-                                    {apresMidi!.medecins.map((medecin, idx) => (
+                                    {medecinsAMOnly.map((medecin, idx) => (
                                       <Badge key={idx} variant="outline" className="text-xs">
                                         {medecin}
                                       </Badge>
@@ -231,18 +262,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   <span className="text-xs text-muted-foreground whitespace-nowrap">07:30-17:00</span>
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs ${getSatisfactionColor(
-                                      matin!.nombre_assigne + apresMidi!.nombre_assigne,
-                                      matin!.nombre_requis + apresMidi!.nombre_requis
-                                    )}`}
-                                  >
-                                    {getSatisfactionPercentage(
-                                      matin!.nombre_assigne + apresMidi!.nombre_assigne,
-                                      matin!.nombre_requis + apresMidi!.nombre_requis
-                                    )}%
-                                  </Badge>
                                   {onRefresh && (
                                     <Button
                                       variant="ghost"
@@ -269,23 +288,31 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                   // Affichage séparé (matin et/ou après-midi seulement)
                   return (
                     <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
-                      <h4 className="font-semibold mb-3 text-sm">
-                        {format(date, 'EEE d MMM', { locale: fr })}
-                      </h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-sm">
+                          {format(date, 'EEE d MMM', { locale: fr })}
+                        </h4>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${getSatisfactionColor(totalAssigne, totalRequis)}`}
+                        >
+                          {getSatisfactionPercentage(totalAssigne, totalRequis)}% ({totalAssigne}/{totalRequis})
+                        </Badge>
+                      </div>
                       
-                      {/* Médecins en premier - une seule fois */}
-                      {((matin?.medecins && matin.medecins.length > 0) || (apresMidi?.medecins && apresMidi.medecins.length > 0)) && (
+                      {/* Médecins regroupés */}
+                      {(medecinsBoth.length > 0 || medecinsMatinOnly.length > 0 || medecinsAMOnly.length > 0) && (
                         <div className="mb-3 pb-3 border-b">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                             <Stethoscope className="h-3 w-3" />
                             <span>Médecins</span>
                           </div>
                           <div className="space-y-1.5">
-                            {matin?.medecins && matin.medecins.length > 0 && (
+                            {medecinsBoth.length > 0 && (
                               <div>
-                                <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                <span className="text-xs text-muted-foreground mr-2">Journée:</span>
                                 <div className="inline-flex flex-wrap gap-1">
-                                  {matin.medecins.map((medecin, idx) => (
+                                  {medecinsBoth.map((medecin, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs">
                                       {medecin}
                                     </Badge>
@@ -293,11 +320,23 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                 </div>
                               </div>
                             )}
-                            {apresMidi?.medecins && apresMidi.medecins.length > 0 && (
+                            {medecinsMatinOnly.length > 0 && (
+                              <div>
+                                <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                <div className="inline-flex flex-wrap gap-1">
+                                  {medecinsMatinOnly.map((medecin, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {medecin}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {medecinsAMOnly.length > 0 && (
                               <div>
                                 <span className="text-xs text-muted-foreground mr-2">AM:</span>
                                 <div className="inline-flex flex-wrap gap-1">
-                                  {apresMidi.medecins.map((medecin, idx) => (
+                                  {medecinsAMOnly.map((medecin, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs">
                                       {medecin}
                                     </Badge>
@@ -362,14 +401,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
                                     <span className="text-xs text-muted-foreground whitespace-nowrap">{timeDisplay}</span>
-                                    {assignment && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-xs ${getSatisfactionColor(assignment.nombre_assigne, assignment.nombre_requis)}`}
-                                      >
-                                        {getSatisfactionPercentage(assignment.nombre_assigne, assignment.nombre_requis)}%
-                                      </Badge>
-                                    )}
                                     {assignment && onRefresh && (
                                       <Button
                                         variant="ghost"
