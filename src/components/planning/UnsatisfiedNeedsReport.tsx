@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, UserPlus, ArrowLeftRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -61,64 +61,77 @@ interface Suggestion {
 }
 
 export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: UnsatisfiedNeedsReportProps) {
-  const [unsatisfiedNeeds, setUnsatisfiedNeeds] = useState<UnsatisfiedNeed[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNeed, setSelectedNeed] = useState<UnsatisfiedNeed | null>(null);
   const [availableSecretaries, setAvailableSecretaries] = useState<SecretaryInfo[]>([]);
   const [selectedSecretaryId, setSelectedSecretaryId] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [needsAnalyzed, setNeedsAnalyzed] = useState(false);
 
-  useEffect(() => {
-    analyzeNeeds();
+  // Mémoriser les besoins non satisfaits pour éviter les rechargements constants
+  const unsatisfiedNeeds = useMemo(() => {
+    const needs: UnsatisfiedNeed[] = [];
+    const weekdaysOnly = weekDays.filter(d => {
+      const dow = d.getDay();
+      return dow !== 0 && dow !== 6;
+    });
+
+    weekdaysOnly.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const dayAssignments = assignments.filter(a => a.date === dateStr);
+
+      const siteGroups = new Map<string, { matin?: AssignmentResult; apres_midi?: AssignmentResult }>();
+      
+      dayAssignments.forEach(a => {
+        if (!siteGroups.has(a.site_id)) {
+          siteGroups.set(a.site_id, {});
+        }
+        const group = siteGroups.get(a.site_id)!;
+        if (a.periode === 'matin') group.matin = a;
+        if (a.periode === 'apres_midi') group.apres_midi = a;
+      });
+
+      siteGroups.forEach((periods, siteId) => {
+        const matin_manquant = periods.matin ? Math.max(0, periods.matin.nombre_requis - periods.matin.nombre_assigne) : 0;
+        const apres_midi_manquant = periods.apres_midi ? Math.max(0, periods.apres_midi.nombre_requis - periods.apres_midi.nombre_assigne) : 0;
+        
+        if (matin_manquant > 0 || apres_midi_manquant > 0) {
+          needs.push({
+            date: dateStr,
+            dateObj: day,
+            site_id: siteId,
+            site_nom: periods.matin?.site_nom || periods.apres_midi?.site_nom || '',
+            matin_manquant,
+            apres_midi_manquant,
+            total_manquant: matin_manquant + apres_midi_manquant,
+          });
+        }
+      });
+    });
+
+    return needs;
   }, [assignments, weekDays]);
 
-  const analyzeNeeds = async () => {
+  // Charger les suggestions uniquement une fois au chargement initial
+  useEffect(() => {
+    if (!needsAnalyzed && unsatisfiedNeeds.length > 0) {
+      loadSuggestions();
+    } else if (unsatisfiedNeeds.length === 0) {
+      setLoading(false);
+      setNeedsAnalyzed(true);
+    }
+  }, [unsatisfiedNeeds, needsAnalyzed]);
+
+  const loadSuggestions = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Identifier les besoins non satisfaits
-      const needs: UnsatisfiedNeed[] = [];
       const weekdaysOnly = weekDays.filter(d => {
         const dow = d.getDay();
         return dow !== 0 && dow !== 6;
       });
 
-      weekdaysOnly.forEach(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const dayAssignments = assignments.filter(a => a.date === dateStr);
-
-        const siteGroups = new Map<string, { matin?: AssignmentResult; apres_midi?: AssignmentResult }>();
-        
-        dayAssignments.forEach(a => {
-          if (!siteGroups.has(a.site_id)) {
-            siteGroups.set(a.site_id, {});
-          }
-          const group = siteGroups.get(a.site_id)!;
-          if (a.periode === 'matin') group.matin = a;
-          if (a.periode === 'apres_midi') group.apres_midi = a;
-        });
-
-        siteGroups.forEach((periods, siteId) => {
-          const matin_manquant = periods.matin ? Math.max(0, periods.matin.nombre_requis - periods.matin.nombre_assigne) : 0;
-          const apres_midi_manquant = periods.apres_midi ? Math.max(0, periods.apres_midi.nombre_requis - periods.apres_midi.nombre_assigne) : 0;
-          
-          if (matin_manquant > 0 || apres_midi_manquant > 0) {
-            needs.push({
-              date: dateStr,
-              dateObj: day,
-              site_id: siteId,
-              site_nom: periods.matin?.site_nom || periods.apres_midi?.site_nom || '',
-              matin_manquant,
-              apres_midi_manquant,
-              total_manquant: matin_manquant + apres_midi_manquant,
-            });
-          }
-        });
-      });
-
-      setUnsatisfiedNeeds(needs);
-
-      // 2. Récupérer les infos des secrétaires flexibles
+      // Récupérer les infos des secrétaires flexibles
       const { data: secretaires, error: secError } = await supabase
         .from('secretaires')
         .select('*')
@@ -166,10 +179,10 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
         });
       }
 
-      // 4. Générer des suggestions
+      // Générer des suggestions
       const newSuggestions: Suggestion[] = [];
 
-      for (const need of needs) {
+      for (const need of unsatisfiedNeeds) {
         // Trouver des secrétaires flexibles qui peuvent travailler un jour de plus
         for (const sec of secretariesInfo) {
           if (!sec.flexible_jours_supplementaires) continue;
@@ -196,13 +209,14 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
       }
 
       setSuggestions(newSuggestions);
+      setNeedsAnalyzed(true);
     } catch (error) {
       console.error('Erreur lors de l\'analyse des besoins:', error);
       toast.error('Erreur lors de l\'analyse des besoins non satisfaits');
     } finally {
       setLoading(false);
     }
-  };
+  }, [unsatisfiedNeeds, weekDays, assignments]);
 
   const handleNeedClick = async (need: UnsatisfiedNeed) => {
     setSelectedNeed(need);
@@ -315,6 +329,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
 
       toast.success('Secrétaire assignée avec succès');
       setDialogOpen(false);
+      setNeedsAnalyzed(false); // Forcer une nouvelle analyse après l'assignation
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Erreur:', error);
@@ -423,10 +438,11 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                       <Button 
                         size="sm" 
                         variant="default"
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedNeed(suggestion.target_need);
                           setSelectedSecretaryId(suggestion.secretaire.id);
-                          handleAssignSecretary();
+                          await handleAssignSecretary();
+                          setNeedsAnalyzed(false); // Forcer une nouvelle analyse après l'assignation
                         }}
                       >
                         Appliquer
