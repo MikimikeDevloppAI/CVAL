@@ -365,7 +365,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                     )}
                     {need.apres_midi_manquant > 0 && (
                       <Badge variant="destructive" className="text-xs">
-                        AM: -{need.apres_midi_manquant}
+                        Après-midi: -{need.apres_midi_manquant}
                       </Badge>
                     )}
                     
@@ -441,7 +441,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                     <Badge variant="destructive">Matin: -{selectedNeed.matin_manquant}</Badge>
                   )}
                   {selectedNeed.apres_midi_manquant > 0 && (
-                    <Badge variant="destructive">AM: -{selectedNeed.apres_midi_manquant}</Badge>
+                    <Badge variant="destructive">Après-midi: -{selectedNeed.apres_midi_manquant}</Badge>
                   )}
                 </div>
               </div>

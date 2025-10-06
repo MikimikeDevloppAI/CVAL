@@ -244,7 +244,7 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                                     ) : hasMatin ? (
                                       <span className="font-medium">Matin</span>
                                     ) : (
-                                      <span className="font-medium">AM</span>
+                                      <span className="font-medium">Après-midi</span>
                                     )}
                                   </div>
 
