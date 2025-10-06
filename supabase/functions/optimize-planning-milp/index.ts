@@ -304,7 +304,7 @@ async function optimizeDay(
     console.log(`  ⏰ ${periode.toUpperCase()}`);
 
     // 1. Calculer les besoins par (site, specialite) pour cette période
-    const besoinsParSite = calculateBesoins(besoins, medecinMap, periode, periodeTime);
+    const besoinsParSite = calculateBesoins(besoins, medecinMap, siteMap, periode, periodeTime);
     
     if (besoinsParSite.size === 0) {
       console.log(`    No besoins for ${periode}`);
@@ -341,6 +341,7 @@ async function optimizeDay(
 function calculateBesoins(
   besoins: any[],
   medecinMap: Map<string, any>,
+  siteMap: Map<string, any>,
   periode: 'matin' | 'apres_midi',
   periodeTime: { heure_debut: string; heure_fin: string }
 ): Map<string, any> {
@@ -352,12 +353,17 @@ function calculateBesoins(
       continue;
     }
 
-    const key = `${besoin.site_id}|${besoin.specialite_id || 'default'}`;
+    // Récupérer la spécialité depuis le site
+    const site = siteMap.get(besoin.site_id);
+    const specialite_id = site?.specialite_id || 'default';
+    const key = `${besoin.site_id}|${specialite_id}`;
+    
+    console.log(`    📍 Besoin: site=${besoin.site_id.slice(0, 8)}, specialite=${specialite_id?.slice(0, 8) || 'default'}, key=${key.slice(0, 30)}`);
     
     if (!besoinsMap.has(key)) {
       besoinsMap.set(key, {
         site_id: besoin.site_id,
-        specialite_id: besoin.specialite_id,
+        specialite_id: specialite_id,
         besoin: 0,
         medecin_ids: []
       });
@@ -474,7 +480,8 @@ function optimizePeriod(
       const [site_id, specialite_id] = besoinKey.split('|');
       
       // Vérifier si la secrétaire a la spécialité
-      if (specialite_id !== 'default' && !secretaire.specialites?.includes(specialite_id)) {
+      const hasSpeciality = specialite_id === 'default' || secretaire.specialites?.includes(specialite_id);
+      if (!hasSpeciality) {
         continue;
       }
 
@@ -526,6 +533,19 @@ function optimizePeriod(
     // model.ints[adminVarName] = 1;
 
     slotsBySecretary.set(secretaire.id, slots);
+  }
+
+  // Log des secrétaires compatibles par besoin
+  const compatibleSecretariesByBesoin = new Map<string, number>();
+  for (const [besoinKey] of besoinsParSite) {
+    const [site_id, specialite_id] = besoinKey.split('|');
+    let count = 0;
+    for (const secretaire of secretairesDispos) {
+      const hasSpeciality = specialite_id === 'default' || secretaire.specialites?.includes(specialite_id);
+      if (hasSpeciality) count++;
+    }
+    compatibleSecretariesByBesoin.set(besoinKey, count);
+    console.log(`      ✓ Site ${site_id.slice(0, 8)} (spec: ${specialite_id?.slice(0, 8) || 'default'}) → ${count} secrétaires compatibles`);
   }
 
   // 3. Contraintes
