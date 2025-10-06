@@ -149,130 +149,170 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
   return (
     <div className="space-y-6">
-      {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
-        <Card key={siteName}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>{siteName}</span>
-              <Badge variant="outline">{specialite}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {dayGroups.map(({ date, matin, apresMidi }) => {
-                // Déterminer si on peut fusionner matin et après-midi
-                const canMerge = matin && apresMidi && 
-                  JSON.stringify(matin.secretaires.map(s => s.id).sort()) === 
-                  JSON.stringify(apresMidi.secretaires.map(s => s.id).sort());
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {groupedBySite.map(({ siteName, specialite, dayGroups }) => (
+          <Card key={siteName} className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-lg">
+                <span className="truncate">{siteName}</span>
+                <Badge variant="outline" className="ml-2 flex-shrink-0">{specialite}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dayGroups.map(({ date, matin, apresMidi }) => {
+                  // Déterminer si on peut fusionner matin et après-midi
+                  const canMerge = matin && apresMidi && 
+                    JSON.stringify(matin.secretaires.map(s => s.id).sort()) === 
+                    JSON.stringify(apresMidi.secretaires.map(s => s.id).sort());
 
-                if (canMerge) {
-                  // Affichage fusionné (journée complète)
-                  return (
-                    <div key={date.toISOString()} className="border rounded-lg p-4">
-                      <h4 className="font-semibold mb-3 text-lg">
-                        {format(date, 'EEEE d MMMM', { locale: fr })}
-                      </h4>
-                      
-                      <div className="space-y-3">
-                        {matin!.secretaires.map((sec, idx) => (
-                          <div key={idx} className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className="font-medium truncate">{sec.nom}</span>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {sec.is_backup && (
-                                    <Badge variant="secondary" className="text-xs">Backup</Badge>
-                                  )}
-                                  {sec.is_1r && (
-                                    <Badge variant="default" className="text-xs">1R</Badge>
-                                  )}
-                                  {sec.is_2f && (
-                                    <Badge variant="default" className="text-xs">2F</Badge>
+                  if (canMerge) {
+                    // Affichage fusionné (journée complète)
+                    return (
+                      <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
+                        <h4 className="font-semibold mb-3 text-sm">
+                          {format(date, 'EEE d MMM', { locale: fr })}
+                        </h4>
+                        
+                        {/* Médecins en premier - une seule fois */}
+                        {((matin!.medecins && matin!.medecins.length > 0) || (apresMidi!.medecins && apresMidi!.medecins.length > 0)) && (
+                          <div className="mb-3 pb-3 border-b">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                              <Stethoscope className="h-3 w-3" />
+                              <span>Médecins</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {matin!.medecins && matin!.medecins.length > 0 && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                  <div className="inline-flex flex-wrap gap-1">
+                                    {matin!.medecins.map((medecin, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        {medecin}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {apresMidi!.medecins && apresMidi!.medecins.length > 0 && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground mr-2">AM:</span>
+                                  <div className="inline-flex flex-wrap gap-1">
+                                    {apresMidi!.medecins.map((medecin, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        {medecin}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Secrétaires */}
+                        <div className="space-y-2">
+                          {matin!.secretaires.map((sec, idx) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="font-medium text-sm truncate">{sec.nom}</span>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {sec.is_backup && (
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                    )}
+                                    {sec.is_1r && (
+                                      <Badge variant="default" className="text-xs px-1.5 py-0">1R</Badge>
+                                    )}
+                                    {sec.is_2f && (
+                                      <Badge variant="default" className="text-xs px-1.5 py-0">2F</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">07:30-17:00</span>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${getSatisfactionColor(
+                                      matin!.nombre_assigne + apresMidi!.nombre_assigne,
+                                      matin!.nombre_requis + apresMidi!.nombre_requis
+                                    )}`}
+                                  >
+                                    {getSatisfactionPercentage(
+                                      matin!.nombre_assigne + apresMidi!.nombre_assigne,
+                                      matin!.nombre_requis + apresMidi!.nombre_requis
+                                    )}%
+                                  </Badge>
+                                  {onRefresh && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => handleEditClick(matin!)}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
                                   )}
                                 </div>
                               </div>
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">07:30-17:00</span>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <Badge 
-                                  variant="outline" 
-                                  className={getSatisfactionColor(
-                                    matin!.nombre_assigne + apresMidi!.nombre_assigne,
-                                    matin!.nombre_requis + apresMidi!.nombre_requis
-                                  )}
-                                >
-                                  {getSatisfactionPercentage(
-                                    matin!.nombre_assigne + apresMidi!.nombre_assigne,
-                                    matin!.nombre_requis + apresMidi!.nombre_requis
-                                  )}%
-                                </Badge>
-                                {onRefresh && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditClick(matin!)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                )}
+                              
+                              <div className="relative h-1.5 w-32 bg-muted rounded-full overflow-hidden">
+                                <div className="absolute inset-0 bg-primary rounded-full" />
                               </div>
                             </div>
-                            
-                            <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                              <div className="absolute inset-0 bg-primary" />
-                            </div>
-
-                            {/* Médecins */}
-                            {(matin!.medecins && matin!.medecins.length > 0) || (apresMidi!.medecins && apresMidi!.medecins.length > 0) ? (
-                              <div className="space-y-2">
-                                {matin!.medecins && matin!.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Matin</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {matin!.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {apresMidi!.medecins && apresMidi!.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Après-midi</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {apresMidi!.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : null}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                // Affichage séparé (matin et/ou après-midi seulement)
-                return (
-                  <div key={date.toISOString()} className="border rounded-lg p-4">
-                    <h4 className="font-semibold mb-3 text-lg">
-                      {format(date, 'EEEE d MMMM', { locale: fr })}
-                    </h4>
-                    
-                    <div className="space-y-3">
-                      {/* Grouper toutes les secrétaires uniques */}
-                      {(() => {
+                  // Affichage séparé (matin et/ou après-midi seulement)
+                  return (
+                    <div key={date.toISOString()} className="border rounded-lg p-3 bg-muted/20">
+                      <h4 className="font-semibold mb-3 text-sm">
+                        {format(date, 'EEE d MMM', { locale: fr })}
+                      </h4>
+                      
+                      {/* Médecins en premier - une seule fois */}
+                      {((matin?.medecins && matin.medecins.length > 0) || (apresMidi?.medecins && apresMidi.medecins.length > 0)) && (
+                        <div className="mb-3 pb-3 border-b">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {matin?.medecins && matin.medecins.length > 0 && (
+                              <div>
+                                <span className="text-xs text-muted-foreground mr-2">Matin:</span>
+                                <div className="inline-flex flex-wrap gap-1">
+                                  {matin.medecins.map((medecin, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {medecin}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {apresMidi?.medecins && apresMidi.medecins.length > 0 && (
+                              <div>
+                                <span className="text-xs text-muted-foreground mr-2">AM:</span>
+                                <div className="inline-flex flex-wrap gap-1">
+                                  {apresMidi.medecins.map((medecin, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {medecin}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Secrétaires */}
+                      <div className="space-y-2">
+                        {/* Grouper toutes les secrétaires uniques */}
+                        {(() => {
                         const allSecretaires = new Map();
                         
                         if (matin) {
@@ -295,105 +335,73 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           });
                         }
 
-                        return Array.from(allSecretaires.values()).map((sec, idx) => {
-                          const hasMatin = sec.periods.includes('matin');
-                          const hasApresMidi = sec.periods.includes('apresMidi');
-                          const timeDisplay = hasMatin && hasApresMidi ? '07:30-17:00' : 
-                                             hasMatin ? '07:30-12:00' : '13:00-17:00';
-                          
-                          const assignment = hasMatin ? matin : apresMidi;
-                          
-                          return (
-                            <div key={idx} className="space-y-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="font-medium truncate">{sec.nom}</span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    {sec.is_backup && (
-                                      <Badge variant="secondary" className="text-xs">Backup</Badge>
+                          return Array.from(allSecretaires.values()).map((sec, idx) => {
+                            const hasMatin = sec.periods.includes('matin');
+                            const hasApresMidi = sec.periods.includes('apresMidi');
+                            const timeDisplay = hasMatin && hasApresMidi ? '07:30-17:00' : 
+                                               hasMatin ? '07:30-12:00' : '13:00-17:00';
+                            
+                            const assignment = hasMatin ? matin : apresMidi;
+                            
+                            return (
+                              <div key={idx} className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="font-medium text-sm truncate">{sec.nom}</span>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      {sec.is_backup && (
+                                        <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
+                                      )}
+                                      {sec.is_1r && (
+                                        <Badge variant="default" className="text-xs px-1.5 py-0">1R</Badge>
+                                      )}
+                                      {sec.is_2f && (
+                                        <Badge variant="default" className="text-xs px-1.5 py-0">2F</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{timeDisplay}</span>
+                                    {assignment && (
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs ${getSatisfactionColor(assignment.nombre_assigne, assignment.nombre_requis)}`}
+                                      >
+                                        {getSatisfactionPercentage(assignment.nombre_assigne, assignment.nombre_requis)}%
+                                      </Badge>
                                     )}
-                                    {sec.is_1r && (
-                                      <Badge variant="default" className="text-xs">1R</Badge>
-                                    )}
-                                    {sec.is_2f && (
-                                      <Badge variant="default" className="text-xs">2F</Badge>
+                                    {assignment && onRefresh && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => handleEditClick(assignment)}
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
                                     )}
                                   </div>
                                 </div>
-                                <span className="text-sm text-muted-foreground whitespace-nowrap">{timeDisplay}</span>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  {assignment && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className={getSatisfactionColor(assignment.nombre_assigne, assignment.nombre_requis)}
-                                    >
-                                      {getSatisfactionPercentage(assignment.nombre_assigne, assignment.nombre_requis)}%
-                                    </Badge>
-                                  )}
-                                  {assignment && onRefresh && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditClick(assignment)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                  )}
+                                
+                                <div className="relative h-1.5 w-32 bg-muted rounded-full overflow-hidden">
+                                  <div className="flex h-full">
+                                    <div className={`flex-1 ${hasMatin ? 'bg-primary rounded-l-full' : 'bg-transparent'}`} />
+                                    <div className={`flex-1 ${hasApresMidi ? 'bg-primary rounded-r-full' : 'bg-transparent'}`} />
+                                  </div>
                                 </div>
                               </div>
-                              
-                              <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                                <div className="flex h-full">
-                                  <div className={`flex-1 ${hasMatin ? 'bg-primary' : 'bg-transparent'}`} />
-                                  <div className={`flex-1 ${hasApresMidi ? 'bg-primary' : 'bg-transparent'}`} />
-                                </div>
-                              </div>
-
-                              {/* Médecins */}
-                              <div className="space-y-2">
-                                {matin && hasMatin && matin.medecins && matin.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Matin</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {matin.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {apresMidi && hasApresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                      <Stethoscope className="h-3 w-3" />
-                                      <span>Après-midi</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {apresMidi.medecins.map((medecin, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {medecin}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
+                            );
+                          });
+                        })()}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* Assignations Administratives */}
       {adminAssignments.length > 0 && (
