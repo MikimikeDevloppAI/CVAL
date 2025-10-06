@@ -350,6 +350,25 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
     );
   }
 
+  // Regrouper les besoins par site et trier alphabétiquement
+  const needsBySite = useMemo(() => {
+    const grouped = unsatisfiedNeeds.reduce((acc, need) => {
+      if (!acc[need.site_nom]) {
+        acc[need.site_nom] = [];
+      }
+      acc[need.site_nom].push(need);
+      return acc;
+    }, {} as Record<string, UnsatisfiedNeed[]>);
+
+    // Trier les sites alphabétiquement et trier les jours par date
+    return Object.entries(grouped)
+      .sort(([siteA], [siteB]) => siteA.localeCompare(siteB))
+      .map(([siteName, needs]) => ({
+        siteName,
+        needs: needs.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime()),
+      }));
+  }, [unsatisfiedNeeds]);
+
   if (unsatisfiedNeeds.length === 0) {
     return (
       <Card className="mb-6 border-green-200 bg-green-50">
@@ -372,41 +391,47 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Liste des besoins non satisfaits */}
-          <div className="space-y-2">
-            {unsatisfiedNeeds.map((need, idx) => (
-              <div 
-                key={idx} 
-                className="border rounded-lg p-3 bg-background hover:bg-accent/5 transition-colors cursor-pointer"
-                onClick={() => handleNeedClick(need)}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">
-                      {need.site_nom}
+          {/* Liste des besoins groupés par site */}
+          <div className="space-y-4">
+            {needsBySite.map(({ siteName, needs }) => (
+              <div key={siteName} className="border rounded-lg p-4 bg-background">
+                <div className="font-semibold text-base mb-3 text-primary">
+                  {siteName}
+                </div>
+                <div className="space-y-2">
+                  {needs.map((need, idx) => (
+                    <div 
+                      key={idx} 
+                      className="border rounded-lg p-3 bg-card hover:bg-accent/5 transition-colors cursor-pointer"
+                      onClick={() => handleNeedClick(need)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="text-sm text-muted-foreground">
+                            {format(need.dateObj, 'EEEE d MMMM yyyy', { locale: fr })}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {need.matin_manquant > 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              Matin: -{need.matin_manquant}
+                            </Badge>
+                          )}
+                          {need.apres_midi_manquant > 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              Après-midi: -{need.apres_midi_manquant}
+                            </Badge>
+                          )}
+                          
+                          <Button size="sm" variant="outline" className="h-7">
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Assigner
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {format(need.dateObj, 'EEEE d MMMM yyyy', { locale: fr })}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {need.matin_manquant > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        Matin: -{need.matin_manquant}
-                      </Badge>
-                    )}
-                    {need.apres_midi_manquant > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        Après-midi: -{need.apres_midi_manquant}
-                      </Badge>
-                    )}
-                    
-                    <Button size="sm" variant="outline" className="h-7">
-                      <UserPlus className="h-3 w-3 mr-1" />
-                      Assigner
-                    </Button>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
