@@ -191,7 +191,7 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                     <div className="flex items-center gap-1 flex-wrap">
                                       <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-sm">
-                                        {matin.site_nom?.split(' - ')[0]}
+                                        {matin.site_nom}
                                       </span>
                                       {(matin.is_1r || apresMidi.is_1r) && (
                                         <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
