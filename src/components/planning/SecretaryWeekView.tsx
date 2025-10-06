@@ -91,14 +91,14 @@ export function SecretaryWeekView({
               </div>
               
               <div className="space-y-3">
-                {/* Matin */}
-                <div className="flex gap-3">
-                  <div className="flex items-center gap-2 w-32 text-sm font-medium">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    07:30 - 12:00
-                  </div>
-                  <div className="flex-1">
-                    {matin ? (
+                {/* Matin - Afficher uniquement si assigné */}
+                {matin && (
+                  <div className="flex gap-3">
+                    <div className="flex items-center gap-2 w-32 text-sm font-medium">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      07:30 - 12:00
+                    </div>
+                    <div className="flex-1">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -142,20 +142,18 @@ export function SecretaryWeekView({
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground italic">Non assigné</span>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Après-midi */}
-                <div className="flex gap-3">
-                  <div className="flex items-center gap-2 w-32 text-sm font-medium">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    13:00 - 17:00
-                  </div>
-                  <div className="flex-1">
-                    {apresMidi ? (
+                {/* Après-midi - Afficher uniquement si assigné */}
+                {apresMidi && (
+                  <div className="flex gap-3">
+                    <div className="flex items-center gap-2 w-32 text-sm font-medium">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      13:00 - 17:00
+                    </div>
+                    <div className="flex-1">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -199,11 +197,16 @@ export function SecretaryWeekView({
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground italic">Non assigné</span>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Message si aucune assignation */}
+                {!matin && !apresMidi && (
+                  <div className="text-sm text-muted-foreground italic text-center py-2">
+                    Aucune assignation ce jour
+                  </div>
+                )}
               </div>
             </Card>
           ))}
