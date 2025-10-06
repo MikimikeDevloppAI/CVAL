@@ -379,11 +379,26 @@ export function EditSecretaryAssignmentDialog({
             backups_ids: updatedBackupsIds,
           };
 
-          // Ajouter les rôles si applicable et que le site a fermeture
+          // Mettre à jour les rôles de cette secrétaire uniquement
           if (siteHasFermeture) {
-            if (is1R) targetUpdateData.responsable_1r_id = secretaryId;
-            if (is2F) targetUpdateData.responsable_2f_id = secretaryId;
-            if (is3F) targetUpdateData.responsable_3f_id = secretaryId;
+            // Mettre le rôle si coché, retirer uniquement si c'était cette secrétaire qui l'avait
+            if (is1R) {
+              targetUpdateData.responsable_1r_id = secretaryId;
+            } else if (targetCreneauData.responsable_1r_id === secretaryId) {
+              targetUpdateData.responsable_1r_id = null;
+            }
+            
+            if (is2F) {
+              targetUpdateData.responsable_2f_id = secretaryId;
+            } else if (targetCreneauData.responsable_2f_id === secretaryId) {
+              targetUpdateData.responsable_2f_id = null;
+            }
+            
+            if (is3F) {
+              targetUpdateData.responsable_3f_id = secretaryId;
+            } else if (targetCreneauData.responsable_3f_id === secretaryId) {
+              targetUpdateData.responsable_3f_id = null;
+            }
           }
 
           await supabase
@@ -405,11 +420,11 @@ export function EditSecretaryAssignmentDialog({
             medecins_ids: oldCreneau.medecins_ids || [],
           };
 
-          // Ajouter les rôles si applicable et que le site a fermeture
+          // Mettre à jour tous les rôles (même ceux décochés)
           if (siteHasFermeture) {
-            if (is1R) newCreneauData.responsable_1r_id = secretaryId;
-            if (is2F) newCreneauData.responsable_2f_id = secretaryId;
-            if (is3F) newCreneauData.responsable_3f_id = secretaryId;
+            newCreneauData.responsable_1r_id = is1R ? secretaryId : null;
+            newCreneauData.responsable_2f_id = is2F ? secretaryId : null;
+            newCreneauData.responsable_3f_id = is3F ? secretaryId : null;
           }
 
           await supabase
