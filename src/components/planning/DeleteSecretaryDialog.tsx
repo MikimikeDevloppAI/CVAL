@@ -52,20 +52,25 @@ export function DeleteSecretaryDialog({
       for (const periode of periods) {
         const heure_debut = periode === 'matin' ? '07:30:00' : '13:00:00';
 
-        // Récupérer le créneau
-        const { data: creneau, error: fetchError } = await supabase
+        // Récupérer tous les créneaux correspondants
+        const { data: creneaux, error: fetchError } = await supabase
           .from('planning_genere')
           .select('*')
           .eq('date', date)
-          .eq('heure_debut', heure_debut)
-          .single();
+          .eq('heure_debut', heure_debut);
 
         if (fetchError) {
-          console.error('Erreur lors de la récupération du créneau:', fetchError);
+          console.error('Erreur lors de la récupération des créneaux:', fetchError);
+          throw fetchError;
+        }
+
+        if (!creneaux || creneaux.length === 0) {
+          console.warn(`Aucun créneau trouvé pour ${date} à ${heure_debut}`);
           continue;
         }
 
-        if (!creneau) continue;
+        // Traiter chaque créneau trouvé
+        for (const creneau of creneaux) {
 
         // Retirer la secrétaire des tableaux
         const newSecretaires = (creneau.secretaires_ids || []).filter((id: string) => id !== secretaryId);
@@ -87,14 +92,16 @@ export function DeleteSecretaryDialog({
           updates.responsable_3f_id = null;
         }
 
-        // Mettre à jour le créneau
-        const { error: updateError } = await supabase
-          .from('planning_genere')
-          .update(updates)
-          .eq('id', creneau.id);
+          // Mettre à jour le créneau
+          const { error: updateError } = await supabase
+            .from('planning_genere')
+            .update(updates)
+            .eq('id', creneau.id);
 
-        if (updateError) {
-          throw updateError;
+          if (updateError) {
+            console.error('Erreur lors de la mise à jour du créneau:', updateError);
+            throw updateError;
+          }
         }
       }
 
