@@ -61,6 +61,9 @@ export function EditSecretaryAssignmentDialog({
   const [loadingData, setLoadingData] = useState(true);
   const [currentSecretaire, setCurrentSecretaire] = useState<Secretaire | null>(null);
   const [availableSecretaires, setAvailableSecretaires] = useState<Secretaire[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [siteHasFermeture, setSiteHasFermeture] = useState(false);
   const [creneauMatin, setCreneauMatin] = useState<CreneauData | null>(null);
   const [creneauAM, setCreneauAM] = useState<CreneauData | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'both'>('both');
@@ -88,6 +91,15 @@ export function EditSecretaryAssignmentDialog({
       if (secError) throw secError;
       setCurrentSecretaire(secData);
 
+      // Récupérer tous les sites
+      const { data: sitesData, error: sitesError } = await supabase
+        .from('sites')
+        .select('*')
+        .eq('actif', true);
+
+      if (sitesError) throw sitesError;
+      setSites(sitesData || []);
+
       // Récupérer les créneaux matin et après-midi
       const [matinRes, amRes] = await Promise.all([
         supabase
@@ -108,6 +120,13 @@ export function EditSecretaryAssignmentDialog({
 
       setCreneauMatin(matinRes.data);
       setCreneauAM(amRes.data);
+
+      // Définir le site sélectionné par défaut
+      if (siteId) {
+        setSelectedSiteId(siteId);
+        const site = sitesData?.find(s => s.id === siteId);
+        setSiteHasFermeture(site?.fermeture || false);
+      }
 
       // Déterminer les rôles actuels
       if (matinRes.data?.responsable_1r_id === secretaryId || amRes.data?.responsable_1r_id === secretaryId) {
@@ -159,9 +178,18 @@ export function EditSecretaryAssignmentDialog({
 
       if (shouldUpdateMatin && creneauMatin) {
         const updateData: any = {
-          responsable_1r_id: is1R ? secretaryId : creneauMatin.responsable_1r_id === secretaryId ? null : creneauMatin.responsable_1r_id,
-          responsable_2f_id: is2F ? secretaryId : creneauMatin.responsable_2f_id === secretaryId ? null : creneauMatin.responsable_2f_id,
+          site_id: selectedSiteId || creneauMatin.site_id,
         };
+
+        // Ajouter les rôles seulement si le site a fermeture
+        if (siteHasFermeture) {
+          updateData.responsable_1r_id = is1R ? secretaryId : creneauMatin.responsable_1r_id === secretaryId ? null : creneauMatin.responsable_1r_id;
+          updateData.responsable_2f_id = is2F ? secretaryId : creneauMatin.responsable_2f_id === secretaryId ? null : creneauMatin.responsable_2f_id;
+        } else {
+          // Si pas de fermeture, retirer les rôles s'ils existaient
+          if (creneauMatin.responsable_1r_id === secretaryId) updateData.responsable_1r_id = null;
+          if (creneauMatin.responsable_2f_id === secretaryId) updateData.responsable_2f_id = null;
+        }
 
         await supabase
           .from('planning_genere')
@@ -171,9 +199,18 @@ export function EditSecretaryAssignmentDialog({
 
       if (shouldUpdateAM && creneauAM) {
         const updateData: any = {
-          responsable_1r_id: is1R ? secretaryId : creneauAM.responsable_1r_id === secretaryId ? null : creneauAM.responsable_1r_id,
-          responsable_2f_id: is2F ? secretaryId : creneauAM.responsable_2f_id === secretaryId ? null : creneauAM.responsable_2f_id,
+          site_id: selectedSiteId || creneauAM.site_id,
         };
+
+        // Ajouter les rôles seulement si le site a fermeture
+        if (siteHasFermeture) {
+          updateData.responsable_1r_id = is1R ? secretaryId : creneauAM.responsable_1r_id === secretaryId ? null : creneauAM.responsable_1r_id;
+          updateData.responsable_2f_id = is2F ? secretaryId : creneauAM.responsable_2f_id === secretaryId ? null : creneauAM.responsable_2f_id;
+        } else {
+          // Si pas de fermeture, retirer les rôles s'ils existaient
+          if (creneauAM.responsable_1r_id === secretaryId) updateData.responsable_1r_id = null;
+          if (creneauAM.responsable_2f_id === secretaryId) updateData.responsable_2f_id = null;
+        }
 
         await supabase
           .from('planning_genere')
@@ -311,6 +348,29 @@ export function EditSecretaryAssignmentDialog({
 
             <TabsContent value="modify" className="space-y-4">
               <div className="space-y-2">
+                <Label>Site</Label>
+                <Select 
+                  value={selectedSiteId} 
+                  onValueChange={(value) => {
+                    setSelectedSiteId(value);
+                    const site = sites.find(s => s.id === value);
+                    setSiteHasFermeture(site?.fermeture || false);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map(site => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom} {site.fermeture && '(Fermeture)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Période à modifier</Label>
                 <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
                   <SelectTrigger>
@@ -324,25 +384,33 @@ export function EditSecretaryAssignmentDialog({
                 </Select>
               </div>
 
-              <div className="space-y-3 p-4 border rounded-lg">
-                <Label className="text-base">Rôles</Label>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="text-xs">1R</Badge>
-                    <span className="text-sm">Responsable 1R (Réception)</span>
+              {siteHasFermeture && (
+                <div className="space-y-3 p-4 border rounded-lg">
+                  <Label className="text-base">Rôles</Label>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="text-xs">1R</Badge>
+                      <span className="text-sm">Responsable 1R (Réception)</span>
+                    </div>
+                    <Switch checked={is1R} onCheckedChange={setIs1R} />
                   </div>
-                  <Switch checked={is1R} onCheckedChange={setIs1R} />
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">2F</Badge>
-                    <span className="text-sm">Responsable 2F (Fond)</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">2F</Badge>
+                      <span className="text-sm">Responsable 2F (Fond)</span>
+                    </div>
+                    <Switch checked={is2F} onCheckedChange={setIs2F} />
                   </div>
-                  <Switch checked={is2F} onCheckedChange={setIs2F} />
                 </div>
-              </div>
+              )}
+
+              {!siteHasFermeture && selectedSiteId && (
+                <p className="text-xs text-muted-foreground italic">
+                  Ce site n'a pas de fermeture, les rôles ne sont pas disponibles.
+                </p>
+              )}
 
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSave} disabled={loading} className="flex-1">
