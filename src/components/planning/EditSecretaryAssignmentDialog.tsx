@@ -561,26 +561,17 @@ export function EditSecretaryAssignmentDialog({
                   <Label className="text-base">Rôles</Label>
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="default" className="text-xs">1R</Badge>
-                      <span className="text-sm">Responsable 1R (Réception)</span>
-                    </div>
+                    <Badge variant="default" className="text-xs">1R</Badge>
                     <Switch checked={is1R} onCheckedChange={setIs1R} />
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">2F</Badge>
-                      <span className="text-sm">Responsable 2F (Fond)</span>
-                    </div>
+                    <Badge variant="outline" className="text-xs">2F</Badge>
                     <Switch checked={is2F} onCheckedChange={setIs2F} />
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">3F</Badge>
-                      <span className="text-sm">Responsable 3F</span>
-                    </div>
+                    <Badge variant="secondary" className="text-xs">3F</Badge>
                     <Switch checked={is3F} onCheckedChange={setIs3F} />
                   </div>
                 </div>
