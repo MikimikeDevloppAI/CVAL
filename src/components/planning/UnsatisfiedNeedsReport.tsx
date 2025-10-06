@@ -438,9 +438,9 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
         <CardContent className="space-y-4">
           {/* Suggestions prioritaires - Secrétaires disponibles groupées */}
           {suggestionsBySecretary.length > 0 && suggestionsBySecretary.some(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0) && (
-            <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
-              <h4 className="font-semibold text-base mb-3 flex items-center gap-2 text-green-800">
-                ⭐ Secrétaires disponibles (pas de jours supplémentaires utilisés)
+            <div className="border rounded-lg p-4 bg-background">
+              <h4 className="font-semibold text-base mb-3 text-foreground">
+                Secrétaires disponibles
               </h4>
               <div className="space-y-3">
                 {suggestionsBySecretary
@@ -448,12 +448,12 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                   .map((suggestion, idx) => {
                     const joursSupplementairesUtilises = suggestion.secretaire.assigned_days - suggestion.secretaire.base_days;
                     return (
-                      <div key={idx} className="border rounded-lg p-3 bg-white border-green-300">
+                      <div key={idx} className="border rounded-lg p-3 bg-card">
                         <div className="mb-2">
-                          <div className="text-sm font-semibold text-green-800">
+                          <div className="text-sm font-semibold text-foreground">
                             {suggestion.secretaire.first_name} {suggestion.secretaire.name}
                           </div>
-                          <div className="text-xs text-green-700 mt-1 font-medium">
+                          <div className="text-xs text-muted-foreground mt-1">
                             {joursSupplementairesUtilises}/{suggestion.secretaire.nombre_jours_supplementaires} jours supp. utilisés
                           </div>
                         </div>
@@ -463,7 +463,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                             Peut être assigné(e) sur :
                           </div>
                           {suggestion.needs.map((need, needIdx) => (
-                            <div key={needIdx} className="flex items-center justify-between gap-2 bg-green-50 p-2 rounded border border-green-200">
+                            <div key={needIdx} className="flex items-center justify-between gap-2 bg-muted/50 p-2 rounded border">
                               <div className="flex-1">
                                 <div className="text-xs font-medium">{need.site_nom}</div>
                                 <div className="text-xs text-muted-foreground">
@@ -486,7 +486,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                               <Button 
                                 size="sm" 
                                 variant="default"
-                                className="bg-green-600 hover:bg-green-700 h-8"
+                                className="h-8"
                                 onClick={async () => {
                                   setSelectedNeed(need);
                                   setSelectedSecretaryId(suggestion.secretaire.id);
