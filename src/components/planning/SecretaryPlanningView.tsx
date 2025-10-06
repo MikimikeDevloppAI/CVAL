@@ -244,115 +244,182 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                   </div>
                   
                   <div className="space-y-2">
-                    {/* Matin */}
-                    <div className="flex gap-2 items-start">
-                      <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
-                        <Clock className="h-3 w-3" />
-                        07:30-12:00
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        {matin ? (
-                          <div className="space-y-1">
-                            {matin.type_assignation === 'administratif' ? (
-                              <Badge variant="outline" className="bg-gray-100 text-xs">
-                                Administratif
-                              </Badge>
-                            ) : (
-                              <>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-                                  <span className="font-medium text-sm truncate">
-                                    {matin.site_nom?.split(' - ')[0]}
-                                  </span>
-                                  {matin.is_1r && (
-                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                                      1R
-                                    </Badge>
-                                  )}
-                                  {matin.is_2f && (
-                                    <Badge variant="outline" className="text-xs">
-                                      2F
-                                    </Badge>
-                                  )}
-                                </div>
-                                {matin.medecins.length > 0 && (
-                                  <div className="text-xs text-muted-foreground line-clamp-1">
-                                    {matin.medecins.join(', ')}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">-</span>
-                        )}
-                      </div>
-                      {matin && onRefresh && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
+                    {(() => {
+                      // Déterminer si on peut regrouper : même site (ou les 2 administratifs) matin ET après-midi
+                      const canMerge = matin && apresMidi && 
+                        matin.site_id === apresMidi.site_id &&
+                        matin.type_assignation === apresMidi.type_assignation;
 
-                    {/* Après-midi */}
-                    <div className="flex gap-2 items-start">
-                      <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
-                        <Clock className="h-3 w-3" />
-                        13:00-17:00
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        {apresMidi ? (
-                          <div className="space-y-1">
-                            {apresMidi.type_assignation === 'administratif' ? (
-                              <Badge variant="outline" className="bg-gray-100 text-xs">
-                                Administratif
-                              </Badge>
-                            ) : (
-                              <>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-                                  <span className="font-medium text-sm truncate">
-                                    {apresMidi.site_nom?.split(' - ')[0]}
-                                  </span>
-                                  {apresMidi.is_1r && (
-                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                                      1R
-                                    </Badge>
-                                  )}
-                                  {apresMidi.is_2f && (
-                                    <Badge variant="outline" className="text-xs">
-                                      2F
-                                    </Badge>
-                                  )}
-                                </div>
-                                {apresMidi.medecins.length > 0 && (
-                                  <div className="text-xs text-muted-foreground line-clamp-1">
-                                    {apresMidi.medecins.join(', ')}
-                                  </div>
+                      if (canMerge) {
+                        // Journée complète au même endroit
+                        return (
+                          <div className="flex gap-2 items-start">
+                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <Clock className="h-3 w-3" />
+                              07:30-17:00
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="space-y-1">
+                                {matin.type_assignation === 'administratif' ? (
+                                  <Badge variant="outline" className="bg-gray-100 text-xs">
+                                    Administratif
+                                  </Badge>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-sm truncate">
+                                        {matin.site_nom?.split(' - ')[0]}
+                                      </span>
+                                      {(matin.is_1r || apresMidi.is_1r) && (
+                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                          1R
+                                        </Badge>
+                                      )}
+                                      {(matin.is_2f || apresMidi.is_2f) && (
+                                        <Badge variant="outline" className="text-xs">
+                                          2F
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {matin.medecins.length > 0 && (
+                                      <div className="text-xs text-muted-foreground line-clamp-1">
+                                        {matin.medecins.join(', ')}
+                                      </div>
+                                    )}
+                                  </>
                                 )}
-                              </>
+                              </div>
+                            </div>
+                            {onRefresh && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">-</span>
-                        )}
-                      </div>
-                      {apresMidi && onRefresh && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
+                        );
+                      }
+
+                      // Affichage séparé matin et après-midi
+                      return (
+                        <>
+                          {/* Matin */}
+                          <div className="flex gap-2 items-start">
+                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <Clock className="h-3 w-3" />
+                              07:30-12:00
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {matin ? (
+                                <div className="space-y-1">
+                                  {matin.type_assignation === 'administratif' ? (
+                                    <Badge variant="outline" className="bg-gray-100 text-xs">
+                                      Administratif
+                                    </Badge>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+                                        <span className="font-medium text-sm truncate">
+                                          {matin.site_nom?.split(' - ')[0]}
+                                        </span>
+                                        {matin.is_1r && (
+                                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                            1R
+                                          </Badge>
+                                        )}
+                                        {matin.is_2f && (
+                                          <Badge variant="outline" className="text-xs">
+                                            2F
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {matin.medecins.length > 0 && (
+                                        <div className="text-xs text-muted-foreground line-clamp-1">
+                                          {matin.medecins.join(', ')}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">-</span>
+                              )}
+                            </div>
+                            {matin && onRefresh && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Après-midi */}
+                          <div className="flex gap-2 items-start">
+                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <Clock className="h-3 w-3" />
+                              13:00-17:00
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {apresMidi ? (
+                                <div className="space-y-1">
+                                  {apresMidi.type_assignation === 'administratif' ? (
+                                    <Badge variant="outline" className="bg-gray-100 text-xs">
+                                      Administratif
+                                    </Badge>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+                                        <span className="font-medium text-sm truncate">
+                                          {apresMidi.site_nom?.split(' - ')[0]}
+                                        </span>
+                                        {apresMidi.is_1r && (
+                                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                            1R
+                                          </Badge>
+                                        )}
+                                        {apresMidi.is_2f && (
+                                          <Badge variant="outline" className="text-xs">
+                                            2F
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {apresMidi.medecins.length > 0 && (
+                                        <div className="text-xs text-muted-foreground line-clamp-1">
+                                          {apresMidi.medecins.join(', ')}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">-</span>
+                              )}
+                            </div>
+                            {apresMidi && onRefresh && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

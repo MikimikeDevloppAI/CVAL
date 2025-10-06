@@ -152,139 +152,214 @@ export function PlanningGridView({ assignments, weekDays }: PlanningGridViewProp
                               </tr>
                             </thead>
                             <tbody>
-                              {/* Matin */}
-                              <tr className="border-b bg-white">
-                                <td className="p-3">
-                                  <div className="font-medium">07:30 - 12:00</div>
-                                </td>
-                                <td className="p-3">
-                                  {matin && matin.medecins && matin.medecins.length > 0 ? (
-                                    <div className="space-y-1">
-                                      {matin.medecins.map((med, idx) => (
-                                        <div key={idx} className="text-sm font-medium">
-                                          {med}
+                              {(() => {
+                                // Déterminer si on peut regrouper matin/après-midi
+                                const canMerge = matin && apresMidi && 
+                                  matin.secretaires.length === apresMidi.secretaires.length &&
+                                  matin.secretaires.every((matinSec, idx) => 
+                                    apresMidi.secretaires[idx]?.id === matinSec.id
+                                  );
+
+                                if (canMerge) {
+                                  // Journée complète regroupée
+                                  return (
+                                    <tr className="border-b bg-white">
+                                      <td className="p-3">
+                                        <div className="font-medium">07:30 - 17:00</div>
+                                        <div className="text-xs text-muted-foreground">Journée complète</div>
+                                      </td>
+                                      <td className="p-3">
+                                        {matin && matin.medecins && matin.medecins.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {matin.medecins.map((med, idx) => (
+                                              <div key={idx} className="text-sm font-medium">
+                                                {med}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-muted-foreground">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        <div className="space-y-1">
+                                          {matin!.secretaires.map(sec => (
+                                            <button
+                                              key={sec.id}
+                                              onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
+                                              className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                            >
+                                              <User className="h-3 w-3 text-primary" />
+                                              <span className="underline decoration-dotted">{sec.nom}</span>
+                                              {matin!.site_fermeture && sec.is_1r && (
+                                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
+                                              )}
+                                              {matin!.site_fermeture && sec.is_2f && (
+                                                <Badge variant="outline" className="text-xs">2F</Badge>
+                                              )}
+                                            </button>
+                                          ))}
                                         </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {matin ? (
-                                    <div className="space-y-1">
-                                      {matin.secretaires.map(sec => (
-                                        <button
-                                          key={sec.id}
-                                          onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                          className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
-                                        >
-                                          <User className="h-3 w-3 text-primary" />
-                                          <span className="underline decoration-dotted">{sec.nom}</span>
-                                          {matin.site_fermeture && sec.is_1r && (
-                                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                          )}
-                                          {matin.site_fermeture && sec.is_2f && (
-                                            <Badge variant="outline" className="text-xs">2F</Badge>
-                                          )}
-                                        </button>
-                                      ))}
-                                      {matin.secretaires.length === 0 && (
-                                        <span className="text-sm text-muted-foreground">Aucune assignation</span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">Pas de besoin</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center">
-                                  {matin ? (
-                                    <span className="font-medium">
-                                      {matin.nombre_assigne} / {matin.nombre_requis}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center">
-                                  {matin?.status === 'satisfait' && (
-                                    <Badge className="bg-green-600">Satisfait</Badge>
-                                  )}
-                                  {matin?.status === 'arrondi_inferieur' && (
-                                    <Badge className="bg-yellow-600">Partiel</Badge>
-                                  )}
-                                  {matin?.status === 'non_satisfait' && (
-                                    <Badge variant="destructive">Non satisfait</Badge>
-                                  )}
-                                </td>
-                              </tr>
-                              
-                              {/* Après-midi */}
-                              <tr className="bg-white">
-                                <td className="p-3">
-                                  <div className="font-medium">13:00 - 17:00</div>
-                                </td>
-                                <td className="p-3">
-                                  {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 ? (
-                                    <div className="space-y-1">
-                                      {apresMidi.medecins.map((med, idx) => (
-                                        <div key={idx} className="text-sm font-medium">
-                                          {med}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {apresMidi ? (
-                                    <div className="space-y-1">
-                                      {apresMidi.secretaires.map(sec => (
-                                        <button
-                                          key={sec.id}
-                                          onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
-                                          className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
-                                        >
-                                          <User className="h-3 w-3 text-primary" />
-                                          <span className="underline decoration-dotted">{sec.nom}</span>
-                                          {apresMidi.site_fermeture && sec.is_1r && (
-                                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
-                                          )}
-                                          {apresMidi.site_fermeture && sec.is_2f && (
-                                            <Badge variant="outline" className="text-xs">2F</Badge>
-                                          )}
-                                        </button>
-                                      ))}
-                                      {apresMidi.secretaires.length === 0 && (
-                                        <span className="text-sm text-muted-foreground">Aucune assignation</span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">Pas de besoin</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center">
-                                  {apresMidi ? (
-                                    <span className="font-medium">
-                                      {apresMidi.nombre_assigne} / {apresMidi.nombre_requis}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center">
-                                  {apresMidi?.status === 'satisfait' && (
-                                    <Badge className="bg-green-600">Satisfait</Badge>
-                                  )}
-                                  {apresMidi?.status === 'arrondi_inferieur' && (
-                                    <Badge className="bg-yellow-600">Partiel</Badge>
-                                  )}
-                                  {apresMidi?.status === 'non_satisfait' && (
-                                    <Badge variant="destructive">Non satisfait</Badge>
-                                  )}
-                                </td>
-                              </tr>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span className="font-medium">
+                                          {matin!.nombre_assigne} / {matin!.nombre_requis}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        {matin!.status === 'satisfait' && (
+                                          <Badge className="bg-green-600">Satisfait</Badge>
+                                        )}
+                                        {matin!.status === 'arrondi_inferieur' && (
+                                          <Badge className="bg-yellow-600">Partiel</Badge>
+                                        )}
+                                        {matin!.status === 'non_satisfait' && (
+                                          <Badge variant="destructive">Non satisfait</Badge>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+
+                                // Affichage séparé matin et après-midi
+                                return (
+                                  <>
+                                    {/* Matin */}
+                                    <tr className="border-b bg-white">
+                                      <td className="p-3">
+                                        <div className="font-medium">07:30 - 12:00</div>
+                                      </td>
+                                      <td className="p-3">
+                                        {matin && matin.medecins && matin.medecins.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {matin.medecins.map((med, idx) => (
+                                              <div key={idx} className="text-sm font-medium">
+                                                {med}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-muted-foreground">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        {matin ? (
+                                          <div className="space-y-1">
+                                            {matin.secretaires.map(sec => (
+                                              <button
+                                                key={sec.id}
+                                                onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
+                                                className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                              >
+                                                <User className="h-3 w-3 text-primary" />
+                                                <span className="underline decoration-dotted">{sec.nom}</span>
+                                                {matin.site_fermeture && sec.is_1r && (
+                                                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
+                                                )}
+                                                {matin.site_fermeture && sec.is_2f && (
+                                                  <Badge variant="outline" className="text-xs">2F</Badge>
+                                                )}
+                                              </button>
+                                            ))}
+                                            {matin.secretaires.length === 0 && (
+                                              <span className="text-sm text-muted-foreground">Aucune assignation</span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-muted-foreground">Pas de besoin</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        {matin ? (
+                                          <span className="font-medium">
+                                            {matin.nombre_assigne} / {matin.nombre_requis}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        {matin?.status === 'satisfait' && (
+                                          <Badge className="bg-green-600">Satisfait</Badge>
+                                        )}
+                                        {matin?.status === 'arrondi_inferieur' && (
+                                          <Badge className="bg-yellow-600">Partiel</Badge>
+                                        )}
+                                        {matin?.status === 'non_satisfait' && (
+                                          <Badge variant="destructive">Non satisfait</Badge>
+                                        )}
+                                      </td>
+                                    </tr>
+                                    
+                                    {/* Après-midi */}
+                                    <tr className="bg-white">
+                                      <td className="p-3">
+                                        <div className="font-medium">13:00 - 17:00</div>
+                                      </td>
+                                      <td className="p-3">
+                                        {apresMidi && apresMidi.medecins && apresMidi.medecins.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {apresMidi.medecins.map((med, idx) => (
+                                              <div key={idx} className="text-sm font-medium">
+                                                {med}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-muted-foreground">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        {apresMidi ? (
+                                          <div className="space-y-1">
+                                            {apresMidi.secretaires.map(sec => (
+                                              <button
+                                                key={sec.id}
+                                                onClick={() => setSelectedSecretary({ name: sec.nom, id: sec.id })}
+                                                className="flex items-center gap-2 text-sm hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                              >
+                                                <User className="h-3 w-3 text-primary" />
+                                                <span className="underline decoration-dotted">{sec.nom}</span>
+                                                {apresMidi.site_fermeture && sec.is_1r && (
+                                                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">1R</Badge>
+                                                )}
+                                                {apresMidi.site_fermeture && sec.is_2f && (
+                                                  <Badge variant="outline" className="text-xs">2F</Badge>
+                                                )}
+                                              </button>
+                                            ))}
+                                            {apresMidi.secretaires.length === 0 && (
+                                              <span className="text-sm text-muted-foreground">Aucune assignation</span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-muted-foreground">Pas de besoin</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        {apresMidi ? (
+                                          <span className="font-medium">
+                                            {apresMidi.nombre_assigne} / {apresMidi.nombre_requis}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        {apresMidi?.status === 'satisfait' && (
+                                          <Badge className="bg-green-600">Satisfait</Badge>
+                                        )}
+                                        {apresMidi?.status === 'arrondi_inferieur' && (
+                                          <Badge className="bg-yellow-600">Partiel</Badge>
+                                        )}
+                                        {apresMidi?.status === 'non_satisfait' && (
+                                          <Badge variant="destructive">Non satisfait</Badge>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  </>
+                                );
+                              })()}
                             </tbody>
                           </table>
                         </div>
