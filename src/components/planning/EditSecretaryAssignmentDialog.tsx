@@ -384,7 +384,7 @@ export function EditSecretaryAssignmentDialog({
                     <SelectItem value="administratif">Administratif</SelectItem>
                     {sites.map(site => (
                       <SelectItem key={site.id} value={site.id}>
-                        {site.nom} {site.fermeture && '(Fermeture)'}
+                        {site.nom}
                       </SelectItem>
                     ))}
                   </SelectContent>
