@@ -1244,7 +1244,7 @@ export default function PlanningPage() {
               {/* Action Buttons */}
               <div className="flex justify-center gap-3 flex-wrap px-4">
                 <Button 
-                  onClick={() => executeOptimizeMILP()} 
+                  onClick={() => setSelectDatesDialogOpen(true)} 
                   disabled={isOptimizingMILP}
                   size="default"
                   className="gap-2"
