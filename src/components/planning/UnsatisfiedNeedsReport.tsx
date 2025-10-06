@@ -551,48 +551,6 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
               </div>
             ))}
           </div>
-
-          {/* Suggestions */}
-          {suggestions.length > 0 && (
-            <div className="border-t pt-4 mt-4">
-              <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
-                💡 Suggestions ({suggestions.length})
-              </h4>
-              <div className="space-y-2">
-                {suggestions.slice(0, 5).map((suggestion, idx) => (
-                  <div key={idx} className="border rounded-lg p-3 bg-blue-50 border-blue-200">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">
-                          {suggestion.secretaire.first_name} {suggestion.secretaire.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Peut travailler à {suggestion.target_need.site_nom} le{' '}
-                          {format(suggestion.target_need.dateObj, 'd MMMM', { locale: fr })}
-                        </div>
-                        <div className="text-xs text-blue-700 mt-1">
-                          {suggestion.secretaire.assigned_days - suggestion.secretaire.base_days}/{suggestion.secretaire.nombre_jours_supplementaires} jours supp. utilisés
-                        </div>
-                      </div>
-                      
-                      <Button 
-                        size="sm" 
-                        variant="default"
-                        onClick={async () => {
-                          setSelectedNeed(suggestion.target_need);
-                          setSelectedSecretaryId(suggestion.secretaire.id);
-                          await handleAssignSecretary();
-                          setNeedsAnalyzed(false); // Forcer une nouvelle analyse après l'assignation
-                        }}
-                      >
-                        Appliquer
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
