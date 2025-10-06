@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { User, Calendar, MapPin, Clock, Edit } from 'lucide-react';
-import { EditPlanningCreneauDialog } from './EditPlanningCreneauDialog';
-import { supabase } from '@/integrations/supabase/client';
+import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
 
 interface SecretaryPlanningViewProps {
   assignments: AssignmentResult[];
@@ -15,21 +14,11 @@ interface SecretaryPlanningViewProps {
   onRefresh?: () => void;
 }
 
-interface PlanningCreneauForEdit {
-  id: string;
+interface EditDialogState {
+  secretaryId: string;
   date: string;
-  heure_debut: string;
-  heure_fin: string;
-  site_id?: string;
-  type_assignation?: string;
-  secretaires_ids?: string[];
-  backups_ids?: string[];
-  type?: string;
-  medecins_ids?: string[];
-  responsable_1r_id?: string;
-  responsable_2f_id?: string;
-  statut?: string;
-  version_planning?: number;
+  period: 'matin' | 'apres_midi';
+  siteId?: string;
 }
 
 interface SecretaryData {
@@ -65,53 +54,10 @@ interface SecretaryData {
 
 export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: SecretaryPlanningViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedCreneau, setSelectedCreneau] = useState<PlanningCreneauForEdit | null>(null);
+  const [editDialogState, setEditDialogState] = useState<EditDialogState | null>(null);
 
-  const handleEditClick = async (secretaireId: string, date: string, periode: 'matin' | 'apres_midi', siteId?: string) => {
-    // Récupérer le vrai créneau depuis la base de données
-    const heureDebut = periode === 'matin' ? '07:30:00' : '13:00:00';
-    
-    const query = supabase
-      .from('planning_genere')
-      .select('*')
-      .eq('date', date)
-      .eq('heure_debut', heureDebut)
-      .or(`secretaires_ids.cs.{${secretaireId}},backups_ids.cs.{${secretaireId}}`);
-    
-    // Ajouter le filtre site_id seulement s'il est défini
-    if (siteId) {
-      query.eq('site_id', siteId);
-    }
-
-    const { data, error } = await query.maybeSingle();
-
-    if (error) {
-      console.error('Erreur lors de la récupération du créneau:', error);
-      return;
-    }
-
-    if (!data) {
-      console.error('Aucun créneau trouvé pour cette secrétaire');
-      return;
-    }
-
-    const creneau: PlanningCreneauForEdit = {
-      id: data.id,
-      date: data.date,
-      heure_debut: data.heure_debut,
-      heure_fin: data.heure_fin,
-      site_id: data.site_id,
-      type_assignation: data.type_assignation || 'site',
-      secretaires_ids: data.secretaires_ids || [],
-      backups_ids: data.backups_ids || [],
-      type: data.type,
-      medecins_ids: data.medecins_ids,
-      responsable_1r_id: data.responsable_1r_id,
-      responsable_2f_id: data.responsable_2f_id,
-      statut: data.statut,
-      version_planning: data.version_planning,
-    };
-    setSelectedCreneau(creneau);
+  const handleEditClick = (secretaryId: string, dateStr: string, period: 'matin' | 'apres_midi', siteId?: string) => {
+    setEditDialogState({ secretaryId, date: dateStr, period, siteId });
     setEditDialogOpen(true);
   };
   // Filtrer les jours ouvrés (lundi à vendredi)
@@ -389,14 +335,19 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
         </Card>
       ))}
 
-      <EditPlanningCreneauDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        creneau={selectedCreneau}
-        onSuccess={() => {
-          if (onRefresh) onRefresh();
-        }}
-      />
+      {editDialogState && (
+        <EditSecretaryAssignmentDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          secretaryId={editDialogState.secretaryId}
+          date={editDialogState.date}
+          period={editDialogState.period}
+          siteId={editDialogState.siteId}
+          onSuccess={() => {
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
