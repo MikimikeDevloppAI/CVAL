@@ -41,6 +41,7 @@ export interface AssignmentResult {
     is_backup: boolean;
     is_1r?: boolean;
     is_2f?: boolean;
+    is_3f?: boolean;
   }[];
   nombre_requis: number;
   nombre_assigne: number;

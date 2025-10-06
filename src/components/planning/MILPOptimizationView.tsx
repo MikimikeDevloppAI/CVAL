@@ -247,7 +247,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   )}
                               </div>
                               
-                              {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                              {(sec.is_1r || sec.is_2f || sec.is_3f || sec.is_backup) && (
                                 <div className="flex gap-1">
                                   {sec.is_backup && (
                                     <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
@@ -257,6 +257,9 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                   )}
                                   {sec.is_2f && (
                                     <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                  )}
+                                  {sec.is_3f && (
+                                    <Badge variant="secondary" className="text-xs px-1.5 py-0">3F</Badge>
                                   )}
                                 </div>
                               )}
@@ -417,7 +420,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                     )}
                                 </div>
                                 
-                                {(sec.is_1r || sec.is_2f || sec.is_backup) && (
+                                {(sec.is_1r || sec.is_2f || sec.is_3f || sec.is_backup) && (
                                   <div className="flex gap-1">
                                     {sec.is_backup && (
                                       <Badge variant="secondary" className="text-xs px-1.5 py-0">Backup</Badge>
@@ -427,6 +430,9 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                                     )}
                                     {sec.is_2f && (
                                       <Badge variant="outline" className="text-xs px-1.5 py-0">2F</Badge>
+                                    )}
+                                    {sec.is_3f && (
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0">3F</Badge>
                                     )}
                                   </div>
                                 )}

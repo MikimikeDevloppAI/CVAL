@@ -378,6 +378,7 @@ export default function PlanningPage() {
                 is_backup: false,
                 is_1r: row.responsable_1r_id === secId,
                 is_2f: row.responsable_2f_id === secId,
+                is_3f: row.responsable_3f_id === secId,
               });
             }
           }
@@ -394,6 +395,7 @@ export default function PlanningPage() {
                 is_backup: true,
                 is_1r: row.responsable_1r_id === backupId,
                 is_2f: row.responsable_2f_id === backupId,
+                is_3f: row.responsable_3f_id === backupId,
               });
             }
           }
