@@ -155,6 +155,13 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: Arial, sans-serif; padding: 20px; background: #f9fafb; }
+
+/* Header et footer invisibles pour espacement sur chaque page */
+@page {
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
+
 .header { text-align: center; margin-bottom: 30px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
 .header h1 { font-size: 28px; color: #1f2937; margin-bottom: 8px; font-weight: 700; }
