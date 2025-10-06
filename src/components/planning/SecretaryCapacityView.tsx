@@ -59,7 +59,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSecretary, setSelectedSecretary] = useState<SecretaryGroup | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'journee'>('journee');
 
   // Regrouper les capacités par secrétaire
   const secretariesGroups: SecretaryGroup[] = [];
@@ -93,7 +93,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   const handleAddDay = (secretary: SecretaryGroup) => {
     setSelectedSecretary(secretary);
     setSelectedDate('');
-    setSelectedPeriod('matin');
+    setSelectedPeriod('journee');
     setDialogOpen(true);
   };
 
@@ -163,9 +163,13 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   };
 
   // Obtenir les dates disponibles (jours où la secrétaire ne travaille pas encore)
+  // Exclure samedi (6) et dimanche (0)
   const getAvailableDates = (secretary: SecretaryGroup) => {
     const assignedDates = new Set(secretary.capacites.map(c => c.date));
-    return weekDays.filter(day => !assignedDates.has(format(day, 'yyyy-MM-dd')));
+    return weekDays.filter(day => {
+      const dayOfWeek = day.getDay();
+      return !assignedDates.has(format(day, 'yyyy-MM-dd')) && dayOfWeek !== 0 && dayOfWeek !== 6;
+    });
   };
 
   return (
