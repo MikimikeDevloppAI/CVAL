@@ -52,24 +52,23 @@ serve(async (req) => {
 
     console.log('Creating user:', { email, prenom, nom, role, planning });
 
-    // Create user via Admin API
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      email_confirm: false,
-      user_metadata: { 
+    // Invite user via Admin API (sends email automatically)
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: { 
         prenom, 
         nom,
         role,
         planning: planning || false
-      }
+      },
+      redirectTo: `${req.headers.get('origin') || 'https://preview--healthflow-plan.lovable.app'}/update-password`
     });
 
     if (createError) {
-      console.error('Error creating user:', createError);
+      console.error('Error inviting user:', createError);
       throw createError;
     }
 
-    console.log('User created successfully:', newUser.user.id);
+    console.log('User invited successfully:', newUser.user.id);
 
     // The trigger handle_new_user will automatically:
     // 1. Create the profile
