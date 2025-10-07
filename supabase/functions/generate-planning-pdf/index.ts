@@ -195,7 +195,7 @@ body { font-family: Arial, sans-serif; padding: 0; background: #f9fafb; }
 </style></head><body>
 <div class="content-wrapper">
 <div class="header">
-<img src="https://xvuugxjseavbxpxhfprb.supabase.co/storage/v1/object/public/logo/clinique-logo.png" class="logo" onerror="this.style.display='none'">
+<img src="${supabaseUrl}/storage/v1/object/public/logo/clinique-logo.png" class="logo" onerror="this.style.display='none'">
 <h1>Planning des Secrétaires</h1>
 <p class="period">Semaine du ${weekStart} au ${weekEnd}</p>
 </div>
