@@ -20,6 +20,8 @@ import BlocOperatoirePage from "./pages/BlocOperatoirePage";
 import StatistiquesPage from "./pages/StatistiquesPage";
 import HomePage from "./pages/HomePage";
 import UsersPage from "./pages/UsersPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import UpdatePasswordPage from "./pages/UpdatePasswordPage";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/update-password" element={<UpdatePasswordPage />} />
             <Route path="*" element={
               <ProtectedRoute>
                 <Layout>
