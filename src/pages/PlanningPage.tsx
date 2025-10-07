@@ -13,7 +13,6 @@ import { Separator } from '@/components/ui/separator';
 import { AddBesoinDialog } from '@/components/planning/AddBesoinDialog';
 import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
 import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
-import { EditCapaciteDialog } from '@/components/planning/EditCapaciteDialog';
 import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView';
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
@@ -84,7 +83,6 @@ export default function PlanningPage() {
   const [selectedBesoins, setSelectedBesoins] = useState<BesoinEffectif[]>([]);
   const [besoinsToDelete, setBesoinsToDelete] = useState<BesoinEffectif[]>([]);
   const [addCapaciteDialogOpen, setAddCapaciteDialogOpen] = useState(false);
-  const [editCapaciteDialogOpen, setEditCapaciteDialogOpen] = useState(false);
   const [deleteCapaciteDialogOpen, setDeleteCapaciteDialogOpen] = useState(false);
   const [selectedCapacite, setSelectedCapacite] = useState<CapaciteEffective | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
@@ -638,11 +636,6 @@ export default function PlanningPage() {
   const handleDeleteGroupClick = (besoins: BesoinEffectif[]) => {
     setBesoinsToDelete(besoins);
     setDeleteDialogOpen(true);
-  };
-
-  const handleEditCapaciteClick = (capacite: CapaciteEffective) => {
-    setSelectedCapacite(capacite);
-    setEditCapaciteDialogOpen(true);
   };
 
   const handleDeleteCapaciteClick = (capacite: CapaciteEffective) => {
@@ -1396,13 +1389,6 @@ export default function PlanningPage() {
         open={addPlanningDialogOpen}
         onOpenChange={setAddPlanningDialogOpen}
         onSuccess={fetchPlanningGenere}
-      />
-
-      <EditCapaciteDialog
-        open={editCapaciteDialogOpen}
-        onOpenChange={setEditCapaciteDialogOpen}
-        capacite={selectedCapacite}
-        onSuccess={fetchData}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
