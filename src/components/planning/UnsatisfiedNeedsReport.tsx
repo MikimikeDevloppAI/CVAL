@@ -470,16 +470,19 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                                   {format(need.dateObj, 'EEEE d MMMM', { locale: fr })}
                                 </div>
                                 <div className="flex gap-1 mt-1">
-                                  {need.matin_manquant > 0 && (
-                                    <Badge variant="destructive" className="text-xs h-5">
+                                  {need.matin_manquant > 0 && need.apres_midi_manquant > 0 ? (
+                                    <Badge variant="destructive" className="text-xs h-5 bg-white text-destructive border border-destructive">
+                                      Toute la journée: -{need.matin_manquant + need.apres_midi_manquant}
+                                    </Badge>
+                                  ) : need.matin_manquant > 0 ? (
+                                    <Badge variant="destructive" className="text-xs h-5 bg-white text-destructive border border-destructive">
                                       Matin: -{need.matin_manquant}
                                     </Badge>
-                                  )}
-                                  {need.apres_midi_manquant > 0 && (
-                                    <Badge variant="destructive" className="text-xs h-5">
+                                  ) : need.apres_midi_manquant > 0 ? (
+                                    <Badge variant="destructive" className="text-xs h-5 bg-white text-destructive border border-destructive">
                                       Après-midi: -{need.apres_midi_manquant}
                                     </Badge>
-                                  )}
+                                  ) : null}
                                 </div>
                               </div>
                               
@@ -528,16 +531,19 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          {need.matin_manquant > 0 && (
-                            <Badge variant="destructive" className="text-xs">
+                          {need.matin_manquant > 0 && need.apres_midi_manquant > 0 ? (
+                            <Badge variant="destructive" className="text-xs bg-white text-destructive border border-destructive">
+                              Toute la journée: -{need.matin_manquant + need.apres_midi_manquant}
+                            </Badge>
+                          ) : need.matin_manquant > 0 ? (
+                            <Badge variant="destructive" className="text-xs bg-white text-destructive border border-destructive">
                               Matin: -{need.matin_manquant}
                             </Badge>
-                          )}
-                          {need.apres_midi_manquant > 0 && (
-                            <Badge variant="destructive" className="text-xs">
+                          ) : need.apres_midi_manquant > 0 ? (
+                            <Badge variant="destructive" className="text-xs bg-white text-destructive border border-destructive">
                               Après-midi: -{need.apres_midi_manquant}
                             </Badge>
-                          )}
+                          ) : null}
                           
                           <Button size="sm" variant="outline" className="h-7">
                             <UserPlus className="h-3 w-3 mr-1" />
