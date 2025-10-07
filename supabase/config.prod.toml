@@ -1,5 +1,4 @@
-# TEST Environment
-project_id = "xvuugxjseavbxpxhfprb"
+project_id = "lzzmbidhehieytprlzbz"
 
 [functions.generate-weekly-schedules]
 verify_jwt = false
