@@ -23,6 +23,7 @@ import cliniqueLogoImg from '@/assets/clinique-logo.png';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 const planningItems = [
   { name: 'Planning', href: '/planning', icon: Calendar },
@@ -43,6 +44,7 @@ export const Sidebar = () => {
   const [profile, setProfile] = useState<any>(null);
   const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
+  const { isAdmin } = useIsAdmin();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -133,6 +135,30 @@ export const Sidebar = () => {
             </ul>
           )}
         </div>
+
+        {/* Admin section */}
+        {isAdmin && (
+          <div className="mt-6 pt-6 border-t border-sidebar-border border-opacity-30">
+            <Link
+              to="/users"
+              onClick={onLinkClick}
+              className={cn(
+                'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                location.pathname === '/users'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+              )}
+            >
+              <Users
+                className={cn(
+                  'h-4 w-4 shrink-0 transition-colors',
+                  location.pathname === '/users' ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
+                )}
+              />
+              Utilisateurs
+            </Link>
+          </div>
+        )}
 
         <div className="flex-1" />
 

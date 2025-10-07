@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PlanningProtectedRoute } from "@/components/PlanningProtectedRoute";
+import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import PlanningPage from "./pages/PlanningPage";
 import AbsencesPage from "./pages/AbsencesPage";
@@ -18,6 +19,7 @@ import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
 import StatistiquesPage from "./pages/StatistiquesPage";
 import HomePage from "./pages/HomePage";
+import UsersPage from "./pages/UsersPage";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +72,11 @@ const App = () => (
                       <PlanningProtectedRoute>
                         <StatistiquesPage />
                       </PlanningProtectedRoute>
+                    } />
+                    <Route path="/users" element={
+                      <AdminProtectedRoute>
+                        <UsersPage />
+                      </AdminProtectedRoute>
                     } />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
