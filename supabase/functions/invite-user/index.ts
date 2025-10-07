@@ -31,8 +31,19 @@ serve(async (req) => {
       throw new Error("Non autorisé");
     }
 
-    const { data: isAdmin, error: adminError } = await supabaseAdmin.rpc('is_admin');
-    if (adminError || !isAdmin) {
+    const { data: isAdmin, error: adminError } = await supabaseAdmin.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+
+    console.log('Admin check:', { userId: user.id, isAdmin, adminError });
+
+    if (adminError) {
+      console.error('Error checking admin status:', adminError);
+      throw new Error("Erreur lors de la vérification des permissions");
+    }
+
+    if (!isAdmin) {
       throw new Error("Seuls les admins peuvent inviter des utilisateurs");
     }
 
