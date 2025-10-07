@@ -442,24 +442,6 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
               <h4 className="font-semibold text-base mb-3 text-foreground">
                 Secrétaires disponibles
               </h4>
-              
-              {/* Légende */}
-              <div className="flex items-center gap-4 mb-4 p-3 bg-muted/30 rounded-lg border">
-                <div className="text-xs font-medium text-muted-foreground">Légende :</div>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded bg-green-100 border border-green-200"></div>
-                  <span className="text-xs">Toute la journée</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded bg-amber-100 border border-amber-200"></div>
-                  <span className="text-xs">Matin</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded bg-blue-100 border border-blue-200"></div>
-                  <span className="text-xs">Après-midi</span>
-                </div>
-              </div>
-
               <div className="space-y-3">
                 {suggestionsBySecretary
                   .filter(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0)
@@ -480,46 +462,42 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                           <div className="text-xs font-medium text-muted-foreground">
                             Peut être assigné(e) sur :
                           </div>
-                          {suggestion.needs.map((need, needIdx) => {
-                            // Déterminer la couleur selon la disponibilité
-                            let bgColor = '';
-                            let borderColor = '';
-                            if (need.matin_manquant > 0 && need.apres_midi_manquant > 0) {
-                              bgColor = 'bg-green-100';
-                              borderColor = 'border-green-200';
-                            } else if (need.matin_manquant > 0) {
-                              bgColor = 'bg-amber-100';
-                              borderColor = 'border-amber-200';
-                            } else if (need.apres_midi_manquant > 0) {
-                              bgColor = 'bg-blue-100';
-                              borderColor = 'border-blue-200';
-                            }
-
-                            return (
-                              <div key={needIdx} className={`flex items-center justify-between gap-2 ${bgColor} p-2 rounded border ${borderColor}`}>
-                                <div className="flex-1">
-                                  <div className="text-xs font-medium">{need.site_nom}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {format(need.dateObj, 'EEEE d MMMM', { locale: fr })}
-                                  </div>
+                          {suggestion.needs.map((need, needIdx) => (
+                            <div key={needIdx} className="flex items-center justify-between gap-2 bg-muted/50 p-2 rounded border">
+                              <div className="flex-1">
+                                <div className="text-xs font-medium">{need.site_nom}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {format(need.dateObj, 'EEEE d MMMM', { locale: fr })}
                                 </div>
-                                
-                                <Button 
-                                  size="sm" 
-                                  variant="default"
-                                  className="h-8"
-                                  onClick={async () => {
-                                    setSelectedNeed(need);
-                                    setSelectedSecretaryId(suggestion.secretaire.id);
-                                    await handleAssignSecretary();
-                                    setNeedsAnalyzed(false);
-                                  }}
-                                >
-                                  Assigner
-                                </Button>
+                                <div className="flex gap-1 mt-1">
+                                  {need.matin_manquant > 0 && (
+                                    <Badge variant="destructive" className="text-xs h-5">
+                                      Matin: -{need.matin_manquant}
+                                    </Badge>
+                                  )}
+                                  {need.apres_midi_manquant > 0 && (
+                                    <Badge variant="destructive" className="text-xs h-5">
+                                      Après-midi: -{need.apres_midi_manquant}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            );
-                          })}
+                              
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                className="h-8"
+                                onClick={async () => {
+                                  setSelectedNeed(need);
+                                  setSelectedSecretaryId(suggestion.secretaire.id);
+                                  await handleAssignSecretary();
+                                  setNeedsAnalyzed(false);
+                                }}
+                              >
+                                Assigner
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
