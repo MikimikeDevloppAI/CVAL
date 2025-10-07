@@ -241,92 +241,129 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
 
   return (
     <>
-      <div className="space-y-4">
-        {secretariesGroups.map(secretary => (
-          <Card key={secretary.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <UserCog className="h-5 w-5 text-primary" />
-                  <span>{secretary.name}</span>
-                  {secretary.isBackup && (
-                    <Badge variant="secondary">Backup</Badge>
-                  )}
-                </div>
-                {canManage && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddDay(secretary)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Ajouter un jour
-                  </Button>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {secretary.capacites.length === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    Aucune capacité assignée cette semaine
-                  </div>
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b bg-muted/30">
+                <tr>
+                  <th className="p-3 text-left font-semibold">Nom</th>
+                  <th className="p-3 text-left font-semibold">
+                    <div className="flex items-center gap-2">
+                      Jours de présence
+                      <div className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-3 h-3 rounded border-2 border-green-500" />
+                          Journée
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-3 h-3 rounded border-2 border-amber-500" />
+                          Matin
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-3 h-3 rounded border-2 border-blue-500" />
+                          Après-midi
+                        </span>
+                      </div>
+                    </div>
+                  </th>
+                  {canManage && <th className="p-3 text-right font-semibold w-24">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {secretariesGroups.length === 0 ? (
+                  <tr>
+                    <td colSpan={canManage ? 3 : 2} className="p-8 text-center text-muted-foreground">
+                      Aucune capacité trouvée pour cette semaine
+                    </td>
+                  </tr>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {secretary.capacites
-                      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                      .map(cap => (
-                        <div
-                          key={cap.id}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">
-                                {format(new Date(cap.date), 'EEEE d MMM', { locale: fr })}
-                              </span>
-                              {isManualAddition(cap) && (
-                                <Badge 
-                                  variant="outline" 
-                                  className="h-5 px-1.5 bg-green-500/10 text-green-600 border-green-500/20"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {cap.heure_debut.slice(0, 5)} - {cap.heure_fin.slice(0, 5)}
-                            </div>
+                  secretariesGroups.map(secretary => {
+                    // Regrouper les capacités par date pour déterminer la période
+                    const capacitesParDate = secretary.capacites.reduce((acc, cap) => {
+                      if (!acc[cap.date]) {
+                        acc[cap.date] = [];
+                      }
+                      acc[cap.date].push(cap);
+                      return acc;
+                    }, {} as Record<string, CapaciteEffective[]>);
+
+                    // Construire la liste des jours avec période
+                    const joursParNom = Object.entries(capacitesParDate).map(([date, capacitesDate]) => {
+                      const dateObj = new Date(date);
+                      const jourSemaine = format(dateObj, 'EEEE', { locale: fr });
+                      
+                      // Déterminer la période en fonction des horaires
+                      const heuresDebut = capacitesDate.map(c => c.heure_debut);
+                      const heuresFin = capacitesDate.map(c => c.heure_fin);
+                      
+                      const aMatin = heuresDebut.some(h => h < '13:00:00');
+                      const aApresMidi = heuresFin.some(h => h > '13:00:00');
+                      
+                      let periode: 'matin' | 'apres_midi' | 'journee';
+                      if (aMatin && aApresMidi) {
+                        periode = 'journee';
+                      } else if (aMatin) {
+                        periode = 'matin';
+                      } else {
+                        periode = 'apres_midi';
+                      }
+                      
+                      return {
+                        nom: jourSemaine.charAt(0).toUpperCase() + jourSemaine.slice(1),
+                        date: format(dateObj, 'yyyy-MM-dd'),
+                        periode,
+                        capacites: capacitesDate
+                      };
+                    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                    return (
+                      <tr key={secretary.id} className="border-b hover:bg-muted/30">
+                        <td className="p-3 font-medium">
+                          <div className="flex items-center gap-2">
+                            {secretary.name}
+                            {secretary.isBackup && (
+                              <Badge variant="secondary" className="text-xs">Backup</Badge>
+                            )}
                           </div>
-                          {canManage && (
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {joursParNom.map((jour, idx) => {
+                              const borderColor = jour.periode === 'journee' 
+                                ? 'border-green-500 text-green-700' 
+                                : jour.periode === 'matin'
+                                ? 'border-amber-500 text-amber-700'
+                                : 'border-blue-500 text-blue-700';
+                              
+                              return (
+                                <Badge key={idx} variant="outline" className={`text-xs bg-transparent ${borderColor}`}>
+                                  {jour.nom}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        {canManage && (
+                          <td className="p-3 text-right">
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleRemoveCapacity(cap.id)}
+                              onClick={() => handleAddDay(secretary)}
                             >
-                              <X className="h-4 w-4" />
+                              <Plus className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      ))}
-                  </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-
-        {secretariesGroups.length === 0 && (
-          <Card>
-            <CardContent className="py-8">
-              <div className="text-center text-muted-foreground">
-                Aucune capacité trouvée pour cette semaine
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Dialog pour ajouter un jour */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
