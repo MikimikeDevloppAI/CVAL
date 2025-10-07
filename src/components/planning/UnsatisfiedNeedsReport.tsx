@@ -472,7 +472,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                                 <div className="flex gap-1 mt-1">
                                   {need.matin_manquant > 0 && need.apres_midi_manquant > 0 ? (
                                     <Badge variant="destructive" className="text-xs h-5 bg-white text-destructive border border-destructive">
-                                      Toute la journée: -{need.matin_manquant + need.apres_midi_manquant}
+                                      Toute la journée: -{need.matin_manquant}
                                     </Badge>
                                   ) : need.matin_manquant > 0 ? (
                                     <Badge variant="destructive" className="text-xs h-5 bg-white text-destructive border border-destructive">
@@ -533,7 +533,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
                         <div className="flex items-center gap-2">
                           {need.matin_manquant > 0 && need.apres_midi_manquant > 0 ? (
                             <Badge variant="destructive" className="text-xs bg-white text-destructive border border-destructive">
-                              Toute la journée: -{need.matin_manquant + need.apres_midi_manquant}
+                              Toute la journée: -{need.matin_manquant}
                             </Badge>
                           ) : need.matin_manquant > 0 ? (
                             <Badge variant="destructive" className="text-xs bg-white text-destructive border border-destructive">
