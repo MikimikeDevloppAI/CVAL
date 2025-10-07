@@ -727,7 +727,6 @@ export type Database = {
           nom: string
           planning: boolean
           prenom: string
-          role: Database["public"]["Enums"]["user_role"]
           updated_at: string
         }
         Insert: {
@@ -737,7 +736,6 @@ export type Database = {
           nom: string
           planning?: boolean
           prenom: string
-          role: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
         Update: {
@@ -747,7 +745,6 @@ export type Database = {
           nom?: string
           planning?: boolean
           prenom?: string
-          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
         Relationships: []
