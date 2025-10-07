@@ -1004,7 +1004,7 @@ export default function PlanningPage() {
               Aucun besoin pour cette semaine
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {sites.map((site) => {
                 const besoinsSite = besoins.filter(b => b.site_id === site.id);
                 // Regrouper par médecin/type
