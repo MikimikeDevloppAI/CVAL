@@ -1068,12 +1068,29 @@ export default function PlanningPage() {
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
+                          <table className="w-full border-collapse">
                           <thead>
                             <tr className="border-b-2">
                               <th className="text-left p-2 font-medium text-sm text-muted-foreground">Médecin / Détail</th>
-                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Jours de présence</th>
-                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">Horaires</th>
+                              <th className="text-left p-2 font-medium text-sm text-muted-foreground">
+                                <div className="flex items-center gap-4">
+                                  <span>Jours de présence</span>
+                                  <div className="flex items-center gap-2 text-xs font-normal">
+                                    <div className="flex items-center gap-1">
+                                      <div className="w-3 h-3 rounded bg-green-100 border border-green-200"></div>
+                                      <span>Toute la journée</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <div className="w-3 h-3 rounded bg-amber-100 border border-amber-200"></div>
+                                      <span>Matin</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <div className="w-3 h-3 rounded bg-blue-100 border border-blue-200"></div>
+                                      <span>Après-midi</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </th>
                               <th className="text-right p-2 font-medium text-sm text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
@@ -1087,18 +1104,42 @@ export default function PlanningPage() {
                                 new Date(a.date).getTime() - new Date(b.date).getTime()
                               );
                               
-                              // Construire la liste des jours avec les noms complets
-                              const joursParNom = besoinsTries.map(b => {
-                                const date = new Date(b.date);
-                                const jourSemaine = format(date, 'EEEE', { locale: fr });
+                              // Regrouper les besoins par date pour déterminer la période
+                              const besoinsParDate = besoinsTries.reduce((acc, b) => {
+                                if (!acc[b.date]) {
+                                  acc[b.date] = [];
+                                }
+                                acc[b.date].push(b);
+                                return acc;
+                              }, {} as Record<string, BesoinEffectif[]>);
+                              
+                              // Construire la liste des jours avec les noms complets et période
+                              const joursParNom = Object.entries(besoinsParDate).map(([date, besoinsDate]) => {
+                                const dateObj = new Date(date);
+                                const jourSemaine = format(dateObj, 'EEEE', { locale: fr });
+                                
+                                // Déterminer la période en fonction des horaires
+                                const heuresDebut = besoinsDate.map(b => b.heure_debut);
+                                const heuresFin = besoinsDate.map(b => b.heure_fin);
+                                
+                                const aMatin = heuresDebut.some(h => h < '13:00:00');
+                                const aApresMidi = heuresFin.some(h => h > '13:00:00');
+                                
+                                let periode: 'matin' | 'apres_midi' | 'journee';
+                                if (aMatin && aApresMidi) {
+                                  periode = 'journee';
+                                } else if (aMatin) {
+                                  periode = 'matin';
+                                } else {
+                                  periode = 'apres_midi';
+                                }
+                                
                                 return {
                                   nom: jourSemaine.charAt(0).toUpperCase() + jourSemaine.slice(1),
-                                  date: format(date, 'yyyy-MM-dd')
+                                  date: format(dateObj, 'yyyy-MM-dd'),
+                                  periode
                                 };
-                              });
-                              
-                              // Récupérer les horaires (prendre le premier si c'est identique partout)
-                              const horaires = `${premierBesoin.heure_debut.slice(0, 5)} - ${premierBesoin.heure_fin.slice(0, 5)}`;
+                              }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                               
                               const totalSecretairesPersonne = besoinsGroupe.reduce((sum, b) => {
                                 let besoinValue = 0;
@@ -1122,15 +1163,20 @@ export default function PlanningPage() {
                                   </td>
                                   <td className="p-2">
                                     <div className="flex flex-wrap gap-1">
-                                      {joursParNom.map((jour, idx) => (
-                                        <Badge key={idx} variant="outline" className="text-xs">
-                                          {jour.nom}
-                                        </Badge>
-                                      ))}
+                                      {joursParNom.map((jour, idx) => {
+                                        const bgColor = jour.periode === 'journee' 
+                                          ? 'bg-green-100 border-green-200 text-green-800' 
+                                          : jour.periode === 'matin'
+                                          ? 'bg-amber-100 border-amber-200 text-amber-800'
+                                          : 'bg-blue-100 border-blue-200 text-blue-800';
+                                        
+                                        return (
+                                          <Badge key={idx} variant="outline" className={`text-xs ${bgColor}`}>
+                                            {jour.nom}
+                                          </Badge>
+                                        );
+                                      })}
                                     </div>
-                                  </td>
-                                  <td className="p-2 text-sm">
-                                    {horaires}
                                   </td>
                                   <td className="p-2 text-right">
                                     {canManage && (
