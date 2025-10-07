@@ -1077,15 +1077,15 @@ export default function PlanningPage() {
                                   <span>Jours de présence</span>
                                   <div className="flex items-center gap-2 text-xs font-normal">
                                     <div className="flex items-center gap-1">
-                                      <div className="w-3 h-3 rounded bg-green-100 border border-green-200"></div>
+                                      <div className="w-3 h-3 rounded border-2 border-green-500"></div>
                                       <span>Toute la journée</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <div className="w-3 h-3 rounded bg-amber-100 border border-amber-200"></div>
+                                      <div className="w-3 h-3 rounded border-2 border-amber-500"></div>
                                       <span>Matin</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <div className="w-3 h-3 rounded bg-blue-100 border border-blue-200"></div>
+                                      <div className="w-3 h-3 rounded border-2 border-blue-500"></div>
                                       <span>Après-midi</span>
                                     </div>
                                   </div>
@@ -1164,14 +1164,14 @@ export default function PlanningPage() {
                                   <td className="p-2">
                                     <div className="flex flex-wrap gap-1">
                                       {joursParNom.map((jour, idx) => {
-                                        const bgColor = jour.periode === 'journee' 
-                                          ? 'bg-green-100 border-green-200 text-green-800' 
+                                        const borderColor = jour.periode === 'journee' 
+                                          ? 'border-green-500 text-green-700' 
                                           : jour.periode === 'matin'
-                                          ? 'bg-amber-100 border-amber-200 text-amber-800'
-                                          : 'bg-blue-100 border-blue-200 text-blue-800';
+                                          ? 'border-amber-500 text-amber-700'
+                                          : 'border-blue-500 text-blue-700';
                                         
                                         return (
-                                          <Badge key={idx} variant="outline" className={`text-xs ${bgColor}`}>
+                                          <Badge key={idx} variant="outline" className={`text-xs bg-transparent ${borderColor}`}>
                                             {jour.nom}
                                           </Badge>
                                         );
