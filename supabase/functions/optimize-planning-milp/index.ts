@@ -21,24 +21,22 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Starting day-by-day MILP planning optimization');
+    console.log('🚀 Starting single-day MILP planning optimization');
     
     const supabaseServiceRole = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Parse date range from request
-    const { date_debut, date_fin, selected_dates } = await req.json().catch(() => ({}));
-    const startDate = date_debut || new Date().toISOString().split('T')[0];
-    const endDate = date_fin || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    console.log(`📊 Period: ${startDate} to ${endDate}`);
-    if (selected_dates && selected_dates.length > 0) {
-      console.log(`📅 Selected dates for reoptimization: ${selected_dates.join(', ')}`);
+    // Parse single day from request
+    const { single_day } = await req.json().catch(() => ({}));
+    if (!single_day) {
+      throw new Error('single_day parameter is required');
     }
 
-    // 1. Récupérer toutes les données nécessaires
+    console.log(`📅 Processing single day: ${single_day}`);
+
+    // 1. Récupérer toutes les données nécessaires pour ce jour
     console.log('📥 Fetching data...');
     
     const [
@@ -55,13 +53,11 @@ serve(async (req) => {
       supabaseServiceRole.from('specialites').select('*'),
       supabaseServiceRole.from('capacite_effective')
         .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
+        .eq('date', single_day)
         .eq('actif', true),
       supabaseServiceRole.from('besoin_effectif')
         .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
+        .eq('date', single_day)
         .eq('actif', true)
     ]);
 
@@ -80,15 +76,9 @@ serve(async (req) => {
     const secretaireMap = new Map(secretaires.map(s => [s.id, s]));
     const siteMap = new Map(sites.map(s => [s.id, s]));
 
-    // 2. Générer la liste des jours à optimiser
-    const days = selected_dates && selected_dates.length > 0 
-      ? selected_dates 
-      : generateDaysList(startDate, endDate);
-    console.log(`📅 Processing ${days.length} days`);
-
-    // 3. Gérer le planning pour cette semaine
-    const weekStart = getWeekStart(new Date(startDate));
-    const weekEnd = getWeekEnd(new Date(endDate));
+    // 2. Gérer le planning pour cette semaine (à partir du jour unique)
+    const weekStart = getWeekStart(new Date(single_day));
+    const weekEnd = getWeekEnd(new Date(single_day));
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
     
@@ -128,32 +118,18 @@ serve(async (req) => {
         throw updateError;
       }
       
-      // Supprimer les anciennes assignations liées à ce planning pour les dates spécifiées
-      console.log(`🗑️ Deleting old assignments for planning ${planningId}`);
+      // Supprimer les anciennes assignations liées à ce planning pour ce jour
+      console.log(`🗑️ Deleting old assignments for planning ${planningId} on ${single_day}`);
       
-      if (selected_dates && selected_dates.length > 0) {
-        // Supprimer uniquement pour les dates sélectionnées
-        const { error: deleteError } = await supabaseServiceRole
-          .from('planning_genere')
-          .delete()
-          .eq('planning_id', planningId)
-          .in('date', selected_dates);
-        
-        if (deleteError) {
-          console.error('⚠️ Delete error:', deleteError);
-          throw deleteError;
-        }
-      } else {
-        // Supprimer tout pour ce planning
-        const { error: deleteError } = await supabaseServiceRole
-          .from('planning_genere')
-          .delete()
-          .eq('planning_id', planningId);
-        
-        if (deleteError) {
-          console.error('⚠️ Delete error:', deleteError);
-          throw deleteError;
-        }
+      const { error: deleteError } = await supabaseServiceRole
+        .from('planning_genere')
+        .delete()
+        .eq('planning_id', planningId)
+        .eq('date', single_day);
+      
+      if (deleteError) {
+        console.error('⚠️ Delete error:', deleteError);
+        throw deleteError;
       }
     } else {
       // Créer un nouveau planning
@@ -178,8 +154,8 @@ serve(async (req) => {
       console.log(`✓ Created planning ${planningId}`);
     }
 
-    // 4. Récupérer l'historique admin des 4 dernières semaines
-    const fourWeeksAgo = new Date(startDate);
+    // 3. Récupérer l'historique admin des 4 dernières semaines
+    const fourWeeksAgo = new Date(single_day);
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
     const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
 
@@ -188,7 +164,7 @@ serve(async (req) => {
       .select('secretaires_ids, backups_ids, date')
       .eq('type_assignation', 'administratif')
       .gte('date', fourWeeksAgoStr)
-      .lt('date', startDate);
+      .lt('date', single_day);
 
     if (adminHistError) throw adminHistError;
 
@@ -205,39 +181,40 @@ serve(async (req) => {
 
     console.log(`📊 Admin history: ${adminHistory?.length || 0} records found`);
 
-    // 5. Traiter jour par jour
+    // 4. Traiter ce jour unique
     const allAssignments: any[] = [];
     const portEnTruieCounter = new Map<string, number>(); // secretary_id -> count
 
-    for (const day of days) {
-      console.log(`\n📆 Processing ${day}...`);
-      
-      // Filtrer les données pour ce jour
-      const dayCapacites = capacites.filter(c => c.date === day);
-      const dayBesoins = besoins.filter(b => b.date === day);
+    console.log(`\n📆 Processing ${single_day}...`);
 
-      if (dayBesoins.length === 0) {
-        console.log(`  ⏭️ No besoins for ${day}, skipping`);
-        continue;
-      }
-
-      // Optimiser ce jour (matin et après-midi séparément)
-      const dayAssignments = await optimizeDay(
-        day,
-        dayCapacites,
-        dayBesoins,
-        secretaireMap,
-        medecinMap,
-        siteMap,
-        portEnTruieCounter,
-        adminCounter
+    if (besoins.length === 0) {
+      console.log(`  ⏭️ No besoins for ${single_day}`);
+      return new Response(
+        JSON.stringify({ 
+          planning_id: planningId,
+          assignments_count: 0,
+          message: 'No besoins for this day'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-
-      // Ajouter le planning_id à chaque assignation
-      dayAssignments.forEach(a => a.planning_id = planningId);
-      
-      allAssignments.push(...dayAssignments);
     }
+
+    // Optimiser ce jour (matin et après-midi séparément)
+    const dayAssignments = await optimizeDay(
+      single_day,
+      capacites,
+      besoins,
+      secretaireMap,
+      medecinMap,
+      siteMap,
+      portEnTruieCounter,
+      adminCounter
+    );
+
+    // Ajouter le planning_id à chaque assignation
+    dayAssignments.forEach(a => a.planning_id = planningId);
+    
+    allAssignments.push(...dayAssignments);
 
     // 5. Sauvegarder les assignations
     if (allAssignments.length > 0) {
@@ -256,7 +233,7 @@ serve(async (req) => {
     console.log(`\n👥 Assigning 1R and 2F responsibilities for closed sites...`);
     await assignResponsablesForClosedSites(
       supabaseServiceRole,
-      days,
+      [single_day],
       sites,
       secretaires,
       weekStartStr,
@@ -269,7 +246,7 @@ serve(async (req) => {
       success: true,
       planning_id: planningId,
       assignments_count: allAssignments.length,
-      days_processed: days.length
+      days_processed: 1
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

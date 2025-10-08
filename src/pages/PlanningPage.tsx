@@ -876,39 +876,46 @@ export default function PlanningPage() {
     }
     
     try {
-      const dateDebut = selectedDates && selectedDates.length > 0 
-        ? selectedDates[0] 
-        : format(currentWeekStart, 'yyyy-MM-dd');
-      const dateFin = selectedDates && selectedDates.length > 0
-        ? selectedDates[selectedDates.length - 1]
-        : format(weekEnd, 'yyyy-MM-dd');
+      // Déterminer les jours à optimiser
+      const daysToOptimize = selectedDates && selectedDates.length > 0
+        ? selectedDates
+        : weekDays.map(d => format(d, 'yyyy-MM-dd'));
 
       toast({
         title: "Optimisation MILP en cours",
-        description: selectedDates 
-          ? `Réoptimisation de ${selectedDates.length} jour${selectedDates.length > 1 ? 's' : ''}...`
-          : "L'algorithme MILP est en train de calculer le planning optimal...",
+        description: `Traitement de ${daysToOptimize.length} jour${daysToOptimize.length > 1 ? 's' : ''}...`,
       });
 
-      const { data, error } = await supabase.functions.invoke('optimize-planning-milp', {
-        body: {
-          date_debut: dateDebut,
-          date_fin: dateFin,
-          selected_dates: selectedDates,
-        },
-      });
+      let totalAssignments = 0;
+      let savedPlanningId: string | null = null;
 
-      if (error) throw error;
+      // Traiter jour par jour pour éviter les timeouts
+      for (let i = 0; i < daysToOptimize.length; i++) {
+        const day = daysToOptimize[i];
+        
+        console.log(`Optimizing day ${i + 1}/${daysToOptimize.length}: ${day}`);
+        
+        const { data, error } = await supabase.functions.invoke('optimize-planning-milp', {
+          body: {
+            single_day: day,
+          },
+        });
 
-      // Sauvegarder le planning_id
-      if (data?.planning_id) {
-        setCurrentPlanningId(data.planning_id);
-        setCurrentPlanningStatus('en_cours');
+        if (error) throw error;
+
+        // Sauvegarder le planning_id (sera le même pour tous les jours de la semaine)
+        if (data?.planning_id && !savedPlanningId) {
+          savedPlanningId = data.planning_id;
+          setCurrentPlanningId(data.planning_id);
+          setCurrentPlanningStatus('en_cours');
+        }
+
+        totalAssignments += data?.assignments_count || 0;
       }
 
       toast({
         title: "Optimisation MILP terminée",
-        description: `${data?.assignments_count || 0} assignations créées avec succès`,
+        description: `${totalAssignments} assignations créées avec succès`,
       });
 
       // Rafraîchir le planning généré
