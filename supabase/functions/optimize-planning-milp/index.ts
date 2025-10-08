@@ -12,6 +12,7 @@ const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 // Pénalités
 const PENALTY_SITE_CHANGE = 0.001;
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001; // Base pour pénalité progressive
+const PENALTY_ADMIN_BASE = 0.00001; // Base pour récompense décroissante admin
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -176,7 +177,34 @@ serve(async (req) => {
       console.log(`✓ Created planning ${planningId}`);
     }
 
-    // 4. Traiter jour par jour
+    // 4. Récupérer l'historique admin des 4 dernières semaines
+    const fourWeeksAgo = new Date(startDate);
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+    const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
+
+    const { data: adminHistory, error: adminHistError } = await supabaseServiceRole
+      .from('planning_genere')
+      .select('secretaires_ids, backups_ids, date')
+      .eq('type_assignation', 'administratif')
+      .gte('date', fourWeeksAgoStr)
+      .lt('date', startDate);
+
+    if (adminHistError) throw adminHistError;
+
+    // Compter les assignations admin par secrétaire
+    const adminCounter = new Map<string, number>();
+    for (const pg of adminHistory || []) {
+      for (const sid of pg.secretaires_ids || []) {
+        adminCounter.set(sid, (adminCounter.get(sid) || 0) + 1);
+      }
+      for (const bid of pg.backups_ids || []) {
+        adminCounter.set(bid, (adminCounter.get(bid) || 0) + 1);
+      }
+    }
+
+    console.log(`📊 Admin history: ${adminHistory?.length || 0} records found`);
+
+    // 5. Traiter jour par jour
     const allAssignments: any[] = [];
     const portEnTruieCounter = new Map<string, number>(); // secretary_id -> count
 
@@ -200,7 +228,8 @@ serve(async (req) => {
         secretaireMap,
         medecinMap,
         siteMap,
-        portEnTruieCounter
+        portEnTruieCounter,
+        adminCounter
       );
 
       // Ajouter le planning_id à chaque assignation
@@ -291,7 +320,8 @@ async function optimizeDay(
   secretaireMap: Map<string, any>,
   medecinMap: Map<string, any>,
   siteMap: Map<string, any>,
-  portEnTruieCounter: Map<string, number>
+  portEnTruieCounter: Map<string, number>,
+  adminCounter: Map<string, number>
 ): Promise<any[]> {
   const assignments: any[] = [];
 
@@ -329,7 +359,8 @@ async function optimizeDay(
       besoinsParSite,
       secretairesDispos,
       assignments, // Pour détecter les changements de site
-      portEnTruieCounter
+      portEnTruieCounter,
+      adminCounter
     );
 
     assignments.push(...periodAssignments);
@@ -458,7 +489,8 @@ function optimizePeriod(
   besoinsParSite: Map<string, any>,
   secretairesDispos: any[],
   previousAssignments: any[],
-  portEnTruieCounter: Map<string, number>
+  portEnTruieCounter: Map<string, number>,
+  adminCounter: Map<string, number>
 ): any[] {
   // 1. Construire le modèle MILP
   const model: any = {
@@ -504,6 +536,7 @@ function optimizePeriod(
       }
 
       // Pénalité changement de site (si après-midi et site différent du matin)
+      // IMPORTANT: Ne pas pénaliser si l'assignation du matin était admin
       if (periode === 'apres_midi') {
         const morningAssignment = previousAssignments.find(
           a => a.date === date && 
@@ -511,7 +544,9 @@ function optimizePeriod(
                (a.secretaires_ids?.includes(secretaire.id) || a.backups_ids?.includes(secretaire.id))
         );
         
-        if (morningAssignment && morningAssignment.site_id !== site_id) {
+        if (morningAssignment && 
+            morningAssignment.site_id !== site_id && 
+            morningAssignment.type_assignation !== 'administratif') {
           model.variables[varName].objective += PENALTY_SITE_CHANGE;
         }
       }
@@ -520,13 +555,14 @@ function optimizePeriod(
       // model.ints[varName] = 1;
     }
 
-    // Ajouter l'option administrative
+    // Ajouter l'option administrative avec récompense décroissante
     const adminSlotKey = `${secretaire.id}_admin`;
     slots.push(adminSlotKey);
     
     const adminVarName = `x_${adminSlotKey}`;
+    const adminCount = adminCounter.get(secretaire.id) || 0;
     model.variables[adminVarName] = {
-      objective: 0,
+      objective: -PENALTY_ADMIN_BASE / Math.pow(2, adminCount),  // Décroît avec les assignations
       [`cap_${secretaire.id}`]: 1
     };
     // LP mode: integers disabled for performance
@@ -560,6 +596,7 @@ function optimizePeriod(
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
     const floorBesoin = Math.floor(besoinValue);
+    const ceilBesoin = Math.ceil(besoinValue);
     
     // Variable Σx (somme des assignations)
     const sumXVar = `sum_x_${besoinKey}`;
@@ -578,11 +615,11 @@ function optimizePeriod(
       min: 0  // Force ecart >= 0, donc Σx <= besoin
     };
 
-    // Variable binaire bonus (activée si Σx >= floor(besoin))
+    // Variable binaire bonus floor (activée si Σx >= floor(besoin))
     if (floorBesoin > 0) {
       const bonusVar = `bonus_${besoinKey}`;
       model.variables[bonusVar] = {
-        objective: -0.1,  // Bonus de 0.1 dans l'objectif
+        objective: -50,  // Bonus de 50 dans l'objectif
         [`bonus_constraint_${besoinKey}`]: -floorBesoin
       };
       model.ints[bonusVar] = 1; // Variable binaire
@@ -592,14 +629,29 @@ function optimizePeriod(
       model.constraints[`bonus_constraint_${besoinKey}`] = { min: 0 };
     }
 
+    // Variable binaire bonus exact (activée si Σx = ceil(besoin))
+    if (ceilBesoin > floorBesoin) {
+      const exactVar = `exact_${besoinKey}`;
+      model.variables[exactVar] = {
+        objective: -20,  // Bonus de 20 si Σx = ceil(besoin)
+        [`exact_constraint_${besoinKey}`]: -ceilBesoin
+      };
+      model.ints[exactVar] = 1; // Variable binaire
+      
+      // Contrainte: Σx - ceil(besoin) * exact >= 0
+      // Si exact=1, alors Σx >= ceil(besoin)
+      // Combiné avec max: ceil(besoin), ça force Σx = ceil(besoin)
+      model.constraints[`exact_constraint_${besoinKey}`] = { min: 0 };
+    }
+
     // Contrainte: Σx définie par les variables x
     model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
     
     // Contrainte: ecart = besoin - Σx
     model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
     
-    // Contrainte: Σx ≤ besoin (pas d'arrondi pour garder ratio <= 1)
-    model.constraints[`besoin_${besoinKey}`] = { max: besoinValue };
+    // Contrainte: Σx ≤ ceil(besoin) pour empêcher sur-allocation
+    model.constraints[`besoin_${besoinKey}`] = { max: ceilBesoin };
   }
 
   // 4. Résoudre
@@ -621,7 +673,8 @@ function optimizePeriod(
       relaxedSolution,
       besoinsParSite,
       secretairesDispos,
-      portEnTruieCounter
+      portEnTruieCounter,
+      adminCounter
     );
   }
 
@@ -635,7 +688,8 @@ function optimizePeriod(
     solution,
     besoinsParSite,
     secretairesDispos,
-    portEnTruieCounter
+    portEnTruieCounter,
+    adminCounter
   );
 }
 
@@ -646,7 +700,8 @@ function parseAssignmentsFromSolution(
   solution: any,
   besoinsParSite: Map<string, any>,
   secretairesDispos: any[],
-  portEnTruieCounter: Map<string, number>
+  portEnTruieCounter: Map<string, number>,
+  adminCounter: Map<string, number>
 ): any[] {
   // Regrouper les secrétaires par site (en s'assurant qu'une secrétaire n'apparaît qu'une fois)
   const assignmentsBySite = new Map<string, string[]>(); // site_id -> secretary_ids
