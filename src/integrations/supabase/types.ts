@@ -938,6 +938,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      has_planning_or_admin_access: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
