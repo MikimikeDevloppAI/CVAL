@@ -566,8 +566,8 @@ function optimizePeriod(
       objective: -PENALTY_ADMIN_BASE / Math.pow(2, adminCount),  // Décroît avec les assignations
       [`cap_${secretaire.id}`]: 1
     };
-    // Keep admin variable continuous to reduce MILP complexity
-    // model.ints[adminVarName] = 1;
+    // Force admin variable to be binary (0 or 1)
+    model.ints[adminVarName] = 1;
 
     slotsBySecretary.set(secretaire.id, slots);
   }
