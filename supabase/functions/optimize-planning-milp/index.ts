@@ -56,7 +56,10 @@ serve(async (req) => {
         .eq('date', single_day)
         .eq('actif', true),
       supabaseServiceRole.from('besoin_effectif')
-        .select('*')
+        .select(`
+          *,
+          bloc_operatoire_besoins(specialite_id, nombre_secretaires_requis)
+        `)
         .eq('date', single_day)
         .eq('actif', true)
     ]);
@@ -362,12 +365,21 @@ function calculateBesoins(
       continue;
     }
 
-    // Récupérer la spécialité depuis le site
-    const site = siteMap.get(besoin.site_id);
-    const specialite_id = site?.specialite_id || 'default';
+    // Récupérer la spécialité
+    let specialite_id: string;
+    
+    if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoins) {
+      // Pour le bloc opératoire, utiliser la spécialité du besoin
+      specialite_id = besoin.bloc_operatoire_besoins.specialite_id;
+    } else {
+      // Pour les médecins, utiliser la spécialité du site
+      const site = siteMap.get(besoin.site_id);
+      specialite_id = site?.specialite_id || 'default';
+    }
+    
     const key = `${besoin.site_id}|${specialite_id}`;
     
-    console.log(`    📍 Besoin: site=${besoin.site_id.slice(0, 8)}, specialite=${specialite_id?.slice(0, 8) || 'default'}, key=${key.slice(0, 30)}`);
+    console.log(`    📍 Besoin: site=${besoin.site_id.slice(0, 8)}, type=${besoin.type}, specialite=${specialite_id?.slice(0, 8) || 'default'}, key=${key.slice(0, 30)}`);
     
     if (!besoinsMap.has(key)) {
       besoinsMap.set(key, {
@@ -402,7 +414,11 @@ function calculateBesoins(
         periodeTime.heure_debut,
         periodeTime.heure_fin
       );
-      entry.besoin += (besoin.nombre_secretaires_requis || 1) * proportion;
+      // Utiliser nombre_secretaires_requis depuis bloc_operatoire_besoins
+      const nbSecretairesRequis = besoin.bloc_operatoire_besoins?.nombre_secretaires_requis || 1;
+      entry.besoin += nbSecretairesRequis * proportion;
+      
+      console.log(`    🏥 Bloc opératoire: specialite=${specialite_id.slice(0,8)}, besoin_requis=${nbSecretairesRequis}, proportion=${proportion.toFixed(2)}, total_besoin=${(nbSecretairesRequis * proportion).toFixed(2)}`);
     }
   }
 
