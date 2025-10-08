@@ -612,9 +612,9 @@ function optimizePeriod(
   }
 
   // 3. Contraintes
-  // 3a. Chaque secrétaire max 1 assignation
+  // 3a. Chaque secrétaire DOIT avoir exactement 1 assignation (site ou admin)
   for (const secretaire of secretairesDispos) {
-    model.constraints[`cap_${secretaire.id}`] = { max: 1 };
+    model.constraints[`cap_${secretaire.id}`] = { equal: 1 };
   }
 
   // 3b. Pour chaque besoin: pénalité de sous-allocation
