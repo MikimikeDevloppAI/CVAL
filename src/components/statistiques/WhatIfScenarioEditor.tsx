@@ -32,22 +32,15 @@ export function WhatIfScenarioEditor() {
   
   // New doctor form
   const [newDoctor, setNewDoctor] = useState({
-    name: '',
     specialite_id: '',
     besoin_secretaires: 1.2,
-    selectedJours: new Set<number>(),
-    demiJournee: 'both' as 'both' | 'matin' | 'apres_midi',
-    heure_debut: '08:00',
-    heure_fin: '17:00',
+    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(), // jour -> période
   });
 
   // New secretary form
   const [newSecretary, setNewSecretary] = useState({
-    name: '',
     selectedSpecialites: new Set<string>(),
-    selectedJours: new Set<number>(),
-    heure_debut: '08:00',
-    heure_fin: '17:00',
+    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(), // jour -> période
   });
 
   useEffect(() => {
@@ -66,14 +59,16 @@ export function WhatIfScenarioEditor() {
   };
 
   const addFictionalDoctor = () => {
-    if (!newDoctor.name || !newDoctor.specialite_id || newDoctor.selectedJours.size === 0) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
+    if (!newDoctor.specialite_id || newDoctor.selectedJours.size === 0) {
+      toast.error('Veuillez sélectionner une spécialité et au moins un jour');
       return;
     }
 
-    const horaires = Array.from(newDoctor.selectedJours).map(jour => {
-      if (newDoctor.demiJournee === 'both') {
-        return [
+    const horaires: FictionalDoctor['horaires'] = [];
+    
+    for (const [jour, periode] of newDoctor.selectedJours.entries()) {
+      if (periode === 'both') {
+        horaires.push(
           {
             jour_semaine: jour,
             demi_journee: 'matin' as const,
@@ -85,21 +80,22 @@ export function WhatIfScenarioEditor() {
             demi_journee: 'apres_midi' as const,
             heure_debut: '13:00',
             heure_fin: '17:00',
-          },
-        ];
+          }
+        );
       } else {
-        return [{
+        horaires.push({
           jour_semaine: jour,
-          demi_journee: newDoctor.demiJournee,
-          heure_debut: newDoctor.demiJournee === 'matin' ? '08:00' : '13:00',
-          heure_fin: newDoctor.demiJournee === 'matin' ? '12:00' : '17:00',
-        }];
+          demi_journee: periode,
+          heure_debut: periode === 'matin' ? '08:00' : '13:00',
+          heure_fin: periode === 'matin' ? '12:00' : '17:00',
+        });
       }
-    }).flat();
+    }
 
+    const doctorNumber = scenario.fictionalDoctors.length + 1;
     const doctor: FictionalDoctor = {
       id: `fictional-doctor-${Date.now()}`,
-      name: newDoctor.name,
+      name: `Médecin fictif ${doctorNumber}`,
       specialite_id: newDoctor.specialite_id,
       besoin_secretaires: newDoctor.besoin_secretaires,
       horaires,
@@ -111,33 +107,48 @@ export function WhatIfScenarioEditor() {
     }));
 
     setNewDoctor({
-      name: '',
       specialite_id: '',
       besoin_secretaires: 1.2,
-      selectedJours: new Set(),
-      demiJournee: 'both',
-      heure_debut: '08:00',
-      heure_fin: '17:00',
+      selectedJours: new Map(),
     });
 
     toast.success('Médecin fictif ajouté');
   };
 
   const addFictionalSecretary = () => {
-    if (!newSecretary.name || newSecretary.selectedSpecialites.size === 0 || newSecretary.selectedJours.size === 0) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
+    if (newSecretary.selectedSpecialites.size === 0 || newSecretary.selectedJours.size === 0) {
+      toast.error('Veuillez sélectionner au moins une spécialité et un jour');
       return;
     }
 
-    const horaires = Array.from(newSecretary.selectedJours).map(jour => ({
-      jour_semaine: jour,
-      heure_debut: newSecretary.heure_debut,
-      heure_fin: newSecretary.heure_fin,
-    }));
+    const horaires: FictionalSecretary['horaires'] = [];
+    
+    for (const [jour, periode] of newSecretary.selectedJours.entries()) {
+      if (periode === 'both') {
+        horaires.push({
+          jour_semaine: jour,
+          heure_debut: '08:00',
+          heure_fin: '17:00',
+        });
+      } else if (periode === 'matin') {
+        horaires.push({
+          jour_semaine: jour,
+          heure_debut: '08:00',
+          heure_fin: '12:00',
+        });
+      } else {
+        horaires.push({
+          jour_semaine: jour,
+          heure_debut: '13:00',
+          heure_fin: '17:00',
+        });
+      }
+    }
 
+    const secretaryNumber = scenario.fictionalSecretaries.length + 1;
     const secretary: FictionalSecretary = {
       id: `fictional-secretary-${Date.now()}`,
-      name: newSecretary.name,
+      name: `Secrétaire fictive ${secretaryNumber}`,
       specialites: Array.from(newSecretary.selectedSpecialites),
       horaires,
     };
@@ -148,11 +159,8 @@ export function WhatIfScenarioEditor() {
     }));
 
     setNewSecretary({
-      name: '',
       selectedSpecialites: new Set(),
-      selectedJours: new Set(),
-      heure_debut: '08:00',
-      heure_fin: '17:00',
+      selectedJours: new Map(),
     });
 
     toast.success('Secrétaire fictive ajoutée');
@@ -236,27 +244,27 @@ export function WhatIfScenarioEditor() {
     }));
   };
 
-  const toggleJourDoctor = (jour: number) => {
+  const toggleJourDoctor = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
     setNewDoctor(prev => {
-      const newSet = new Set(prev.selectedJours);
-      if (newSet.has(jour)) {
-        newSet.delete(jour);
+      const newMap = new Map(prev.selectedJours);
+      if (newMap.get(jour) === periode) {
+        newMap.delete(jour);
       } else {
-        newSet.add(jour);
+        newMap.set(jour, periode);
       }
-      return { ...prev, selectedJours: newSet };
+      return { ...prev, selectedJours: newMap };
     });
   };
 
-  const toggleJourSecretary = (jour: number) => {
+  const toggleJourSecretary = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
     setNewSecretary(prev => {
-      const newSet = new Set(prev.selectedJours);
-      if (newSet.has(jour)) {
-        newSet.delete(jour);
+      const newMap = new Map(prev.selectedJours);
+      if (newMap.get(jour) === periode) {
+        newMap.delete(jour);
       } else {
-        newSet.add(jour);
+        newMap.set(jour, periode);
       }
-      return { ...prev, selectedJours: newSet };
+      return { ...prev, selectedJours: newMap };
     });
   };
 
@@ -280,59 +288,58 @@ export function WhatIfScenarioEditor() {
           <CardDescription>Simulez l'ajout d'un nouveau médecin avec ses besoins</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Nom du médecin</Label>
-              <Input
-                value={newDoctor.name}
-                onChange={e => setNewDoctor(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Dr. Dupont"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Spécialité</Label>
-              <Select value={newDoctor.specialite_id} onValueChange={value => setNewDoctor(prev => ({ ...prev, specialite_id: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une spécialité" />
-                </SelectTrigger>
-                <SelectContent>
-                  {specialites.map(spec => (
-                    <SelectItem key={spec.id} value={spec.id}>{spec.nom}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label>Jours de travail</Label>
-            <div className="flex gap-2">
-              {JOURS_SEMAINE.map(jour => (
-                <Button
-                  key={jour.value}
-                  type="button"
-                  variant={newDoctor.selectedJours.has(jour.value) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => toggleJourDoctor(jour.value)}
-                >
-                  {jour.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Demi-journée</Label>
-            <Select value={newDoctor.demiJournee} onValueChange={value => setNewDoctor(prev => ({ ...prev, demiJournee: value as any }))}>
+            <Label>Spécialité</Label>
+            <Select value={newDoctor.specialite_id} onValueChange={value => setNewDoctor(prev => ({ ...prev, specialite_id: value }))}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Choisir une spécialité" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="both">Journée complète</SelectItem>
-                <SelectItem value="matin">Matin uniquement</SelectItem>
-                <SelectItem value="apres_midi">Après-midi uniquement</SelectItem>
+                {specialites.map(spec => (
+                  <SelectItem key={spec.id} value={spec.id}>{spec.nom}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Jours de travail (cliquez pour sélectionner la période)</Label>
+            <div className="space-y-2">
+              {JOURS_SEMAINE.map(jour => {
+                const periode = newDoctor.selectedJours.get(jour.value);
+                return (
+                  <div key={jour.value} className="flex items-center gap-2">
+                    <span className="w-24 text-sm font-medium">{jour.label}</span>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant={periode === 'matin' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourDoctor(jour.value, 'matin')}
+                      >
+                        Matin
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={periode === 'apres_midi' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourDoctor(jour.value, 'apres_midi')}
+                      >
+                        Après-midi
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={periode === 'both' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourDoctor(jour.value, 'both')}
+                      >
+                        Journée
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -379,15 +386,6 @@ export function WhatIfScenarioEditor() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Nom de la secrétaire</Label>
-            <Input
-              value={newSecretary.name}
-              onChange={e => setNewSecretary(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Marie Martin"
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label>Spécialités (plusieurs possibles)</Label>
             <div className="flex flex-wrap gap-2">
               {specialites.map(spec => (
@@ -404,38 +402,42 @@ export function WhatIfScenarioEditor() {
           </div>
 
           <div className="space-y-2">
-            <Label>Jours de travail</Label>
-            <div className="flex gap-2">
-              {JOURS_SEMAINE.map(jour => (
-                <Button
-                  key={jour.value}
-                  type="button"
-                  variant={newSecretary.selectedJours.has(jour.value) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => toggleJourSecretary(jour.value)}
-                >
-                  {jour.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+            <Label>Jours de travail (cliquez pour sélectionner la période)</Label>
             <div className="space-y-2">
-              <Label>Heure de début</Label>
-              <Input
-                type="time"
-                value={newSecretary.heure_debut}
-                onChange={e => setNewSecretary(prev => ({ ...prev, heure_debut: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Heure de fin</Label>
-              <Input
-                type="time"
-                value={newSecretary.heure_fin}
-                onChange={e => setNewSecretary(prev => ({ ...prev, heure_fin: e.target.value }))}
-              />
+              {JOURS_SEMAINE.map(jour => {
+                const periode = newSecretary.selectedJours.get(jour.value);
+                return (
+                  <div key={jour.value} className="flex items-center gap-2">
+                    <span className="w-24 text-sm font-medium">{jour.label}</span>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant={periode === 'matin' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourSecretary(jour.value, 'matin')}
+                      >
+                        Matin
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={periode === 'apres_midi' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourSecretary(jour.value, 'apres_midi')}
+                      >
+                        Après-midi
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={periode === 'both' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleJourSecretary(jour.value, 'both')}
+                      >
+                        Journée
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
