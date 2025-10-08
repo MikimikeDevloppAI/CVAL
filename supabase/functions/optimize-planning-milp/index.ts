@@ -504,7 +504,29 @@ function optimizePeriod(
 
   const slotsBySecretary = new Map<string, string[]>(); // secretary_id -> [slot_keys]
 
-  // 2. Créer les créneaux possibles pour chaque secrétaire
+  // 2. Pré-sélectionner un top-K de secrétaires par besoin pour réduire la taille du MILP
+  const allowedSecretariesByBesoin = new Map<string, Set<string>>();
+  for (const [besoinKey, besoin] of besoinsParSite) {
+    const [site_id, specialite_id] = besoinKey.split('|');
+
+    // Candidats compatibles par spécialité
+    const candidates = secretairesDispos.filter(s => (
+      specialite_id === 'default' || s.specialites?.includes(specialite_id)
+    ));
+
+    // Score simple: préférentiel site en premier, moins d'historique admin ensuite
+    const scored = candidates.map(s => ({
+      s,
+      score: (s.site_preferentiel_id === site_id ? -1 : 0) + (adminCounter.get(s.id) || 0) * 0.01,
+    }));
+    scored.sort((a, b) => a.score - b.score);
+
+    const K = Math.min(scored.length, Math.max(3, Math.ceil(besoin.besoin) + 2));
+    const top = scored.slice(0, K).map(x => x.s.id);
+    allowedSecretariesByBesoin.set(besoinKey, new Set(top));
+  }
+
+  // 3. Créer les créneaux possibles pour chaque secrétaire
   for (const secretaire of secretairesDispos) {
     const slots: string[] = [];
 
@@ -517,6 +539,13 @@ function optimizePeriod(
       if (!hasSpeciality) {
         continue;
       }
+
+      // Limiter aux meilleurs candidats pour ce besoin (réduction MILP)
+      const allowedSet = allowedSecretariesByBesoin.get(besoinKey);
+      if (!allowedSet?.has(secretaire.id)) {
+        continue;
+      }
+
 
       const slotKey = `${secretaire.id}_${site_id}_${specialite_id}`;
       slots.push(slotKey);
@@ -576,13 +605,10 @@ function optimizePeriod(
   const compatibleSecretariesByBesoin = new Map<string, number>();
   for (const [besoinKey] of besoinsParSite) {
     const [site_id, specialite_id] = besoinKey.split('|');
-    let count = 0;
-    for (const secretaire of secretairesDispos) {
-      const hasSpeciality = specialite_id === 'default' || secretaire.specialites?.includes(specialite_id);
-      if (hasSpeciality) count++;
-    }
+    const allowedSet = allowedSecretariesByBesoin.get(besoinKey) || new Set<string>();
+    const count = allowedSet.size;
     compatibleSecretariesByBesoin.set(besoinKey, count);
-    console.log(`      ✓ Site ${site_id.slice(0, 8)} (spec: ${specialite_id?.slice(0, 8) || 'default'}) → ${count} secrétaires compatibles`);
+    console.log(`      ✓ Site ${site_id.slice(0, 8)} (spec: ${specialite_id?.slice(0, 8) || 'default'}) → ${count} secrétaires compatibles (pré-sélection)`);
   }
 
   // 3. Contraintes
