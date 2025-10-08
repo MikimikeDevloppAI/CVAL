@@ -22,6 +22,7 @@ import HomePage from "./pages/HomePage";
 import UsersPage from "./pages/UsersPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import UpdatePasswordPage from "./pages/UpdatePasswordPage";
+import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +83,7 @@ const App = () => (
                         <UsersPage />
                       </AdminProtectedRoute>
                     } />
+                    <Route path="/settings" element={<SettingsPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>

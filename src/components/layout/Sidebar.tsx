@@ -34,8 +34,9 @@ const planningItems = [
   { name: 'Backup', href: '/backup', icon: UserCog },
   { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
-  { name: 'Paramètres', href: '#', icon: Settings },
 ];
+
+const settingsItem = { name: 'Paramètres', href: '/settings', icon: Settings };
 
 export const Sidebar = () => {
   const location = useLocation();
@@ -161,6 +162,28 @@ export const Sidebar = () => {
         )}
 
         <div className="flex-1" />
+
+        {/* Settings section */}
+        <div className="mt-4">
+          <Link
+            to={settingsItem.href}
+            onClick={onLinkClick}
+            className={cn(
+              'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              location.pathname === settingsItem.href
+                ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+            )}
+          >
+            <settingsItem.icon
+              className={cn(
+                'h-4 w-4 shrink-0 transition-colors',
+                location.pathname === settingsItem.href ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
+              )}
+            />
+            {settingsItem.name}
+          </Link>
+        </div>
 
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">

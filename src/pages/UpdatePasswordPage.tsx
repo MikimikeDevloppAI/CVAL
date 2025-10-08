@@ -14,6 +14,22 @@ export default function UpdatePasswordPage() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  const validatePassword = (password: string): { valid: boolean; message?: string } => {
+    if (password.length < 8) {
+      return { valid: false, message: 'Le mot de passe doit contenir au moins 8 caractères' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { valid: false, message: 'Le mot de passe doit contenir au moins une minuscule' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { valid: false, message: 'Le mot de passe doit contenir au moins une majuscule' };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      return { valid: false, message: 'Le mot de passe doit contenir au moins un caractère spécial' };
+    }
+    return { valid: true };
+  };
+
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -25,8 +41,9 @@ export default function UpdatePasswordPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères');
+    const validation = validatePassword(password);
+    if (!validation.valid) {
+      setError(validation.message || 'Le mot de passe ne respecte pas les critères de sécurité');
       setLoading(false);
       return;
     }
@@ -53,7 +70,7 @@ export default function UpdatePasswordPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl">Nouveau mot de passe</CardTitle>
           <CardDescription>
-            Choisissez un nouveau mot de passe pour votre compte
+            Le mot de passe doit contenir au moins 8 caractères, une minuscule, une majuscule et un caractère spécial
           </CardDescription>
         </CardHeader>
         <CardContent>
