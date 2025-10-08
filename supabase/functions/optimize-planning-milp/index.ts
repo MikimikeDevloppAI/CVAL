@@ -498,7 +498,7 @@ function optimizePeriod(
     }));
     scored.sort((a, b) => a.score - b.score);
 
-    const K = Math.min(scored.length, Math.max(3, Math.ceil(besoin.besoin) + 2));
+    const K = Math.min(scored.length, Math.max(3, Math.ceil(besoin.besoin) + 1));
     const top = scored.slice(0, K).map(x => x.s.id);
     allowedSecretariesByBesoin.set(besoinKey, new Set(top));
   }
@@ -532,8 +532,7 @@ function optimizePeriod(
       model.variables[varName] = {
         objective: 0,
         [`cap_${secretaire.id}`]: 1,     // Contrainte: max 1 assignation par secrétaire
-        [`besoin_${besoinKey}`]: 1,      // Contribue à la contrainte max (arrondi)
-        [`sum_x_${besoinKey}`]: 1        // Pour calculer Σx
+        [`besoin_${besoinKey}`]: 1       // Contribue à la contrainte max (arrondi)
       };
 
       // Pénalité Port-en-Truie (exponentielle: 0.0001 × 2^n)
@@ -594,36 +593,10 @@ function optimizePeriod(
     model.constraints[`cap_${secretaire.id}`] = { equal: 1 };
   }
 
-  // 3b. Pour chaque besoin: pénalité de sous-allocation
-  // Objectif: minimize UNDERALLOCATION_PENALTY * (besoin - Σx)
+  // 3b. Pour chaque besoin: contrainte de capacité max
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
-    const compatibleCapacity = compatibleSecretariesByBesoin.get(besoinKey) || 0;
-    const targetCapacity = Math.min(besoinValue, compatibleCapacity);
-    
-    // Variable Σx (somme des assignations)
-    const sumXVar = `sum_x_${besoinKey}`;
-    model.variables[sumXVar] = {
-      objective: 0,
-      [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
-      [`def_ecart_${besoinKey}`]: 1    // sumX + ecart = targetCapacity
-    };
-    
-    // Variable d'écart: (targetCapacity - Σx) avec pénalité forte
-    const ecartVar = `ecart_${besoinKey}`;
-    model.variables[ecartVar] = {
-      objective: UNDERALLOCATION_PENALTY, // Pénalité forte pour sous-allocation
-      [`def_ecart_${besoinKey}`]: 1,
-      min: 0  // Force ecart >= 0, donc Σx <= targetCapacity
-    };
-
-    // Contrainte: Σx définie par les variables x
-    model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
-    
-    // Contrainte: ecart = targetCapacity - Σx (min entre besoin et capacité)
-    model.constraints[`def_ecart_${besoinKey}`] = { equal: targetCapacity };
-    
-    // Contrainte: Σx ≤ ceil(besoin) pour permettre arrondi supérieur
+    // Contrainte: Σx ≤ ceil(besoin)
     model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
   }
 
@@ -631,14 +604,15 @@ function optimizePeriod(
   console.log(`    Solving MILP with ${Object.keys(model.variables).length} variables...`);
   const solution = solver.Solve(model);
 
-  if (!solution.feasible) {
-    console.log('    ⚠️ Infeasible, trying LP relaxation...');
+  if (!solution.feasible || !solution.result) {
+    console.log('    ⚠️ MILP infeasible or failed, trying LP relaxation...');
     model.ints = {};
     const relaxedSolution = solver.Solve(model);
     if (!relaxedSolution.feasible) {
-      console.log('    ❌ Still infeasible');
+      console.log('    ❌ LP also infeasible');
       return [];
     }
+    console.log('    ✅ LP fallback succeeded');
     return parseAssignmentsFromSolution(
       date,
       periode,
