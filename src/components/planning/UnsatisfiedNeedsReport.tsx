@@ -22,10 +22,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+interface SiteClosureStatus {
+  siteId: string;
+  siteName: string;
+  needsClosure: boolean;
+  isValid: boolean;
+  issues: { date: string; problems: string[] }[];
+}
+
 interface UnsatisfiedNeedsReportProps {
   assignments: AssignmentResult[];
   weekDays: Date[];
   onRefresh?: () => void;
+  closureStatuses: Map<string, SiteClosureStatus>;
 }
 
 interface UnsatisfiedNeed {
@@ -60,7 +69,7 @@ interface Suggestion {
   };
 }
 
-export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: UnsatisfiedNeedsReportProps) {
+export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closureStatuses }: UnsatisfiedNeedsReportProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNeed, setSelectedNeed] = useState<UnsatisfiedNeed | null>(null);
@@ -414,7 +423,12 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
     );
   }
 
-  if (unsatisfiedNeeds.length === 0) {
+  // Filtrer les sites avec problèmes de fermeture
+  const closureIssues = useMemo(() => {
+    return Array.from(closureStatuses.values()).filter(status => !status.isValid);
+  }, [closureStatuses]);
+
+  if (unsatisfiedNeeds.length === 0 && closureIssues.length === 0) {
     return (
       <Card className="mb-6 border-green-200 bg-green-50">
         <CardHeader>
@@ -432,10 +446,41 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh }: Uns
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <AlertCircle className="h-5 w-5" />
-            Besoins non satisfaits ({unsatisfiedNeeds.length})
+            Besoins non satisfaits ({unsatisfiedNeeds.length + closureIssues.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Problèmes de fermeture (1R/2F manquants) */}
+          {closureIssues.length > 0 && (
+            <div className="space-y-4">
+              {closureIssues.map((issue) => (
+                <div key={issue.siteId} className="border rounded-lg p-4 bg-red-50 border-red-200">
+                  <div className="font-semibold text-base mb-3 text-red-800 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    {issue.siteName} - Responsables manquants
+                  </div>
+                  <div className="space-y-2">
+                    {issue.issues.map((dayIssue, idx) => (
+                      <div key={idx} className="border rounded-lg p-3 bg-white">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-foreground">
+                            {dayIssue.date}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {dayIssue.problems.map((problem, pIdx) => (
+                              <Badge key={pIdx} variant="destructive" className="text-xs">
+                                {problem}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {/* Suggestions prioritaires - Secrétaires disponibles groupées */}
           {suggestionsBySecretary.length > 0 && suggestionsBySecretary.some(s => (s.secretaire.assigned_days - s.secretaire.base_days) === 0) && (
             <div className="border rounded-lg p-4 bg-background">

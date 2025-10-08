@@ -238,6 +238,7 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
         assignments={assignments}
         weekDays={weekDays}
         onRefresh={onRefresh}
+        closureStatuses={closureStatuses}
       />
       
       <div className="space-y-4">{groupedBySite.map(({ siteName, specialite, dayGroups }) => (
@@ -247,41 +248,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                 <span className="truncate">{siteName}</span>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Badge variant="outline">{specialite}</Badge>
-                  {closureStatuses.has(siteName) && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {closureStatuses.get(siteName)!.isValid ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200 cursor-help">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Fermeture ✓
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-red-100 text-red-800 border-red-300 hover:bg-red-200 cursor-help">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Fermeture ⚠
-                            </Badge>
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {closureStatuses.get(siteName)!.isValid ? (
-                            <p className="text-sm">
-                              Tous les jours ont exactement 1 × 1R et 1 × 2F
-                            </p>
-                          ) : (
-                            <div className="text-sm space-y-1">
-                              <p className="font-semibold">Problèmes détectés:</p>
-                              {closureStatuses.get(siteName)!.issues.map((issue, idx) => (
-                                <p key={idx}>
-                                  <span className="font-medium">{issue.date}:</span> {issue.problems.join(', ')}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                 </div>
               </CardTitle>
             </CardHeader>
