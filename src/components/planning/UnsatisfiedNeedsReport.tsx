@@ -250,6 +250,11 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closu
     }
   }, [unsatisfiedNeeds, weekDays, assignments]);
 
+  // Filtrer les sites avec problèmes de fermeture
+  const closureIssues = useMemo(() => {
+    return Array.from(closureStatuses.values()).filter(status => !status.isValid);
+  }, [closureStatuses]);
+
   // Regrouper les suggestions par secrétaire
   const suggestionsBySecretary = useMemo(() => {
     const grouped = new Map<string, { secretaire: SecretaryInfo; needs: UnsatisfiedNeed[] }>();
@@ -422,11 +427,6 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closu
       </Card>
     );
   }
-
-  // Filtrer les sites avec problèmes de fermeture
-  const closureIssues = useMemo(() => {
-    return Array.from(closureStatuses.values()).filter(status => !status.isValid);
-  }, [closureStatuses]);
 
   if (unsatisfiedNeeds.length === 0 && closureIssues.length === 0) {
     return (
