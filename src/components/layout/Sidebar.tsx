@@ -31,7 +31,6 @@ const planningItems = [
   { name: 'Absences', href: '/absences', icon: CalendarX },
   { name: 'Médecins', href: '/medecins', icon: Stethoscope },
   { name: 'Secrétaires', href: '/secretaires', icon: User },
-  { name: 'Backup', href: '/backup', icon: UserCog },
   { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
 ];
