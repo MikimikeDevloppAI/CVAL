@@ -8,7 +8,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
@@ -67,10 +67,16 @@ const BlocOperatoirePage = () => {
   }, []);
 
   const filteredBesoins = besoins.filter(besoin => {
-    const matchesSearch = besoin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           format(new Date(besoin.date), 'dd/MM/yyyy', { locale: fr }).includes(searchTerm);
+    const besoinDate = new Date(besoin.date);
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // 1 = Lundi
     
-    return matchesSearch;
+    // Ne garder que les besoins futurs (>= semaine en cours)
+    const isFuture = besoinDate >= currentWeekStart;
+    
+    const matchesSearch = besoin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           format(besoinDate, 'dd/MM/yyyy', { locale: fr }).includes(searchTerm);
+    
+    return isFuture && matchesSearch;
   });
 
   const handleFormSuccess = () => {
