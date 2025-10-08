@@ -140,50 +140,52 @@ export const Sidebar = () => {
         {/* Admin section */}
         {isAdmin && (
           <div className="mt-6 pt-6 border-t border-sidebar-border border-opacity-30">
-            <Link
-              to="/users"
-              onClick={onLinkClick}
-              className={cn(
-                'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                location.pathname === '/users'
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                  : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
-              )}
-            >
-              <Users
-                className={cn(
-                  'h-4 w-4 shrink-0 transition-colors',
-                  location.pathname === '/users' ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-                )}
-              />
-              Utilisateurs
-            </Link>
+            <ul className="space-y-1">
+              <li>
+                <Link
+                  to="/users"
+                  onClick={onLinkClick}
+                  className={cn(
+                    'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    location.pathname === '/users'
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+                  )}
+                >
+                  <Users
+                    className={cn(
+                      'h-4 w-4 shrink-0 transition-colors',
+                      location.pathname === '/users' ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
+                    )}
+                  />
+                  Utilisateurs
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={settingsItem.href}
+                  onClick={onLinkClick}
+                  className={cn(
+                    'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    location.pathname === settingsItem.href
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
+                  )}
+                >
+                  <settingsItem.icon
+                    className={cn(
+                      'h-4 w-4 shrink-0 transition-colors',
+                      location.pathname === settingsItem.href ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
+                    )}
+                  />
+                  {settingsItem.name}
+                </Link>
+              </li>
+            </ul>
           </div>
         )}
 
         <div className="flex-1" />
-
-        {/* Settings section */}
-        <div className="mt-4">
-          <Link
-            to={settingsItem.href}
-            onClick={onLinkClick}
-            className={cn(
-              'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-              location.pathname === settingsItem.href
-                ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
-            )}
-          >
-            <settingsItem.icon
-              className={cn(
-                'h-4 w-4 shrink-0 transition-colors',
-                location.pathname === settingsItem.href ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-              )}
-            />
-            {settingsItem.name}
-          </Link>
-        </div>
 
         {/* User Profile section */}
         <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
