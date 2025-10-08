@@ -13,6 +13,7 @@ const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 const PENALTY_SITE_CHANGE = 0.001;
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001; // Base pour pénalité progressive
 const PENALTY_ADMIN_BASE = 0.00001; // Base pour récompense décroissante admin
+const UNDERALLOCATION_PENALTY = 100; // Pénalité pour sous-allocation
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -590,59 +591,26 @@ function optimizePeriod(
     model.constraints[`cap_${secretaire.id}`] = { max: 1 };
   }
 
-  // 3b. Pour chaque besoin: fonction objectif avec bonus binaire
-  // Objectif: minimize (besoin - Σx) - (Σx/besoin) - bonus
-  // Bonus = 0.2 si Σx >= floor(besoin)
+  // 3b. Pour chaque besoin: pénalité de sous-allocation
+  // Objectif: minimize UNDERALLOCATION_PENALTY * (besoin - Σx)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
-    const floorBesoin = Math.floor(besoinValue);
-    const ceilBesoin = Math.ceil(besoinValue);
     
     // Variable Σx (somme des assignations)
     const sumXVar = `sum_x_${besoinKey}`;
     model.variables[sumXVar] = {
-      objective: -10 / besoinValue,    // Terme -(Σx/besoin) avec coefficient -10 pour favoriser l'équité
+      objective: 0,
       [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
-      [`def_ecart_${besoinKey}`]: 1,   // sumX + ecart = besoin
-      [`bonus_constraint_${besoinKey}`]: 1  // Pour bonus si Σx >= floor(besoin)
+      [`def_ecart_${besoinKey}`]: 1    // sumX + ecart = besoin
     };
     
-    // Variable d'écart: (besoin - Σx)
+    // Variable d'écart: (besoin - Σx) avec pénalité forte
     const ecartVar = `ecart_${besoinKey}`;
     model.variables[ecartVar] = {
-      objective: 1, // Minimiser (besoin - Σx)
+      objective: UNDERALLOCATION_PENALTY, // Pénalité forte pour sous-allocation
       [`def_ecart_${besoinKey}`]: 1,
       min: 0  // Force ecart >= 0, donc Σx <= besoin
     };
-
-    // Variable binaire bonus floor (activée si Σx >= floor(besoin))
-    if (floorBesoin > 0) {
-      const bonusVar = `bonus_${besoinKey}`;
-      model.variables[bonusVar] = {
-        objective: -50,  // Bonus de 50 dans l'objectif
-        [`bonus_constraint_${besoinKey}`]: -floorBesoin
-      };
-      model.ints[bonusVar] = 1; // Variable binaire
-      
-      // Contrainte: Σx - floor(besoin) * bonus >= 0
-      // Si bonus=1, alors Σx doit être >= floor(besoin)
-      model.constraints[`bonus_constraint_${besoinKey}`] = { min: 0 };
-    }
-
-    // Variable binaire bonus exact (activée si Σx = ceil(besoin))
-    if (ceilBesoin > floorBesoin) {
-      const exactVar = `exact_${besoinKey}`;
-      model.variables[exactVar] = {
-        objective: -20,  // Bonus de 20 si Σx = ceil(besoin)
-        [`exact_constraint_${besoinKey}`]: -ceilBesoin
-      };
-      model.ints[exactVar] = 1; // Variable binaire
-      
-      // Contrainte: Σx - ceil(besoin) * exact >= 0
-      // Si exact=1, alors Σx >= ceil(besoin)
-      // Combiné avec max: ceil(besoin), ça force Σx = ceil(besoin)
-      model.constraints[`exact_constraint_${besoinKey}`] = { min: 0 };
-    }
 
     // Contrainte: Σx définie par les variables x
     model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
@@ -650,8 +618,8 @@ function optimizePeriod(
     // Contrainte: ecart = besoin - Σx
     model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
     
-    // Contrainte: Σx ≤ ceil(besoin) pour empêcher sur-allocation
-    model.constraints[`besoin_${besoinKey}`] = { max: ceilBesoin };
+    // Contrainte: Σx ≤ besoin (exacte, pas arrondie) pour empêcher sur-allocation
+    model.constraints[`besoin_${besoinKey}`] = { max: besoinValue };
   }
 
   // 4. Résoudre
