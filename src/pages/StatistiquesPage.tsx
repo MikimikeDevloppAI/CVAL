@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { OptimizationScoreCards } from '@/components/statistiques/OptimizationScoreCards';
+import { WhatIfScenarioEditor } from '@/components/statistiques/WhatIfScenarioEditor';
 import type { OptimizationScoreParSpecialite, OptimizationDetailJour } from '@/types/baseSchedule';
 import { Loader2, Zap } from 'lucide-react';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -31,7 +32,7 @@ export default function StatistiquesPage() {
   const [detailJour, setDetailJour] = useState<JourStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [optimizationScores, setOptimizationScores] = useState<OptimizationScoreParSpecialite[]>([]);
-  const [viewMode, setViewMode] = useState<'optimization' | 'graphs'>('optimization');
+  const [viewMode, setViewMode] = useState<'optimization' | 'graphs' | 'whatif'>('optimization');
   const [isOptimizing, setIsOptimizing] = useState(false);
   const { canManage } = useCanManagePlanning();
 
@@ -301,17 +302,21 @@ export default function StatistiquesPage() {
         <div>
           <h1 className="text-3xl font-bold">Statistiques</h1>
           <p className="text-muted-foreground">
-            {viewMode === 'optimization' 
+          {viewMode === 'optimization' 
               ? 'Optimisation des horaires de base' 
-              : 'Analyse des besoins et capacités par spécialité (heures hebdomadaires)'}
+              : viewMode === 'graphs'
+              ? 'Analyse des besoins et capacités par spécialité (heures hebdomadaires)'
+              : 'Scénarios What-if : simulez l\'ajout de médecins et secrétaires'
+            }
           </p>
         </div>
         
         <div className="flex items-center gap-4">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs')} className="w-auto">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs' | 'whatif')} className="w-auto">
             <TabsList>
               <TabsTrigger value="optimization">Optimisation</TabsTrigger>
             <TabsTrigger value="graphs">Graphiques</TabsTrigger>
+            <TabsTrigger value="whatif">What-if</TabsTrigger>
           </TabsList>
         </Tabs>
         </div>
@@ -319,6 +324,10 @@ export default function StatistiquesPage() {
 
       {viewMode === 'optimization' && optimizationScores.length > 0 && (
         <OptimizationScoreCards scores={optimizationScores} />
+      )}
+
+      {viewMode === 'whatif' && (
+        <WhatIfScenarioEditor />
       )}
 
       {viewMode === 'graphs' && (

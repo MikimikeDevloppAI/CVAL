@@ -7,6 +7,9 @@ verify_jwt = false
 [functions.optimize-base-schedule-milp]
 verify_jwt = false
 
+[functions.optimize-base-schedule-milp-scenario]
+verify_jwt = false
+
 [functions.optimize-planning-milp]
 verify_jwt = false
 
