@@ -7,21 +7,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Plus, Trash2, Zap } from 'lucide-react';
+import { Loader2, Plus, Trash2, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { OptimizationScoreCards } from './OptimizationScoreCards';
 import type { FictionalDoctor, FictionalSecretary, WhatIfScenario } from '@/types/scenario';
 import type { OptimizationScoreParSpecialite } from '@/types/baseSchedule';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const JOURS_SEMAINE = [
-  { value: 1, label: 'Lundi' },
-  { value: 2, label: 'Mardi' },
-  { value: 3, label: 'Mercredi' },
-  { value: 4, label: 'Jeudi' },
-  { value: 5, label: 'Vendredi' },
+  { value: 1, label: 'L', fullLabel: 'Lundi' },
+  { value: 2, label: 'M', fullLabel: 'Mardi' },
+  { value: 3, label: 'M', fullLabel: 'Mercredi' },
+  { value: 4, label: 'J', fullLabel: 'Jeudi' },
+  { value: 5, label: 'V', fullLabel: 'Vendredi' },
 ];
 
+interface RealDoctor {
+  id: string;
+  name: string;
+  first_name: string;
+  specialite_id: string;
+  specialite_nom: string;
+  besoin_secretaires: number;
+  horaires: Array<{
+    id: string;
+    jour_semaine: number;
+    heure_debut: string;
+    heure_fin: string;
+  }>;
+}
+
+interface RealSecretary {
+  id: string;
+  name: string;
+  first_name: string;
+  specialites: Array<{ id: string; nom: string }>;
+  horaires: Array<{
+    id: string;
+    jour_semaine: number;
+    heure_debut: string;
+    heure_fin: string;
+  }>;
+}
+
 export function WhatIfScenarioEditor() {
+  const [realDoctors, setRealDoctors] = useState<RealDoctor[]>([]);
+  const [realSecretaries, setRealSecretaries] = useState<RealSecretary[]>([]);
   const [scenario, setScenario] = useState<WhatIfScenario>({
     fictionalDoctors: [],
     fictionalSecretaries: [],
@@ -30,22 +60,38 @@ export function WhatIfScenarioEditor() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState<OptimizationScoreParSpecialite[]>([]);
   
+  // Modified horaires for real doctors/secretaries
+  const [doctorHorairesModifications, setDoctorHorairesModifications] = useState<Map<string, Map<number, 'both' | 'matin' | 'apres_midi' | null>>>(new Map());
+  const [secretaryHorairesModifications, setSecretaryHorairesModifications] = useState<Map<string, Map<number, 'both' | 'matin' | 'apres_midi' | null>>>(new Map());
+  
+  // Expanded states
+  const [expandedDoctors, setExpandedDoctors] = useState<Set<string>>(new Set());
+  const [expandedSecretaries, setExpandedSecretaries] = useState<Set<string>>(new Set());
+  
+  // Show add forms
+  const [showAddDoctor, setShowAddDoctor] = useState(false);
+  const [showAddSecretary, setShowAddSecretary] = useState(false);
+  
   // New doctor form
   const [newDoctor, setNewDoctor] = useState({
     specialite_id: '',
     besoin_secretaires: 1.2,
-    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(), // jour -> période
+    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(),
   });
 
   // New secretary form
   const [newSecretary, setNewSecretary] = useState({
     selectedSpecialites: new Set<string>(),
-    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(), // jour -> période
+    selectedJours: new Map<number, 'both' | 'matin' | 'apres_midi'>(),
   });
 
   useEffect(() => {
-    fetchSpecialites();
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    await Promise.all([fetchSpecialites(), fetchRealDoctors(), fetchRealSecretaries()]);
+  };
 
   const fetchSpecialites = async () => {
     const { data, error } = await supabase
@@ -56,6 +102,176 @@ export function WhatIfScenarioEditor() {
     if (!error && data) {
       setSpecialites(data);
     }
+  };
+
+  const fetchRealDoctors = async () => {
+    const { data: medecins, error: medError } = await supabase
+      .from('medecins')
+      .select('id, name, first_name, specialite_id, besoin_secretaires, specialites(nom), actif')
+      .eq('actif', true);
+
+    if (medError || !medecins) return;
+
+    const { data: horaires, error: horError } = await supabase
+      .from('horaires_base_medecins')
+      .select('*')
+      .eq('actif', true);
+
+    if (horError || !horaires) return;
+
+    const doctors = medecins.map(m => ({
+      id: m.id,
+      name: m.name || '',
+      first_name: m.first_name || '',
+      specialite_id: m.specialite_id,
+      specialite_nom: (m.specialites as any)?.nom || 'Inconnue',
+      besoin_secretaires: m.besoin_secretaires || 1.2,
+      horaires: horaires
+        .filter(h => h.medecin_id === m.id)
+        .map(h => ({
+          id: h.id,
+          jour_semaine: h.jour_semaine,
+          heure_debut: h.heure_debut,
+          heure_fin: h.heure_fin,
+        })),
+    }));
+
+    setRealDoctors(doctors);
+  };
+
+  const fetchRealSecretaries = async () => {
+    const { data: secretaires, error: secError } = await supabase
+      .from('secretaires')
+      .select('id, name, first_name, specialites, actif')
+      .eq('actif', true);
+
+    if (secError || !secretaires) return;
+
+    const { data: horaires, error: horError } = await supabase
+      .from('horaires_base_secretaires')
+      .select('*')
+      .eq('actif', true);
+
+    if (horError || !horaires) return;
+
+    const { data: allSpecialites } = await supabase
+      .from('specialites')
+      .select('id, nom');
+
+    const specMap = new Map((allSpecialites || []).map(s => [s.id, s.nom]));
+
+    const secretaries = secretaires.map(s => ({
+      id: s.id,
+      name: s.name || '',
+      first_name: s.first_name || '',
+      specialites: (s.specialites || []).map((specId: string) => ({
+        id: specId,
+        nom: specMap.get(specId) || 'Inconnue',
+      })),
+      horaires: horaires
+        .filter(h => h.secretaire_id === s.id)
+        .map(h => ({
+          id: h.id,
+          jour_semaine: h.jour_semaine,
+          heure_debut: h.heure_debut,
+          heure_fin: h.heure_fin,
+        })),
+    }));
+
+    setRealSecretaries(secretaries);
+  };
+
+  const getPeriodeForHoraire = (heure_debut: string, heure_fin: string): 'matin' | 'apres_midi' | 'both' => {
+    const debut = parseTime(heure_debut);
+    const fin = parseTime(heure_fin);
+    
+    const matin = { debut: parseTime('07:30'), fin: parseTime('12:00') };
+    const apresMidi = { debut: parseTime('13:00'), fin: parseTime('17:00') };
+    
+    const overlapMatin = Math.max(0, Math.min(fin, matin.fin) - Math.max(debut, matin.debut));
+    const overlapApresMidi = Math.max(0, Math.min(fin, apresMidi.fin) - Math.max(debut, apresMidi.debut));
+    
+    if (overlapMatin >= 60 && overlapApresMidi >= 60) return 'both';
+    if (overlapMatin >= 60) return 'matin';
+    if (overlapApresMidi >= 60) return 'apres_midi';
+    return 'both';
+  };
+
+  const parseTime = (timeStr: string): number => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const getDoctorJourStatus = (doctor: RealDoctor, jour: number): 'both' | 'matin' | 'apres_midi' | null => {
+    const modifications = doctorHorairesModifications.get(doctor.id);
+    if (modifications?.has(jour)) {
+      return modifications.get(jour)!;
+    }
+    
+    const horairesDuJour = doctor.horaires.filter(h => h.jour_semaine === jour);
+    if (horairesDuJour.length === 0) return null;
+    
+    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.heure_debut, h.heure_fin));
+    if (periodes.includes('both')) return 'both';
+    if (periodes.includes('matin') && periodes.includes('apres_midi')) return 'both';
+    if (periodes.includes('matin')) return 'matin';
+    if (periodes.includes('apres_midi')) return 'apres_midi';
+    return null;
+  };
+
+  const getSecretaryJourStatus = (secretary: RealSecretary, jour: number): 'both' | 'matin' | 'apres_midi' | null => {
+    const modifications = secretaryHorairesModifications.get(secretary.id);
+    if (modifications?.has(jour)) {
+      return modifications.get(jour)!;
+    }
+    
+    const horairesDuJour = secretary.horaires.filter(h => h.jour_semaine === jour);
+    if (horairesDuJour.length === 0) return null;
+    
+    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.heure_debut, h.heure_fin));
+    if (periodes.includes('both')) return 'both';
+    if (periodes.includes('matin') && periodes.includes('apres_midi')) return 'both';
+    if (periodes.includes('matin')) return 'matin';
+    if (periodes.includes('apres_midi')) return 'apres_midi';
+    return null;
+  };
+
+  const toggleDoctorJour = (doctorId: string, jour: number, newPeriode: 'both' | 'matin' | 'apres_midi') => {
+    setDoctorHorairesModifications(prev => {
+      const newMap = new Map(prev);
+      if (!newMap.has(doctorId)) {
+        newMap.set(doctorId, new Map());
+      }
+      const doctorMods = newMap.get(doctorId)!;
+      
+      const currentStatus = getDoctorJourStatus(realDoctors.find(d => d.id === doctorId)!, jour);
+      if (currentStatus === newPeriode) {
+        doctorMods.set(jour, null);
+      } else {
+        doctorMods.set(jour, newPeriode);
+      }
+      
+      return newMap;
+    });
+  };
+
+  const toggleSecretaryJour = (secretaryId: string, jour: number, newPeriode: 'both' | 'matin' | 'apres_midi') => {
+    setSecretaryHorairesModifications(prev => {
+      const newMap = new Map(prev);
+      if (!newMap.has(secretaryId)) {
+        newMap.set(secretaryId, new Map());
+      }
+      const secretaryMods = newMap.get(secretaryId)!;
+      
+      const currentStatus = getSecretaryJourStatus(realSecretaries.find(s => s.id === secretaryId)!, jour);
+      if (currentStatus === newPeriode) {
+        secretaryMods.set(jour, null);
+      } else {
+        secretaryMods.set(jour, newPeriode);
+      }
+      
+      return newMap;
+    });
   };
 
   const addFictionalDoctor = () => {
@@ -69,18 +285,8 @@ export function WhatIfScenarioEditor() {
     for (const [jour, periode] of newDoctor.selectedJours.entries()) {
       if (periode === 'both') {
         horaires.push(
-          {
-            jour_semaine: jour,
-            demi_journee: 'matin' as const,
-            heure_debut: '08:00',
-            heure_fin: '12:00',
-          },
-          {
-            jour_semaine: jour,
-            demi_journee: 'apres_midi' as const,
-            heure_debut: '13:00',
-            heure_fin: '17:00',
-          }
+          { jour_semaine: jour, demi_journee: 'matin' as const, heure_debut: '08:00', heure_fin: '12:00' },
+          { jour_semaine: jour, demi_journee: 'apres_midi' as const, heure_debut: '13:00', heure_fin: '17:00' }
         );
       } else {
         horaires.push({
@@ -101,17 +307,9 @@ export function WhatIfScenarioEditor() {
       horaires,
     };
 
-    setScenario(prev => ({
-      ...prev,
-      fictionalDoctors: [...prev.fictionalDoctors, doctor],
-    }));
-
-    setNewDoctor({
-      specialite_id: '',
-      besoin_secretaires: 1.2,
-      selectedJours: new Map(),
-    });
-
+    setScenario(prev => ({ ...prev, fictionalDoctors: [...prev.fictionalDoctors, doctor] }));
+    setNewDoctor({ specialite_id: '', besoin_secretaires: 1.2, selectedJours: new Map() });
+    setShowAddDoctor(false);
     toast.success('Médecin fictif ajouté');
   };
 
@@ -125,23 +323,11 @@ export function WhatIfScenarioEditor() {
     
     for (const [jour, periode] of newSecretary.selectedJours.entries()) {
       if (periode === 'both') {
-        horaires.push({
-          jour_semaine: jour,
-          heure_debut: '08:00',
-          heure_fin: '17:00',
-        });
+        horaires.push({ jour_semaine: jour, heure_debut: '08:00', heure_fin: '17:00' });
       } else if (periode === 'matin') {
-        horaires.push({
-          jour_semaine: jour,
-          heure_debut: '08:00',
-          heure_fin: '12:00',
-        });
+        horaires.push({ jour_semaine: jour, heure_debut: '08:00', heure_fin: '12:00' });
       } else {
-        horaires.push({
-          jour_semaine: jour,
-          heure_debut: '13:00',
-          heure_fin: '17:00',
-        });
+        horaires.push({ jour_semaine: jour, heure_debut: '13:00', heure_fin: '17:00' });
       }
     }
 
@@ -153,34 +339,96 @@ export function WhatIfScenarioEditor() {
       horaires,
     };
 
-    setScenario(prev => ({
-      ...prev,
-      fictionalSecretaries: [...prev.fictionalSecretaries, secretary],
-    }));
-
-    setNewSecretary({
-      selectedSpecialites: new Set(),
-      selectedJours: new Map(),
-    });
-
+    setScenario(prev => ({ ...prev, fictionalSecretaries: [...prev.fictionalSecretaries, secretary] }));
+    setNewSecretary({ selectedSpecialites: new Set(), selectedJours: new Map() });
+    setShowAddSecretary(false);
     toast.success('Secrétaire fictive ajoutée');
   };
 
   const runOptimization = async () => {
-    if (scenario.fictionalDoctors.length === 0 && scenario.fictionalSecretaries.length === 0) {
-      toast.error('Ajoutez au moins un médecin ou une secrétaire fictive');
-      return;
-    }
-
     setIsOptimizing(true);
     try {
+      // Build scenario with modifications
+      const modifiedScenario: WhatIfScenario = {
+        fictionalDoctors: [...scenario.fictionalDoctors],
+        fictionalSecretaries: [...scenario.fictionalSecretaries],
+      };
+
+      // Add modified real doctors as fictional
+      for (const [doctorId, modifications] of doctorHorairesModifications) {
+        if (modifications.size === 0) continue;
+        
+        const doctor = realDoctors.find(d => d.id === doctorId);
+        if (!doctor) continue;
+
+        const horaires: FictionalDoctor['horaires'] = [];
+        for (let jour = 1; jour <= 5; jour++) {
+          const status = getDoctorJourStatus(doctor, jour);
+          if (!status) continue;
+
+          if (status === 'both') {
+            horaires.push(
+              { jour_semaine: jour, demi_journee: 'matin', heure_debut: '08:00', heure_fin: '12:00' },
+              { jour_semaine: jour, demi_journee: 'apres_midi', heure_debut: '13:00', heure_fin: '17:00' }
+            );
+          } else {
+            horaires.push({
+              jour_semaine: jour,
+              demi_journee: status,
+              heure_debut: status === 'matin' ? '08:00' : '13:00',
+              heure_fin: status === 'matin' ? '12:00' : '17:00',
+            });
+          }
+        }
+
+        if (horaires.length > 0) {
+          modifiedScenario.fictionalDoctors.push({
+            id: `modified-${doctorId}`,
+            name: `${doctor.first_name} ${doctor.name} (modifié)`,
+            specialite_id: doctor.specialite_id,
+            besoin_secretaires: doctor.besoin_secretaires,
+            horaires,
+          });
+        }
+      }
+
+      // Add modified real secretaries as fictional
+      for (const [secretaryId, modifications] of secretaryHorairesModifications) {
+        if (modifications.size === 0) continue;
+        
+        const secretary = realSecretaries.find(s => s.id === secretaryId);
+        if (!secretary) continue;
+
+        const horaires: FictionalSecretary['horaires'] = [];
+        for (let jour = 1; jour <= 5; jour++) {
+          const status = getSecretaryJourStatus(secretary, jour);
+          if (!status) continue;
+
+          if (status === 'both') {
+            horaires.push({ jour_semaine: jour, heure_debut: '08:00', heure_fin: '17:00' });
+          } else if (status === 'matin') {
+            horaires.push({ jour_semaine: jour, heure_debut: '08:00', heure_fin: '12:00' });
+          } else {
+            horaires.push({ jour_semaine: jour, heure_debut: '13:00', heure_fin: '17:00' });
+          }
+        }
+
+        if (horaires.length > 0) {
+          modifiedScenario.fictionalSecretaries.push({
+            id: `modified-${secretaryId}`,
+            name: `${secretary.first_name} ${secretary.name} (modifié)`,
+            specialites: secretary.specialites.map(s => s.id),
+            horaires,
+          });
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('optimize-base-schedule-milp-scenario', {
-        body: { scenario },
+        body: { scenario: modifiedScenario },
       });
 
       if (error) throw error;
 
-      // Transform results into OptimizationScoreParSpecialite format
       const specialitesMap = new Map<string, OptimizationScoreParSpecialite>();
       const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
@@ -230,21 +478,14 @@ export function WhatIfScenarioEditor() {
     }
   };
 
-  const removeFictionalDoctor = (id: string) => {
-    setScenario(prev => ({
-      ...prev,
-      fictionalDoctors: prev.fictionalDoctors.filter(d => d.id !== id),
-    }));
+  const getPeriodeColor = (periode: 'matin' | 'apres_midi' | 'both' | null) => {
+    if (!periode) return 'bg-muted text-muted-foreground';
+    if (periode === 'matin') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    if (periode === 'apres_midi') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
   };
 
-  const removeFictionalSecretary = (id: string) => {
-    setScenario(prev => ({
-      ...prev,
-      fictionalSecretaries: prev.fictionalSecretaries.filter(s => s.id !== id),
-    }));
-  };
-
-  const toggleJourDoctor = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
+  const toggleJourNewDoctor = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
     setNewDoctor(prev => {
       const newMap = new Map(prev.selectedJours);
       if (newMap.get(jour) === periode) {
@@ -256,7 +497,7 @@ export function WhatIfScenarioEditor() {
     });
   };
 
-  const toggleJourSecretary = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
+  const toggleJourNewSecretary = (jour: number, periode: 'both' | 'matin' | 'apres_midi') => {
     setNewSecretary(prev => {
       const newMap = new Map(prev.selectedJours);
       if (newMap.get(jour) === periode) {
@@ -280,198 +521,445 @@ export function WhatIfScenarioEditor() {
     });
   };
 
+  const removeFictionalDoctor = (id: string) => {
+    setScenario(prev => ({
+      ...prev,
+      fictionalDoctors: prev.fictionalDoctors.filter(d => d.id !== id),
+    }));
+  };
+
+  const removeFictionalSecretary = (id: string) => {
+    setScenario(prev => ({
+      ...prev,
+      fictionalSecretaries: prev.fictionalSecretaries.filter(s => s.id !== id),
+    }));
+  };
+
   return (
     <div className="space-y-6">
+      {/* Médecins Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Ajouter un médecin fictif</CardTitle>
-          <CardDescription>Simulez l'ajout d'un nouveau médecin avec ses besoins</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Spécialité</Label>
-            <Select value={newDoctor.specialite_id} onValueChange={value => setNewDoctor(prev => ({ ...prev, specialite_id: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choisir une spécialité" />
-              </SelectTrigger>
-              <SelectContent>
-                {specialites.map(spec => (
-                  <SelectItem key={spec.id} value={spec.id}>{spec.nom}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Jours de travail (cliquez pour sélectionner la période)</Label>
-            <div className="space-y-2">
-              {JOURS_SEMAINE.map(jour => {
-                const periode = newDoctor.selectedJours.get(jour.value);
-                return (
-                  <div key={jour.value} className="flex items-center gap-2">
-                    <span className="w-24 text-sm font-medium">{jour.label}</span>
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        variant={periode === 'matin' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourDoctor(jour.value, 'matin')}
-                      >
-                        Matin
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={periode === 'apres_midi' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourDoctor(jour.value, 'apres_midi')}
-                      >
-                        Après-midi
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={periode === 'both' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourDoctor(jour.value, 'both')}
-                      >
-                        Journée
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Médecins</CardTitle>
+              <CardDescription>Modifiez les horaires des médecins existants ou ajoutez-en de fictifs</CardDescription>
             </div>
+            <Button onClick={() => setShowAddDoctor(!showAddDoctor)} variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter un médecin
+            </Button>
           </div>
-
-          <div className="space-y-2">
-            <Label>Besoin en secrétaires (coefficient)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              value={newDoctor.besoin_secretaires}
-              onChange={e => setNewDoctor(prev => ({ ...prev, besoin_secretaires: parseFloat(e.target.value) || 1.2 }))}
-            />
-          </div>
-
-          <Button onClick={addFictionalDoctor} className="w-full">
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter ce médecin
-          </Button>
-
-          {scenario.fictionalDoctors.length > 0 && (
-            <div className="space-y-2 pt-4 border-t">
-              <Label>Médecins fictifs ajoutés ({scenario.fictionalDoctors.length})</Label>
-              {scenario.fictionalDoctors.map(doctor => (
-                <div key={doctor.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="space-y-1">
-                    <div className="font-medium">{doctor.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {specialites.find(s => s.id === doctor.specialite_id)?.nom} • {doctor.horaires.length} créneaux
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Real Doctors */}
+          {realDoctors.map(doctor => {
+            const isExpanded = expandedDoctors.has(doctor.id);
+            return (
+              <Collapsible
+                key={doctor.id}
+                open={isExpanded}
+                onOpenChange={(open) => {
+                  setExpandedDoctors(prev => {
+                    const newSet = new Set(prev);
+                    if (open) newSet.add(doctor.id);
+                    else newSet.delete(doctor.id);
+                    return newSet;
+                  });
+                }}
+              >
+                <div className="border rounded-lg p-3 bg-card">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between cursor-pointer">
+                      <div className="flex-1">
+                        <div className="font-medium">{doctor.first_name} {doctor.name}</div>
+                        <div className="text-sm text-muted-foreground">{doctor.specialite_nom}</div>
+                        <div className="flex gap-1 mt-2">
+                          {JOURS_SEMAINE.map(jour => {
+                            const status = getDoctorJourStatus(doctor, jour.value);
+                            return (
+                              <div
+                                key={jour.value}
+                                className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium ${getPeriodeColor(status)}`}
+                                title={`${jour.fullLabel}${status ? ` - ${status === 'both' ? 'Journée' : status === 'matin' ? 'Matin' : 'Après-midi'}` : ' - Absent'}`}
+                              >
+                                {jour.label}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => removeFictionalDoctor(doctor.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4 pt-4 border-t space-y-2">
+                    <Label className="text-sm">Modifier les jours de travail</Label>
+                    {JOURS_SEMAINE.map(jour => {
+                      const status = getDoctorJourStatus(doctor, jour.value);
+                      return (
+                        <div key={jour.value} className="flex items-center gap-2">
+                          <span className="w-24 text-sm font-medium">{jour.fullLabel}</span>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant={status === 'matin' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleDoctorJour(doctor.id, jour.value, 'matin')}
+                            >
+                              Matin
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={status === 'apres_midi' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleDoctorJour(doctor.id, jour.value, 'apres_midi')}
+                            >
+                              Après-midi
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={status === 'both' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleDoctorJour(doctor.id, jour.value, 'both')}
+                            >
+                              Journée
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CollapsibleContent>
                 </div>
-              ))}
+              </Collapsible>
+            );
+          })}
+
+          {/* Fictional Doctors */}
+          {scenario.fictionalDoctors.map(doctor => (
+            <div key={doctor.id} className="border rounded-lg p-3 bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="font-medium">{doctor.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {specialites.find(s => s.id === doctor.specialite_id)?.nom}
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    {JOURS_SEMAINE.map(jour => {
+                      const horairesDuJour = doctor.horaires.filter(h => h.jour_semaine === jour.value);
+                      let status: 'both' | 'matin' | 'apres_midi' | null = null;
+                      if (horairesDuJour.some(h => h.demi_journee === 'matin') && horairesDuJour.some(h => h.demi_journee === 'apres_midi')) {
+                        status = 'both';
+                      } else if (horairesDuJour.some(h => h.demi_journee === 'matin')) {
+                        status = 'matin';
+                      } else if (horairesDuJour.some(h => h.demi_journee === 'apres_midi')) {
+                        status = 'apres_midi';
+                      }
+                      return (
+                        <div
+                          key={jour.value}
+                          className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium ${getPeriodeColor(status)}`}
+                        >
+                          {jour.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => removeFictionalDoctor(doctor.id)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add Doctor Form */}
+          {showAddDoctor && (
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-4">
+              <div className="space-y-2">
+                <Label>Spécialité</Label>
+                <Select value={newDoctor.specialite_id} onValueChange={value => setNewDoctor(prev => ({ ...prev, specialite_id: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une spécialité" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {specialites.map(spec => (
+                      <SelectItem key={spec.id} value={spec.id}>{spec.nom}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Jours de travail</Label>
+                {JOURS_SEMAINE.map(jour => {
+                  const periode = newDoctor.selectedJours.get(jour.value);
+                  return (
+                    <div key={jour.value} className="flex items-center gap-2">
+                      <span className="w-24 text-sm font-medium">{jour.fullLabel}</span>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant={periode === 'matin' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewDoctor(jour.value, 'matin')}
+                        >
+                          Matin
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={periode === 'apres_midi' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewDoctor(jour.value, 'apres_midi')}
+                        >
+                          Après-midi
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={periode === 'both' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewDoctor(jour.value, 'both')}
+                        >
+                          Journée
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={addFictionalDoctor} className="flex-1">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddDoctor(false)}>
+                  Annuler
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Secrétaires Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Ajouter une secrétaire fictive</CardTitle>
-          <CardDescription>Simulez l'ajout d'une nouvelle secrétaire avec ses capacités</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Secrétaires</CardTitle>
+              <CardDescription>Modifiez les horaires des secrétaires existantes ou ajoutez-en de fictives</CardDescription>
+            </div>
+            <Button onClick={() => setShowAddSecretary(!showAddSecretary)} variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter une secrétaire
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Spécialités (plusieurs possibles)</Label>
-            <div className="flex flex-wrap gap-2">
-              {specialites.map(spec => (
-                <Badge
-                  key={spec.id}
-                  variant={newSecretary.selectedSpecialites.has(spec.id) ? 'default' : 'outline'}
-                  className="cursor-pointer"
-                  onClick={() => toggleSpecialiteSecretary(spec.id)}
-                >
-                  {spec.nom}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Jours de travail (cliquez pour sélectionner la période)</Label>
-            <div className="space-y-2">
-              {JOURS_SEMAINE.map(jour => {
-                const periode = newSecretary.selectedJours.get(jour.value);
-                return (
-                  <div key={jour.value} className="flex items-center gap-2">
-                    <span className="w-24 text-sm font-medium">{jour.label}</span>
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        variant={periode === 'matin' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourSecretary(jour.value, 'matin')}
-                      >
-                        Matin
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={periode === 'apres_midi' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourSecretary(jour.value, 'apres_midi')}
-                      >
-                        Après-midi
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={periode === 'both' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleJourSecretary(jour.value, 'both')}
-                      >
-                        Journée
+        <CardContent className="space-y-3">
+          {/* Real Secretaries */}
+          {realSecretaries.map(secretary => {
+            const isExpanded = expandedSecretaries.has(secretary.id);
+            return (
+              <Collapsible
+                key={secretary.id}
+                open={isExpanded}
+                onOpenChange={(open) => {
+                  setExpandedSecretaries(prev => {
+                    const newSet = new Set(prev);
+                    if (open) newSet.add(secretary.id);
+                    else newSet.delete(secretary.id);
+                    return newSet;
+                  });
+                }}
+              >
+                <div className="border rounded-lg p-3 bg-card">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between cursor-pointer">
+                      <div className="flex-1">
+                        <div className="font-medium">{secretary.first_name} {secretary.name}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {secretary.specialites.map(spec => (
+                            <Badge key={spec.id} variant="secondary" className="text-xs">
+                              {spec.nom}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex gap-1 mt-2">
+                          {JOURS_SEMAINE.map(jour => {
+                            const status = getSecretaryJourStatus(secretary, jour.value);
+                            return (
+                              <div
+                                key={jour.value}
+                                className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium ${getPeriodeColor(status)}`}
+                                title={`${jour.fullLabel}${status ? ` - ${status === 'both' ? 'Journée' : status === 'matin' ? 'Matin' : 'Après-midi'}` : ' - Absent'}`}
+                              >
+                                {jour.label}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </Button>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <Button onClick={addFictionalSecretary} className="w-full">
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter cette secrétaire
-          </Button>
-
-          {scenario.fictionalSecretaries.length > 0 && (
-            <div className="space-y-2 pt-4 border-t">
-              <Label>Secrétaires fictives ajoutées ({scenario.fictionalSecretaries.length})</Label>
-              {scenario.fictionalSecretaries.map(secretary => (
-                <div key={secretary.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="space-y-1">
-                    <div className="font-medium">{secretary.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {secretary.specialites.length} spécialités • {secretary.horaires.length} jours
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => removeFictionalSecretary(secretary.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4 pt-4 border-t space-y-2">
+                    <Label className="text-sm">Modifier les jours de travail</Label>
+                    {JOURS_SEMAINE.map(jour => {
+                      const status = getSecretaryJourStatus(secretary, jour.value);
+                      return (
+                        <div key={jour.value} className="flex items-center gap-2">
+                          <span className="w-24 text-sm font-medium">{jour.fullLabel}</span>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant={status === 'matin' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleSecretaryJour(secretary.id, jour.value, 'matin')}
+                            >
+                              Matin
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={status === 'apres_midi' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleSecretaryJour(secretary.id, jour.value, 'apres_midi')}
+                            >
+                              Après-midi
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={status === 'both' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleSecretaryJour(secretary.id, jour.value, 'both')}
+                            >
+                              Journée
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CollapsibleContent>
                 </div>
-              ))}
+              </Collapsible>
+            );
+          })}
+
+          {/* Fictional Secretaries */}
+          {scenario.fictionalSecretaries.map(secretary => (
+            <div key={secretary.id} className="border rounded-lg p-3 bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="font-medium">{secretary.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {secretary.specialites.length} spécialité{secretary.specialites.length > 1 ? 's' : ''}
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    {JOURS_SEMAINE.map(jour => {
+                      const horairesDuJour = secretary.horaires.filter(h => h.jour_semaine === jour.value);
+                      let status: 'both' | 'matin' | 'apres_midi' | null = null;
+                      if (horairesDuJour.length > 0) {
+                        const horaire = horairesDuJour[0];
+                        status = getPeriodeForHoraire(horaire.heure_debut, horaire.heure_fin);
+                      }
+                      return (
+                        <div
+                          key={jour.value}
+                          className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium ${getPeriodeColor(status)}`}
+                        >
+                          {jour.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => removeFictionalSecretary(secretary.id)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add Secretary Form */}
+          {showAddSecretary && (
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-4">
+              <div className="space-y-2">
+                <Label>Spécialités (plusieurs possibles)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {specialites.map(spec => (
+                    <Badge
+                      key={spec.id}
+                      variant={newSecretary.selectedSpecialites.has(spec.id) ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => toggleSpecialiteSecretary(spec.id)}
+                    >
+                      {spec.nom}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Jours de travail</Label>
+                {JOURS_SEMAINE.map(jour => {
+                  const periode = newSecretary.selectedJours.get(jour.value);
+                  return (
+                    <div key={jour.value} className="flex items-center gap-2">
+                      <span className="w-24 text-sm font-medium">{jour.fullLabel}</span>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant={periode === 'matin' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewSecretary(jour.value, 'matin')}
+                        >
+                          Matin
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={periode === 'apres_midi' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewSecretary(jour.value, 'apres_midi')}
+                        >
+                          Après-midi
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={periode === 'both' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => toggleJourNewSecretary(jour.value, 'both')}
+                        >
+                          Journée
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={addFictionalSecretary} className="flex-1">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddSecretary(false)}>
+                  Annuler
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Run Optimization */}
       <Card>
         <CardHeader>
           <CardTitle>Lancer l'optimisation</CardTitle>
           <CardDescription>
-            Calculez l'optimisation avec les médecins et secrétaires fictifs ajoutés
+            Calculez l'optimisation avec les modifications et ajouts effectués
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -491,6 +979,7 @@ export function WhatIfScenarioEditor() {
         </CardContent>
       </Card>
 
+      {/* Results */}
       {optimizationResults.length > 0 && (
         <OptimizationScoreCards scores={optimizationResults} />
       )}
