@@ -79,7 +79,6 @@ export function EditSecretaryAssignmentDialog({
 
   useEffect(() => {
     if (open) {
-      setSelectedPeriod(period);
       loadData();
     }
   }, [open, secretaryId, date, period]);
@@ -156,6 +155,21 @@ export function EditSecretaryAssignmentDialog({
 
       setCreneauMatin(matinCreneau || null);
       setCreneauAM(amCreneau || null);
+
+      // Déterminer la période à présélectionner selon les créneaux trouvés
+      if (matinCreneau && amCreneau) {
+        // Travaille matin ET après-midi → présélectionner "Toute la journée"
+        setSelectedPeriod('both');
+      } else if (matinCreneau) {
+        // Travaille seulement le matin
+        setSelectedPeriod('matin');
+      } else if (amCreneau) {
+        // Travaille seulement l'après-midi
+        setSelectedPeriod('apres_midi');
+      } else {
+        // Par défaut (ne devrait pas arriver normalement)
+        setSelectedPeriod(period);
+      }
 
       // Définir le site sélectionné par défaut à partir du créneau trouvé
       const currentCreneau = period === 'matin' ? matinCreneau : amCreneau;
