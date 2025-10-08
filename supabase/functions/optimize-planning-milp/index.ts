@@ -552,8 +552,8 @@ function optimizePeriod(
         }
       }
 
-      // LP mode: integers disabled for performance
-      // model.ints[varName] = 1;
+      // Force binary variable (0 or 1)
+      model.ints[varName] = 1;
     }
 
     // Ajouter l'option administrative avec récompense décroissante
@@ -566,8 +566,8 @@ function optimizePeriod(
       objective: -PENALTY_ADMIN_BASE / Math.pow(2, adminCount),  // Décroît avec les assignations
       [`cap_${secretaire.id}`]: 1
     };
-    // LP mode: integers disabled for performance
-    // model.ints[adminVarName] = 1;
+    // Force binary variable (0 or 1)
+    model.ints[adminVarName] = 1;
 
     slotsBySecretary.set(secretaire.id, slots);
   }
@@ -595,35 +595,37 @@ function optimizePeriod(
   // Objectif: minimize UNDERALLOCATION_PENALTY * (besoin - Σx)
   for (const [besoinKey, besoin] of besoinsParSite) {
     const besoinValue = besoin.besoin;
+    const compatibleCapacity = compatibleSecretariesByBesoin.get(besoinKey) || 0;
+    const targetCapacity = Math.min(besoinValue, compatibleCapacity);
     
     // Variable Σx (somme des assignations)
     const sumXVar = `sum_x_${besoinKey}`;
     model.variables[sumXVar] = {
       objective: 0,
       [`sum_x_${besoinKey}`]: -1,      // Σx est défini par les variables x
-      [`def_ecart_${besoinKey}`]: 1    // sumX + ecart = besoin
+      [`def_ecart_${besoinKey}`]: 1    // sumX + ecart = targetCapacity
     };
     
-    // Variable d'écart: (besoin - Σx) avec pénalité forte
+    // Variable d'écart: (targetCapacity - Σx) avec pénalité forte
     const ecartVar = `ecart_${besoinKey}`;
     model.variables[ecartVar] = {
       objective: UNDERALLOCATION_PENALTY, // Pénalité forte pour sous-allocation
       [`def_ecart_${besoinKey}`]: 1,
-      min: 0  // Force ecart >= 0, donc Σx <= besoin
+      min: 0  // Force ecart >= 0, donc Σx <= targetCapacity
     };
 
     // Contrainte: Σx définie par les variables x
     model.constraints[`sum_x_${besoinKey}`] = { equal: 0 };
     
-    // Contrainte: ecart = besoin - Σx
-    model.constraints[`def_ecart_${besoinKey}`] = { equal: besoinValue };
+    // Contrainte: ecart = targetCapacity - Σx (min entre besoin et capacité)
+    model.constraints[`def_ecart_${besoinKey}`] = { equal: targetCapacity };
     
-    // Contrainte: Σx ≤ besoin (exacte, pas arrondie) pour empêcher sur-allocation
-    model.constraints[`besoin_${besoinKey}`] = { max: besoinValue };
+    // Contrainte: Σx ≤ ceil(besoin) pour permettre arrondi supérieur
+    model.constraints[`besoin_${besoinKey}`] = { max: Math.ceil(besoinValue) };
   }
 
   // 4. Résoudre
-  console.log(`    Solving LP (relaxation) with ${Object.keys(model.variables).length} variables...`);
+  console.log(`    Solving MILP with ${Object.keys(model.variables).length} variables...`);
   const solution = solver.Solve(model);
 
   if (!solution.feasible) {
