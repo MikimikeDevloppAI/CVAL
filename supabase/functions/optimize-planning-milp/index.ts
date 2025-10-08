@@ -530,7 +530,7 @@ function optimizePeriod(
       // Créer la variable
       const varName = `x_${slotKey}`;
       model.variables[varName] = {
-        objective: 0,
+        objective: -1,  // Négatif pour encourager les assignations site
         [`cap_${secretaire.id}`]: 1,     // Contrainte: max 1 assignation par secrétaire
         [`besoin_${besoinKey}`]: 1       // Contribue à la contrainte max (arrondi)
       };
