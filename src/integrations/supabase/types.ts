@@ -982,6 +982,20 @@ export type Database = {
         }
         Returns: Json
       }
+      update_user_role: {
+        Args: {
+          _new_role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      update_user_role_upsert: {
+        Args: {
+          _new_role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
       weekly_planning_maintenance: {
         Args: Record<PropertyKey, never>
         Returns: undefined

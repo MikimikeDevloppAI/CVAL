@@ -65,31 +65,38 @@ export const EditUserDialog = ({ open, onOpenChange, onSuccess, user }: EditUser
 
     setLoading(true);
     try {
-      // Update planning access
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ planning: values.planning })
-        .eq('id', user.id);
+      // Déterminer ce qui a changé
+      const planningChanged = values.planning !== user.planning;
+      const roleChanged = values.role !== user.role;
 
-      if (profileError) throw profileError;
+      // Mettre à jour l'accès planning uniquement s'il a changé
+      if (planningChanged) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ planning: values.planning })
+          .eq('id', user.id);
 
-      // Update role (delete old, insert new)
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', user.id);
+        if (profileError) throw profileError;
+      }
 
-      if (deleteError) throw deleteError;
+      // Mettre à jour le rôle uniquement s'il a changé
+      if (roleChanged) {
+        const { error: roleError } = await supabase
+          .rpc('update_user_role_upsert', {
+            _user_id: user.id,
+            _new_role: values.role,
+          });
 
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert({ user_id: user.id, role: values.role });
-
-      if (insertError) throw insertError;
+        if (roleError) throw roleError;
+      }
 
       toast({
         title: 'Utilisateur modifié',
-        description: 'Les modifications ont été enregistrées',
+        description: planningChanged && roleChanged 
+          ? 'Le rôle et l\'accès planning ont été mis à jour'
+          : planningChanged 
+          ? 'L\'accès planning a été mis à jour'
+          : 'Le rôle a été mis à jour',
       });
 
       onOpenChange(false);
