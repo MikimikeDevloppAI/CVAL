@@ -137,25 +137,35 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
           a => a.site_nom === site.nom && a.date === dateStr
         );
         
-        // Compter les 1R et 2F pour ce jour
-        const count1R = dayAssignments.reduce((sum, a) => 
-          sum + a.secretaires.filter(s => s.is_1r).length, 0
-        );
-        const count2F = dayAssignments.reduce((sum, a) => 
-          sum + a.secretaires.filter(s => s.is_2f).length, 0
-        );
+        // Récupérer les IDs uniques des 1R et 2F pour ce jour (toutes périodes confondues)
+        const unique1RIds = new Set<string>();
+        const unique2FIds = new Set<string>();
+        
+        dayAssignments.forEach(a => {
+          a.secretaires.forEach(s => {
+            if (s.is_1r) {
+              unique1RIds.add(s.id);
+            }
+            if (s.is_2f) {
+              unique2FIds.add(s.id);
+            }
+          });
+        });
+        
+        const count1R = unique1RIds.size;
+        const count2F = unique2FIds.size;
         
         const dayProblems: string[] = [];
         if (count1R === 0) {
           dayProblems.push('Aucun 1R');
         } else if (count1R > 1) {
-          dayProblems.push(`${count1R} × 1R`);
+          dayProblems.push(`${count1R} personnes différentes en 1R`);
         }
         
         if (count2F === 0) {
           dayProblems.push('Aucun 2F');
         } else if (count2F > 1) {
-          dayProblems.push(`${count2F} × 2F`);
+          dayProblems.push(`${count2F} personnes différentes en 2F`);
         }
         
         if (dayProblems.length > 0) {
