@@ -36,6 +36,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     open: boolean;
     day: number;
     period: 'matin' | 'apres_midi';
+    besoinId?: string; // Pour modification d'un besoin existant
   } | null>(null);
   const { toast } = useToast();
 
@@ -199,33 +200,49 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     
     setLoading(true);
     try {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), addBesoinDialog.day);
-      const dateStr = formatDate(date);
-
-      const { error } = await supabase
-        .from('besoin_effectif')
-        .insert({
-          date: dateStr,
-          type: 'medecin',
-          medecin_id: medecinId,
-          site_id: siteId,
-          demi_journee: addBesoinDialog.period,
-          actif: true,
+      // Si besoinId existe, on modifie, sinon on ajoute
+      if (addBesoinDialog.besoinId) {
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .update({ site_id: siteId })
+          .eq('id', addBesoinDialog.besoinId);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Succès",
+          description: "Site modifié",
         });
+      } else {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), addBesoinDialog.day);
+        const dateStr = formatDate(date);
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .insert({
+            date: dateStr,
+            type: 'medecin',
+            medecin_id: medecinId,
+            site_id: siteId,
+            demi_journee: addBesoinDialog.period,
+            actif: true,
+          });
 
-      toast({
-        title: "Succès",
-        description: "Besoin ajouté",
-      });
+        if (error) throw error;
+
+        toast({
+          title: "Succès",
+          description: "Besoin ajouté",
+        });
+      }
+      
       fetchBesoins();
       setAddBesoinDialog(null);
     } catch (error) {
       console.error('Erreur:', error);
       toast({
         title: "Erreur",
-        description: "Impossible d'ajouter le besoin",
+        description: addBesoinDialog.besoinId ? "Impossible de modifier le site" : "Impossible d'ajouter le besoin",
         variant: "destructive",
       });
     } finally {
@@ -248,35 +265,20 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     return dayOfWeek === 5 || dayOfWeek === 6; // Sam=5, Dim=6
   };
 
-  const renderBesoinBadge = (besoin: BesoinEffectif, period: 'matin' | 'apres_midi') => (
+  const renderBesoinBadge = (besoin: BesoinEffectif, period: 'matin' | 'apres_midi', day: number) => (
     <div key={besoin.id} className="relative group/badge mb-1 animate-fade-in">
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="w-full text-left px-3 py-2 rounded-md border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-all text-sm whitespace-normal h-auto min-h-[32px] cursor-pointer"
-            title={besoin.sites?.nom || 'Site'}
-          >
-            <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-2" align="start">
-          <div className="space-y-1">
-            <p className="text-xs font-medium mb-2">Changer de site :</p>
-            {sites.map(site => (
-              <Button
-                key={site.id}
-                variant={site.id === besoin.site_id ? "default" : "ghost"}
-                size="sm"
-                className="w-full justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                onClick={() => handleSiteChange(besoin.id, site.id, period)}
-                disabled={loading}
-              >
-                {site.nom}
-              </Button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <button
+        className="w-full text-left px-3 py-2 rounded-md border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-all text-sm whitespace-normal h-auto min-h-[32px] cursor-pointer"
+        title={besoin.sites?.nom || 'Site'}
+        onClick={() => setAddBesoinDialog({ 
+          open: true, 
+          day, 
+          period, 
+          besoinId: besoin.id 
+        })}
+      >
+        <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
+      </button>
       <Button
         variant="ghost"
         size="sm"
@@ -364,7 +366,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                       {(() => {
                         const besoinsList = getBesoinForDate(day, 'matin');
                         return besoinsList.length > 0 ? (
-                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'matin'))
+                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'matin', day))
                         ) : (
                           <Button
                             variant="outline"
@@ -391,7 +393,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                       {(() => {
                         const besoinsList = getBesoinForDate(day, 'apres_midi');
                         return besoinsList.length > 0 ? (
-                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'apres_midi'))
+                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'apres_midi', day))
                         ) : (
                           <Button
                             variant="outline"
@@ -417,7 +419,9 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         <Dialog open={addBesoinDialog?.open || false} onOpenChange={(open) => !open && setAddBesoinDialog(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Sélectionner un site</DialogTitle>
+              <DialogTitle>
+                {addBesoinDialog?.besoinId ? "Changer de site" : "Sélectionner un site"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-2 py-4">
               {sites.map(site => (
