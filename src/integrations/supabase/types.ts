@@ -984,6 +984,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      recreate_besoins_capacites_for_date: {
+        Args: { p_date: string }
+        Returns: undefined
+      }
       recreate_doctor_besoin: {
         Args: { p_date_debut: string; p_date_fin: string; p_medecin_id: string }
         Returns: undefined
