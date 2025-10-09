@@ -296,7 +296,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
               <Separator orientation="vertical" className="h-6" />
               <span className="text-muted-foreground font-normal">{medecinNom}</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center gap-3">
               <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
