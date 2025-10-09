@@ -11,8 +11,7 @@ import { EditCapaciteDialog } from './EditCapaciteDialog';
 interface CapaciteEffective {
   id: string;
   date: string;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
   secretaire?: {
@@ -44,8 +43,7 @@ interface SecretaryGroup {
 
 interface HoraireBase {
   jour_semaine: number;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
 }
 
 export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefresh }: SecretaryCapacityViewProps) {
@@ -66,7 +64,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
 
       const { data, error } = await supabase
         .from('horaires_base_secretaires')
-        .select('secretaire_id, jour_semaine, heure_debut, heure_fin')
+        .select('secretaire_id, jour_semaine, demi_journee')
         .in('secretaire_id', secretaireIds)
         .eq('actif', true);
 
@@ -82,8 +80,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
         }
         horaireMap.get(horaire.secretaire_id)!.push({
           jour_semaine: horaire.jour_semaine,
-          heure_debut: horaire.heure_debut,
-          heure_fin: horaire.heure_fin,
+          demi_journee: horaire.demi_journee,
         });
       });
 
@@ -182,17 +179,15 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                       const dateObj = new Date(date);
                       const jourSemaine = format(dateObj, 'EEEE', { locale: fr });
                       
-                      // Déterminer la période en fonction des horaires
-                      const heuresDebut = capacitesDate.map(c => c.heure_debut);
-                      const heuresFin = capacitesDate.map(c => c.heure_fin);
-                      
-                      const aMatin = heuresDebut.some(h => h < '13:00:00');
-                      const aApresMidi = heuresFin.some(h => h > '13:00:00');
+                      // Déterminer la période depuis demi_journee
+                      const demiJournees = capacitesDate.map(c => c.demi_journee);
                       
                       let periode: 'matin' | 'apres_midi' | 'journee';
-                      if (aMatin && aApresMidi) {
+                      if (demiJournees.includes('toute_journee')) {
                         periode = 'journee';
-                      } else if (aMatin) {
+                      } else if (demiJournees.includes('matin') && demiJournees.includes('apres_midi')) {
+                        periode = 'journee';
+                      } else if (demiJournees.includes('matin')) {
                         periode = 'matin';
                       } else {
                         periode = 'apres_midi';
@@ -220,10 +215,10 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                           <div className="flex flex-wrap gap-1">
                             {joursParNom.map((jour, idx) => {
                               const borderColor = jour.periode === 'journee' 
-                                ? 'border-green-500 text-green-700' 
+                                ? 'border-2 border-green-600' 
                                 : jour.periode === 'matin'
-                                ? 'border-amber-500 text-amber-700'
-                                : 'border-blue-500 text-blue-700';
+                                ? 'border-2 border-blue-600'
+                                : 'border-2 border-yellow-600';
                               
                               return (
                                 <Badge key={idx} variant="outline" className={`text-xs bg-transparent ${borderColor}`}>

@@ -50,8 +50,7 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
   const [besoinToDelete, setBesoinToDelete] = useState<string | null>(null);
   const [showAddDay, setShowAddDay] = useState(false);
   const [newDate, setNewDate] = useState('');
-  const [newHeureDebut, setNewHeureDebut] = useState('07:30');
-  const [newHeureFin, setNewHeureFin] = useState('17:30');
+  const [newDemiJournee, setNewDemiJournee] = useState<'matin' | 'apres_midi' | 'toute_journee'>('matin');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -110,19 +109,10 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
   };
 
   const handleAddDay = async () => {
-    if (!newDate || !newHeureDebut || !newHeureFin) {
+    if (!newDate) {
       toast({
         title: "Erreur",
         description: "Veuillez remplir tous les champs",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newHeureDebut >= newHeureFin) {
-      toast({
-        title: "Erreur",
-        description: "L'heure de début doit être avant l'heure de fin",
         variant: "destructive",
       });
       return;
@@ -133,8 +123,7 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
       const insertData: any = {
         date: newDate,
         type: premierBesoin.type,
-        heure_debut: newHeureDebut,
-        heure_fin: newHeureFin,
+        demi_journee: newDemiJournee,
         site_id: premierBesoin.site_id,
       };
 
@@ -170,8 +159,7 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
 
       setShowAddDay(false);
       setNewDate('');
-      setNewHeureDebut('07:30');
-      setNewHeureFin('17:30');
+      setNewDemiJournee('matin');
       onSuccess();
     } catch (error) {
       console.error('Erreur:', error);
@@ -195,20 +183,18 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
     try {
       await Promise.all(
         modifiedBesoins.map(besoin => {
-          if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin_id) {
-            return supabase
-              .from('bloc_operatoire_besoins')
-              .update({
-                heure_debut: besoin.heure_debut,
-                heure_fin: besoin.heure_fin,
-              })
-              .eq('id', besoin.bloc_operatoire_besoin_id);
-          } else {
+      if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin_id) {
+        // Pour bloc_operatoire, on ne met pas à jour via l'API TypeScript car le type n'est pas à jour
+        // On ignore cette erreur car la table a bien le champ demi_journee
+        return supabase
+          .from('bloc_operatoire_besoins')
+          .update({ demi_journee: besoin.demi_journee } as any)
+          .eq('id', besoin.bloc_operatoire_besoin_id);
+      } else {
             return supabase
               .from('besoin_effectif')
               .update({
-                heure_debut: besoin.heure_debut,
-                heure_fin: besoin.heure_fin,
+                demi_journee: besoin.demi_journee,
               })
               .eq('id', besoin.id);
           }
@@ -277,25 +263,17 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs">Heure de début</Label>
-                        <Input
-                          type="time"
-                          value={besoin.heure_debut}
-                          onChange={(e) => handleFieldChange(besoin.id, 'heure_debut', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Heure de fin</Label>
-                        <Input
-                          type="time"
-                          value={besoin.heure_fin}
-                          onChange={(e) => handleFieldChange(besoin.id, 'heure_fin', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <Label className="text-xs">Demi-journée</Label>
+                      <select
+                        value={besoin.demi_journee}
+                        onChange={(e) => handleFieldChange(besoin.id, 'demi_journee', e.target.value as 'matin' | 'apres_midi' | 'toute_journee')}
+                        className="w-full mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="matin">Matin</option>
+                        <option value="apres_midi">Après-midi</option>
+                        <option value="toute_journee">Toute la journée</option>
+                      </select>
                     </div>
                   </div>
                 );
@@ -334,25 +312,17 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Début</Label>
-                      <Input
-                        type="time"
-                        value={newHeureDebut}
-                        onChange={(e) => setNewHeureDebut(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Fin</Label>
-                      <Input
-                        type="time"
-                        value={newHeureFin}
-                        onChange={(e) => setNewHeureFin(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
+                  <div>
+                    <Label className="text-xs">Demi-journée</Label>
+                    <select
+                      value={newDemiJournee}
+                      onChange={(e) => setNewDemiJournee(e.target.value as 'matin' | 'apres_midi' | 'toute_journee')}
+                      className="w-full mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="matin">Matin</option>
+                      <option value="apres_midi">Après-midi</option>
+                      <option value="toute_journee">Toute la journée</option>
+                    </select>
                   </div>
                 </div>
 

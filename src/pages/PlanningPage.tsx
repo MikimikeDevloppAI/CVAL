@@ -35,8 +35,7 @@ interface BesoinEffectif {
   id: string;
   date: string;
   type: string;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   site_id: string;
   bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
@@ -51,14 +50,12 @@ interface BesoinParSite {
   besoins: BesoinEffectif[];
   total_medecins: number;
   total_secretaires_requis: number;
-  plage_horaire: { debut: string; fin: string };
 }
 
 interface CapaciteEffective {
   id: string;
   date: string;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
   secretaire?: { first_name: string; name: string; specialites: string[] };
@@ -281,8 +278,7 @@ export default function PlanningPage() {
           .select(`
             id,
             date,
-            heure_debut,
-            heure_fin,
+            demi_journee,
             site_id,
             medecin_id,
             bloc_operatoire_besoin_id,
@@ -303,28 +299,16 @@ export default function PlanningPage() {
           const key = `${row.date}-${periode}-${row.site_id || 'admin'}`;
 
           if (!assignmentsByKey.has(key)) {
-            const isMatin = periode === 'matin';
-            const slotStart = isMatin ? '07:30:00' : '13:00:00';
-            const slotEnd = isMatin ? '12:00:00' : '17:00:00';
-
-            // Récupérer les besoins pour cette période en vérifiant le chevauchement d'horaires
-            // Pour les assignations administratives (site_id null), ne pas filtrer par site
+            // Récupérer les besoins pour cette période
             const besoinsForSlot = (besoinsData || []).filter(besoin => {
               if (besoin.date !== row.date) return false;
               // Si administrative, ne pas filtrer par site
               if (row.site_id === null) {
-                // Filtrer juste par chevauchement de période
-                const besoinHeureDebut = besoin.heure_debut || '00:00:00';
-                const besoinHeureFin = besoin.heure_fin || '23:59:59';
-                const overlap = besoinHeureDebut < slotEnd && besoinHeureFin > slotStart;
-                return overlap;
+                return besoin.demi_journee === periode || besoin.demi_journee === 'toute_journee';
               }
               // Sinon, filtrer par site et période
               if (besoin.site_id !== row.site_id) return false;
-              const besoinHeureDebut = besoin.heure_debut || '00:00:00';
-              const besoinHeureFin = besoin.heure_fin || '23:59:59';
-              const overlap = besoinHeureDebut < slotEnd && besoinHeureFin > slotStart;
-              return overlap;
+              return besoin.demi_journee === periode || besoin.demi_journee === 'toute_journee';
             });
 
             // Extraire les médecins depuis row.medecins_ids ou depuis les besoins
@@ -501,23 +485,22 @@ export default function PlanningPage() {
 
   const fetchBesoins = async () => {
     const { data, error } = await supabase
-      .from('besoin_effectif')
-      .select(`
-        *,
-        medecin:medecins(first_name, name, besoin_secretaires),
-        site:sites(nom),
-        bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
-      `)
-      .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
-      .lte('date', format(weekEnd, 'yyyy-MM-dd'))
-      .eq('actif', true)
-      .order('date')
-      .order('heure_debut');
+        .from('besoin_effectif')
+        .select(`
+          *,
+          medecin:medecins(first_name, name, besoin_secretaires),
+          site:sites(nom),
+          bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
+        `)
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+        .eq('actif', true)
+        .order('date')
+        .order('demi_journee');
 
     if (error) throw error;
     setBesoins(data || []);
     
-    // Regrouper par site
     if (data) {
       const groupedBySite = data.reduce((acc, besoin) => {
         const siteId = besoin.site_id;
@@ -528,7 +511,6 @@ export default function PlanningPage() {
             besoins: [],
             total_medecins: 0,
             total_secretaires_requis: 0,
-            plage_horaire: { debut: '23:59:59', fin: '00:00:00' }
           };
         }
         
@@ -546,14 +528,6 @@ export default function PlanningPage() {
         }
         acc[siteId].total_secretaires_requis += besoinValue;
         
-        // Mettre à jour la plage horaire
-        if (besoin.heure_debut < acc[siteId].plage_horaire.debut) {
-          acc[siteId].plage_horaire.debut = besoin.heure_debut;
-        }
-        if (besoin.heure_fin > acc[siteId].plage_horaire.fin) {
-          acc[siteId].plage_horaire.fin = besoin.heure_fin;
-        }
-        
         return acc;
       }, {} as Record<string, BesoinParSite>);
       
@@ -563,17 +537,17 @@ export default function PlanningPage() {
 
   const fetchCapacites = async () => {
     const { data, error } = await supabase
-      .from('capacite_effective')
-      .select(`
-        *,
-        secretaire:secretaires(first_name, name, specialites),
-        backup:backup(first_name, name, specialites)
-      `)
-      .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
-      .lte('date', format(weekEnd, 'yyyy-MM-dd'))
-      .eq('actif', true)
-      .order('date')
-      .order('heure_debut');
+        .from('capacite_effective')
+        .select(`
+          *,
+          secretaire:secretaires(first_name, name, specialites),
+          backup:backup(first_name, name, specialites)
+        `)
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+        .eq('actif', true)
+        .order('date')
+        .order('demi_journee');
 
     if (error) throw error;
 
@@ -1013,7 +987,7 @@ export default function PlanningPage() {
                   if (besoin.type === 'medecin' && besoin.medecin) {
                     key = `medecin-${besoin.medecin.first_name}-${besoin.medecin.name}`;
                   } else if (besoin.type === 'bloc_operatoire') {
-                    key = `bloc-${besoin.date}-${besoin.heure_debut}`;
+                    key = `bloc-${besoin.date}-${besoin.demi_journee}`;
                   } else {
                     key = `autre-${besoin.id}`;
                   }
@@ -1118,17 +1092,15 @@ export default function PlanningPage() {
                                 const dateObj = new Date(date);
                                 const jourSemaine = format(dateObj, 'EEEE', { locale: fr });
                                 
-                                // Déterminer la période en fonction des horaires
-                                const heuresDebut = besoinsDate.map(b => b.heure_debut);
-                                const heuresFin = besoinsDate.map(b => b.heure_fin);
-                                
-                                const aMatin = heuresDebut.some(h => h < '13:00:00');
-                                const aApresMidi = heuresFin.some(h => h > '13:00:00');
+                                // Déterminer la période depuis demi_journee
+                                const demiJournees = besoinsDate.map(b => b.demi_journee);
                                 
                                 let periode: 'matin' | 'apres_midi' | 'journee';
-                                if (aMatin && aApresMidi) {
+                                if (demiJournees.includes('toute_journee')) {
                                   periode = 'journee';
-                                } else if (aMatin) {
+                                } else if (demiJournees.includes('matin') && demiJournees.includes('apres_midi')) {
+                                  periode = 'journee';
+                                } else if (demiJournees.includes('matin')) {
                                   periode = 'matin';
                                 } else {
                                   periode = 'apres_midi';

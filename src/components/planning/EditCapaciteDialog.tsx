@@ -55,8 +55,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
   const [capaciteToDelete, setCapaciteToDelete] = useState<string | null>(null);
   const [showAddDay, setShowAddDay] = useState(false);
   const [newDate, setNewDate] = useState('');
-  const [newHeureDebut, setNewHeureDebut] = useState('07:30');
-  const [newHeureFin, setNewHeureFin] = useState('17:00');
+  const [newDemiJournee, setNewDemiJournee] = useState<'matin' | 'apres_midi' | 'toute_journee'>('matin');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -103,19 +102,10 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
   };
 
   const handleAddDay = async () => {
-    if (!newDate || !newHeureDebut || !newHeureFin) {
+    if (!newDate) {
       toast({
         title: "Erreur",
         description: "Veuillez remplir tous les champs",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newHeureDebut >= newHeureFin) {
-      toast({
-        title: "Erreur",
-        description: "L'heure de début doit être avant l'heure de fin",
         variant: "destructive",
       });
       return;
@@ -125,8 +115,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
       const premiereCapacite = capacites[0];
       const insertData: any = {
         date: newDate,
-        heure_debut: newHeureDebut,
-        heure_fin: newHeureFin,
+        demi_journee: newDemiJournee,
       };
 
       if (premiereCapacite.secretaire_id) {
@@ -158,8 +147,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
 
       setShowAddDay(false);
       setNewDate('');
-      setNewHeureDebut('07:30');
-      setNewHeureFin('17:00');
+      setNewDemiJournee('matin');
       onSuccess();
     } catch (error) {
       console.error('Erreur:', error);
@@ -186,8 +174,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
           supabase
             .from('capacite_effective')
             .update({
-              heure_debut: capacite.heure_debut,
-              heure_fin: capacite.heure_fin,
+              demi_journee: capacite.demi_journee,
             })
             .eq('id', capacite.id)
         )
@@ -258,25 +245,17 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs">Heure de début</Label>
-                        <Input
-                          type="time"
-                          value={capacite.heure_debut}
-                          onChange={(e) => handleFieldChange(capacite.id, 'heure_debut', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Heure de fin</Label>
-                        <Input
-                          type="time"
-                          value={capacite.heure_fin}
-                          onChange={(e) => handleFieldChange(capacite.id, 'heure_fin', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <Label className="text-xs">Demi-journée</Label>
+                      <select
+                        value={capacite.demi_journee}
+                        onChange={(e) => handleFieldChange(capacite.id, 'demi_journee', e.target.value as 'matin' | 'apres_midi' | 'toute_journee')}
+                        className="w-full mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="matin">Matin</option>
+                        <option value="apres_midi">Après-midi</option>
+                        <option value="toute_journee">Toute la journée</option>
+                      </select>
                     </div>
                   </div>
                 );
@@ -315,25 +294,17 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Début</Label>
-                      <Input
-                        type="time"
-                        value={newHeureDebut}
-                        onChange={(e) => setNewHeureDebut(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Fin</Label>
-                      <Input
-                        type="time"
-                        value={newHeureFin}
-                        onChange={(e) => setNewHeureFin(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
+                  <div>
+                    <Label className="text-xs">Demi-journée</Label>
+                    <select
+                      value={newDemiJournee}
+                      onChange={(e) => setNewDemiJournee(e.target.value as 'matin' | 'apres_midi' | 'toute_journee')}
+                      className="w-full mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="matin">Matin</option>
+                      <option value="apres_midi">Après-midi</option>
+                      <option value="toute_journee">Toute la journée</option>
+                    </select>
                   </div>
                 </div>
 

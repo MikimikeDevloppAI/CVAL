@@ -31,8 +31,7 @@ interface RealDoctor {
   horaires: Array<{
     id: string;
     jour_semaine: number;
-    heure_debut: string;
-    heure_fin: string;
+    demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   }>;
 }
 
@@ -44,8 +43,7 @@ interface RealSecretary {
   horaires: Array<{
     id: string;
     jour_semaine: number;
-    heure_debut: string;
-    heure_fin: string;
+    demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   }>;
 }
 
@@ -131,8 +129,7 @@ export function WhatIfScenarioEditor() {
         .map(h => ({
           id: h.id,
           jour_semaine: h.jour_semaine,
-          heure_debut: h.heure_debut,
-          heure_fin: h.heure_fin,
+          demi_journee: h.demi_journee,
         })),
     }));
 
@@ -173,33 +170,16 @@ export function WhatIfScenarioEditor() {
         .map(h => ({
           id: h.id,
           jour_semaine: h.jour_semaine,
-          heure_debut: h.heure_debut,
-          heure_fin: h.heure_fin,
+          demi_journee: h.demi_journee,
         })),
     }));
 
     setRealSecretaries(secretaries);
   };
 
-  const getPeriodeForHoraire = (heure_debut: string, heure_fin: string): 'matin' | 'apres_midi' | 'both' => {
-    const debut = parseTime(heure_debut);
-    const fin = parseTime(heure_fin);
-    
-    const matin = { debut: parseTime('07:30'), fin: parseTime('12:00') };
-    const apresMidi = { debut: parseTime('13:00'), fin: parseTime('17:00') };
-    
-    const overlapMatin = Math.max(0, Math.min(fin, matin.fin) - Math.max(debut, matin.debut));
-    const overlapApresMidi = Math.max(0, Math.min(fin, apresMidi.fin) - Math.max(debut, apresMidi.debut));
-    
-    if (overlapMatin >= 60 && overlapApresMidi >= 60) return 'both';
-    if (overlapMatin >= 60) return 'matin';
-    if (overlapApresMidi >= 60) return 'apres_midi';
-    return 'both';
-  };
-
-  const parseTime = (timeStr: string): number => {
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
+  const getPeriodeForHoraire = (demi_journee: 'matin' | 'apres_midi' | 'toute_journee'): 'matin' | 'apres_midi' | 'both' => {
+    if (demi_journee === 'toute_journee') return 'both';
+    return demi_journee === 'matin' ? 'matin' : 'apres_midi';
   };
 
   const getDoctorJourStatus = (doctor: RealDoctor, jour: number): 'both' | 'matin' | 'apres_midi' | null => {
@@ -211,7 +191,7 @@ export function WhatIfScenarioEditor() {
     const horairesDuJour = doctor.horaires.filter(h => h.jour_semaine === jour);
     if (horairesDuJour.length === 0) return null;
     
-    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.heure_debut, h.heure_fin));
+    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.demi_journee));
     if (periodes.includes('both')) return 'both';
     if (periodes.includes('matin') && periodes.includes('apres_midi')) return 'both';
     if (periodes.includes('matin')) return 'matin';
@@ -228,7 +208,7 @@ export function WhatIfScenarioEditor() {
     const horairesDuJour = secretary.horaires.filter(h => h.jour_semaine === jour);
     if (horairesDuJour.length === 0) return null;
     
-    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.heure_debut, h.heure_fin));
+    const periodes = horairesDuJour.map(h => getPeriodeForHoraire(h.demi_journee));
     if (periodes.includes('both')) return 'both';
     if (periodes.includes('matin') && periodes.includes('apres_midi')) return 'both';
     if (periodes.includes('matin')) return 'matin';
@@ -859,11 +839,17 @@ export function WhatIfScenarioEditor() {
                   </div>
                   <div className="flex gap-1 mt-2">
                     {JOURS_SEMAINE.map(jour => {
-                      const horairesDuJour = secretary.horaires.filter(h => h.jour_semaine === jour.value);
+                      const jourHoraires = secretary.horaires.filter(h => h.jour_semaine === jour.value);
                       let status: 'both' | 'matin' | 'apres_midi' | null = null;
-                      if (horairesDuJour.length > 0) {
-                        const horaire = horairesDuJour[0];
-                        status = getPeriodeForHoraire(horaire.heure_debut, horaire.heure_fin);
+                      if (jourHoraires.length > 0) {
+                        const h = jourHoraires[0];
+                        if (h.heure_debut <= '12:00' && h.heure_fin >= '13:00') {
+                          status = 'both';
+                        } else if (h.heure_debut < '13:00') {
+                          status = 'matin';
+                        } else {
+                          status = 'apres_midi';
+                        }
                       }
                       return (
                         <div
