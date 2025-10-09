@@ -348,65 +348,75 @@ export default function MedecinsPage() {
                   </div>
 
                   {/* Jours de travail */}
-                  {medecin.horaires_base_medecins && medecin.horaires_base_medecins.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                        Jours de travail
-                      </p>
-                      <div className="space-y-2">
-                        {medecin.horaires_base_medecins.map((horaire, index) => {
-                          const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-                          const alternanceLabels = {
-                            'hebdomadaire': 'Hebdo',
-                            'une_sur_deux': '1/2',
-                            'une_sur_trois': '1/3',
-                            'une_sur_quatre': '1/4'
-                          };
-                          
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                      Jours de travail
+                    </p>
+                    <div className="space-y-2">
+                      {[1, 2, 3, 4, 5].map((jour) => {
+                        const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+                        const horaire = medecin.horaires_base_medecins?.find(h => h.jour_semaine === jour);
+                        const alternanceLabels = {
+                          'hebdomadaire': 'Hebdo',
+                          'une_sur_deux': '1/2',
+                          'une_sur_trois': '1/3',
+                          'une_sur_quatre': '1/4'
+                        };
+                        
+                        if (!horaire) {
                           return (
-                            <div key={index} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Badge variant="outline" className="text-xs font-medium">
-                                    {jours[horaire.jour_semaine]}
-                                  </Badge>
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs bg-transparent ${
-                                      horaire.demi_journee === 'toute_journee' 
-                                        ? 'border-2 border-green-600' 
-                                        : horaire.demi_journee === 'apres_midi'
-                                        ? 'border-2 border-yellow-600'
-                                        : 'border-2 border-blue-600'
-                                    }`}
-                                  >
-                                    {horaire.demi_journee === 'matin' ? 'Matin' : 
-                                     horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
-                                     'Toute la journée'}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground truncate">
-                                    {horaire.sites?.nom}
-                                  </span>
-                                </div>
-                                {(horaire.date_debut || horaire.date_fin) && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                    {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                    {!horaire.date_debut && !horaire.date_fin && 'Permanent'}
-                                  </p>
-                                )}
-                              </div>
-                              {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  {alternanceLabels[horaire.alternance_type]}
-                                </Badge>
-                              )}
+                            <div key={jour} className="flex items-center gap-2 p-2 bg-muted/10 rounded-md opacity-50">
+                              <Badge variant="outline" className="text-xs font-medium">
+                                {jours[jour]}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">Non travaillé</span>
                             </div>
                           );
-                        })}
-                      </div>
+                        }
+                        
+                        return (
+                          <div key={jour} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs font-medium">
+                                  {jours[jour]}
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs bg-transparent ${
+                                    horaire.demi_journee === 'toute_journee' 
+                                      ? 'border-2 border-green-600' 
+                                      : horaire.demi_journee === 'apres_midi'
+                                      ? 'border-2 border-yellow-600'
+                                      : 'border-2 border-blue-600'
+                                  }`}
+                                >
+                                  {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                   horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                   'Toute la journée'}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {horaire.sites?.nom}
+                                </span>
+                              </div>
+                              {(horaire.date_debut || horaire.date_fin) && (
+                                <p className="text-xs text-muted-foreground">
+                                  {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                  {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                  {!horaire.date_debut && !horaire.date_fin && 'Permanent'}
+                                </p>
+                              )}
+                            </div>
+                            {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                {alternanceLabels[horaire.alternance_type]}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
                 </div>
               </ModernCardContent>
             </ModernCard>
