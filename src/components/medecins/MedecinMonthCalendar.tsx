@@ -240,12 +240,13 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         <PopoverTrigger asChild>
           <Badge 
             variant="secondary" 
-            className="w-full justify-start cursor-pointer hover:bg-primary/20 transition-colors text-xs px-2 py-1 relative"
+            className="w-full justify-start cursor-pointer hover:bg-primary/20 transition-colors text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px]"
+            title={besoin.sites?.nom || 'Site'}
           >
-            <span className="truncate">{besoin.sites?.nom || 'Site'}</span>
+            <span className="break-words leading-tight">{besoin.sites?.nom || 'Site'}</span>
           </Badge>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2" align="start">
+        <PopoverContent className="w-72 p-2" align="start">
           <div className="space-y-1">
             <p className="text-xs font-medium mb-2">Changer de site :</p>
             {sites.map(site => (
@@ -253,7 +254,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                 key={site.id}
                 variant={site.id === besoin.site_id ? "default" : "ghost"}
                 size="sm"
-                className="w-full justify-start text-xs"
+                className="w-full justify-start text-xs h-auto py-2 whitespace-normal text-left"
                 onClick={() => handleSiteChange(besoin.id, site.id, period)}
                 disabled={loading}
               >
@@ -266,7 +267,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       <Button
         variant="ghost"
         size="sm"
-        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full z-10"
         onClick={() => handleDelete(besoin.id, period)}
         disabled={loading}
       >
