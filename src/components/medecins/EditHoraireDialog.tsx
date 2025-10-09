@@ -95,6 +95,53 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
   const onSubmit = async (data: HoraireFormData) => {
     setLoading(true);
     try {
+      // Vérification des chevauchements
+      const { data: existing, error: checkError } = await supabase
+        .from('horaires_base_medecins')
+        .select('*')
+        .eq('medecin_id', medecinId)
+        .eq('jour_semaine', jour)
+        .eq('actif', true)
+        .neq('id', horaire?.id || '00000000-0000-0000-0000-000000000000');
+
+      if (checkError) throw checkError;
+
+      if (existing && existing.length > 0) {
+        // Vérifier les chevauchements
+        for (const existingHoraire of existing) {
+          // Même type d'alternance et même modulo
+          if (existingHoraire.alternance_type === data.alternanceType && 
+              existingHoraire.alternance_semaine_modulo === data.alternanceSemaineModulo) {
+            
+            // Vérifier chevauchement de périodes
+            const periodsOverlap = 
+              data.demiJournee === 'toute_journee' ||
+              existingHoraire.demi_journee === 'toute_journee' ||
+              data.demiJournee === existingHoraire.demi_journee;
+
+            if (periodsOverlap) {
+              // Vérifier chevauchement de dates
+              const newStart = data.dateDebut || '1900-01-01';
+              const newEnd = data.dateFin || '2100-12-31';
+              const existingStart = existingHoraire.date_debut || '1900-01-01';
+              const existingEnd = existingHoraire.date_fin || '2100-12-31';
+
+              const datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
+
+              if (datesOverlap) {
+                toast({
+                  title: "Conflit détecté",
+                  description: "Un horaire existe déjà pour ce jour avec la même alternance et la même période",
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+            }
+          }
+        }
+      }
+
       if (horaire) {
         // Modification
         const { error } = await supabase
