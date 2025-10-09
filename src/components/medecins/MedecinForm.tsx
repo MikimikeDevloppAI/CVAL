@@ -160,7 +160,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             .select('*')
             .eq('medecin_id', medecin.id)
             .order('jour_semaine')
-            .order('heure_debut');
+            .order('demi_journee');
           
           if (horairesData && horairesData.length > 0) {
             const horaires = horairesData.map(h => ({
