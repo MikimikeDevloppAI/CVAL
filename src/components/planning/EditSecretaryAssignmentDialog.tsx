@@ -26,7 +26,7 @@ interface Secretaire {
   id: string;
   first_name: string;
   name: string;
-  specialites: string[];
+  sites_assignes: string[];
   is_backup?: boolean;
   current_site?: string;
 }
@@ -86,18 +86,10 @@ export function EditSecretaryAssignmentDialog({
   // Refresh available secretaries when period changes
   useEffect(() => {
     if (open && allSecretaires.length > 0 && currentSecretaire) {
-      // Filter based on selected period
-      const filtered = allSecretaires.filter(sec => {
-        // Check if secretary has required specialties for both sites
-        const hasSpecForCurrentSite = currentSiteSpecialiteId ? 
-          (sec.specialites || []).includes(currentSiteSpecialiteId) : true;
-        
-        return hasSpecForCurrentSite;
-      });
-
-      setAvailableSecretaires(filtered);
+      // Simply use all secretaries - filtering will be done elsewhere if needed
+      setAvailableSecretaires(allSecretaires);
     }
-  }, [selectedPeriod, open, allSecretaires, currentSiteSpecialiteId, currentSecretaire]);
+  }, [selectedPeriod, open, allSecretaires, currentSecretaire]);
 
   const loadData = async () => {
     setLoadingData(true);
@@ -122,9 +114,9 @@ export function EditSecretaryAssignmentDialog({
       
       const allSites = sitesData || [];
       
-      // Filtrer les sites selon les spécialités de la secrétaire
+      // Filtrer les sites selon les sites assignés à la secrétaire
       const filteredSites = allSites.filter(site => 
-        !site.specialite_id || secData.specialites?.includes(site.specialite_id)
+        secData.sites_assignes?.includes(site.id)
       );
 
       // Récupérer tous les créneaux de ce jour pour trouver ceux où cette secrétaire est assignée
@@ -213,20 +205,20 @@ export function EditSecretaryAssignmentDialog({
       setIs2F(matinCreneau?.responsable_2f_id === secretaryId || amCreneau?.responsable_2f_id === secretaryId);
       setIs3F(matinCreneau?.responsable_3f_id === secretaryId || amCreneau?.responsable_3f_id === secretaryId);
 
-      // Récupérer toutes les secrétaires et backups avec les mêmes spécialités
-      if (secData?.specialites && secData.specialites.length > 0) {
+      // Récupérer toutes les secrétaires et backups avec les mêmes sites assignés
+      if (secData?.sites_assignes && secData.sites_assignes.length > 0) {
         const [secretairesRes, backupsRes] = await Promise.all([
           supabase
             .from('secretaires')
             .select('*')
             .eq('actif', true)
             .neq('id', secretaryId)
-            .overlaps('specialites', secData.specialites),
+            .overlaps('sites_assignes', secData.sites_assignes),
           supabase
             .from('backup')
             .select('*')
             .eq('actif', true)
-            .overlaps('specialites', secData.specialites)
+            .overlaps('specialites', secData.sites_assignes)
         ]);
 
         // Récupérer les assignations du jour pour ces secrétaires
@@ -299,8 +291,8 @@ export function EditSecretaryAssignmentDialog({
           }
           
           // Vérification bidirectionnelle : la secrétaire cible doit pouvoir prendre la place actuelle
-          if (currentSiteSpecialiteIdValue && !sec.specialites?.includes(currentSiteSpecialiteIdValue)) {
-            return false; // La secrétaire cible n'a pas la spécialité du site actuel
+          if (currentSiteId && 'sites_assignes' in sec && !sec.sites_assignes?.includes(currentSiteId)) {
+            return false; // La secrétaire cible n'a pas le site actuel dans ses sites assignés
           }
           
           // Accepter les assignations administratives ou sur des sites compatibles

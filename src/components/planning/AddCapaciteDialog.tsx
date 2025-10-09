@@ -31,7 +31,7 @@ interface AddCapaciteDialogProps {
 }
 
 export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapaciteDialogProps) {
-  const [secretaires, setSecretaires] = useState<{ id: string; first_name: string; name: string; specialites: string[] }[]>([]);
+  const [secretaires, setSecretaires] = useState<{ id: string; first_name: string; name: string; sites_assignes: string[] }[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -49,7 +49,7 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
     const fetchData = async () => {
       const { data: secretairesData } = await supabase
         .from('secretaires')
-        .select('id, first_name, name, specialites')
+        .select('id, first_name, name, sites_assignes')
         .eq('actif', true)
         .order('name');
       
@@ -95,9 +95,9 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
         demiJournee = 'toute_journee';
       }
 
-      // Récupérer les spécialités de la secrétaire
+      // Récupérer les sites assignés de la secrétaire
       const secretaire = secretaires.find(s => s.id === data.secretaire_id);
-      const specialites = secretaire?.specialites || [];
+      const sitesAssignes = secretaire?.sites_assignes || [];
       
       await Promise.all(
         selectedDates.map(date => {

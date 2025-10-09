@@ -29,7 +29,7 @@ interface CapaciteEffective {
   secretaire?: {
     first_name: string;
     name: string;
-    specialites: string[];
+    sites_assignes: string[];
   };
   backup?: {
     first_name: string;
@@ -129,7 +129,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
         .insert(insertData)
         .select(`
           *,
-          secretaire:secretaires(first_name, name, specialites),
+          secretaire:secretaires(first_name, name, sites_assignes),
           backup:backup(first_name, name, specialites)
         `)
         .single();

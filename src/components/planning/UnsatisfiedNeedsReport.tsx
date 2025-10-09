@@ -53,7 +53,7 @@ interface SecretaryInfo {
   first_name: string;
   flexible_jours_supplementaires: boolean;
   nombre_jours_supplementaires: number;
-  specialites: string[];
+  sites_assignes: string[];
   base_days: number; // Nombre de jours de base par semaine
   assigned_days: number; // Nombre de jours assignés cette semaine
 }
@@ -191,7 +191,7 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closu
           first_name: sec.first_name || '',
           flexible_jours_supplementaires: sec.flexible_jours_supplementaires || false,
           nombre_jours_supplementaires: sec.nombre_jours_supplementaires || 0,
-          specialites: sec.specialites || [],
+          sites_assignes: sec.sites_assignes || [],
           base_days: baseDays,
           assigned_days: assignedDaysSet.size,
         });
@@ -209,8 +209,8 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closu
         for (const sec of secretariesInfo) {
           if (!sec.flexible_jours_supplementaires) continue;
           
-          // Vérifier que la secrétaire a la bonne spécialité
-          if (siteSpecialiteId && !sec.specialites.includes(siteSpecialiteId)) continue;
+          // Vérifier que la secrétaire est assignée au site
+          if (need.site_id && !sec.sites_assignes.includes(need.site_id)) continue;
           
           const joursSupplementairesUtilises = sec.assigned_days - sec.base_days;
           const joursSupplementairesRestants = sec.nombre_jours_supplementaires - joursSupplementairesUtilises;
@@ -327,19 +327,19 @@ export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closu
           a.secretaires.some(s => s.secretaire_id === sec.id || s.backup_id === sec.id)
         );
         
-        // Vérifier que la secrétaire a la spécialité du site
-        const hasMatchingSpeciality = siteSpecialiteId 
-          ? (sec.specialites || []).includes(siteSpecialiteId)
-          : true; // Si pas de spécialité définie pour le site, on accepte toutes les secrétaires
+        // Vérifier que la secrétaire est assignée au site
+        const hasMatchingSite = need.site_id 
+          ? (sec.sites_assignes || []).includes(need.site_id)
+          : true; // Si pas de site défini, on accepte toutes les secrétaires
 
-        return !alreadyWorking && hasMatchingSpeciality;
+        return !alreadyWorking && hasMatchingSite;
       }).map(sec => ({
         id: sec.id,
         name: sec.name || '',
         first_name: sec.first_name || '',
         flexible_jours_supplementaires: sec.flexible_jours_supplementaires || false,
         nombre_jours_supplementaires: sec.nombre_jours_supplementaires || 0,
-        specialites: sec.specialites || [],
+        sites_assignes: sec.sites_assignes || [],
         base_days: 0,
         assigned_days: 0,
       })) || [];
