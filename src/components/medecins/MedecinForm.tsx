@@ -53,6 +53,8 @@ const medecinSchema = z.object({
   horaires: z.array(horaireSchema),
 }).refine((data) => {
   // Vérifier les chevauchements d'horaires pour chaque jour
+  // Mais autoriser les chevauchements si les horaires ont des dates de validité différentes
+  // ou des alternances différentes (ils ne seront pas actifs en même temps)
   const horairesParJour = data.horaires.reduce((acc, horaire) => {
     if (!acc[horaire.jour]) acc[horaire.jour] = [];
     acc[horaire.jour].push(horaire);
@@ -65,16 +67,47 @@ const medecinSchema = z.object({
       for (let j = i + 1; j < horairesJour.length; j++) {
         const h1 = horairesJour[i];
         const h2 = horairesJour[j];
-        // Vérifier le chevauchement
-        if (h1.heureDebut < h2.heureFin && h2.heureDebut < h1.heureFin) {
-          return false;
+        
+        // Vérifier si les heures se chevauchent
+        const heuresChevauchent = h1.heureDebut < h2.heureFin && h2.heureDebut < h1.heureFin;
+        
+        if (!heuresChevauchent) continue;
+        
+        // Si les heures se chevauchent, vérifier s'ils peuvent coexister
+        // grâce à des dates ou alternances différentes
+        
+        // Si les deux ont des dates différentes qui ne se chevauchent pas
+        if (h1.dateDebut && h1.dateFin && h2.dateDebut && h2.dateFin) {
+          if (h1.dateFin < h2.dateDebut || h2.dateFin < h1.dateDebut) {
+            continue; // Pas de chevauchement temporel
+          }
         }
+        
+        // Si les sites sont différents, pas de problème
+        if (h1.siteId !== h2.siteId) {
+          continue;
+        }
+        
+        // Si les alternances sont différentes, ils peuvent coexister
+        if (h1.alternanceType !== h2.alternanceType) {
+          continue;
+        }
+        
+        // Si même alternance mais semaines de référence différentes (pour une_sur_deux, etc.)
+        if (h1.alternanceType !== 'hebdomadaire' && h2.alternanceType !== 'hebdomadaire') {
+          if (h1.alternanceSemaineReference !== h2.alternanceSemaineReference) {
+            continue;
+          }
+        }
+        
+        // Si on arrive ici, il y a un vrai chevauchement problématique
+        return false;
       }
     }
   }
   return true;
 }, {
-  message: "Les horaires d'un même jour ne peuvent pas se chevaucher",
+  message: "Les horaires d'un même jour ne peuvent pas se chevaucher (même site, mêmes semaines)",
   path: ["horaires"],
 });
 
