@@ -355,7 +355,7 @@ export default function MedecinsPage() {
                     <div className="space-y-2">
                       {[1, 2, 3, 4, 5].map((jour) => {
                         const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-                        const horaire = medecin.horaires_base_medecins?.find(h => h.jour_semaine === jour);
+                        const horairesJour = medecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [];
                         const alternanceLabels = {
                           'hebdomadaire': 'Hebdo',
                           'une_sur_deux': '1/2',
@@ -363,7 +363,7 @@ export default function MedecinsPage() {
                           'une_sur_quatre': '1/4'
                         };
                         
-                        if (!horaire) {
+                        if (horairesJour.length === 0) {
                           return (
                             <div key={jour} className="flex items-center gap-2 p-2 bg-muted/10 rounded-md opacity-50">
                               <Badge variant="outline" className="text-xs font-medium">
@@ -374,8 +374,8 @@ export default function MedecinsPage() {
                           );
                         }
                         
-                        return (
-                          <div key={jour} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
+                        return horairesJour.map((horaire, index) => (
+                          <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge variant="outline" className="text-xs font-medium">
@@ -413,7 +413,7 @@ export default function MedecinsPage() {
                               </Badge>
                             )}
                           </div>
-                        );
+                        ));
                       })}
                     </div>
                   </div>
