@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const horaireSchema = z.object({
   demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']),
-  siteId: z.string().optional(),
+  siteId: z.string(),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
 }).refine((data) => {
@@ -59,7 +59,7 @@ export function EditHoraireSecretaireDialog({
     resolver: zodResolver(horaireSchema),
     defaultValues: {
       demiJournee: horaire?.demi_journee || 'toute_journee',
-      siteId: horaire?.site_id || '',
+      siteId: horaire?.site_id || 'none',
       dateDebut: horaire?.date_debut || '',
       dateFin: horaire?.date_fin || '',
     },
@@ -77,14 +77,14 @@ export function EditHoraireSecretaireDialog({
     if (horaire) {
       form.reset({
         demiJournee: horaire.demi_journee || 'toute_journee',
-        siteId: horaire.site_id || '',
+        siteId: horaire.site_id || 'none',
         dateDebut: horaire.date_debut || '',
         dateFin: horaire.date_fin || '',
       });
     } else {
       form.reset({
         demiJournee: 'toute_journee',
-        siteId: '',
+        siteId: 'none',
         dateDebut: '',
         dateFin: '',
       });
@@ -141,7 +141,7 @@ export function EditHoraireSecretaireDialog({
           .from('horaires_base_secretaires')
           .update({
             demi_journee: data.demiJournee,
-            site_id: data.siteId || null,
+            site_id: data.siteId === 'none' ? null : data.siteId,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
           })
@@ -161,7 +161,7 @@ export function EditHoraireSecretaireDialog({
             secretaire_id: secretaireId,
             jour_semaine: jour,
             demi_journee: data.demiJournee,
-            site_id: data.siteId || null,
+            site_id: data.siteId === 'none' ? null : data.siteId,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
             actif: true,
@@ -236,7 +236,7 @@ export function EditHoraireSecretaireDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Aucun site spécifique</SelectItem>
+                      <SelectItem value="none">Aucun site spécifique</SelectItem>
                       {sites.map((site) => (
                         <SelectItem key={site.id} value={site.id}>
                           {site.nom}
