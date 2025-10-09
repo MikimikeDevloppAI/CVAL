@@ -67,8 +67,7 @@ export default function MedecinsPage() {
           .from('horaires_base_medecins')
           .select(`
             jour_semaine,
-            heure_debut,
-            heure_fin,
+            demi_journee,
             site_id,
             actif,
             alternance_type,
@@ -90,8 +89,7 @@ export default function MedecinsPage() {
                 horaires.push({
                   jour,
                   jourTravaille: true,
-                  heureDebut: horaireExistant.heure_debut || '07:30',
-                  heureFin: horaireExistant.heure_fin || '17:00',
+                  demiJournee: horaireExistant.demi_journee || 'toute_journee',
                   siteId: horaireExistant.site_id || '',
                   actif: horaireExistant.actif !== false
                 });
@@ -99,8 +97,7 @@ export default function MedecinsPage() {
                 horaires.push({
                   jour,
                   jourTravaille: false,
-                  heureDebut: '07:30',
-                  heureFin: '17:00',
+                  demiJournee: 'toute_journee',
                   siteId: '',
                   actif: true
                 });
@@ -372,6 +369,11 @@ export default function MedecinsPage() {
                                 <div className="flex items-center gap-2 mb-1">
                                   <Badge variant="outline" className="text-xs font-medium">
                                     {jours[horaire.jour_semaine]}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                     horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                     'Toute la journée'}
                                   </Badge>
                                   <span className="text-xs text-muted-foreground truncate">
                                     {horaire.sites?.nom}

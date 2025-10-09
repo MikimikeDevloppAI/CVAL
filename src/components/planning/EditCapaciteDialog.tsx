@@ -23,8 +23,7 @@ import {
 interface CapaciteEffective {
   id: string;
   date: string;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
   secretaire?: {

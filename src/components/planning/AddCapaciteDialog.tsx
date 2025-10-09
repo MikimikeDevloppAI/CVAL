@@ -85,19 +85,14 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
 
     setLoading(true);
     try {
-      // Déterminer les horaires selon la période
-      let heureDebut: string;
-      let heureFin: string;
-      
-      if (data.periode === 'journee') {
-        heureDebut = '07:30:00';
-        heureFin = '17:00:00';
-      } else if (data.periode === 'matin') {
-        heureDebut = '07:30:00';
-        heureFin = '12:00:00';
+      // Déterminer la demi_journee selon les heures
+      let demiJournee: 'matin' | 'apres_midi' | 'toute_journee' = 'toute_journee';
+      if (data.periode === 'matin') {
+        demiJournee = 'matin';
+      } else if (data.periode === 'apres_midi') {
+        demiJournee = 'apres_midi';
       } else {
-        heureDebut = '13:00:00';
-        heureFin = '17:00:00';
+        demiJournee = 'toute_journee';
       }
 
       // Récupérer les spécialités de la secrétaire
@@ -109,9 +104,7 @@ export function AddCapaciteDialog({ open, onOpenChange, onSuccess }: AddCapacite
           const insertData = {
             date: format(date, 'yyyy-MM-dd'),
             secretaire_id: data.secretaire_id,
-            heure_debut: heureDebut,
-            heure_fin: heureFin,
-            specialites: specialites,
+            demi_journee: demiJournee,
             actif: true,
           };
 

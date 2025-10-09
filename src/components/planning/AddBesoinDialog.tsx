@@ -133,19 +133,28 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
     setLoading(true);
     try {
       await Promise.all(
-        selectedDates.map(date => 
-          supabase
+        selectedDates.map(date => {
+          // Déterminer la demi_journee selon les heures
+          let demiJournee: 'matin' | 'apres_midi' | 'toute_journee';
+          if (data.heure_debut >= '07:00' && data.heure_fin <= '12:30') {
+            demiJournee = 'matin';
+          } else if (data.heure_debut >= '12:30' && data.heure_fin <= '18:00') {
+            demiJournee = 'apres_midi';
+          } else {
+            demiJournee = 'toute_journee';
+          }
+
+          return supabase
             .from('besoin_effectif')
             .insert({
               date: format(date, 'yyyy-MM-dd'),
               type: 'medecin',
               medecin_id: data.medecin_id,
               site_id: data.site_id,
-              heure_debut: data.heure_debut,
-              heure_fin: data.heure_fin,
+              demi_journee: demiJournee,
               actif: true,
-            })
-        )
+            });
+        })
       );
 
       toast({

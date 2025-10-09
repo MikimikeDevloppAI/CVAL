@@ -19,8 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 const horaireSchema = z.object({
   jour: z.number().min(1).max(7),
   jourTravaille: z.boolean().default(false),
-  heureDebut: z.string().optional(),
-  heureFin: z.string().optional(),
+  demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']).optional(),
   actif: z.boolean().default(true),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
@@ -75,11 +74,11 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaires: secretaire?.horaires || [
-        { jour: 1, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
-        { jour: 2, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
-        { jour: 3, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
-        { jour: 4, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
-        { jour: 5, jourTravaille: false, heureDebut: '07:30', heureFin: '17:00', actif: true },
+        { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
+        { jour: 2, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
+        { jour: 3, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
+        { jour: 4, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
+        { jour: 5, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
       ],
     },
   });
@@ -132,17 +131,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         // Puis insérer les nouveaux horaires actifs (triggers créeront capacite_effective)
         const horairesActifs = data.horaires.filter(horaire => 
-          horaire.jourTravaille && 
-          horaire.heureDebut && 
-          horaire.heureFin
+          horaire.jourTravaille && horaire.demiJournee
         );
 
         if (horairesActifs.length > 0) {
           const horairesData = horairesActifs.map(horaire => ({
             secretaire_id: secretaire.id,
             jour_semaine: horaire.jour,
-            heure_debut: horaire.heureDebut,
-            heure_fin: horaire.heureFin,
+            demi_journee: horaire.demiJournee,
             actif: horaire.actif,
             date_debut: horaire.dateDebut || null,
             date_fin: horaire.dateFin || null,
@@ -182,17 +178,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         // Créer les horaires (triggers créeront automatiquement capacite_effective)
         if (secretaireData) {
           const horairesActifs = data.horaires.filter(horaire => 
-            horaire.jourTravaille && 
-            horaire.heureDebut && 
-            horaire.heureFin
+            horaire.jourTravaille && horaire.demiJournee
           );
 
           if (horairesActifs.length > 0) {
             const horairesData = horairesActifs.map(horaire => ({
               secretaire_id: secretaireData.id,
               jour_semaine: horaire.jour,
-              heure_debut: horaire.heureDebut,
-              heure_fin: horaire.heureFin,
+              demi_journee: horaire.demiJournee,
               actif: horaire.actif,
               date_debut: horaire.dateDebut || null,
               date_fin: horaire.dateFin || null,
@@ -479,35 +472,28 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
                   {jourTravaille ? (
                     <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <FormField
-                          control={form.control}
-                          name={`horaires.${index}.heureDebut`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Heure de début</FormLabel>
+                      <FormField
+                        control={form.control}
+                        name={`horaires.${index}.demiJournee`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Période</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
-                                <Input {...field} type="time" />
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sélectionner une période" />
+                                </SelectTrigger>
                               </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`horaires.${index}.heureFin`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Heure de fin</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="time" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                              <SelectContent>
+                                <SelectItem value="matin">Matin</SelectItem>
+                                <SelectItem value="apres_midi">Après-midi</SelectItem>
+                                <SelectItem value="toute_journee">Toute la journée</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
                       <div className="grid grid-cols-2 gap-3">
                         <FormField

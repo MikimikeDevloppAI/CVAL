@@ -24,8 +24,7 @@ interface BesoinEffectif {
   id: string;
   date: string;
   type: string;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
   site_id: string;

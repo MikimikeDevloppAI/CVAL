@@ -15,22 +15,13 @@ import { Plus, Trash2 } from 'lucide-react';
 
 const horaireSchema = z.object({
   jour: z.number().min(1).max(5),
-  heureDebut: z.string().min(1, 'Heure de début requise'),
-  heureFin: z.string().min(1, 'Heure de fin requise'),
+  demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']),
   siteId: z.string().min(1, 'Site requis'),
   actif: z.boolean().default(true),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
   alternanceSemaineReference: z.string().optional(),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
-}).refine((data) => {
-  if (data.heureDebut && data.heureFin) {
-    return data.heureDebut < data.heureFin;
-  }
-  return true;
-}, {
-  message: "L'heure de début doit être avant l'heure de fin",
-  path: ["heureDebut"],
 }).refine((data) => {
   if (data.dateDebut && data.dateFin) {
     return data.dateDebut <= data.dateFin;
@@ -53,8 +44,6 @@ const medecinSchema = z.object({
   horaires: z.array(horaireSchema),
 }).refine((data) => {
   // Vérifier les chevauchements d'horaires pour chaque jour
-  // Mais autoriser les chevauchements si les horaires ont des dates de validité différentes
-  // ou des alternances différentes (ils ne seront pas actifs en même temps)
   const horairesParJour = data.horaires.reduce((acc, horaire) => {
     if (!acc[horaire.jour]) acc[horaire.jour] = [];
     acc[horaire.jour].push(horaire);
@@ -68,18 +57,20 @@ const medecinSchema = z.object({
         const h1 = horairesJour[i];
         const h2 = horairesJour[j];
         
-        // Vérifier si les heures se chevauchent
-        const heuresChevauchent = h1.heureDebut < h2.heureFin && h2.heureDebut < h1.heureFin;
+        // Vérifier si les périodes se chevauchent
+        const periodesChevauchent = 
+          h1.demiJournee === h2.demiJournee || 
+          h1.demiJournee === 'toute_journee' || 
+          h2.demiJournee === 'toute_journee';
         
-        if (!heuresChevauchent) continue;
+        if (!periodesChevauchent) continue;
         
-        // Si les heures se chevauchent, vérifier s'ils peuvent coexister
-        // grâce à des dates ou alternances différentes
+        // Si les périodes se chevauchent, vérifier s'ils peuvent coexister
         
         // Si les deux ont des dates différentes qui ne se chevauchent pas
         if (h1.dateDebut && h1.dateFin && h2.dateDebut && h2.dateFin) {
           if (h1.dateFin < h2.dateDebut || h2.dateFin < h1.dateDebut) {
-            continue; // Pas de chevauchement temporel
+            continue;
           }
         }
         
@@ -93,14 +84,13 @@ const medecinSchema = z.object({
           continue;
         }
         
-        // Si même alternance mais semaines de référence différentes (pour une_sur_deux, etc.)
+        // Si même alternance mais semaines de référence différentes
         if (h1.alternanceType !== 'hebdomadaire' && h2.alternanceType !== 'hebdomadaire') {
           if (h1.alternanceSemaineReference !== h2.alternanceSemaineReference) {
             continue;
           }
         }
         
-        // Si on arrive ici, il y a un vrai chevauchement problématique
         return false;
       }
     }
@@ -175,8 +165,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           if (horairesData && horairesData.length > 0) {
             const horaires = horairesData.map(h => ({
               jour: h.jour_semaine,
-              heureDebut: h.heure_debut || '07:30',
-              heureFin: h.heure_fin || '17:00',
+              demiJournee: h.demi_journee as 'matin' | 'apres_midi' | 'toute_journee',
               siteId: h.site_id || '',
               actif: h.actif !== false,
               alternanceType: h.alternance_type || 'hebdomadaire',
@@ -226,8 +215,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           const horairesData = data.horaires.map(horaire => ({
             medecin_id: medecin.id,
             jour_semaine: horaire.jour,
-            heure_debut: horaire.heureDebut,
-            heure_fin: horaire.heureFin,
+            demi_journee: horaire.demiJournee,
             site_id: horaire.siteId,
             actif: horaire.actif,
             alternance_type: horaire.alternanceType,
@@ -269,8 +257,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           const horairesData = data.horaires.map(horaire => ({
             medecin_id: medecinData.id,
             jour_semaine: horaire.jour,
-            heure_debut: horaire.heureDebut,
-            heure_fin: horaire.heureFin,
+            demi_journee: horaire.demiJournee,
             site_id: horaire.siteId,
             actif: horaire.actif,
             alternance_type: horaire.alternanceType,
@@ -448,8 +435,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                       onClick={() => {
                         append({
                           jour,
-                          heureDebut: '07:30',
-                          heureFin: '17:30',
+                          demiJournee: 'toute_journee',
                           siteId: '',
                           actif: true,
                           alternanceType: 'hebdomadaire',
@@ -482,35 +468,28 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                           <Trash2 className="h-4 w-4" />
                         </Button>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <FormField
-                            control={form.control}
-                            name={`horaires.${index}.heureDebut`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Heure de début</FormLabel>
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.demiJournee`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Période</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
-                                  <Input {...field} type="time" />
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionner une période" />
+                                  </SelectTrigger>
                                 </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={form.control}
-                            name={`horaires.${index}.heureFin`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Heure de fin</FormLabel>
-                                <FormControl>
-                                  <Input {...field} type="time" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                                <SelectContent>
+                                  <SelectItem value="matin">Matin</SelectItem>
+                                  <SelectItem value="apres_midi">Après-midi</SelectItem>
+                                  <SelectItem value="toute_journee">Toute la journée</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
                         <FormField
                           control={form.control}
