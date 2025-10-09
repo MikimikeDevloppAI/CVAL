@@ -175,14 +175,19 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const getBesoinForDate = (day: number, period: 'matin' | 'apres_midi') => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
-    
-    console.log(`getBesoinForDate called for ${dateStr}, period: ${period}`);
-    const filtered = besoins.filter(
-      b => b.date === dateStr && 
-      (b.demi_journee === period || b.demi_journee === 'toute_journee')
-    );
-    console.log(`Found ${filtered.length} besoins:`, filtered);
-    return filtered;
+
+    // Préférer les créneaux correspondant exactement à la période
+    const sameDate = besoins.filter(b => b.date === dateStr);
+    const exact = sameDate.filter(b => b.demi_journee === period);
+    if (exact.length > 0) {
+      console.info(`getBesoinForDate ${dateStr} [${period}] -> exact x${exact.length}`);
+      return exact;
+    }
+
+    // Sinon, fallback sur 'toute_journee' (affiché dans les deux colonnes)
+    const fullDay = sameDate.filter(b => b.demi_journee === 'toute_journee');
+    console.info(`getBesoinForDate ${dateStr} [${period}] -> full-day x${fullDay.length}`);
+    return fullDay;
   };
   const handleAddBesoin = async (day: number, period: 'matin' | 'apres_midi') => {
     if (!sites.length) return;
@@ -242,7 +247,8 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       <Popover>
         <PopoverTrigger asChild>
           <Badge 
-            className="w-full justify-start cursor-pointer hover:opacity-80 transition-all text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px] bg-primary/10 border-primary/20 hover:bg-primary/15 text-foreground"
+            variant="secondary"
+            className="w-full justify-start cursor-pointer hover:opacity-80 transition-all text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px]"
             title={besoin.sites?.nom || 'Site'}
           >
             <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
