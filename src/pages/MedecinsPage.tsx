@@ -77,7 +77,7 @@ export default function MedecinsPage() {
           site_id,
           actif,
           alternance_type,
-          alternance_semaine_reference,
+          alternance_semaine_modulo,
           date_debut,
           date_fin,
           sites!horaires_base_medecins_site_id_fkey (

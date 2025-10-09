@@ -317,7 +317,7 @@ export type Database = {
       horaires_base_medecins: {
         Row: {
           actif: boolean
-          alternance_semaine_reference: string | null
+          alternance_semaine_modulo: number
           alternance_type: Database["public"]["Enums"]["type_alternance"] | null
           created_at: string
           date_debut: string | null
@@ -331,7 +331,7 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          alternance_semaine_reference?: string | null
+          alternance_semaine_modulo?: number
           alternance_type?:
             | Database["public"]["Enums"]["type_alternance"]
             | null
@@ -347,7 +347,7 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          alternance_semaine_reference?: string | null
+          alternance_semaine_modulo?: number
           alternance_type?:
             | Database["public"]["Enums"]["type_alternance"]
             | null
@@ -970,11 +970,17 @@ export type Database = {
         Returns: undefined
       }
       should_doctor_work: {
-        Args: {
-          p_alternance_reference: string
-          p_alternance_type: Database["public"]["Enums"]["type_alternance"]
-          p_target_date: string
-        }
+        Args:
+          | {
+              p_alternance_modulo: number
+              p_alternance_type: Database["public"]["Enums"]["type_alternance"]
+              p_target_date: string
+            }
+          | {
+              p_alternance_reference: string
+              p_alternance_type: Database["public"]["Enums"]["type_alternance"]
+              p_target_date: string
+            }
         Returns: boolean
       }
       swap_secretaries: {

@@ -14,7 +14,7 @@ const horaireSchema = z.object({
   demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']),
   siteId: z.string().min(1, 'Site requis'),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
-  alternanceSemaineReference: z.string().optional(),
+  alternanceSemaineModulo: z.number().int().min(0).max(3),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
 }).refine((data) => {
@@ -56,7 +56,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       demiJournee: horaire?.demi_journee || 'toute_journee',
       siteId: horaire?.site_id || '',
       alternanceType: horaire?.alternance_type || 'hebdomadaire',
-      alternanceSemaineReference: horaire?.alternance_semaine_reference || '',
+      alternanceSemaineModulo: horaire?.alternance_semaine_modulo ?? 0,
       dateDebut: horaire?.date_debut || '',
       dateFin: horaire?.date_fin || '',
     },
@@ -76,7 +76,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
         demiJournee: horaire.demi_journee || 'toute_journee',
         siteId: horaire.site_id || '',
         alternanceType: horaire.alternance_type || 'hebdomadaire',
-        alternanceSemaineReference: horaire.alternance_semaine_reference || '',
+        alternanceSemaineModulo: horaire.alternance_semaine_modulo ?? 0,
         dateDebut: horaire.date_debut || '',
         dateFin: horaire.date_fin || '',
       });
@@ -85,7 +85,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
         demiJournee: 'toute_journee',
         siteId: '',
         alternanceType: 'hebdomadaire',
-        alternanceSemaineReference: '',
+        alternanceSemaineModulo: 0,
         dateDebut: '',
         dateFin: '',
       });
@@ -103,7 +103,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
             demi_journee: data.demiJournee,
             site_id: data.siteId,
             alternance_type: data.alternanceType,
-            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            alternance_semaine_modulo: data.alternanceSemaineModulo,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
           })
@@ -125,7 +125,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
             demi_journee: data.demiJournee,
             site_id: data.siteId,
             alternance_type: data.alternanceType,
-            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            alternance_semaine_modulo: data.alternanceSemaineModulo,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
             actif: true,
@@ -241,13 +241,47 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
             {alternanceType && alternanceType !== 'hebdomadaire' && (
               <FormField
                 control={form.control}
-                name="alternanceSemaineReference"
+                name="alternanceSemaineModulo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Semaine de référence</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="date" />
-                    </FormControl>
+                    <FormLabel>
+                      {alternanceType === 'une_sur_deux' && 'Semaine'}
+                      {alternanceType === 'une_sur_trois' && 'Semaine dans le cycle'}
+                      {alternanceType === 'une_sur_quatre' && 'Semaine dans le cycle'}
+                    </FormLabel>
+                    <Select 
+                      onValueChange={(value) => field.onChange(parseInt(value))} 
+                      value={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {alternanceType === 'une_sur_deux' && (
+                          <>
+                            <SelectItem value="0">Paire (2, 4, 6...)</SelectItem>
+                            <SelectItem value="1">Impaire (1, 3, 5...)</SelectItem>
+                          </>
+                        )}
+                        {alternanceType === 'une_sur_trois' && (
+                          <>
+                            <SelectItem value="0">Semaine 1 (1, 4, 7...)</SelectItem>
+                            <SelectItem value="1">Semaine 2 (2, 5, 8...)</SelectItem>
+                            <SelectItem value="2">Semaine 3 (3, 6, 9...)</SelectItem>
+                          </>
+                        )}
+                        {alternanceType === 'une_sur_quatre' && (
+                          <>
+                            <SelectItem value="0">Semaine 1 (1, 5, 9...)</SelectItem>
+                            <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
+                            <SelectItem value="2">Semaine 3 (3, 7, 11...)</SelectItem>
+                            <SelectItem value="3">Semaine 4 (4, 8, 12...)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
