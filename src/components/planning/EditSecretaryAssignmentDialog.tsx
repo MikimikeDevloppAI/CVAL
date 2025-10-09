@@ -268,8 +268,8 @@ export function EditSecretaryAssignmentDialog({
 
         // Filtrer les secrétaires pour ne garder que celles sur des sites compatibles et différents
         const allSec = [
-          ...(secretairesRes.data || []),
-          ...(backupsRes.data || []).map(b => ({ ...b, is_backup: true }))
+          ...(secretairesRes.data || []).map(s => ({ ...s, sites_assignes: s.sites_assignes || [] })),
+          ...(backupsRes.data || []).map(b => ({ ...b, is_backup: true, sites_assignes: [] }))
         ].filter(sec => {
           // Vérifier si la secrétaire a une assignation ce jour-là
           const assignmentInfo = assignmentMap.get(sec.id);

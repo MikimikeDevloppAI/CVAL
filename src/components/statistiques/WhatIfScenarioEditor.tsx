@@ -39,7 +39,7 @@ interface RealSecretary {
   id: string;
   name: string;
   first_name: string;
-  specialites: Array<{ id: string; nom: string }>;
+  sites_assignes: string[];
   horaires: Array<{
     id: string;
     jour_semaine: number;
@@ -139,7 +139,7 @@ export function WhatIfScenarioEditor() {
   const fetchRealSecretaries = async () => {
     const { data: secretaires, error: secError } = await supabase
       .from('secretaires')
-      .select('id, name, first_name, specialites, actif')
+      .select('id, name, first_name, sites_assignes, actif')
       .eq('actif', true);
 
     if (secError || !secretaires) return;
@@ -161,10 +161,7 @@ export function WhatIfScenarioEditor() {
       id: s.id,
       name: s.name || '',
       first_name: s.first_name || '',
-      specialites: (s.specialites || []).map((specId: string) => ({
-        id: specId,
-        nom: specMap.get(specId) || 'Inconnue',
-      })),
+      sites_assignes: (s.sites_assignes || []),
       horaires: horaires
         .filter(h => h.secretaire_id === s.id)
         .map(h => ({
@@ -397,7 +394,7 @@ export function WhatIfScenarioEditor() {
           modifiedScenario.fictionalSecretaries.push({
             id: `modified-${secretaryId}`,
             name: `${secretary.first_name} ${secretary.name} (modifié)`,
-            specialites: secretary.specialites.map(s => s.id),
+            specialites: secretary.sites_assignes,
             horaires,
           });
         }
@@ -760,11 +757,9 @@ export function WhatIfScenarioEditor() {
                       <div className="flex-1">
                         <div className="font-medium">{secretary.first_name} {secretary.name}</div>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {secretary.specialites.map(spec => (
-                            <Badge key={spec.id} variant="secondary" className="text-xs">
-                              {spec.nom}
-                            </Badge>
-                          ))}
+                          <Badge variant="secondary" className="text-xs">
+                            {secretary.sites_assignes.length} sites assignés
+                          </Badge>
                         </div>
                         <div className="flex gap-1 mt-2">
                           {JOURS_SEMAINE.map(jour => {

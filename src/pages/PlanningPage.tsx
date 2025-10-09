@@ -58,9 +58,9 @@ interface CapaciteEffective {
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
-  secretaire?: { first_name: string; name: string; specialites: string[] };
+  secretaire?: { first_name: string; name: string; sites_assignes: string[] };
   backup?: { first_name: string; name: string; specialites: string[] };
-  specialites: string[];
+  sites?: string[];
 }
 
 export default function PlanningPage() {
@@ -540,7 +540,7 @@ export default function PlanningPage() {
         .from('capacite_effective')
         .select(`
           *,
-          secretaire:secretaires(first_name, name, specialites),
+          secretaire:secretaires(first_name, name, sites_assignes),
           backup:backup(first_name, name, specialites)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
@@ -562,13 +562,11 @@ export default function PlanningPage() {
       );
 
       const enrichedData = data.map(capacite => {
-        // Récupérer les spécialités depuis secretaire ou backup
-        const specialitesIds = capacite.secretaire?.specialites || capacite.backup?.specialites || [];
+        // Récupérer les sites depuis secretaire ou backup
+        const sitesIds = capacite.secretaire?.sites_assignes || capacite.backup?.specialites || [];
         return {
           ...capacite,
-          specialites: specialitesIds.map(
-            (id: string) => specialitesMap.get(id) || 'Spécialité inconnue'
-          )
+          sites: sitesIds
         };
       });
 

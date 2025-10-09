@@ -17,7 +17,7 @@ interface CapaciteEffective {
   secretaire?: {
     first_name: string;
     name: string;
-    specialites: string[];
+    sites_assignes: string[];
   };
   backup?: {
     first_name: string;
@@ -38,7 +38,7 @@ interface SecretaryGroup {
   name: string;
   isBackup: boolean;
   capacites: CapaciteEffective[];
-  specialites: string[];
+  sites_assignes: string[];
 }
 
 interface HoraireBase {
@@ -107,7 +107,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
         name: `${person.first_name} ${person.name}`,
         isBackup: !!cap.backup_id,
         capacites: [],
-        specialites: person.specialites || [],
+        sites_assignes: ('sites_assignes' in person) ? (person.sites_assignes || []) : [],
       });
     }
 
