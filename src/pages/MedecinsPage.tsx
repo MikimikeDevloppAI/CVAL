@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { MedecinForm } from '@/components/medecins/MedecinForm';
+import { EditHoraireDialog } from '@/components/medecins/EditHoraireDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -34,6 +35,10 @@ export default function MedecinsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [selectedMedecin, setSelectedMedecin] = useState<Medecin | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isHoraireDialogOpen, setIsHoraireDialogOpen] = useState(false);
+  const [selectedJour, setSelectedJour] = useState<number>(1);
+  const [selectedHoraire, setSelectedHoraire] = useState<any>(null);
+  const [editingMedecinId, setEditingMedecinId] = useState<string>('');
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -177,6 +182,51 @@ export default function MedecinsPage() {
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
     setSelectedMedecin(null);
+    fetchMedecins();
+  };
+
+  const handleAddHoraire = (medecinId: string, jour: number) => {
+    setEditingMedecinId(medecinId);
+    setSelectedJour(jour);
+    setSelectedHoraire(null);
+    setIsHoraireDialogOpen(true);
+  };
+
+  const handleEditHoraire = (medecinId: string, horaire: any) => {
+    setEditingMedecinId(medecinId);
+    setSelectedJour(horaire.jour_semaine);
+    setSelectedHoraire(horaire);
+    setIsHoraireDialogOpen(true);
+  };
+
+  const handleDeleteHoraire = async (horaireId: string) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet horaire ?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('horaires_base_medecins')
+        .delete()
+        .eq('id', horaireId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Horaire supprimé avec succès",
+      });
+      
+      fetchMedecins();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'horaire",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleHoraireSuccess = () => {
     fetchMedecins();
   };
 
@@ -363,57 +413,105 @@ export default function MedecinsPage() {
                           'une_sur_quatre': '1/4'
                         };
                         
-                        if (horairesJour.length === 0) {
-                          return (
-                            <div key={jour} className="flex items-center gap-2 p-2 bg-muted/10 rounded-md opacity-50">
-                              <Badge variant="outline" className="text-xs font-medium">
-                                {jours[jour]}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">Non travaillé</span>
-                            </div>
-                          );
-                        }
-                        
-                        return horairesJour.map((horaire, index) => (
-                          <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs font-medium">
-                                  {jours[jour]}
-                                </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs bg-transparent ${
-                                    horaire.demi_journee === 'toute_journee' 
-                                      ? 'border-2 border-green-600' 
-                                      : horaire.demi_journee === 'apres_midi'
-                                      ? 'border-2 border-yellow-600'
-                                      : 'border-2 border-blue-600'
-                                  }`}
-                                >
-                                  {horaire.demi_journee === 'matin' ? 'Matin' : 
-                                   horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
-                                   'Toute la journée'}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {horaire.sites?.nom}
-                                </span>
+                        return (
+                          <div key={jour} className="space-y-2">
+                            {horairesJour.length === 0 && (
+                              <div className="flex items-center justify-between gap-2 p-2 bg-muted/10 rounded-md">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs font-medium">
+                                    {jours[jour]}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">Non travaillé</span>
+                                </div>
+                                {canManage && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddHoraire(medecin.id, jour)}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
-                              {(horaire.date_debut || horaire.date_fin) && (
-                                <p className="text-xs text-muted-foreground">
-                                  {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                  {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                  {!horaire.date_debut && !horaire.date_fin && 'Permanent'}
-                                </p>
-                              )}
-                            </div>
-                            {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
-                              <Badge variant="secondary" className="text-xs shrink-0">
-                                {alternanceLabels[horaire.alternance_type]}
-                              </Badge>
+                            )}
+                            
+                            {horairesJour.map((horaire, index) => (
+                              <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md group">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className="text-xs font-medium">
+                                      {jours[jour]}
+                                    </Badge>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs bg-transparent ${
+                                        horaire.demi_journee === 'toute_journee' 
+                                          ? 'border-2 border-green-600' 
+                                          : horaire.demi_journee === 'apres_midi'
+                                          ? 'border-2 border-yellow-600'
+                                          : 'border-2 border-blue-600'
+                                      }`}
+                                    >
+                                      {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                       horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                       'Toute la journée'}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground truncate">
+                                      {horaire.sites?.nom}
+                                    </span>
+                                  </div>
+                                  {(horaire.date_debut || horaire.date_fin) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                      {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                      {!horaire.date_debut && !horaire.date_fin && 'Permanent'}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                    <Badge variant="secondary" className="text-xs shrink-0">
+                                      {alternanceLabels[horaire.alternance_type]}
+                                    </Badge>
+                                  )}
+                                  {canManage && (
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditHoraire(medecin.id, horaire)}
+                                        className="h-7 w-7 p-0"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteHoraire(horaire.id)}
+                                        className="h-7 w-7 p-0 text-destructive"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {horairesJour.length > 0 && canManage && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleAddHoraire(medecin.id, jour)}
+                                className="w-full h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Ajouter un créneau
+                              </Button>
                             )}
                           </div>
-                        ));
+                        );
                       })}
                     </div>
                   </div>
@@ -430,6 +528,15 @@ export default function MedecinsPage() {
             </p>
           </div>
         )}
+
+        <EditHoraireDialog
+          open={isHoraireDialogOpen}
+          onOpenChange={setIsHoraireDialogOpen}
+          medecinId={editingMedecinId}
+          jour={selectedJour}
+          horaire={selectedHoraire}
+          onSuccess={handleHoraireSuccess}
+        />
     </div>
   );
 }
