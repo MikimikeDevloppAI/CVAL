@@ -320,12 +320,15 @@ export default function MedecinsPage() {
                       )}
                       {canManage && (
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => setCalendarMedecin({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
-                          className="ml-auto"
+                          onClick={() => {
+                            setSelectedMedecin(medecin);
+                            setIsDialogOpen(true);
+                          }}
+                          className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <CalendarDays className="h-4 w-4" />
+                          <Edit className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
@@ -350,15 +353,11 @@ export default function MedecinsPage() {
                   {canManage && (
                     <div className="flex items-center space-x-3 ml-3">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setSelectedMedecin(medecin);
-                          setIsDialogOpen(true);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setCalendarMedecin({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
                       >
-                        <Edit className="h-4 w-4" />
+                        <CalendarDays className="h-4 w-4" />
                       </Button>
                       
                       {medecin.actif !== false ? (
