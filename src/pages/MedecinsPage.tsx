@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { MedecinForm } from '@/components/medecins/MedecinForm';
 import { EditHoraireDialog } from '@/components/medecins/EditHoraireDialog';
+import { MedecinMonthCalendar } from '@/components/medecins/MedecinMonthCalendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -39,6 +40,7 @@ export default function MedecinsPage() {
   const [selectedJour, setSelectedJour] = useState<number>(1);
   const [selectedHoraire, setSelectedHoraire] = useState<any>(null);
   const [editingMedecinId, setEditingMedecinId] = useState<string>('');
+  const [calendarMedecin, setCalendarMedecin] = useState<{ id: string; nom: string } | null>(null);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -316,6 +318,16 @@ export default function MedecinsPage() {
                           Inactif
                         </Badge>
                       )}
+                      {canManage && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCalendarMedecin({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
+                          className="ml-auto"
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                     
                     <div className="space-y-3 mt-4">
@@ -558,6 +570,13 @@ export default function MedecinsPage() {
           jour={selectedJour}
           horaire={selectedHoraire}
           onSuccess={handleHoraireSuccess}
+        />
+
+        <MedecinMonthCalendar
+          open={!!calendarMedecin}
+          onOpenChange={(open) => !open && setCalendarMedecin(null)}
+          medecinId={calendarMedecin?.id || ''}
+          medecinNom={calendarMedecin?.nom || ''}
         />
     </div>
   );
