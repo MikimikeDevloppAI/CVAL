@@ -16,8 +16,8 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const jourFerieSchema = z.object({
-  date: z.string().min(1, "La date est requise"),
   nom: z.string().min(1, "Le nom est requis"),
+  date: z.string().min(1, "Veuillez sélectionner une date"),
 });
 
 type JourFerieFormData = z.infer<typeof jourFerieSchema>;
