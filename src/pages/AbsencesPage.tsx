@@ -133,6 +133,12 @@ export default function AbsencesPage() {
     const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
     if (!person) return false;
     
+    // Filter out past absences (date_fin is in the past)
+    const dateFin = new Date(absence.date_fin);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dateFin < today) return false;
+    
     const searchLower = searchTerm.toLowerCase();
     return (
       person.first_name?.toLowerCase().includes(searchLower) ||

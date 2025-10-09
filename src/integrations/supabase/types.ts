@@ -494,6 +494,33 @@ export type Database = {
           },
         ]
       }
+      jours_feries: {
+        Row: {
+          actif: boolean
+          created_at: string
+          date: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          date: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          date?: string
+          id?: string
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       medecins: {
         Row: {
           actif: boolean

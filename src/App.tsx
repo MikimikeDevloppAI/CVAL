@@ -10,6 +10,7 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import PlanningPage from "./pages/PlanningPage";
 import AbsencesPage from "./pages/AbsencesPage";
+import JoursFeriesPage from "./pages/JoursFeriesPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import MedecinsPage from "./pages/MedecinsPage";
@@ -46,6 +47,11 @@ const App = () => (
                     <Route path="/absences" element={
                       <PlanningProtectedRoute>
                         <AbsencesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/jours-feries" element={
+                      <PlanningProtectedRoute>
+                        <JoursFeriesPage />
                       </PlanningProtectedRoute>
                     } />
                     <Route path="/medecins" element={
