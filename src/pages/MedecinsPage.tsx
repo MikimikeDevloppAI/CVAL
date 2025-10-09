@@ -200,16 +200,18 @@ export default function MedecinsPage() {
                   Ajouter un médecin
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="max-w-4xl w-full max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6">
                 <DialogTitle>
                   {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
                 </DialogTitle>
               </DialogHeader>
-              <MedecinForm 
-                medecin={selectedMedecin} 
-                onSuccess={handleFormSuccess}
-              />
+              <div className="overflow-y-auto px-6 flex-1">
+                <MedecinForm 
+                  medecin={selectedMedecin} 
+                  onSuccess={handleFormSuccess}
+                />
+              </div>
             </DialogContent>
           </Dialog>
           )}

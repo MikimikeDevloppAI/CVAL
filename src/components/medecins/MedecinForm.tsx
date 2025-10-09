@@ -590,7 +590,7 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
           })}
         </div>
 
-        <div className="flex justify-end space-x-2 pt-4">
+        <div className="sticky bottom-0 bg-background border-t pt-4 pb-6 -mx-6 px-6 mt-6 flex justify-end space-x-2">
           <Button type="submit" disabled={loading}>
             {loading ? 'Enregistrement...' : medecin ? 'Modifier' : 'Ajouter'}
           </Button>
