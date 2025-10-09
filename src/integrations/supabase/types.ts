@@ -388,6 +388,7 @@ export type Database = {
           id: string
           jour_semaine: number
           secretaire_id: string
+          site_id: string | null
           type: Database["public"]["Enums"]["type_horaire"]
           updated_at: string
         }
@@ -400,6 +401,7 @@ export type Database = {
           id?: string
           jour_semaine: number
           secretaire_id: string
+          site_id?: string | null
           type?: Database["public"]["Enums"]["type_horaire"]
           updated_at?: string
         }
@@ -412,6 +414,7 @@ export type Database = {
           id?: string
           jour_semaine?: number
           secretaire_id?: string
+          site_id?: string | null
           type?: Database["public"]["Enums"]["type_horaire"]
           updated_at?: string
         }
@@ -421,6 +424,13 @@ export type Database = {
             columns: ["secretaire_id"]
             isOneToOne: false
             referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_base_secretaires_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
