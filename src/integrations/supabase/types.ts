@@ -326,6 +326,8 @@ export type Database = {
           alternance_semaine_reference: string | null
           alternance_type: Database["public"]["Enums"]["type_alternance"] | null
           created_at: string
+          date_debut: string | null
+          date_fin: string | null
           heure_debut: string
           heure_fin: string
           id: string
@@ -341,6 +343,8 @@ export type Database = {
             | Database["public"]["Enums"]["type_alternance"]
             | null
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           heure_debut: string
           heure_fin: string
           id?: string
@@ -356,6 +360,8 @@ export type Database = {
             | Database["public"]["Enums"]["type_alternance"]
             | null
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           heure_debut?: string
           heure_fin?: string
           id?: string
@@ -385,6 +391,8 @@ export type Database = {
         Row: {
           actif: boolean
           created_at: string
+          date_debut: string | null
+          date_fin: string | null
           heure_debut: string
           heure_fin: string
           id: string
@@ -396,6 +404,8 @@ export type Database = {
         Insert: {
           actif?: boolean
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           heure_debut: string
           heure_fin: string
           id?: string
@@ -407,6 +417,8 @@ export type Database = {
         Update: {
           actif?: boolean
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           heure_debut?: string
           heure_fin?: string
           id?: string
@@ -906,9 +918,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_horaire_overlap: {
+        Args: {
+          p_alternance_semaine_ref: string
+          p_alternance_type: Database["public"]["Enums"]["type_alternance"]
+          p_date_debut: string
+          p_date_fin: string
+          p_heure_debut: string
+          p_heure_fin: string
+          p_horaire_id?: string
+          p_jour_semaine: number
+          p_person_id: string
+          p_table_name: string
+        }
+        Returns: boolean
+      }
       create_besoin_from_bloc: {
         Args: { p_bloc_id: string }
         Returns: undefined
+      }
+      date_ranges_overlap: {
+        Args: {
+          p_end1: string
+          p_end2: string
+          p_start1: string
+          p_start2: string
+        }
+        Returns: boolean
       }
       generate_besoin_effectif: {
         Args: Record<PropertyKey, never>
