@@ -169,16 +169,23 @@ export default function MedecinsPage() {
     }
   };
 
-  const filteredMedecins = medecins.filter(medecin => {
-    const matchesSearch = medecin.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           medecin.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           medecin.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           medecin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = showInactive ? medecin.actif === false : medecin.actif !== false;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredMedecins = medecins
+    .filter(medecin => {
+      const matchesSearch = medecin.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             medecin.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             medecin.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             medecin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = showInactive ? medecin.actif === false : medecin.actif !== false;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Tri alphabétique par nom puis par prénom
+      const nameCompare = (a.name || '').localeCompare(b.name || '');
+      if (nameCompare !== 0) return nameCompare;
+      return (a.first_name || '').localeCompare(b.first_name || '');
+    });
 
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
