@@ -119,8 +119,7 @@ export type Database = {
           bloc_operatoire_besoin_id: string | null
           created_at: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           medecin_id: string | null
           site_id: string
@@ -132,8 +131,7 @@ export type Database = {
           bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           medecin_id?: string | null
           site_id: string
@@ -145,8 +143,7 @@ export type Database = {
           bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date?: string
-          heure_debut?: string
-          heure_fin?: string
+          demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           medecin_id?: string | null
           site_id?: string
@@ -275,8 +272,7 @@ export type Database = {
           backup_id: string | null
           created_at: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           secretaire_id: string | null
           updated_at: string
@@ -286,8 +282,7 @@ export type Database = {
           backup_id?: string | null
           created_at?: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
           updated_at?: string
@@ -297,8 +292,7 @@ export type Database = {
           backup_id?: string | null
           created_at?: string
           date?: string
-          heure_debut?: string
-          heure_fin?: string
+          demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
           updated_at?: string
@@ -328,8 +322,7 @@ export type Database = {
           created_at: string
           date_debut: string | null
           date_fin: string | null
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           jour_semaine: number
           medecin_id: string
@@ -345,8 +338,7 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           jour_semaine: number
           medecin_id: string
@@ -362,8 +354,7 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
-          heure_debut?: string
-          heure_fin?: string
+          demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           jour_semaine?: number
           medecin_id?: string
@@ -393,8 +384,7 @@ export type Database = {
           created_at: string
           date_debut: string | null
           date_fin: string | null
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           jour_semaine: number
           secretaire_id: string
@@ -406,8 +396,7 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
-          heure_debut: string
-          heure_fin: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           jour_semaine: number
           secretaire_id: string
@@ -419,8 +408,7 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
-          heure_debut?: string
-          heure_fin?: string
+          demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           jour_semaine?: number
           secretaire_id?: string
@@ -918,33 +906,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      check_horaire_overlap: {
-        Args: {
-          p_alternance_semaine_ref: string
-          p_alternance_type: Database["public"]["Enums"]["type_alternance"]
-          p_date_debut: string
-          p_date_fin: string
-          p_heure_debut: string
-          p_heure_fin: string
-          p_horaire_id?: string
-          p_jour_semaine: number
-          p_person_id: string
-          p_table_name: string
-        }
-        Returns: boolean
-      }
       create_besoin_from_bloc: {
         Args: { p_bloc_id: string }
         Returns: undefined
-      }
-      date_ranges_overlap: {
-        Args: {
-          p_end1: string
-          p_end2: string
-          p_start1: string
-          p_start2: string
-        }
-        Returns: boolean
       }
       generate_besoin_effectif: {
         Args: Record<PropertyKey, never>
@@ -1043,6 +1007,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "medecin" | "secretaire"
+      demi_journee: "matin" | "apres_midi" | "toute_journee"
       priorite_besoin: "haute" | "moyenne" | "basse"
       source_horaire: "horaire_base" | "bloc_operatoire" | "absence"
       statut_absence: "en_attente" | "approuve" | "refuse"
@@ -1187,6 +1152,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "medecin", "secretaire"],
+      demi_journee: ["matin", "apres_midi", "toute_journee"],
       priorite_besoin: ["haute", "moyenne", "basse"],
       source_horaire: ["horaire_base", "bloc_operatoire", "absence"],
       statut_absence: ["en_attente", "approuve", "refuse"],
