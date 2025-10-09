@@ -370,7 +370,16 @@ export default function MedecinsPage() {
                                   <Badge variant="outline" className="text-xs font-medium">
                                     {jours[horaire.jour_semaine]}
                                   </Badge>
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs bg-transparent ${
+                                      horaire.demi_journee === 'toute_journee' 
+                                        ? 'border-2 border-green-600' 
+                                        : horaire.demi_journee === 'apres_midi'
+                                        ? 'border-2 border-yellow-600'
+                                        : 'border-2 border-blue-600'
+                                    }`}
+                                  >
                                     {horaire.demi_journee === 'matin' ? 'Matin' : 
                                      horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
                                      'Toute la journée'}
