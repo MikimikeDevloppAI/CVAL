@@ -405,7 +405,12 @@ export default function MedecinsPage() {
                     <div className="space-y-2">
                       {[1, 2, 3, 4, 5].map((jour) => {
                         const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-                        const horairesJour = medecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [];
+                        const horairesJour = (medecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [])
+                          .sort((a, b) => {
+                            // Ordre: matin, apres_midi, toute_journee
+                            const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+                            return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
+                          });
                         const alternanceLabels = {
                           'hebdomadaire': 'Hebdo',
                           'une_sur_deux': '1/2',
