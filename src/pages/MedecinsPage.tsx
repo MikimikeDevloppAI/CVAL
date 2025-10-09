@@ -246,7 +246,7 @@ export default function MedecinsPage() {
         </div>
 
         {/* Médecins Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredMedecins.map((medecin) => (
             <ModernCard key={medecin.id} className={`group ${medecin.actif === false ? 'opacity-60' : ''}`}>
               <ModernCardHeader>
@@ -353,7 +353,7 @@ export default function MedecinsPage() {
                   {/* Jours de travail */}
                   {medecin.horaires_base_medecins && medecin.horaires_base_medecins.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
                         Jours de travail
                       </p>
                       <div className="space-y-2">
@@ -367,22 +367,28 @@ export default function MedecinsPage() {
                           };
                           
                           return (
-                            <div key={index} className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {jours[horaire.jour_semaine]} - {horaire.sites?.nom}
-                                </Badge>
-                                {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {alternanceLabels[horaire.alternance_type]}
+                            <div key={index} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-xs font-medium">
+                                    {jours[horaire.jour_semaine]}
                                   </Badge>
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {horaire.sites?.nom}
+                                  </span>
+                                </div>
+                                {(horaire.date_debut || horaire.date_fin) && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                    {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                    {!horaire.date_debut && !horaire.date_fin && 'Permanent'}
+                                  </p>
                                 )}
                               </div>
-                              {(horaire.date_debut || horaire.date_fin) && (
-                                <p className="text-xs text-muted-foreground">
-                                  {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR')}`}
-                                  {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR')}`}
-                                </p>
+                              {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                <Badge variant="secondary" className="text-xs shrink-0">
+                                  {alternanceLabels[horaire.alternance_type]}
+                                </Badge>
                               )}
                             </div>
                           );
