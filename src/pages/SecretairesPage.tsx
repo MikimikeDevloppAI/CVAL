@@ -175,22 +175,28 @@ export default function SecretairesPage() {
     }
   };
 
-  const filteredSecretaires = secretaires.filter(secretaire => {
-    const prenom = secretaire.first_name || '';
-    const nom = secretaire.name || '';
-    const email = secretaire.email || '';
-    const telephone = secretaire.phone_number || '';
-    
-    const matchesSearch = prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           telephone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           secretaire.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = showInactive ? secretaire.actif === false : secretaire.actif !== false;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredSecretaires = secretaires
+    .filter(secretaire => {
+      const prenom = secretaire.first_name || '';
+      const nom = secretaire.name || '';
+      const email = secretaire.email || '';
+      const telephone = secretaire.phone_number || '';
+      
+      const matchesSearch = prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             telephone.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             secretaire.id.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = showInactive ? secretaire.actif === false : secretaire.actif !== false;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const prenomA = (a.first_name || '').toLowerCase();
+      const prenomB = (b.first_name || '').toLowerCase();
+      return prenomA.localeCompare(prenomB);
+    });
 
   const handleFormSuccess = () => {
     setIsDialogOpen(false);

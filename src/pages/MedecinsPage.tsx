@@ -183,10 +183,9 @@ export default function MedecinsPage() {
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
-      // Tri alphabétique par nom puis par prénom
-      const nameCompare = (a.name || '').localeCompare(b.name || '');
-      if (nameCompare !== 0) return nameCompare;
-      return (a.first_name || '').localeCompare(b.first_name || '');
+      const prenomA = (a.first_name || '').toLowerCase();
+      const prenomB = (b.first_name || '').toLowerCase();
+      return prenomA.localeCompare(prenomB);
     });
 
   const handleFormSuccess = () => {
