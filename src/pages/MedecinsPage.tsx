@@ -68,22 +68,23 @@ export default function MedecinsPage() {
         const medecinsWithHoraires = await Promise.all(
           medecinsData.map(async (medecin: any) => {
             // Récupérer les horaires
-        const { data: horairesData } = await supabase
-          .from('horaires_base_medecins')
-          .select(`
-            jour_semaine,
-            demi_journee,
-            site_id,
-            actif,
-            alternance_type,
-            alternance_semaine_reference,
-            date_debut,
-            date_fin,
-            sites!horaires_base_medecins_site_id_fkey (
-              nom
-            )
-          `)
-          .eq('medecin_id', medecin.id);
+      const { data: horairesData } = await supabase
+        .from('horaires_base_medecins')
+        .select(`
+          id,
+          jour_semaine,
+          demi_journee,
+          site_id,
+          actif,
+          alternance_type,
+          alternance_semaine_reference,
+          date_debut,
+          date_fin,
+          sites!horaires_base_medecins_site_id_fkey (
+            nom
+          )
+        `)
+        .eq('medecin_id', medecin.id);
 
             // Mapper les horaires pour le formulaire
             const horaires = [];
