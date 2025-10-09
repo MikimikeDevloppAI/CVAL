@@ -21,6 +21,8 @@ const horaireSchema = z.object({
   actif: z.boolean().default(true),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
   alternanceSemaineReference: z.string().optional(),
+  dateDebut: z.string().optional(),
+  dateFin: z.string().optional(),
 }).refine((data) => {
   if (data.heureDebut && data.heureFin) {
     return data.heureDebut < data.heureFin;
@@ -29,6 +31,14 @@ const horaireSchema = z.object({
 }, {
   message: "L'heure de début doit être avant l'heure de fin",
   path: ["heureDebut"],
+}).refine((data) => {
+  if (data.dateDebut && data.dateFin) {
+    return data.dateDebut <= data.dateFin;
+  }
+  return true;
+}, {
+  message: "La date de début doit être avant ou égale à la date de fin",
+  path: ["dateDebut"],
 });
 
 const medecinSchema = z.object({
@@ -137,7 +147,9 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
               siteId: h.site_id || '',
               actif: h.actif !== false,
               alternanceType: h.alternance_type || 'hebdomadaire',
-              alternanceSemaineReference: h.alternance_semaine_reference || undefined
+              alternanceSemaineReference: h.alternance_semaine_reference || undefined,
+              dateDebut: h.date_debut || undefined,
+              dateFin: h.date_fin || undefined,
             }));
             form.setValue('horaires', horaires);
           }
@@ -187,6 +199,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             actif: horaire.actif,
             alternance_type: horaire.alternanceType,
             alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            date_debut: horaire.dateDebut || null,
+            date_fin: horaire.dateFin || null,
           }));
 
           const { error: horairesError } = await supabase
@@ -228,6 +242,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
             actif: horaire.actif,
             alternance_type: horaire.alternanceType,
             alternance_semaine_reference: horaire.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            date_debut: horaire.dateDebut || null,
+            date_fin: horaire.dateFin || null,
           }));
 
           const { error: horairesError } = await supabase
@@ -405,6 +421,8 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                           actif: true,
                           alternanceType: 'hebdomadaire',
                           alternanceSemaineReference: undefined,
+                          dateDebut: undefined,
+                          dateFin: undefined,
                         });
                       }}
                     >
@@ -525,6 +543,38 @@ export function MedecinForm({ medecin, onSuccess }: MedecinFormProps) {
                             )}
                           />
                         )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name={`horaires.${index}.dateDebut`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Date de début</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="date" placeholder="Optionnel" />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">Si vide, commence aujourd'hui</p>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`horaires.${index}.dateFin`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Date de fin</FormLabel>
+                                <FormControl>
+                                  <Input {...field} type="date" placeholder="Optionnel" />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">Si vide, applique pour 52 semaines</p>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
                     );
                   })}

@@ -22,6 +22,16 @@ const horaireSchema = z.object({
   heureDebut: z.string().optional(),
   heureFin: z.string().optional(),
   actif: z.boolean().default(true),
+  dateDebut: z.string().optional(),
+  dateFin: z.string().optional(),
+}).refine((data) => {
+  if (data.dateDebut && data.dateFin) {
+    return data.dateDebut <= data.dateFin;
+  }
+  return true;
+}, {
+  message: "La date de début doit être avant ou égale à la date de fin",
+  path: ["dateDebut"],
 });
 
 const secretaireSchema = z.object({
@@ -134,6 +144,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             heure_debut: horaire.heureDebut,
             heure_fin: horaire.heureFin,
             actif: horaire.actif,
+            date_debut: horaire.dateDebut || null,
+            date_fin: horaire.dateFin || null,
           }));
 
           const { error: horairesError } = await supabase
@@ -182,6 +194,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
               heure_debut: horaire.heureDebut,
               heure_fin: horaire.heureFin,
               actif: horaire.actif,
+              date_debut: horaire.dateDebut || null,
+              date_fin: horaire.dateFin || null,
             }));
 
             const { error: horairesError } = await supabase
@@ -489,6 +503,38 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                               <FormControl>
                                 <Input {...field} type="time" />
                               </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.dateDebut`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Date de début</FormLabel>
+                              <FormControl>
+                                <Input {...field} type="date" placeholder="Optionnel" />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">Si vide, commence aujourd'hui</p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`horaires.${index}.dateFin`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Date de fin</FormLabel>
+                              <FormControl>
+                                <Input {...field} type="date" placeholder="Optionnel" />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">Si vide, applique pour 52 semaines</p>
                               <FormMessage />
                             </FormItem>
                           )}
