@@ -242,7 +242,7 @@ export default function MedecinsPage() {
         {/* Médecins Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMedecins.map((medecin) => (
-            <ModernCard key={medecin.id} className={medecin.actif === false ? 'opacity-60' : ''}>
+            <ModernCard key={medecin.id} className={`group ${medecin.actif === false ? 'opacity-60' : ''}`}>
               <ModernCardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
