@@ -790,7 +790,7 @@ export type Database = {
           prefere_port_en_truie: boolean
           profile_id: string | null
           site_preferentiel_id: string | null
-          specialites: string[]
+          sites_assignes: string[]
           updated_at: string
         }
         Insert: {
@@ -806,7 +806,7 @@ export type Database = {
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
-          specialites?: string[]
+          sites_assignes?: string[]
           updated_at?: string
         }
         Update: {
@@ -822,7 +822,7 @@ export type Database = {
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
-          specialites?: string[]
+          sites_assignes?: string[]
           updated_at?: string
         }
         Relationships: [

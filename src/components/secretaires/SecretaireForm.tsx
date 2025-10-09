@@ -38,7 +38,7 @@ const secretaireSchema = z.object({
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
-  specialites: z.array(z.string()).min(0, 'Au moins une spécialité doit être sélectionnée'),
+  sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
@@ -47,7 +47,7 @@ const secretaireSchema = z.object({
 
 type SecretaireFormData = z.infer<typeof secretaireSchema>;
 
-interface Specialite {
+interface Site {
   id: string;
   nom: string;
 }
@@ -58,7 +58,7 @@ interface SecretaireFormProps {
 }
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
-  const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -69,7 +69,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nom: secretaire?.name || secretaire?.profiles?.nom || '',
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
-      specialites: secretaire?.specialites || [],
+      sitesAssignes: secretaire?.sites_assignes || [],
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -91,8 +91,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const specialitesRes = await supabase.from('specialites').select('id, nom').order('nom');
-        if (specialitesRes.data) setSpecialites(specialitesRes.data);
+        const sitesRes = await supabase.from('sites').select('id, nom').eq('actif', true).order('nom');
+        if (sitesRes.data) setSites(sitesRes.data);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
       }
@@ -113,7 +113,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             name: data.nom,
             email: data.email,
             phone_number: data.telephone,
-            specialites: data.specialites,
+            sites_assignes: data.sitesAssignes,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -165,7 +165,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email,
             phone_number: data.telephone,
             profile_id: null, // Pas de profil associé
-            specialites: data.specialites,
+            sites_assignes: data.sitesAssignes,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -283,14 +283,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           />
         </div>
 
-        {/* Spécialités et Préfère Port-en-truie côte à côte */}
+        {/* Sites assignés et Préfère Port-en-truie côte à côte */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="specialites"
+            name="sitesAssignes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Spécialités</FormLabel>
+                <FormLabel>Sites assignés</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -302,18 +302,18 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                         <div className="flex flex-wrap gap-1">
                           {field.value && field.value.length > 0 ? (
                             <>
-                              {field.value.slice(0, 2).map((specialiteId) => {
-                                const specialite = specialites.find(s => s.id === specialiteId);
-                                return specialite ? (
-                                  <Badge key={specialite.id} variant="secondary" className="text-xs">
-                                    {specialite.nom}
+                              {field.value.slice(0, 2).map((siteId) => {
+                                const site = sites.find(s => s.id === siteId);
+                                return site ? (
+                                  <Badge key={site.id} variant="secondary" className="text-xs">
+                                    {site.nom}
                                     <button
                                       type="button"
                                       className="ml-1 hover:bg-secondary-foreground/20 rounded-full"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const current = field.value || [];
-                                        field.onChange(current.filter((id) => id !== specialite.id));
+                                        field.onChange(current.filter((id) => id !== site.id));
                                       }}
                                     >
                                       <X className="h-3 w-3" />
@@ -328,7 +328,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                               )}
                             </>
                           ) : (
-                            "Sélectionner des spécialités"
+                            "Sélectionner des sites"
                           )}
                         </div>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -337,28 +337,28 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                   </PopoverTrigger>
                   <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                     <Command>
-                      <CommandInput placeholder="Rechercher une spécialité..." />
-                      <CommandEmpty>Aucune spécialité trouvée.</CommandEmpty>
+                      <CommandInput placeholder="Rechercher un site..." />
+                      <CommandEmpty>Aucun site trouvé.</CommandEmpty>
                       <CommandGroup className="max-h-60 overflow-auto">
-                        {specialites.map((specialite) => (
+                        {sites.map((site) => (
                           <CommandItem
-                            value={specialite.nom}
-                            key={specialite.id}
+                            value={site.nom}
+                            key={site.id}
                             onSelect={() => {
                               const current = field.value || [];
-                              if (current.includes(specialite.id)) {
-                                field.onChange(current.filter((id) => id !== specialite.id));
+                              if (current.includes(site.id)) {
+                                field.onChange(current.filter((id) => id !== site.id));
                               } else {
-                                field.onChange([...current, specialite.id]);
+                                field.onChange([...current, site.id]);
                               }
                             }}
                           >
                             <Check
                               className={`mr-2 h-4 w-4 ${
-                                field.value?.includes(specialite.id) ? "opacity-100" : "opacity-0"
+                                field.value?.includes(site.id) ? "opacity-100" : "opacity-0"
                               }`}
                             />
-                            {specialite.nom}
+                            {site.nom}
                           </CommandItem>
                         ))}
                       </CommandGroup>

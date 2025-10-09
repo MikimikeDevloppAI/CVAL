@@ -18,8 +18,8 @@ interface Secretaire {
   name?: string;
   email?: string;
   phone_number?: string;
-  specialites: string[];
-  specialites_details?: { nom: string }[];
+  sites_assignes: string[];
+  sites_assignes_details?: { nom: string }[];
   horaires_base_secretaires?: { jour_semaine: number; demi_journee?: string; actif?: boolean }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
   profile_id?: string;
@@ -76,20 +76,20 @@ export default function SecretairesPage() {
         throw secretairesError;
       }
 
-      // Ensuite enrichir avec les noms des spécialités et mapper les horaires
+      // Ensuite enrichir avec les noms des sites et mapper les horaires
       if (secretairesData && secretairesData.length > 0) {
-        const secretairesWithSpecialites = await Promise.all(
+        const secretairesWithSites = await Promise.all(
           secretairesData.map(async (secretaire: any) => {
-            let specialites_details = [];
+            let sites_assignes_details = [];
             
-            // Récupérer les noms des spécialités
-            if (secretaire.specialites && secretaire.specialites.length > 0) {
-              const { data: specialitesData } = await supabase
-                .from('specialites')
+            // Récupérer les noms des sites
+            if (secretaire.sites_assignes && secretaire.sites_assignes.length > 0) {
+              const { data: sitesData } = await supabase
+                .from('sites')
                 .select('nom')
-                .in('id', secretaire.specialites);
+                .in('id', secretaire.sites_assignes);
               
-              specialites_details = specialitesData || [];
+              sites_assignes_details = sitesData || [];
             }
 
             // Mapper les horaires pour le formulaire
@@ -118,12 +118,12 @@ export default function SecretairesPage() {
             
             return {
               ...secretaire,
-              specialites_details,
+              sites_assignes_details,
               horaires
             };
           })
         );
-        setSecretaires(secretairesWithSpecialites as Secretaire[]);
+        setSecretaires(secretairesWithSites as Secretaire[]);
       } else {
         setSecretaires([]);
       }
@@ -361,21 +361,21 @@ export default function SecretairesPage() {
               
               <ModernCardContent>
                 <div className="space-y-4">
-                  {/* Spécialités */}
+                  {/* Sites assignés */}
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Spécialités
+                      Sites assignés
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {secretaire.specialites_details && secretaire.specialites_details.length > 0 ? (
-                        secretaire.specialites_details.map((spec, index) => (
+                      {secretaire.sites_assignes_details && secretaire.sites_assignes_details.length > 0 ? (
+                        secretaire.sites_assignes_details.map((site, index) => (
                           <Badge key={index} variant="secondary" className="text-xs">
-                            {spec.nom}
+                            {site.nom}
                           </Badge>
                         ))
                       ) : (
                         <Badge variant="outline" className="text-xs">
-                          Aucune spécialité
+                          Aucun site assigné
                         </Badge>
                       )}
                     </div>
