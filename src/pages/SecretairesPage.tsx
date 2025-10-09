@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
 import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDialog';
+import { EditHoraireSecretaireDialog } from '@/components/secretaires/EditHoraireSecretaireDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -21,7 +22,16 @@ interface Secretaire {
   phone_number?: string;
   sites_assignes: string[];
   sites_assignes_details?: { nom: string }[];
-  horaires_base_secretaires?: { jour_semaine: number; demi_journee?: string; actif?: boolean }[];
+  horaires_base_secretaires?: { 
+    id: string;
+    jour_semaine: number; 
+    demi_journee?: string; 
+    actif?: boolean;
+    site_id?: string;
+    date_debut?: string;
+    date_fin?: string;
+    sites?: { nom: string } | null;
+  }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
   profile_id?: string;
   site_preferentiel_id?: string;
@@ -41,6 +51,10 @@ export default function SecretairesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [selectedSecretaire, setSelectedSecretaire] = useState<Secretaire | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isHoraireDialogOpen, setIsHoraireDialogOpen] = useState(false);
+  const [selectedJour, setSelectedJour] = useState<number>(1);
+  const [selectedHoraire, setSelectedHoraire] = useState<any>(null);
+  const [editingSecretaireId, setEditingSecretaireId] = useState<string>('');
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -65,11 +79,18 @@ export default function SecretairesPage() {
           sites (
             nom
           ),
-          horaires_base_secretaires (
-            jour_semaine,
-            demi_journee,
-            actif
-          )
+            horaires_base_secretaires (
+              id,
+              jour_semaine,
+              demi_journee,
+              actif,
+              site_id,
+              date_debut,
+              date_fin,
+              sites (
+                nom
+              )
+            )
         `);
 
       if (secretairesError) {
@@ -202,6 +223,51 @@ export default function SecretairesPage() {
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
     setSelectedSecretaire(null);
+    fetchSecretaires();
+  };
+
+  const handleAddHoraire = (secretaireId: string, jour: number) => {
+    setEditingSecretaireId(secretaireId);
+    setSelectedJour(jour);
+    setSelectedHoraire(null);
+    setIsHoraireDialogOpen(true);
+  };
+
+  const handleEditHoraire = (secretaireId: string, horaire: any) => {
+    setEditingSecretaireId(secretaireId);
+    setSelectedJour(horaire.jour_semaine);
+    setSelectedHoraire(horaire);
+    setIsHoraireDialogOpen(true);
+  };
+
+  const handleDeleteHoraire = async (horaireId: string) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet horaire ?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('horaires_base_secretaires')
+        .delete()
+        .eq('id', horaireId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Horaire supprimé avec succès",
+      });
+      
+      fetchSecretaires();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'horaire",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleHoraireSuccess = () => {
     fetchSecretaires();
   };
 
@@ -400,29 +466,91 @@ export default function SecretairesPage() {
                     <div className="space-y-2">
                       {[1, 2, 3, 4, 5].map((jour) => {
                         const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-                        const horairesJour = (secretaire.horaires_base_secretaires?.filter(h => h.jour_semaine === jour) || []);
-                        const periodeLabels = {
-                          'matin': 'Matin',
-                          'apres_midi': 'AM',
-                          'toute_journee': 'Jour'
-                        };
+                        const horairesJour = (secretaire.horaires_base_secretaires?.filter(h => h.jour_semaine === jour) || [])
+                          .sort((a, b) => {
+                            const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+                            return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
+                          });
                         
                         return (
-                          <div key={jour} className="flex items-center gap-2 p-2 bg-muted/10 rounded-md">
-                            <Badge variant="outline" className="text-xs font-medium">
-                              {jours[jour]}
-                            </Badge>
-                            {horairesJour.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {horairesJour.map((h, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-xs">
-                                    {periodeLabels[h.demi_journee as keyof typeof periodeLabels] || h.demi_journee}
+                          <div key={jour} className="space-y-2">
+                            {horairesJour.length === 0 && (
+                              <div className="flex items-center justify-between gap-2 p-2 bg-muted/10 rounded-md">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs font-medium">
+                                    {jours[jour]}
                                   </Badge>
-                                ))}
+                                  <span className="text-xs text-muted-foreground">Non travaillé</span>
+                                </div>
+                                {canManage && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddHoraire(secretaire.id, jour)}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Non travaillé</span>
                             )}
+                            
+                            {horairesJour.map((horaire, index) => (
+                              <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md group">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className="text-xs font-medium">
+                                      {jours[jour]}
+                                    </Badge>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs bg-transparent ${
+                                        horaire.demi_journee === 'toute_journee' 
+                                          ? 'border-2 border-green-600' 
+                                          : horaire.demi_journee === 'apres_midi'
+                                          ? 'border-2 border-yellow-600'
+                                          : 'border-2 border-blue-600'
+                                      }`}
+                                    >
+                                      {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                       horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                       'Toute la journée'}
+                                    </Badge>
+                                    {horaire.sites?.nom && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {horaire.sites.nom}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(horaire.date_debut || horaire.date_fin) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                      {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                    </p>
+                                  )}
+                                </div>
+                                {canManage && (
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleEditHoraire(secretaire.id, horaire)}
+                                      className="h-7 w-7 p-0"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteHoraire(horaire.id)}
+                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         );
                       })}
@@ -453,6 +581,16 @@ export default function SecretairesPage() {
             </p>
           </div>
         )}
+
+        {/* Dialog for editing horaires */}
+        <EditHoraireSecretaireDialog
+          open={isHoraireDialogOpen}
+          onOpenChange={setIsHoraireDialogOpen}
+          secretaireId={editingSecretaireId}
+          jour={selectedJour}
+          horaire={selectedHoraire}
+          onSuccess={handleHoraireSuccess}
+        />
     </div>
   );
 }
