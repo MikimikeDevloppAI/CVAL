@@ -63,19 +63,23 @@ export default function MedecinsPage() {
         const medecinsWithHoraires = await Promise.all(
           medecinsData.map(async (medecin: any) => {
             // Récupérer les horaires
-            const { data: horairesData } = await supabase
-              .from('horaires_base_medecins')
-              .select(`
-                jour_semaine,
-                heure_debut,
-                heure_fin,
-                site_id,
-                actif,
-                sites!horaires_base_medecins_site_id_fkey (
-                  nom
-                )
-              `)
-              .eq('medecin_id', medecin.id);
+        const { data: horairesData } = await supabase
+          .from('horaires_base_medecins')
+          .select(`
+            jour_semaine,
+            heure_debut,
+            heure_fin,
+            site_id,
+            actif,
+            alternance_type,
+            alternance_semaine_reference,
+            date_debut,
+            date_fin,
+            sites!horaires_base_medecins_site_id_fkey (
+              nom
+            )
+          `)
+          .eq('medecin_id', medecin.id);
 
             // Mapper les horaires pour le formulaire
             const horaires = [];
@@ -352,13 +356,35 @@ export default function MedecinsPage() {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                         Jours de travail
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="space-y-2">
                         {medecin.horaires_base_medecins.map((horaire, index) => {
                           const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                          const alternanceLabels = {
+                            'hebdomadaire': 'Hebdo',
+                            'une_sur_deux': '1/2',
+                            'une_sur_trois': '1/3',
+                            'une_sur_quatre': '1/4'
+                          };
+                          
                           return (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {jours[horaire.jour_semaine]} - {horaire.sites?.nom}
-                            </Badge>
+                            <div key={index} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {jours[horaire.jour_semaine]} - {horaire.sites?.nom}
+                                </Badge>
+                                {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {alternanceLabels[horaire.alternance_type]}
+                                  </Badge>
+                                )}
+                              </div>
+                              {(horaire.date_debut || horaire.date_fin) && (
+                                <p className="text-xs text-muted-foreground">
+                                  {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR')}`}
+                                  {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR')}`}
+                                </p>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
