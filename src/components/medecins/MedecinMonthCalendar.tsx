@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Trash2, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface MedecinMonthCalendarProps {
   open: boolean;
@@ -218,141 +221,182 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
 
   const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const days = getDaysInMonth();
+  
+  const isToday = (day: number) => {
+    const today = new Date();
+    return day === today.getDate() &&
+           currentDate.getMonth() === today.getMonth() &&
+           currentDate.getFullYear() === today.getFullYear();
+  };
+
+  const isWeekend = (index: number) => {
+    const dayOfWeek = (index % 7);
+    return dayOfWeek === 5 || dayOfWeek === 6; // Sam=5, Dim=6
+  };
+
+  const renderBesoinBadge = (besoin: BesoinEffectif, period: 'matin' | 'apres_midi') => (
+    <div key={besoin.id} className="relative group/badge mb-1 animate-fade-in">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Badge 
+            variant="secondary" 
+            className="w-full justify-start cursor-pointer hover:bg-primary/20 transition-colors text-xs px-2 py-1 relative"
+          >
+            <span className="truncate">{besoin.sites?.nom || 'Site'}</span>
+          </Badge>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-2" align="start">
+          <div className="space-y-1">
+            <p className="text-xs font-medium mb-2">Changer de site :</p>
+            {sites.map(site => (
+              <Button
+                key={site.id}
+                variant={site.id === besoin.site_id ? "default" : "ghost"}
+                size="sm"
+                className="w-full justify-start text-xs"
+                onClick={() => handleSiteChange(besoin.id, site.id, period)}
+                disabled={loading}
+              >
+                {site.nom}
+              </Button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+        onClick={() => handleDelete(besoin.id, period)}
+        disabled={loading}
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Calendrier mensuel - {medecinNom}</span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth}>
+          <DialogTitle className="flex items-center justify-between pb-4">
+            <div className="flex items-center gap-3">
+              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
+                Calendrier mensuel
+              </span>
+              <Separator orientation="vertical" className="h-6" />
+              <span className="text-muted-foreground font-normal">{medecinNom}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-normal capitalize min-w-[200px] text-center">
+              <span className="text-base font-semibold capitalize min-w-[200px] text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 {monthName}
               </span>
-              <Button variant="outline" size="sm" onClick={handleNextMonth}>
+              <Button variant="outline" size="sm" onClick={handleNextMonth} className="hover:bg-primary/10">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-7 gap-1 mt-4">
-          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
-            <div key={day} className="text-center font-semibold text-sm py-2 border-b">
+        <div className="grid grid-cols-7 gap-2 mt-2">
+          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((day, idx) => (
+            <div 
+              key={day} 
+              className={`text-center font-bold text-sm py-3 rounded-t-lg ${
+                idx >= 5 ? 'bg-accent/30' : 'bg-primary/10'
+              }`}
+            >
               {day}
             </div>
           ))}
 
-          {days.map((day, index) => (
-            <div key={index} className="border min-h-[100px] p-1 group">
-              {day && (
-                <>
-                  <div className="text-xs font-semibold mb-1">{day}</div>
-                  
-                  {/* Matin */}
-                  <div className="mb-2">
-                    <div className="text-xs text-muted-foreground font-medium mb-1">Matin</div>
-                    {(() => {
-                      const besoinsList = getBesoinForDate(day, 'matin');
-                      return besoinsList.length > 0 ? (
-                        besoinsList.map(besoin => (
-                          <div key={besoin.id} className="flex items-center gap-1 mb-1">
-                            <Select
-                              value={besoin.site_id}
-                              onValueChange={(value) => handleSiteChange(besoin.id, value, 'matin')}
-                              disabled={loading}
-                            >
-                              <SelectTrigger className="h-auto min-h-[28px] text-xs flex-1 text-left whitespace-normal break-words py-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-50">
-                                {sites.map(site => (
-                                  <SelectItem key={site.id} value={site.id} className="text-xs">
-                                    {site.nom}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 shrink-0"
-                              onClick={() => handleDelete(besoin.id, 'matin')}
-                              disabled={loading}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleAddBesoin(day, 'matin')}
-                          disabled={loading}
-                        >
-                          + Ajouter
-                        </Button>
-                      );
-                    })()}
-                  </div>
+          {days.map((day, index) => {
+            const isCurrentDay = day && isToday(day);
+            const isWeekendDay = isWeekend(index);
+            
+            return (
+              <div 
+                key={index} 
+                className={`
+                  border-2 rounded-lg min-h-[140px] p-2 transition-all duration-200
+                  ${day ? 'hover:shadow-lg hover:scale-[1.02]' : ''}
+                  ${isWeekendDay ? 'bg-accent/5' : 'bg-card'}
+                  ${isCurrentDay ? 'border-primary shadow-md ring-2 ring-primary/20' : 'border-border'}
+                  group
+                `}
+              >
+                {day ? (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-bold ${isCurrentDay ? 'text-primary' : ''}`}>
+                        {day}
+                      </span>
+                      {isCurrentDay && (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
+                          Aujourd'hui
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Matin */}
+                    <div className="mb-2">
+                      <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        Matin
+                      </div>
+                      {(() => {
+                        const besoinsList = getBesoinForDate(day, 'matin');
+                        return besoinsList.length > 0 ? (
+                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'matin'))
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
+                            onClick={() => handleAddBesoin(day, 'matin')}
+                            disabled={loading}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Ajouter
+                          </Button>
+                        );
+                      })()}
+                    </div>
 
-                  {/* Après-midi */}
-                  <div>
-                    <div className="text-xs text-muted-foreground font-medium mb-1">Après-midi</div>
-                    {(() => {
-                      const besoinsList = getBesoinForDate(day, 'apres_midi');
-                      return besoinsList.length > 0 ? (
-                        besoinsList.map(besoin => (
-                          <div key={besoin.id} className="flex items-center gap-1 mb-1">
-                            <Select
-                              value={besoin.site_id}
-                              onValueChange={(value) => handleSiteChange(besoin.id, value, 'apres_midi')}
-                              disabled={loading}
-                            >
-                              <SelectTrigger className="h-auto min-h-[28px] text-xs flex-1 text-left whitespace-normal break-words py-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-50">
-                                {sites.map(site => (
-                                  <SelectItem key={site.id} value={site.id} className="text-xs">
-                                    {site.nom}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 shrink-0"
-                              onClick={() => handleDelete(besoin.id, 'apres_midi')}
-                              disabled={loading}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleAddBesoin(day, 'apres_midi')}
-                          disabled={loading}
-                        >
-                          + Ajouter
-                        </Button>
-                      );
-                    })()}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                    <Separator className="my-2" />
+
+                    {/* Après-midi */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        Après-midi
+                      </div>
+                      {(() => {
+                        const besoinsList = getBesoinForDate(day, 'apres_midi');
+                        return besoinsList.length > 0 ? (
+                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'apres_midi'))
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
+                            onClick={() => handleAddBesoin(day, 'apres_midi')}
+                            disabled={loading}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Ajouter
+                          </Button>
+                        );
+                      })()}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
