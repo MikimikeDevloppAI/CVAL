@@ -31,6 +31,13 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const formatDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   useEffect(() => {
     if (open) {
       fetchSites();
@@ -56,13 +63,12 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       .select('*, sites(id, nom)')
       .eq('medecin_id', medecinId)
       .eq('type', 'medecin')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
+      .gte('date', formatDate(startDate))
+      .lte('date', formatDate(endDate))
       .order('date');
 
     if (data) setBesoins(data);
   };
-
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
   };
@@ -71,60 +77,78 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
   };
 
-  const handleSiteChange = async (besoinId: string, newSiteId: string) => {
+  const handleSiteChange = async (besoinId: string, newSiteId: string, period: 'matin' | 'apres_midi') => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('besoin_effectif')
-        .update({ site_id: newSiteId })
-        .eq('id', besoinId);
+      const besoin = besoins.find(b => b.id === besoinId);
+      if (!besoin) throw new Error('Besoin introuvable');
 
-      if (error) throw error;
+      if (besoin.demi_journee === 'toute_journee') {
+        const otherPeriod = period === 'matin' ? 'apres_midi' : 'matin';
+        const { error: updErr } = await supabase
+          .from('besoin_effectif')
+          .update({ demi_journee: otherPeriod })
+          .eq('id', besoinId);
+        if (updErr) throw updErr;
 
-      toast({
-        title: "Succès",
-        description: "Site modifié",
-      });
+        const { error: insErr } = await supabase
+          .from('besoin_effectif')
+          .insert({
+            date: besoin.date,
+            type: 'medecin',
+            medecin_id: medecinId,
+            site_id: newSiteId,
+            demi_journee: period,
+            actif: true,
+          });
+        if (insErr) throw insErr;
+      } else {
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .update({ site_id: newSiteId })
+          .eq('id', besoinId);
+        if (error) throw error;
+      }
+
+      toast({ title: 'Succès', description: 'Besoin mis à jour' });
       fetchBesoins();
     } catch (error) {
       console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de modifier le site",
-        variant: "destructive",
-      });
+      toast({ title: 'Erreur', description: "Impossible de modifier le besoin", variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
-
-  const handleDelete = async (besoinId: string) => {
+  const handleDelete = async (besoinId: string, period: 'matin' | 'apres_midi') => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('besoin_effectif')
-        .delete()
-        .eq('id', besoinId);
+      const besoin = besoins.find(b => b.id === besoinId);
+      if (!besoin) throw new Error('Besoin introuvable');
 
-      if (error) throw error;
+      if (besoin.demi_journee === 'toute_journee') {
+        const otherPeriod = period === 'matin' ? 'apres_midi' : 'matin';
+        const { error: updErr } = await supabase
+          .from('besoin_effectif')
+          .update({ demi_journee: otherPeriod })
+          .eq('id', besoinId);
+        if (updErr) throw updErr;
+      } else {
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', besoinId);
+        if (error) throw error;
+      }
 
-      toast({
-        title: "Succès",
-        description: "Besoin supprimé",
-      });
+      toast({ title: 'Succès', description: 'Besoin mis à jour' });
       fetchBesoins();
     } catch (error) {
       console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer le besoin",
-        variant: "destructive",
-      });
+      toast({ title: 'Erreur', description: "Impossible de supprimer le besoin", variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
-
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -147,21 +171,20 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
 
   const getBesoinForDate = (day: number, period: 'matin' | 'apres_midi') => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDate(date);
     
     return besoins.filter(
       b => b.date === dateStr && 
       (b.demi_journee === period || b.demi_journee === 'toute_journee')
     );
   };
-
   const handleAddBesoin = async (day: number, period: 'matin' | 'apres_midi') => {
     if (!sites.length) return;
     
     setLoading(true);
     try {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatDate(date);
 
       const { error } = await supabase
         .from('besoin_effectif')
@@ -224,7 +247,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           ))}
 
           {days.map((day, index) => (
-            <div key={index} className="border min-h-[100px] p-1">
+            <div key={index} className="border min-h-[100px] p-1 group">
               {day && (
                 <>
                   <div className="text-xs font-semibold mb-1">{day}</div>
@@ -239,13 +262,13 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                           <div key={besoin.id} className="flex items-center gap-1 mb-1">
                             <Select
                               value={besoin.site_id}
-                              onValueChange={(value) => handleSiteChange(besoin.id, value)}
+                              onValueChange={(value) => handleSiteChange(besoin.id, value, 'matin')}
                               disabled={loading}
                             >
-                              <SelectTrigger className="h-7 text-xs flex-1">
+                              <SelectTrigger className="h-auto min-h-[28px] text-xs flex-1 text-left whitespace-normal break-words py-1">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="z-50">
                                 {sites.map(site => (
                                   <SelectItem key={site.id} value={site.id} className="text-xs">
                                     {site.nom}
@@ -257,7 +280,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 shrink-0"
-                              onClick={() => handleDelete(besoin.id)}
+                              onClick={() => handleDelete(besoin.id, 'matin')}
                               disabled={loading}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -268,7 +291,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 w-full text-xs"
+                          className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => handleAddBesoin(day, 'matin')}
                           disabled={loading}
                         >
@@ -288,13 +311,13 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                           <div key={besoin.id} className="flex items-center gap-1 mb-1">
                             <Select
                               value={besoin.site_id}
-                              onValueChange={(value) => handleSiteChange(besoin.id, value)}
+                              onValueChange={(value) => handleSiteChange(besoin.id, value, 'apres_midi')}
                               disabled={loading}
                             >
-                              <SelectTrigger className="h-7 text-xs flex-1">
+                              <SelectTrigger className="h-auto min-h-[28px] text-xs flex-1 text-left whitespace-normal break-words py-1">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="z-50">
                                 {sites.map(site => (
                                   <SelectItem key={site.id} value={site.id} className="text-xs">
                                     {site.nom}
@@ -306,7 +329,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 shrink-0"
-                              onClick={() => handleDelete(besoin.id)}
+                              onClick={() => handleDelete(besoin.id, 'apres_midi')}
                               disabled={loading}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -317,7 +340,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 w-full text-xs"
+                          className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => handleAddBesoin(day, 'apres_midi')}
                           disabled={loading}
                         >
