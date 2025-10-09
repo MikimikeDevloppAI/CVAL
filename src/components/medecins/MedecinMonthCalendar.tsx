@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -131,7 +131,9 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    // Convertir dimanche (0) en 7, et décaler pour avoir lundi = 0
+    let startingDayOfWeek = firstDay.getDay();
+    startingDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
 
     const days = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
@@ -144,14 +146,51 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   };
 
   const getBesoinForDate = (day: number, period: 'matin' | 'apres_midi') => {
-    const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-      .toISOString()
-      .split('T')[0];
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
     
-    return besoins.find(
+    return besoins.filter(
       b => b.date === dateStr && 
       (b.demi_journee === period || b.demi_journee === 'toute_journee')
     );
+  };
+
+  const handleAddBesoin = async (day: number, period: 'matin' | 'apres_midi') => {
+    if (!sites.length) return;
+    
+    setLoading(true);
+    try {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const { error } = await supabase
+        .from('besoin_effectif')
+        .insert({
+          date: dateStr,
+          type: 'medecin',
+          medecin_id: medecinId,
+          site_id: sites[0].id,
+          demi_journee: period,
+          actif: true,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Besoin ajouté",
+      });
+      fetchBesoins();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le besoin",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -178,7 +217,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         </DialogHeader>
 
         <div className="grid grid-cols-7 gap-1 mt-4">
-          {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => (
+          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
             <div key={day} className="text-center font-semibold text-sm py-2 border-b">
               {day}
             </div>
@@ -191,79 +230,99 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                   <div className="text-xs font-semibold mb-1">{day}</div>
                   
                   {/* Matin */}
-                  <div className="mb-1">
-                    <div className="text-xs text-muted-foreground">Matin</div>
+                  <div className="mb-2">
+                    <div className="text-xs text-muted-foreground font-medium mb-1">Matin</div>
                     {(() => {
-                      const besoin = getBesoinForDate(day, 'matin');
-                      return besoin ? (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Select
-                            value={besoin.site_id}
-                            onValueChange={(value) => handleSiteChange(besoin.id, value)}
-                            disabled={loading}
-                          >
-                            <SelectTrigger className="h-6 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sites.map(site => (
-                                <SelectItem key={site.id} value={site.id}>
-                                  {site.nom}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => handleDelete(besoin.id)}
-                            disabled={loading}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      const besoinsList = getBesoinForDate(day, 'matin');
+                      return besoinsList.length > 0 ? (
+                        besoinsList.map(besoin => (
+                          <div key={besoin.id} className="flex items-center gap-1 mb-1">
+                            <Select
+                              value={besoin.site_id}
+                              onValueChange={(value) => handleSiteChange(besoin.id, value)}
+                              disabled={loading}
+                            >
+                              <SelectTrigger className="h-7 text-xs flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sites.map(site => (
+                                  <SelectItem key={site.id} value={site.id} className="text-xs">
+                                    {site.nom}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 shrink-0"
+                              onClick={() => handleDelete(besoin.id)}
+                              disabled={loading}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))
                       ) : (
-                        <div className="text-xs text-muted-foreground/50">-</div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-full text-xs"
+                          onClick={() => handleAddBesoin(day, 'matin')}
+                          disabled={loading}
+                        >
+                          + Ajouter
+                        </Button>
                       );
                     })()}
                   </div>
 
                   {/* Après-midi */}
                   <div>
-                    <div className="text-xs text-muted-foreground">AM</div>
+                    <div className="text-xs text-muted-foreground font-medium mb-1">Après-midi</div>
                     {(() => {
-                      const besoin = getBesoinForDate(day, 'apres_midi');
-                      return besoin ? (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Select
-                            value={besoin.site_id}
-                            onValueChange={(value) => handleSiteChange(besoin.id, value)}
-                            disabled={loading}
-                          >
-                            <SelectTrigger className="h-6 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sites.map(site => (
-                                <SelectItem key={site.id} value={site.id}>
-                                  {site.nom}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => handleDelete(besoin.id)}
-                            disabled={loading}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      const besoinsList = getBesoinForDate(day, 'apres_midi');
+                      return besoinsList.length > 0 ? (
+                        besoinsList.map(besoin => (
+                          <div key={besoin.id} className="flex items-center gap-1 mb-1">
+                            <Select
+                              value={besoin.site_id}
+                              onValueChange={(value) => handleSiteChange(besoin.id, value)}
+                              disabled={loading}
+                            >
+                              <SelectTrigger className="h-7 text-xs flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sites.map(site => (
+                                  <SelectItem key={site.id} value={site.id} className="text-xs">
+                                    {site.nom}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 shrink-0"
+                              onClick={() => handleDelete(besoin.id)}
+                              disabled={loading}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))
                       ) : (
-                        <div className="text-xs text-muted-foreground/50">-</div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-full text-xs"
+                          onClick={() => handleAddBesoin(day, 'apres_midi')}
+                          disabled={loading}
+                        >
+                          + Ajouter
+                        </Button>
                       );
                     })()}
                   </div>
