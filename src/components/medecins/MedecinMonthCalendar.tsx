@@ -32,6 +32,11 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [besoins, setBesoins] = useState<BesoinEffectif[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [addBesoinDialog, setAddBesoinDialog] = useState<{
+    open: boolean;
+    day: number;
+    period: 'matin' | 'apres_midi';
+  } | null>(null);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -189,12 +194,12 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     console.info(`getBesoinForDate ${dateStr} [${period}] -> full-day x${fullDay.length}`);
     return fullDay;
   };
-  const handleAddBesoin = async (day: number, period: 'matin' | 'apres_midi') => {
-    if (!sites.length) return;
+  const handleAddBesoin = async (siteId: string) => {
+    if (!addBesoinDialog) return;
     
     setLoading(true);
     try {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), addBesoinDialog.day);
       const dateStr = formatDate(date);
 
       const { error } = await supabase
@@ -203,8 +208,8 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           date: dateStr,
           type: 'medecin',
           medecin_id: medecinId,
-          site_id: sites[0].id,
-          demi_journee: period,
+          site_id: siteId,
+          demi_journee: addBesoinDialog.period,
           actif: true,
         });
 
@@ -215,6 +220,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         description: "Besoin ajouté",
       });
       fetchBesoins();
+      setAddBesoinDialog(null);
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -364,7 +370,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                             variant="outline"
                             size="sm"
                             className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => handleAddBesoin(day, 'matin')}
+                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'matin' })}
                             disabled={loading}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -391,7 +397,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                             variant="outline"
                             size="sm"
                             className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => handleAddBesoin(day, 'apres_midi')}
+                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'apres_midi' })}
                             disabled={loading}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -406,6 +412,28 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             );
           })}
         </div>
+
+        {/* Dialog de sélection de site */}
+        <Dialog open={addBesoinDialog?.open || false} onOpenChange={(open) => !open && setAddBesoinDialog(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sélectionner un site</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              {sites.map(site => (
+                <Button
+                  key={site.id}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto py-3 whitespace-normal"
+                  onClick={() => handleAddBesoin(site.id)}
+                  disabled={loading}
+                >
+                  {site.nom}
+                </Button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
