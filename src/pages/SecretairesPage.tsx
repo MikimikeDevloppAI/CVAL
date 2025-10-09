@@ -20,8 +20,8 @@ interface Secretaire {
   phone_number?: string;
   specialites: string[];
   specialites_details?: { nom: string }[];
-  horaires_base_secretaires?: { jour_semaine: number; heure_debut?: string; heure_fin?: string; actif?: boolean }[];
-  horaires?: { jour: number; jourTravaille: boolean; heureDebut: string; heureFin: string; actif: boolean }[];
+  horaires_base_secretaires?: { jour_semaine: number; demi_journee?: string; actif?: boolean }[];
+  horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
   profile_id?: string;
   site_preferentiel_id?: string;
   prefere_port_en_truie?: boolean;
@@ -66,8 +66,7 @@ export default function SecretairesPage() {
           ),
           horaires_base_secretaires (
             jour_semaine,
-            heure_debut,
-            heure_fin,
+            demi_journee,
             actif
           )
         `);
@@ -104,16 +103,14 @@ export default function SecretairesPage() {
                 horaires.push({
                   jour,
                   jourTravaille: true,
-                  heureDebut: horaireExistant.heure_debut || '07:30',
-                  heureFin: horaireExistant.heure_fin || '17:00',
+                  demiJournee: horaireExistant.demi_journee || 'toute_journee',
                   actif: horaireExistant.actif !== false
                 });
               } else {
                 horaires.push({
                   jour,
                   jourTravaille: false,
-                  heureDebut: '07:30',
-                  heureFin: '17:00',
+                  demiJournee: 'toute_journee',
                   actif: true
                 });
               }
@@ -379,23 +376,41 @@ export default function SecretairesPage() {
                   </div>
                   
                   {/* Jours de travail */}
-                  {secretaire.horaires_base_secretaires && secretaire.horaires_base_secretaires.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                        Jours de travail
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {secretaire.horaires_base_secretaires.map((horaire, index) => {
-                          const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-                          return (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {jours[horaire.jour_semaine]}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                      Jours de travail
+                    </p>
+                    <div className="space-y-2">
+                      {[1, 2, 3, 4, 5].map((jour) => {
+                        const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+                        const horairesJour = (secretaire.horaires_base_secretaires?.filter(h => h.jour_semaine === jour) || []);
+                        const periodeLabels = {
+                          'matin': 'Matin',
+                          'apres_midi': 'AM',
+                          'toute_journee': 'Jour'
+                        };
+                        
+                        return (
+                          <div key={jour} className="flex items-center gap-2 p-2 bg-muted/10 rounded-md">
+                            <Badge variant="outline" className="text-xs font-medium">
+                              {jours[jour]}
                             </Badge>
-                          );
-                        })}
-                      </div>
+                            {horairesJour.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {horairesJour.map((h, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {periodeLabels[h.demi_journee as keyof typeof periodeLabels] || h.demi_journee}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Non travaillé</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
                   
                   {/* Site préférentiel */}
                   {secretaire.sites && (
