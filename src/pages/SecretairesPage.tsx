@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
+import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -363,9 +364,19 @@ export default function SecretairesPage() {
                 <div className="space-y-4">
                   {/* Sites assignés */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Sites assignés
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Sites assignés
+                      </p>
+                      {canManage && (
+                        <QuickEditSitesDialog
+                          secretaireId={secretaire.id}
+                          sitesActuels={secretaire.sites_assignes}
+                          sitesActuelsDetails={secretaire.sites_assignes_details || []}
+                          onSuccess={fetchSecretaires}
+                        />
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {secretaire.sites_assignes_details && secretaire.sites_assignes_details.length > 0 ? (
                         secretaire.sites_assignes_details.map((site, index) => (
