@@ -275,6 +275,7 @@ export type Database = {
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           secretaire_id: string | null
+          site_id: string | null
           updated_at: string
         }
         Insert: {
@@ -285,6 +286,7 @@ export type Database = {
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
+          site_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -295,6 +297,7 @@ export type Database = {
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
+          site_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -310,6 +313,13 @@ export type Database = {
             columns: ["secretaire_id"]
             isOneToOne: false
             referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
