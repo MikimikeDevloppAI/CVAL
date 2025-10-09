@@ -246,13 +246,12 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     <div key={besoin.id} className="relative group/badge mb-1 animate-fade-in">
       <Popover>
         <PopoverTrigger asChild>
-          <Badge 
-            variant="secondary"
-            className="w-full justify-start cursor-pointer hover:opacity-80 transition-all text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px]"
+          <button
+            className="w-full text-left px-3 py-2 rounded-md border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-all text-sm whitespace-normal h-auto min-h-[32px] cursor-pointer"
             title={besoin.sites?.nom || 'Site'}
           >
             <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
-          </Badge>
+          </button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-2" align="start">
           <div className="space-y-1">
