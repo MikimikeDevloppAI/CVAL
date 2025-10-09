@@ -79,18 +79,15 @@ export default function SecretairesPage() {
           sites (
             nom
           ),
-            horaires_base_secretaires (
-              id,
-              jour_semaine,
-              demi_journee,
-              actif,
-              site_id,
-              date_debut,
-              date_fin,
-              sites (
-                nom
-              )
-            )
+          horaires_base_secretaires (
+            id,
+            jour_semaine,
+            demi_journee,
+            actif,
+            site_id,
+            date_debut,
+            date_fin
+          )
         `);
 
       if (secretairesError) {
@@ -104,7 +101,7 @@ export default function SecretairesPage() {
           secretairesData.map(async (secretaire: any) => {
             let sites_assignes_details = [];
             
-            // Récupérer les noms des sites
+            // Récupérer les noms des sites assignés
             if (secretaire.sites_assignes && secretaire.sites_assignes.length > 0) {
               const { data: sitesData } = await supabase
                 .from('sites')
@@ -114,10 +111,29 @@ export default function SecretairesPage() {
               sites_assignes_details = sitesData || [];
             }
 
+            // Enrichir les horaires avec les noms des sites
+            const horairesEnrichis = await Promise.all(
+              (secretaire.horaires_base_secretaires || []).map(async (horaire: any) => {
+                if (horaire.site_id) {
+                  const { data: siteData } = await supabase
+                    .from('sites')
+                    .select('nom')
+                    .eq('id', horaire.site_id)
+                    .single();
+                  
+                  return {
+                    ...horaire,
+                    sites: siteData
+                  };
+                }
+                return horaire;
+              })
+            );
+
             // Mapper les horaires pour le formulaire
             const horaires = [];
             for (let jour = 1; jour <= 5; jour++) {
-              const horaireExistant = secretaire.horaires_base_secretaires?.find(
+              const horaireExistant = horairesEnrichis?.find(
                 (h: any) => h.jour_semaine === jour
               );
               
@@ -140,6 +156,7 @@ export default function SecretairesPage() {
             
             return {
               ...secretaire,
+              horaires_base_secretaires: horairesEnrichis,
               sites_assignes_details,
               horaires
             };
