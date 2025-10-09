@@ -288,7 +288,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between pb-4">
+          <DialogTitle className="flex flex-col gap-4 pb-4">
             <div className="flex items-center gap-3">
               <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
                 Calendrier mensuel
