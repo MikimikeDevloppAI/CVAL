@@ -176,10 +176,13 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
     
-    return besoins.filter(
+    console.log(`getBesoinForDate called for ${dateStr}, period: ${period}`);
+    const filtered = besoins.filter(
       b => b.date === dateStr && 
       (b.demi_journee === period || b.demi_journee === 'toute_journee')
     );
+    console.log(`Found ${filtered.length} besoins:`, filtered);
+    return filtered;
   };
   const handleAddBesoin = async (day: number, period: 'matin' | 'apres_midi') => {
     if (!sites.length) return;
@@ -239,11 +242,10 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       <Popover>
         <PopoverTrigger asChild>
           <Badge 
-            variant="secondary" 
-            className="w-full justify-start cursor-pointer hover:bg-primary/20 transition-colors text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px]"
+            className="w-full justify-start cursor-pointer hover:opacity-80 transition-all text-xs px-2 py-1.5 relative whitespace-normal text-left h-auto min-h-[28px] bg-primary/10 border-primary/20 hover:bg-primary/15 text-foreground"
             title={besoin.sites?.nom || 'Site'}
           >
-            <span className="break-words leading-tight">{besoin.sites?.nom || 'Site'}</span>
+            <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
           </Badge>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-2" align="start">
