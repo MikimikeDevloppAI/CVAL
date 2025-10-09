@@ -483,9 +483,18 @@ export default function MedecinsPage() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
                                     <Badge variant="secondary" className="text-xs shrink-0">
                                       {alternanceLabels[horaire.alternance_type]}
+                                      {horaire.alternance_type === 'une_sur_deux' && (
+                                        <> - {horaire.alternance_semaine_modulo === 0 ? 'Paire' : 'Impaire'}</>
+                                      )}
+                                      {horaire.alternance_type === 'une_sur_trois' && (
+                                        <> - Sem. {horaire.alternance_semaine_modulo + 1}</>
+                                      )}
+                                      {horaire.alternance_type === 'une_sur_quatre' && (
+                                        <> - Sem. {horaire.alternance_semaine_modulo + 1}</>
+                                      )}
                                     </Badge>
                                   )}
                                   {canManage && (
