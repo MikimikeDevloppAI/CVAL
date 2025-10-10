@@ -1,18 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,8 +31,6 @@ const secretaireSchema = z.object({
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
   email: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().email('Email invalide').max(255, 'Email trop long')).optional(),
   telephone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().max(50, 'Le numéro de téléphone est trop long')).optional(),
-  sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
-  medecinAssigneId: z.string().nullable().optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
@@ -48,25 +39,12 @@ const secretaireSchema = z.object({
 
 type SecretaireFormData = z.infer<typeof secretaireSchema>;
 
-interface Site {
-  id: string;
-  nom: string;
-}
-
-interface Medecin {
-  id: string;
-  first_name: string;
-  name: string;
-}
-
 interface SecretaireFormProps {
   secretaire?: any;
   onSuccess: () => void;
 }
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
-  const [sites, setSites] = useState<Site[]>([]);
-  const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -77,8 +55,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nom: secretaire?.name || secretaire?.profiles?.nom || '',
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
-      sitesAssignes: secretaire?.sites_assignes || [],
-      medecinAssigneId: secretaire?.medecin_assigne_id || null,
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -97,24 +73,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     name: 'horaires',
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [sitesRes, medecinsRes] = await Promise.all([
-          supabase.from('sites').select('id, nom').eq('actif', true).order('nom'),
-          supabase.from('medecins').select('id, first_name, name').eq('actif', true).order('name')
-        ]);
-        
-        if (sitesRes.data) setSites(sitesRes.data);
-        if (medecinsRes.data) setMedecins(medecinsRes.data);
-      } catch (error) {
-        console.error('Erreur lors du chargement des données:', error);
-      }
-    };
-
-    fetchData();
-  }, []);
-
   const onSubmit = async (data: SecretaireFormData) => {
     setLoading(true);
     try {
@@ -127,8 +85,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             name: data.nom,
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
-            sites_assignes: data.sitesAssignes,
-            medecin_assigne_id: data.medecinAssigneId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -171,7 +127,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           description: "Secrétaire modifié avec succès",
         });
       } else {
-        // Création sans profil associé
+        // Création sans profil associé - sites_assignes et medecin seront gérés via QuickEdit dialogs
         const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
@@ -179,9 +135,9 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             name: data.nom,
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
-            profile_id: null, // Pas de profil associé
-            sites_assignes: data.sitesAssignes,
-            medecin_assigne_id: data.medecinAssigneId || null,
+            profile_id: null,
+            sites_assignes: [],
+            medecin_assigne_id: null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -307,122 +263,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             )}
           />
         </div>
-
-        {/* Sites assignés */}
-        <FormField
-          control={form.control}
-          name="sitesAssignes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Sites assignés</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-between h-auto min-h-[2.5rem] text-left font-normal"
-                      >
-                        <div className="flex flex-wrap gap-1">
-                          {field.value && field.value.length > 0 ? (
-                            <>
-                              {field.value.slice(0, 2).map((siteId) => {
-                                const site = sites.find(s => s.id === siteId);
-                                return site ? (
-                                  <Badge key={site.id} variant="secondary" className="text-xs">
-                                    {site.nom}
-                                    <button
-                                      type="button"
-                                      className="ml-1 hover:bg-secondary-foreground/20 rounded-full"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const current = field.value || [];
-                                        field.onChange(current.filter((id) => id !== site.id));
-                                      }}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  </Badge>
-                                ) : null;
-                              })}
-                              {field.value.length > 2 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  +{field.value.length - 2} autres
-                                </Badge>
-                              )}
-                            </>
-                          ) : (
-                            "Sélectionner des sites"
-                          )}
-                        </div>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                    <Command>
-                      <CommandInput placeholder="Rechercher un site..." />
-                      <CommandEmpty>Aucun site trouvé.</CommandEmpty>
-                      <CommandGroup className="max-h-60 overflow-auto">
-                        {sites.map((site) => (
-                          <CommandItem
-                            value={site.nom}
-                            key={site.id}
-                            onSelect={() => {
-                              const current = field.value || [];
-                              if (current.includes(site.id)) {
-                                field.onChange(current.filter((id) => id !== site.id));
-                              } else {
-                                field.onChange([...current, site.id]);
-                              }
-                            }}
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 ${
-                                field.value?.includes(site.id) ? "opacity-100" : "opacity-0"
-                              }`}
-                            />
-                            {site.nom}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-        {/* Médecin assigné */}
-        <FormField
-          control={form.control}
-          name="medecinAssigneId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Médecin assigné (optionnel)</FormLabel>
-              <Select 
-                onValueChange={(val) => field.onChange(val === 'none' ? null : val)} 
-                value={field.value || 'none'}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un médecin" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="none">Aucun médecin</SelectItem>
-                  {medecins.map((medecin) => (
-                    <SelectItem key={medecin.id} value={medecin.id}>
-                      {medecin.first_name} {medecin.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         {/* Préférences */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

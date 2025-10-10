@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, ContactInfo } from '@/components/ui/modern-card';
 import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
 import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDialog';
+import { QuickEditMedecinDialog } from '@/components/secretaires/QuickEditMedecinDialog';
 import { EditHoraireSecretaireDialog } from '@/components/secretaires/EditHoraireSecretaireDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -396,15 +397,6 @@ export default function SecretairesPage() {
                           text={secretaire.phone_number} 
                         />
                       )}
-
-                      {secretaire.medecins && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">Médecin assigné:</span>
-                          <Badge variant="outline" className="text-xs">
-                            {secretaire.medecins.first_name} {secretaire.medecins.name}
-                          </Badge>
-                        </div>
-                      )}
                     </div>
                   </div>
                   
@@ -468,6 +460,34 @@ export default function SecretairesPage() {
               
               <ModernCardContent>
                 <div className="space-y-4">
+                  {/* Médecin assigné */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Médecin assigné
+                      </p>
+                      {canManage && (
+                        <QuickEditMedecinDialog
+                          secretaireId={secretaire.id}
+                          medecinActuelId={secretaire.medecin_assigne_id}
+                          medecinActuel={secretaire.medecins}
+                          onSuccess={fetchSecretaires}
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {secretaire.medecins ? (
+                        <Badge variant="secondary" className="text-xs">
+                          {secretaire.medecins.first_name} {secretaire.medecins.name}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Aucun médecin assigné
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Sites assignés */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
