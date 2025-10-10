@@ -102,7 +102,7 @@ const BlocOperatoirePage = () => {
     return isFuture && matchesSearch;
   });
 
-  // Grouper les besoins par date
+  // Grouper les besoins par date pour affichage par jour
   const besoinsByDate = filteredBesoins.reduce((acc, besoin) => {
     const dateKey = besoin.date;
     if (!acc[dateKey]) {
