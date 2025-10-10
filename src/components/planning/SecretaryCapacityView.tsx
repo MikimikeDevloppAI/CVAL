@@ -14,6 +14,7 @@ interface CapaciteEffective {
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
+  site_id?: string;
   secretaire?: {
     first_name: string;
     name: string;
@@ -50,10 +51,26 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCapacites, setSelectedCapacites] = useState<CapaciteEffective[]>([]);
   const [horairesBase, setHorairesBase] = useState<Map<string, HoraireBase[]>>(new Map());
+  const [sites, setSites] = useState<Map<string, string>>(new Map());
 
-  // Récupérer les horaires de base pour toutes les secrétaires
+  // Récupérer les sites et horaires de base
   useEffect(() => {
-    const fetchHorairesBase = async () => {
+    const fetchData = async () => {
+      // Fetch sites
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('actif', true);
+
+      if (sitesData) {
+        const sitesMap = new Map<string, string>();
+        sitesData.forEach(site => {
+          sitesMap.set(site.id, site.nom);
+        });
+        setSites(sitesMap);
+      }
+
+      // Fetch horaires base
       const secretaireIds = Array.from(new Set(
         capacites
           .filter(cap => cap.secretaire_id)
@@ -87,7 +104,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
       setHorairesBase(horaireMap);
     };
 
-    fetchHorairesBase();
+    fetchData();
   }, [capacites]);
 
   // Regrouper les capacités par secrétaire
@@ -134,6 +151,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
               <thead className="border-b bg-muted/30">
                 <tr>
                   <th className="p-3 text-left font-semibold">Nom</th>
+                  <th className="p-3 text-left font-semibold">Sites assignés</th>
                   <th className="p-3 text-left font-semibold">
                     <div className="flex items-center gap-2">
                       Jours de présence
@@ -159,7 +177,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
               <tbody>
                 {secretariesGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={canManage ? 3 : 2} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={canManage ? 4 : 3} className="p-8 text-center text-muted-foreground">
                       Aucune capacité trouvée pour cette semaine
                     </td>
                   </tr>
@@ -174,7 +192,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                       return acc;
                     }, {} as Record<string, CapaciteEffective[]>);
 
-                    // Construire la liste des jours avec période
+                    // Construire la liste des jours avec période et site
                     const joursParNom = Object.entries(capacitesParDate).map(([date, capacitesDate]) => {
                       const dateObj = new Date(date);
                       const jourSemaine = format(dateObj, 'EEEE', { locale: fr });
@@ -193,10 +211,15 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                         periode = 'apres_midi';
                       }
                       
+                      // Récupérer le site_id si présent (prendre le premier non-null)
+                      const siteId = capacitesDate.find(c => c.site_id)?.site_id;
+                      const siteNom = siteId ? sites.get(siteId) : null;
+                      
                       return {
                         nom: jourSemaine.charAt(0).toUpperCase() + jourSemaine.slice(1),
                         date: format(dateObj, 'yyyy-MM-dd'),
                         periode,
+                        siteNom,
                         capacites: capacitesDate
                       };
                     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -213,6 +236,19 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
+                            {secretary.sites_assignes.length > 0 ? (
+                              secretary.sites_assignes.map((siteId, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">
+                                  {sites.get(siteId) || siteId}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Aucun site assigné</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
                             {joursParNom.map((jour, idx) => {
                               const borderColor = jour.periode === 'journee' 
                                 ? 'border-2 border-green-600' 
@@ -221,9 +257,16 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                                 : 'border-2 border-yellow-600';
                               
                               return (
-                                <Badge key={idx} variant="outline" className={`text-xs bg-transparent ${borderColor}`}>
-                                  {jour.nom}
-                                </Badge>
+                                <div key={idx} className="flex flex-col gap-0.5">
+                                  <Badge variant="outline" className={`text-xs bg-transparent ${borderColor}`}>
+                                    {jour.nom}
+                                  </Badge>
+                                  {jour.siteNom && (
+                                    <span className="text-[10px] text-muted-foreground text-center">
+                                      {jour.siteNom}
+                                    </span>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
