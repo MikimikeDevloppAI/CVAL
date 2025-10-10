@@ -78,7 +78,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
       sitesAssignes: secretaire?.sites_assignes || [],
-      medecinAssigneId: secretaire?.medecin_assigne_id || '',
+      medecinAssigneId: secretaire?.medecin_assigne_id ?? undefined,
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -392,14 +392,14 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Médecin assigné (optionnel)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)} value={field.value ?? undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner un médecin" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Aucun médecin</SelectItem>
+                  <SelectItem value="none">Aucun médecin</SelectItem>
                   {medecins.map((medecin) => (
                     <SelectItem key={medecin.id} value={medecin.id}>
                       {medecin.first_name} {medecin.name}
