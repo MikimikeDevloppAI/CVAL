@@ -15,6 +15,8 @@ const horaireSchema = z.object({
   siteId: z.string(),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
+  alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']),
+  alternanceSemaineReference: z.string().optional(),
 }).refine((data) => {
   if (data.dateDebut && data.dateFin) {
     return data.dateDebut <= data.dateFin;
@@ -62,6 +64,8 @@ export function EditHoraireSecretaireDialog({
       siteId: horaire?.site_id || 'none',
       dateDebut: horaire?.date_debut || '',
       dateFin: horaire?.date_fin || '',
+      alternanceType: horaire?.alternance_type || 'hebdomadaire',
+      alternanceSemaineReference: horaire?.alternance_semaine_reference || new Date().toISOString().split('T')[0],
     },
   });
 
@@ -80,6 +84,8 @@ export function EditHoraireSecretaireDialog({
         siteId: horaire.site_id || 'none',
         dateDebut: horaire.date_debut || '',
         dateFin: horaire.date_fin || '',
+        alternanceType: horaire.alternance_type || 'hebdomadaire',
+        alternanceSemaineReference: horaire.alternance_semaine_reference || new Date().toISOString().split('T')[0],
       });
     } else {
       form.reset({
@@ -87,6 +93,8 @@ export function EditHoraireSecretaireDialog({
         siteId: 'none',
         dateDebut: '',
         dateFin: '',
+        alternanceType: 'hebdomadaire',
+        alternanceSemaineReference: new Date().toISOString().split('T')[0],
       });
     }
   }, [horaire, form]);
@@ -144,6 +152,8 @@ export function EditHoraireSecretaireDialog({
             site_id: data.siteId === 'none' ? null : data.siteId,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
+            alternance_type: data.alternanceType,
+            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
           })
           .eq('id', horaire.id);
 
@@ -164,6 +174,8 @@ export function EditHoraireSecretaireDialog({
             site_id: data.siteId === 'none' ? null : data.siteId,
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
+            alternance_type: data.alternanceType,
+            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
             actif: true,
           });
 
@@ -278,6 +290,49 @@ export function EditHoraireSecretaireDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="alternanceType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type d'alternance</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner le type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="hebdomadaire">Chaque semaine</SelectItem>
+                      <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
+                      <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
+                      <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {form.watch('alternanceType') !== 'hebdomadaire' && (
+              <FormField
+                control={form.control}
+                name="alternanceSemaineReference"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Semaine de référence</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

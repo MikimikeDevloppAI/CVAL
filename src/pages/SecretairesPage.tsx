@@ -30,6 +30,8 @@ interface Secretaire {
     site_id?: string;
     date_debut?: string;
     date_fin?: string;
+    alternance_type?: 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre';
+    alternance_semaine_reference?: string;
     sites?: { nom: string } | null;
   }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
@@ -86,7 +88,9 @@ export default function SecretairesPage() {
             actif,
             site_id,
             date_debut,
-            date_fin
+            date_fin,
+            alternance_type,
+            alternance_semaine_reference
           )
         `);
 
@@ -533,10 +537,17 @@ export default function SecretairesPage() {
                                        horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
                                        'Toute la journée'}
                                     </Badge>
-                                    {horaire.sites?.nom && (
+                                     {horaire.sites?.nom && (
                                       <span className="text-xs text-muted-foreground truncate">
                                         {horaire.sites.nom}
                                       </span>
+                                    )}
+                                    {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {horaire.alternance_type === 'une_sur_deux' ? '1/2' :
+                                         horaire.alternance_type === 'une_sur_trois' ? '1/3' :
+                                         horaire.alternance_type === 'une_sur_quatre' ? '1/4' : ''}
+                                      </Badge>
                                     )}
                                   </div>
                                   {(horaire.date_debut || horaire.date_fin) && (
