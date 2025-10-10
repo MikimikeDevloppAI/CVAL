@@ -15,15 +15,13 @@ import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 interface BlocOperatoireBesoin {
   id: string;
   date: string;
-  specialite_id: string;
+  medecin_id: string;
   type_intervention_id: string;
-  nombre_secretaires_requis: number;
-  heure_debut: string;
-  heure_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   actif: boolean;
-  specialites: {
-    nom: string;
-    code: string;
+  medecins: {
+    name: string;
+    first_name: string;
   };
   types_intervention?: {
     nom: string;
@@ -42,17 +40,18 @@ const BlocOperatoirePage = () => {
   const fetchBesoins = async () => {
     try {
       const { data, error } = await supabase
-        .from('bloc_operatoire_besoins')
+        .from('besoin_effectif')
         .select(`
           *,
-          specialites (
-            nom,
-            code
+          medecins (
+            name,
+            first_name
           ),
           types_intervention (
             nom
           )
         `)
+        .eq('type', 'bloc_operatoire')
         .order('date', { ascending: false });
 
       if (error) throw error;
@@ -80,7 +79,8 @@ const BlocOperatoirePage = () => {
     // Ne garder que les besoins futurs (>= semaine en cours)
     const isFuture = besoinDate >= currentWeekStart;
     
-    const matchesSearch = besoin.specialites?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const medecinName = `${besoin.medecins?.first_name || ''} ${besoin.medecins?.name || ''}`.toLowerCase();
+    const matchesSearch = medecinName.includes(searchTerm.toLowerCase()) ||
            format(besoinDate, 'dd/MM/yyyy', { locale: fr }).includes(searchTerm);
     
     return isFuture && matchesSearch;
@@ -95,7 +95,7 @@ const BlocOperatoirePage = () => {
   const handleDelete = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('bloc_operatoire_besoins')
+        .from('besoin_effectif')
         .delete()
         .eq('id', id);
 
@@ -159,7 +159,7 @@ const BlocOperatoirePage = () => {
         <div className="relative flex-1 max-w-full md:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Rechercher par spécialité ou date..."
+            placeholder="Rechercher par médecin ou date..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -182,7 +182,7 @@ const BlocOperatoirePage = () => {
                   
                   <div className="space-y-2">
                     <Badge variant="secondary">
-                      {besoin.specialites?.nom}
+                      {besoin.medecins?.first_name} {besoin.medecins?.name}
                     </Badge>
                     {besoin.types_intervention && (
                       <Badge variant="outline" className="text-xs">
@@ -222,19 +222,12 @@ const BlocOperatoirePage = () => {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Horaires
+                    Période
                   </p>
                   <p className="text-sm text-foreground">
-                    {besoin.heure_debut} - {besoin.heure_fin}
-                  </p>
-                </div>
-                
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Secrétaires requis
-                  </p>
-                  <p className="text-sm text-foreground font-medium">
-                    {besoin.nombre_secretaires_requis}
+                    {besoin.demi_journee === 'matin' && 'Matin'}
+                    {besoin.demi_journee === 'apres_midi' && 'Après-midi'}
+                    {besoin.demi_journee === 'toute_journee' && 'Toute la journée'}
                   </p>
                 </div>
               </div>

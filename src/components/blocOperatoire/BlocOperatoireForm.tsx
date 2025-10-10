@@ -5,11 +5,11 @@ import { z } from 'zod';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -17,19 +17,21 @@ import { cn } from '@/lib/utils';
 
 const besoinSchema = z.object({
   date: z.date(),
-  specialite_id: z.string().min(1, 'La spécialité est requise'),
+  medecin_id: z.string().min(1, 'Le médecin est requis'),
   type_intervention_id: z.string().min(1, "Le type d'intervention est requis"),
-  nombre_secretaires_requis: z.number().min(1, 'Au moins 1 secrétaire requis'),
-  heure_debut: z.string().min(1, "L'heure de début est requise"),
-  heure_fin: z.string().min(1, "L'heure de fin est requise"),
+  demi_journee: z.union([
+    z.literal('matin'),
+    z.literal('apres_midi'),
+    z.literal('toute_journee')
+  ]),
 });
 
 type BesoinFormData = z.infer<typeof besoinSchema>;
 
-interface Specialite {
+interface Medecin {
   id: string;
-  nom: string;
-  code: string;
+  name: string;
+  first_name: string;
 }
 
 interface TypeIntervention {
@@ -45,8 +47,9 @@ interface BlocOperatoireFormProps {
 }
 
 export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoireFormProps) => {
-  const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
+  const [blocSiteId, setBlocSiteId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -54,25 +57,24 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
     resolver: zodResolver(besoinSchema),
     defaultValues: {
       date: besoin?.date ? new Date(besoin.date) : undefined,
-      specialite_id: besoin?.specialite_id || '',
+      medecin_id: besoin?.medecin_id || '',
       type_intervention_id: besoin?.type_intervention_id || '',
-      nombre_secretaires_requis: besoin?.nombre_secretaires_requis || 1,
-      heure_debut: besoin?.heure_debut || '08:00',
-      heure_fin: besoin?.heure_fin || '17:00',
+      demi_journee: besoin?.demi_journee || 'toute_journee',
     },
   });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch specialites
-        const { data: specialitesData, error: specialitesError } = await supabase
-          .from('specialites')
-          .select('*')
-          .order('nom');
+        // Fetch medecins
+        const { data: medecinsData, error: medecinsError } = await supabase
+          .from('medecins')
+          .select('id, name, first_name')
+          .eq('actif', true)
+          .order('name');
 
-        if (specialitesError) throw specialitesError;
-        setSpecialites(specialitesData || []);
+        if (medecinsError) throw medecinsError;
+        setMedecins(medecinsData || []);
 
         // Fetch types intervention
         const { data: typesData, error: typesError } = await supabase
@@ -83,6 +85,17 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
 
         if (typesError) throw typesError;
         setTypesIntervention(typesData || []);
+
+        // Fetch bloc operatoire site
+        const { data: siteData, error: siteError } = await supabase
+          .from('sites')
+          .select('id')
+          .ilike('nom', '%bloc%')
+          .limit(1)
+          .single();
+
+        if (siteError) throw siteError;
+        setBlocSiteId(siteData?.id || '');
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
         toast({
@@ -99,35 +112,45 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
   const handleSubmit = async (data: BesoinFormData) => {
     setLoading(true);
     try {
-      const formattedData = {
-        ...data,
-        date: format(data.date, 'yyyy-MM-dd'),
-      };
+      const formattedDate = format(data.date, 'yyyy-MM-dd');
+      
+      // Determine which demi_journees to process
+      const demiJournees: ('matin' | 'apres_midi')[] = data.demi_journee === 'toute_journee' 
+        ? ['matin', 'apres_midi'] 
+        : [data.demi_journee as 'matin' | 'apres_midi'];
 
-      if (besoin) {
-        // Mise à jour
-        const { error } = await supabase
-          .from('bloc_operatoire_besoins')
-          .update(formattedData)
-          .eq('id', besoin.id);
+      // Delete existing besoins for this medecin/date/demi_journees
+      const { error: deleteError } = await supabase
+        .from('besoin_effectif')
+        .delete()
+        .eq('medecin_id', data.medecin_id)
+        .eq('date', formattedDate)
+        .eq('type', 'bloc_operatoire')
+        .in('demi_journee', demiJournees);
 
-        if (error) throw error;
-        toast({
-          title: "Succès",
-          description: "Besoin mis à jour avec succès",
-        });
-      } else {
-        // Création
-        const { error } = await supabase
-          .from('bloc_operatoire_besoins')
-          .insert([formattedData]);
+      if (deleteError) throw deleteError;
 
-        if (error) throw error;
-        toast({
-          title: "Succès",
-          description: "Besoin créé avec succès",
-        });
-      }
+      // Insert new besoins
+      const besoinsToInsert = demiJournees.map(dj => ({
+        date: formattedDate,
+        type: 'bloc_operatoire' as const,
+        medecin_id: data.medecin_id,
+        site_id: blocSiteId,
+        demi_journee: dj,
+        type_intervention_id: data.type_intervention_id,
+        actif: true,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('besoin_effectif')
+        .insert(besoinsToInsert);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Succès",
+        description: besoin ? "Besoin mis à jour avec succès" : "Besoin créé avec succès",
+      });
 
       onSubmit();
     } catch (error) {
@@ -187,20 +210,20 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
 
         <FormField
           control={form.control}
-          name="specialite_id"
+          name="medecin_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Spécialité</FormLabel>
+              <FormLabel>Médecin</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une spécialité" />
+                    <SelectValue placeholder="Sélectionner un médecin" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {specialites.map((specialite) => (
-                    <SelectItem key={specialite.id} value={specialite.id}>
-                      {specialite.nom}
+                  {medecins.map((medecin) => (
+                    <SelectItem key={medecin.id} value={medecin.id}>
+                      {medecin.first_name} {medecin.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -237,52 +260,40 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
 
         <FormField
           control={form.control}
-          name="nombre_secretaires_requis"
+          name="demi_journee"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Nombre de secrétaires requis</FormLabel>
+              <FormLabel>Période</FormLabel>
               <FormControl>
-                <Input
-                  type="number"
-                  min="1"
-                  {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
-                />
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex flex-col space-y-1"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="matin" id="matin" />
+                    <Label htmlFor="matin" className="font-normal cursor-pointer">
+                      Matin
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="apres_midi" id="apres_midi" />
+                    <Label htmlFor="apres_midi" className="font-normal cursor-pointer">
+                      Après-midi
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="toute_journee" id="toute_journee" />
+                    <Label htmlFor="toute_journee" className="font-normal cursor-pointer">
+                      Toute la journée
+                    </Label>
+                  </div>
+                </RadioGroup>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="heure_debut"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Heure de début</FormLabel>
-                <FormControl>
-                  <Input type="time" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="heure_fin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Heure de fin</FormLabel>
-                <FormControl>
-                  <Input type="time" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
 
         <div className="flex justify-end space-x-4">
           <Button type="button" variant="outline" onClick={onCancel}>
