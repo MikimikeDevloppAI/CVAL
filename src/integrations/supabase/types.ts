@@ -116,7 +116,6 @@ export type Database = {
       besoin_effectif: {
         Row: {
           actif: boolean
-          bloc_operatoire_besoin_id: string | null
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -129,7 +128,6 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -142,7 +140,6 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
@@ -154,13 +151,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "besoin_effectif_bloc_operatoire_besoin_id_fkey"
-            columns: ["bloc_operatoire_besoin_id"]
-            isOneToOne: false
-            referencedRelation: "bloc_operatoire_besoins"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "besoin_effectif_medecin_id_fkey"
             columns: ["medecin_id"]
