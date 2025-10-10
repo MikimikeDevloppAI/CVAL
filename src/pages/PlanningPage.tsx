@@ -37,11 +37,9 @@ interface BesoinEffectif {
   type: string;
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   site_id: string;
-  bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
   medecin?: { first_name: string; name: string; besoin_secretaires: number };
   site?: { nom: string };
-  bloc_operatoire_besoin?: { nombre_secretaires_requis: number };
 }
 
 interface BesoinParSite {
@@ -140,22 +138,6 @@ export default function PlanningPage() {
       )
       .subscribe();
 
-    // Real-time updates for bloc_operatoire_besoins
-    const blocChannel = supabase
-      .channel('bloc-operatoire-besoins-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bloc_operatoire_besoins'
-        },
-        () => {
-          fetchBesoins();
-        }
-      )
-      .subscribe();
-
     // Real-time updates for planning_genere
     const planningChannel = supabase
       .channel('planning-genere-changes')
@@ -191,7 +173,6 @@ export default function PlanningPage() {
     return () => {
       supabase.removeChannel(besoinChannel);
       supabase.removeChannel(capaciteChannel);
-      supabase.removeChannel(blocChannel);
       supabase.removeChannel(planningChannel);
       supabase.removeChannel(planningMetaChannel);
     };
@@ -281,10 +262,8 @@ export default function PlanningPage() {
             demi_journee,
             site_id,
             medecin_id,
-            bloc_operatoire_besoin_id,
             type,
-            medecin:medecins(first_name, name, besoin_secretaires),
-            bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
+            medecin:medecins(first_name, name, besoin_secretaires)
           `)
           .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
           .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -323,10 +302,8 @@ export default function PlanningPage() {
             const nombreRequis = row.site_id === null ? 0 : besoinsForSlot.reduce((sum, besoin) => {
               // Récupérer le besoin selon le type
               let besoinValue = 0;
-              if (besoin.type === 'medecin' && besoin.medecin?.besoin_secretaires) {
+              if (besoin.medecin?.besoin_secretaires) {
                 besoinValue = Number(besoin.medecin.besoin_secretaires);
-              } else if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin?.nombre_secretaires_requis) {
-                besoinValue = Number(besoin.bloc_operatoire_besoin.nombre_secretaires_requis);
               }
               return sum + besoinValue;
             }, 0);
@@ -490,7 +467,7 @@ export default function PlanningPage() {
           *,
           medecin:medecins(first_name, name, besoin_secretaires),
           site:sites(nom),
-          bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
+          medecin:medecins(first_name, name, besoin_secretaires)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
         .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -521,10 +498,8 @@ export default function PlanningPage() {
         
         // Calculer le besoin selon le type
         let besoinValue = 0;
-        if (besoin.type === 'medecin' && besoin.medecin?.besoin_secretaires) {
+        if (besoin.medecin?.besoin_secretaires) {
           besoinValue = Number(besoin.medecin.besoin_secretaires);
-        } else if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin?.nombre_secretaires_requis) {
-          besoinValue = Number(besoin.bloc_operatoire_besoin.nombre_secretaires_requis);
         }
         acc[siteId].total_secretaires_requis += besoinValue;
         
@@ -660,21 +635,12 @@ export default function PlanningPage() {
         );
       } else if (selectedBesoin) {
         // Suppression simple
-        if (selectedBesoin.type === 'bloc_operatoire' && selectedBesoin.bloc_operatoire_besoin_id) {
-          const { error } = await supabase
-            .from('bloc_operatoire_besoins')
-            .delete()
-            .eq('id', selectedBesoin.bloc_operatoire_besoin_id);
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', selectedBesoin.id);
 
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('besoin_effectif')
-            .delete()
-            .eq('id', selectedBesoin.id);
-
-          if (error) throw error;
-        }
+        if (error) throw error;
       }
 
       toast({
@@ -1000,10 +966,8 @@ export default function PlanningPage() {
                 const totalMedecins = Object.keys(besoinsParMedecin).filter(k => k.startsWith('medecin-')).length;
                 const totalSecretaires = besoinsSite.reduce((sum, b) => {
                   let besoinValue = 0;
-                  if (b.type === 'medecin' && b.medecin?.besoin_secretaires) {
+                  if (b.medecin?.besoin_secretaires) {
                     besoinValue = Number(b.medecin.besoin_secretaires);
-                  } else if (b.type === 'bloc_operatoire' && b.bloc_operatoire_besoin?.nombre_secretaires_requis) {
-                    besoinValue = Number(b.bloc_operatoire_besoin.nombre_secretaires_requis);
                   }
                   return sum + besoinValue;
                 }, 0);
@@ -1113,10 +1077,8 @@ export default function PlanningPage() {
                               
                               const totalSecretairesPersonne = besoinsGroupe.reduce((sum, b) => {
                                 let besoinValue = 0;
-                                if (b.type === 'medecin' && b.medecin?.besoin_secretaires) {
+                                if (b.medecin?.besoin_secretaires) {
                                   besoinValue = Number(b.medecin.besoin_secretaires);
-                                } else if (b.type === 'bloc_operatoire' && b.bloc_operatoire_besoin?.nombre_secretaires_requis) {
-                                  besoinValue = Number(b.bloc_operatoire_besoin.nombre_secretaires_requis);
                                 }
                                 return sum + besoinValue;
                               }, 0);

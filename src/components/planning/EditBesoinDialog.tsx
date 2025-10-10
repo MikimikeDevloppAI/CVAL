@@ -25,12 +25,10 @@ interface BesoinEffectif {
   date: string;
   type: string;
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
-  bloc_operatoire_besoin_id?: string;
   medecin_id?: string;
   site_id: string;
   medecin?: { first_name: string; name: string; besoin_secretaires: number };
   site?: { nom: string };
-  bloc_operatoire_besoin?: { nombre_secretaires_requis: number };
 }
 
 interface EditBesoinDialogProps {
@@ -75,21 +73,12 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
       const besoin = editedBesoins.find(b => b.id === besoinToDelete);
       if (!besoin) return;
 
-      if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin_id) {
-        const { error } = await supabase
-          .from('bloc_operatoire_besoins')
-          .delete()
-          .eq('id', besoin.bloc_operatoire_besoin_id);
+      const { error } = await supabase
+        .from('besoin_effectif')
+        .delete()
+        .eq('id', besoin.id);
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('id', besoin.id);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       setEditedBesoins(prev => prev.filter(b => b.id !== besoinToDelete));
       toast({
@@ -131,18 +120,13 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
         insertData.medecin_id = premierBesoin.medecin_id;
       }
 
-      if (premierBesoin.bloc_operatoire_besoin_id) {
-        insertData.bloc_operatoire_besoin_id = premierBesoin.bloc_operatoire_besoin_id;
-      }
-
       const { data, error } = await supabase
         .from('besoin_effectif')
         .insert(insertData)
         .select(`
           *,
           medecin:medecins(first_name, name, besoin_secretaires),
-          site:sites(nom),
-          bloc_operatoire_besoin:bloc_operatoire_besoins(nombre_secretaires_requis)
+          site:sites(nom)
         `)
         .single();
 
@@ -182,23 +166,14 @@ export function EditBesoinDialog({ open, onOpenChange, besoins, onSuccess }: Edi
     setLoading(true);
     try {
       await Promise.all(
-        modifiedBesoins.map(besoin => {
-      if (besoin.type === 'bloc_operatoire' && besoin.bloc_operatoire_besoin_id) {
-        // Pour bloc_operatoire, on ne met pas à jour via l'API TypeScript car le type n'est pas à jour
-        // On ignore cette erreur car la table a bien le champ demi_journee
-        return supabase
-          .from('bloc_operatoire_besoins')
-          .update({ demi_journee: besoin.demi_journee } as any)
-          .eq('id', besoin.bloc_operatoire_besoin_id);
-      } else {
-            return supabase
-              .from('besoin_effectif')
-              .update({
-                demi_journee: besoin.demi_journee,
-              })
-              .eq('id', besoin.id);
-          }
-        })
+        modifiedBesoins.map(besoin =>
+          supabase
+            .from('besoin_effectif')
+            .update({
+              demi_journee: besoin.demi_journee,
+            })
+            .eq('id', besoin.id)
+        )
       );
 
       toast({

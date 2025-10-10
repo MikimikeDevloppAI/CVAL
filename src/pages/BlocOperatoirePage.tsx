@@ -102,6 +102,29 @@ const BlocOperatoirePage = () => {
     return isFuture && matchesSearch;
   });
 
+  // Grouper les besoins par date
+  const besoinsByDate = filteredBesoins.reduce((acc, besoin) => {
+    const dateKey = besoin.date;
+    if (!acc[dateKey]) {
+      acc[dateKey] = {
+        date: besoin.date,
+        matin: [],
+        apres_midi: []
+      };
+    }
+    if (besoin.demi_journee === 'matin') {
+      acc[dateKey].matin.push(besoin);
+    } else if (besoin.demi_journee === 'apres_midi') {
+      acc[dateKey].apres_midi.push(besoin);
+    }
+    return acc;
+  }, {} as Record<string, { date: string; matin: BlocOperatoireBesoin[]; apres_midi: BlocOperatoireBesoin[] }>);
+
+  // Convertir en tableau et trier du plus récent au plus ancien
+  const groupedBesoins = Object.values(besoinsByDate).sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
     setSelectedBesoin(null);
@@ -183,76 +206,126 @@ const BlocOperatoirePage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredBesoins.map((besoin) => (
-          <ModernCard key={besoin.id}>
-            <ModernCardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                    <ModernCardTitle className="text-base">
-                      {format(new Date(besoin.date), 'dd MMMM yyyy', { locale: fr })}
-                    </ModernCardTitle>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Badge variant="secondary">
-                      {besoin.medecins?.first_name} {besoin.medecins?.name}
-                    </Badge>
-                    {besoin.types_intervention && (
-                      <Badge variant="outline" className="text-xs">
-                        {besoin.types_intervention.nom}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                
-                {canManage && (
-                  <div className="flex items-center space-x-2 ml-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedBesoin(besoin);
-                        setIsDialogOpen(true);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(besoin.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </ModernCardHeader>
-            
-            <ModernCardContent>
+      <div className="space-y-6">
+        {groupedBesoins.map((dayGroup) => (
+          <div key={dayGroup.date} className="space-y-4">
+            <div className="flex items-center gap-2 border-b pb-2">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">
+                {format(new Date(dayGroup.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+              </h2>
+            </div>
+
+            {/* Matin */}
+            {dayGroup.matin.length > 0 && (
               <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Période
-                  </p>
-                  <p className="text-sm text-foreground">
-                    {besoin.demi_journee === 'matin' && 'Matin'}
-                    {besoin.demi_journee === 'apres_midi' && 'Après-midi'}
-                    {besoin.demi_journee === 'toute_journee' && 'Toute la journée'}
-                  </p>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  🌅 Matin
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dayGroup.matin.map((besoin) => (
+                    <ModernCard key={besoin.id}>
+                      <ModernCardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <Badge variant="secondary">
+                              {besoin.medecins?.first_name} {besoin.medecins?.name}
+                            </Badge>
+                            {besoin.types_intervention && (
+                              <Badge variant="outline" className="text-xs">
+                                {besoin.types_intervention.nom}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {canManage && (
+                            <div className="flex items-center space-x-2 ml-3">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBesoin(besoin);
+                                  setIsDialogOpen(true);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(besoin.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </ModernCardHeader>
+                    </ModernCard>
+                  ))}
                 </div>
               </div>
-            </ModernCardContent>
-          </ModernCard>
+            )}
+
+            {/* Après-midi */}
+            {dayGroup.apres_midi.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  ☀️ Après-midi
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dayGroup.apres_midi.map((besoin) => (
+                    <ModernCard key={besoin.id}>
+                      <ModernCardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <Badge variant="secondary">
+                              {besoin.medecins?.first_name} {besoin.medecins?.name}
+                            </Badge>
+                            {besoin.types_intervention && (
+                              <Badge variant="outline" className="text-xs">
+                                {besoin.types_intervention.nom}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {canManage && (
+                            <div className="flex items-center space-x-2 ml-3">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBesoin(besoin);
+                                  setIsDialogOpen(true);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(besoin.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </ModernCardHeader>
+                    </ModernCard>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ))}
       </div>
 
-      {filteredBesoins.length === 0 && (
+      {groupedBesoins.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
             {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
