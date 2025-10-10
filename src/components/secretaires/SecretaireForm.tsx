@@ -298,77 +298,30 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           />
         </div>
 
-        {/* Préférences */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="preferePortEnTruie"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>
-                    Préfère travailler à part entière
-                  </FormLabel>
-                </div>
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <FormField
-          control={form.control}
-          name="flexibleJoursSupplementaires"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) => field.onChange(checked === true)}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>
-                  Disponible pour des jours supplémentaires au besoin
-                </FormLabel>
-              </div>
-            </FormItem>
-          )}
-        />
-
-        {form.watch('flexibleJoursSupplementaires') && (
-          <FormField
-            control={form.control}
-            name="nombreJoursSupplementaires"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre de jours supplémentaires maximum</FormLabel>
-                <FormControl>
-                  <Input 
-                    {...field} 
-                    type="number" 
-                    min="1" 
-                    max="7" 
-                    placeholder="1"
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         {/* Caractéristiques professionnelles */}
         <div className="space-y-4 pt-4 border-t">
           <h3 className="text-sm font-medium">Caractéristiques professionnelles</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="preferePortEnTruie"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Préfère travailler à Port-en-Truie</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="personnelBlocOperatoire"
