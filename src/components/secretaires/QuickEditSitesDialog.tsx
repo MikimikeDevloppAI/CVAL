@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -136,24 +137,26 @@ export function QuickEditSitesDialog({
                 <Command>
                   <CommandInput placeholder="Rechercher un site..." />
                   <CommandEmpty>Aucun site trouvé.</CommandEmpty>
-                  <CommandGroup className="max-h-64 overflow-auto">
-                    {sites.map((site) => (
-                      <CommandItem
-                        key={site.id}
-                        onSelect={() => toggleSite(site.id)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedSites.includes(site.id)
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                        {site.nom}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                  <ScrollArea className="h-64">
+                    <CommandGroup>
+                      {sites.map((site) => (
+                        <CommandItem
+                          key={site.id}
+                          onSelect={() => toggleSite(site.id)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedSites.includes(site.id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {site.nom}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </ScrollArea>
                 </Command>
               </PopoverContent>
             </Popover>
