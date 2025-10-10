@@ -829,14 +829,21 @@ export type Database = {
       secretaires: {
         Row: {
           actif: boolean
+          aide_de_salle: boolean
+          anesthesiste: boolean
+          assignation_administrative: boolean
+          bloc_dermato_accueil: boolean
+          bloc_ophtalmo_accueil: boolean
           created_at: string
           email: string | null
           first_name: string | null
           flexible_jours_supplementaires: boolean
           id: string
+          instrumentaliste: boolean
           medecin_assigne_id: string | null
           name: string | null
           nombre_jours_supplementaires: number | null
+          personnel_bloc_operatoire: boolean
           phone_number: string | null
           prefere_port_en_truie: boolean
           profile_id: string | null
@@ -846,14 +853,21 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
+          aide_de_salle?: boolean
+          anesthesiste?: boolean
+          assignation_administrative?: boolean
+          bloc_dermato_accueil?: boolean
+          bloc_ophtalmo_accueil?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          instrumentaliste?: boolean
           medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
+          personnel_bloc_operatoire?: boolean
           phone_number?: string | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
@@ -863,14 +877,21 @@ export type Database = {
         }
         Update: {
           actif?: boolean
+          aide_de_salle?: boolean
+          anesthesiste?: boolean
+          assignation_administrative?: boolean
+          bloc_dermato_accueil?: boolean
+          bloc_ophtalmo_accueil?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          instrumentaliste?: boolean
           medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
+          personnel_bloc_operatoire?: boolean
           phone_number?: string | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null

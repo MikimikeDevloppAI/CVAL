@@ -34,6 +34,13 @@ const secretaireSchema = z.object({
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
+  personnelBlocOperatoire: z.boolean().default(false),
+  assignationAdministrative: z.boolean().default(false),
+  anesthesiste: z.boolean().default(false),
+  instrumentaliste: z.boolean().default(false),
+  aideDeSalle: z.boolean().default(false),
+  blocOphtalmoAccueil: z.boolean().default(false),
+  blocDermatoAccueil: z.boolean().default(false),
   horaires: z.array(horaireSchema),
 });
 
@@ -58,6 +65,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
+      personnelBlocOperatoire: secretaire?.personnel_bloc_operatoire || false,
+      assignationAdministrative: secretaire?.assignation_administrative || false,
+      anesthesiste: secretaire?.anesthesiste || false,
+      instrumentaliste: secretaire?.instrumentaliste || false,
+      aideDeSalle: secretaire?.aide_de_salle || false,
+      blocOphtalmoAccueil: secretaire?.bloc_ophtalmo_accueil || false,
+      blocDermatoAccueil: secretaire?.bloc_dermato_accueil || false,
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
         { jour: 2, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
@@ -88,6 +102,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
+            personnel_bloc_operatoire: data.personnelBlocOperatoire,
+            assignation_administrative: data.assignationAdministrative,
+            anesthesiste: data.anesthesiste,
+            instrumentaliste: data.instrumentaliste,
+            aide_de_salle: data.aideDeSalle,
+            bloc_ophtalmo_accueil: data.blocOphtalmoAccueil,
+            bloc_dermato_accueil: data.blocDermatoAccueil,
           })
           .eq('id', secretaire.id);
 
@@ -141,6 +162,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
+            personnel_bloc_operatoire: data.personnelBlocOperatoire,
+            assignation_administrative: data.assignationAdministrative,
+            anesthesiste: data.anesthesiste,
+            instrumentaliste: data.instrumentaliste,
+            aide_de_salle: data.aideDeSalle,
+            bloc_ophtalmo_accueil: data.blocOphtalmoAccueil,
+            bloc_dermato_accueil: data.blocDermatoAccueil,
           })
           .select()
           .single();
@@ -329,6 +357,139 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             )}
           />
         )}
+
+        {/* Caractéristiques professionnelles */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-sm font-medium">Caractéristiques professionnelles</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="personnelBlocOperatoire"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Personnel bloc opératoire</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="assignationAdministrative"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Assignation administrative</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="anesthesiste"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Anesthésiste</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="instrumentaliste"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Instrumentaliste</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="aideDeSalle"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Aide de salle</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="blocOphtalmoAccueil"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Bloc opératoire Ophtalmologie Accueil</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="blocDermatoAccueil"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Bloc opératoire Dermatologie Accueil</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="submit" disabled={loading}>
