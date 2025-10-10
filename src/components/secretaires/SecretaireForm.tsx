@@ -39,6 +39,7 @@ const secretaireSchema = z.object({
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
   sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
+  medecinAssigneId: z.string().optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
@@ -52,6 +53,12 @@ interface Site {
   nom: string;
 }
 
+interface Medecin {
+  id: string;
+  first_name: string;
+  name: string;
+}
+
 interface SecretaireFormProps {
   secretaire?: any;
   onSuccess: () => void;
@@ -59,6 +66,7 @@ interface SecretaireFormProps {
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const [sites, setSites] = useState<Site[]>([]);
+  const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -70,6 +78,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
       sitesAssignes: secretaire?.sites_assignes || [],
+      medecinAssigneId: secretaire?.medecin_assigne_id || '',
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -91,8 +100,13 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const sitesRes = await supabase.from('sites').select('id, nom').eq('actif', true).order('nom');
+        const [sitesRes, medecinsRes] = await Promise.all([
+          supabase.from('sites').select('id, nom').eq('actif', true).order('nom'),
+          supabase.from('medecins').select('id, first_name, name').eq('actif', true).order('name')
+        ]);
+        
         if (sitesRes.data) setSites(sitesRes.data);
+        if (medecinsRes.data) setMedecins(medecinsRes.data);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
       }
@@ -114,6 +128,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email,
             phone_number: data.telephone,
             sites_assignes: data.sitesAssignes,
+            medecin_assigne_id: data.medecinAssigneId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -166,6 +181,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             phone_number: data.telephone,
             profile_id: null, // Pas de profil associé
             sites_assignes: data.sitesAssignes,
+            medecin_assigne_id: data.medecinAssigneId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
@@ -283,11 +299,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           />
         </div>
 
-        {/* Sites assignés et Préfère Port-en-truie côte à côte */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="sitesAssignes"
+        {/* Sites assignés */}
+        <FormField
+          control={form.control}
+          name="sitesAssignes"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Sites assignés</FormLabel>
@@ -370,11 +385,40 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             )}
           />
 
+        {/* Médecin assigné */}
+        <FormField
+          control={form.control}
+          name="medecinAssigneId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Médecin assigné (optionnel)</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un médecin" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="">Aucun médecin</SelectItem>
+                  {medecins.map((medecin) => (
+                    <SelectItem key={medecin.id} value={medecin.id}>
+                      {medecin.first_name} {medecin.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Préférences */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="preferePortEnTruie"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mt-8">
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                 <FormControl>
                   <Checkbox
                     checked={field.value}

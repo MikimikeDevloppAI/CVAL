@@ -22,6 +22,11 @@ interface Secretaire {
   phone_number?: string;
   sites_assignes: string[];
   sites_assignes_details?: { nom: string }[];
+  medecin_assigne_id?: string;
+  medecins?: {
+    first_name: string;
+    name: string;
+  } | null;
   horaires_base_secretaires?: { 
     id: string;
     jour_semaine: number; 
@@ -74,12 +79,17 @@ export default function SecretairesPage() {
           profile_id,
           sites_assignes,
           site_preferentiel_id,
+          medecin_assigne_id,
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
           actif,
           sites (
             nom
+          ),
+          medecins (
+            first_name,
+            name
           ),
           horaires_base_secretaires (
             id,
@@ -385,6 +395,15 @@ export default function SecretairesPage() {
                           icon={<Phone />} 
                           text={secretaire.phone_number} 
                         />
+                      )}
+
+                      {secretaire.medecins && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">Médecin assigné:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {secretaire.medecins.first_name} {secretaire.medecins.name}
+                          </Badge>
+                        </div>
                       )}
                     </div>
                   </div>

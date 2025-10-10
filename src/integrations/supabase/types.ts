@@ -814,6 +814,7 @@ export type Database = {
           first_name: string | null
           flexible_jours_supplementaires: boolean
           id: string
+          medecin_assigne_id: string | null
           name: string | null
           nombre_jours_supplementaires: number | null
           phone_number: string | null
@@ -830,6 +831,7 @@ export type Database = {
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
           phone_number?: string | null
@@ -846,6 +848,7 @@ export type Database = {
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           id?: string
+          medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
           phone_number?: string | null
@@ -856,6 +859,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "secretaires_medecin_assigne_id_fkey"
+            columns: ["medecin_assigne_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "secretaires_profile_id_fkey"
             columns: ["profile_id"]
