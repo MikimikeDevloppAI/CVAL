@@ -124,6 +124,7 @@ export type Database = {
           medecin_id: string | null
           site_id: string
           type: Database["public"]["Enums"]["type_besoin"]
+          type_intervention_id: string | null
           updated_at: string
         }
         Insert: {
@@ -136,6 +137,7 @@ export type Database = {
           medecin_id?: string | null
           site_id: string
           type: Database["public"]["Enums"]["type_besoin"]
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -148,6 +150,7 @@ export type Database = {
           medecin_id?: string | null
           site_id?: string
           type?: Database["public"]["Enums"]["type_besoin"]
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -170,6 +173,13 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "besoin_effectif_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
             referencedColumns: ["id"]
           },
         ]
@@ -232,6 +242,7 @@ export type Database = {
           id: string
           nombre_secretaires_requis: number
           specialite_id: string
+          type_intervention_id: string | null
           updated_at: string
         }
         Insert: {
@@ -243,6 +254,7 @@ export type Database = {
           id?: string
           nombre_secretaires_requis?: number
           specialite_id: string
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -254,6 +266,7 @@ export type Database = {
           id?: string
           nombre_secretaires_requis?: number
           specialite_id?: string
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -262,6 +275,13 @@ export type Database = {
             columns: ["specialite_id"]
             isOneToOne: false
             referencedRelation: "specialites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bloc_operatoire_besoins_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
             referencedColumns: ["id"]
           },
         ]
@@ -337,6 +357,7 @@ export type Database = {
           jour_semaine: number
           medecin_id: string
           site_id: string
+          type_intervention_id: string | null
           updated_at: string
         }
         Insert: {
@@ -353,6 +374,7 @@ export type Database = {
           jour_semaine: number
           medecin_id: string
           site_id: string
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -369,6 +391,7 @@ export type Database = {
           jour_semaine?: number
           medecin_id?: string
           site_id?: string
+          type_intervention_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -384,6 +407,13 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_base_medecins_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
             referencedColumns: ["id"]
           },
         ]
@@ -944,6 +974,33 @@ export type Database = {
           id?: string
           nom?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      types_intervention: {
+        Row: {
+          actif: boolean | null
+          code: string
+          created_at: string | null
+          id: string
+          nom: string
+          updated_at: string | null
+        }
+        Insert: {
+          actif?: boolean | null
+          code: string
+          created_at?: string | null
+          id?: string
+          nom: string
+          updated_at?: string | null
+        }
+        Update: {
+          actif?: boolean | null
+          code?: string
+          created_at?: string | null
+          id?: string
+          nom?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

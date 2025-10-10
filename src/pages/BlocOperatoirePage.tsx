@@ -16,6 +16,7 @@ interface BlocOperatoireBesoin {
   id: string;
   date: string;
   specialite_id: string;
+  type_intervention_id: string;
   nombre_secretaires_requis: number;
   heure_debut: string;
   heure_fin: string;
@@ -23,6 +24,9 @@ interface BlocOperatoireBesoin {
   specialites: {
     nom: string;
     code: string;
+  };
+  types_intervention?: {
+    nom: string;
   };
 }
 
@@ -44,6 +48,9 @@ const BlocOperatoirePage = () => {
           specialites (
             nom,
             code
+          ),
+          types_intervention (
+            nom
           )
         `)
         .order('date', { ascending: false });
@@ -177,6 +184,11 @@ const BlocOperatoirePage = () => {
                     <Badge variant="secondary">
                       {besoin.specialites?.nom}
                     </Badge>
+                    {besoin.types_intervention && (
+                      <Badge variant="outline" className="text-xs">
+                        {besoin.types_intervention.nom}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 

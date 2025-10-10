@@ -82,7 +82,11 @@ export default function MedecinsPage() {
           alternance_semaine_modulo,
           date_debut,
           date_fin,
+          type_intervention_id,
           sites!horaires_base_medecins_site_id_fkey (
+            nom
+          ),
+          types_intervention (
             nom
           )
         `)
@@ -463,27 +467,30 @@ export default function MedecinsPage() {
                               <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md group">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant="outline" className="text-xs font-medium">
-                                      {jours[jour]}
-                                    </Badge>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={`text-xs bg-transparent ${
-                                        horaire.demi_journee === 'toute_journee' 
-                                          ? 'border-2 border-green-600' 
-                                          : horaire.demi_journee === 'apres_midi'
-                                          ? 'border-2 border-yellow-600'
-                                          : 'border-2 border-blue-600'
-                                      }`}
-                                    >
-                                      {horaire.demi_journee === 'matin' ? 'Matin' : 
-                                       horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
-                                       'Toute la journée'}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {horaire.sites?.nom}
-                                    </span>
-                                  </div>
+                                     <Badge variant="outline" className="text-xs font-medium">
+                                       {jours[jour]}
+                                     </Badge>
+                                     <Badge 
+                                       variant="outline" 
+                                       className={`text-xs bg-transparent ${
+                                         horaire.demi_journee === 'toute_journee' 
+                                           ? 'border-2 border-green-600' 
+                                           : horaire.demi_journee === 'apres_midi'
+                                           ? 'border-2 border-yellow-600'
+                                           : 'border-2 border-blue-600'
+                                       }`}
+                                     >
+                                       {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                        horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                        'Toute la journée'}
+                                     </Badge>
+                                     <span className="text-xs text-muted-foreground truncate">
+                                       {horaire.sites?.nom}
+                                       {horaire.types_intervention && (
+                                         <> ({horaire.types_intervention.nom})</>
+                                       )}
+                                     </span>
+                                   </div>
                                   {(horaire.date_debut || horaire.date_fin) && (
                                     <p className="text-xs text-muted-foreground">
                                       {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}

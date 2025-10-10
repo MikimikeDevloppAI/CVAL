@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 const besoinSchema = z.object({
   date: z.date(),
   specialite_id: z.string().min(1, 'La spécialité est requise'),
+  type_intervention_id: z.string().min(1, "Le type d'intervention est requis"),
   nombre_secretaires_requis: z.number().min(1, 'Au moins 1 secrétaire requis'),
   heure_debut: z.string().min(1, "L'heure de début est requise"),
   heure_fin: z.string().min(1, "L'heure de fin est requise"),
@@ -31,6 +32,12 @@ interface Specialite {
   code: string;
 }
 
+interface TypeIntervention {
+  id: string;
+  nom: string;
+  code: string;
+}
+
 interface BlocOperatoireFormProps {
   besoin?: any;
   onSubmit: () => void;
@@ -39,6 +46,7 @@ interface BlocOperatoireFormProps {
 
 export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoireFormProps) => {
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -47,6 +55,7 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
     defaultValues: {
       date: besoin?.date ? new Date(besoin.date) : undefined,
       specialite_id: besoin?.specialite_id || '',
+      type_intervention_id: besoin?.type_intervention_id || '',
       nombre_secretaires_requis: besoin?.nombre_secretaires_requis || 1,
       heure_debut: besoin?.heure_debut || '08:00',
       heure_fin: besoin?.heure_fin || '17:00',
@@ -54,26 +63,37 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
   });
 
   useEffect(() => {
-    const fetchSpecialites = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch specialites
+        const { data: specialitesData, error: specialitesError } = await supabase
           .from('specialites')
           .select('*')
           .order('nom');
 
-        if (error) throw error;
-        setSpecialites(data || []);
+        if (specialitesError) throw specialitesError;
+        setSpecialites(specialitesData || []);
+
+        // Fetch types intervention
+        const { data: typesData, error: typesError } = await supabase
+          .from('types_intervention')
+          .select('*')
+          .eq('actif', true)
+          .order('nom');
+
+        if (typesError) throw typesError;
+        setTypesIntervention(typesData || []);
       } catch (error) {
-        console.error('Erreur lors du chargement des spécialités:', error);
+        console.error('Erreur lors du chargement des données:', error);
         toast({
           title: "Erreur",
-          description: "Erreur lors du chargement des spécialités",
+          description: "Erreur lors du chargement des données",
           variant: "destructive",
         });
       }
     };
 
-    fetchSpecialites();
+    fetchData();
   }, []);
 
   const handleSubmit = async (data: BesoinFormData) => {
@@ -181,6 +201,31 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
                   {specialites.map((specialite) => (
                     <SelectItem key={specialite.id} value={specialite.id}>
                       {specialite.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="type_intervention_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type d'intervention</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
                     </SelectItem>
                   ))}
                 </SelectContent>

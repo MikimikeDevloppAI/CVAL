@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 const horaireSchema = z.object({
   demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']),
   siteId: z.string().min(1, 'Site requis'),
+  typeInterventionId: z.string().optional(),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
   alternanceSemaineModulo: z.number().int().min(0).max(3),
   dateDebut: z.string().optional(),
@@ -34,6 +35,12 @@ interface Site {
   nom: string;
 }
 
+interface TypeIntervention {
+  id: string;
+  nom: string;
+  code: string;
+}
+
 interface EditHoraireDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,6 +54,8 @@ const joursNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
 export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire, onSuccess }: EditHoraireDialogProps) {
   const [sites, setSites] = useState<Site[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
+  const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -55,6 +64,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
     defaultValues: {
       demiJournee: horaire?.demi_journee || 'toute_journee',
       siteId: horaire?.site_id || '',
+      typeInterventionId: horaire?.type_intervention_id || '',
       alternanceType: horaire?.alternance_type || 'hebdomadaire',
       alternanceSemaineModulo: horaire?.alternance_semaine_modulo ?? 0,
       dateDebut: horaire?.date_debut || '',
@@ -63,11 +73,18 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
   });
 
   useEffect(() => {
-    const fetchSites = async () => {
-      const { data } = await supabase.from('sites').select('id, nom').order('nom');
-      if (data) setSites(data);
+    const fetchData = async () => {
+      const { data: sitesData } = await supabase.from('sites').select('id, nom').eq('actif', true).order('nom');
+      if (sitesData) {
+        setSites(sitesData);
+        const blocSite = sitesData.find(s => s.nom === 'Clinique La Vallée - Bloc opératoire');
+        if (blocSite) setBlocOperatoireSiteId(blocSite.id);
+      }
+
+      const { data: typesData } = await supabase.from('types_intervention').select('*').eq('actif', true).order('nom');
+      if (typesData) setTypesIntervention(typesData);
     };
-    fetchSites();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -75,6 +92,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       form.reset({
         demiJournee: horaire.demi_journee || 'toute_journee',
         siteId: horaire.site_id || '',
+        typeInterventionId: horaire.type_intervention_id || '',
         alternanceType: horaire.alternance_type || 'hebdomadaire',
         alternanceSemaineModulo: horaire.alternance_semaine_modulo ?? 0,
         dateDebut: horaire.date_debut || '',
@@ -84,6 +102,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       form.reset({
         demiJournee: 'toute_journee',
         siteId: '',
+        typeInterventionId: '',
         alternanceType: 'hebdomadaire',
         alternanceSemaineModulo: 0,
         dateDebut: '',
@@ -95,6 +114,17 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
   const onSubmit = async (data: HoraireFormData) => {
     setLoading(true);
     try {
+      // Validate that typeInterventionId is provided if site is bloc operatoire
+      if (data.siteId === blocOperatoireSiteId && !data.typeInterventionId) {
+        toast({
+          title: "Erreur",
+          description: "Le type d'intervention est requis pour le bloc opératoire",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Vérification des chevauchements
       const { data: existing, error: checkError } = await supabase
         .from('horaires_base_medecins')
@@ -149,6 +179,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
           .update({
             demi_journee: data.demiJournee,
             site_id: data.siteId,
+            type_intervention_id: data.siteId === blocOperatoireSiteId ? data.typeInterventionId : null,
             alternance_type: data.alternanceType,
             alternance_semaine_modulo: data.alternanceSemaineModulo,
             date_debut: data.dateDebut || null,
@@ -171,6 +202,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
             jour_semaine: jour,
             demi_journee: data.demiJournee,
             site_id: data.siteId,
+            type_intervention_id: data.siteId === blocOperatoireSiteId ? data.typeInterventionId : null,
             alternance_type: data.alternanceType,
             alternance_semaine_modulo: data.alternanceSemaineModulo,
             date_debut: data.dateDebut || null,
@@ -201,6 +233,8 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
   };
 
   const alternanceType = form.watch('alternanceType');
+  const selectedSiteId = form.watch('siteId');
+  const isBlocOperatoire = selectedSiteId === blocOperatoireSiteId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -260,6 +294,33 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
                 </FormItem>
               )}
             />
+
+            {isBlocOperatoire && (
+              <FormField
+                control={form.control}
+                name="typeInterventionId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type d'intervention *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner un type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {typesIntervention.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
