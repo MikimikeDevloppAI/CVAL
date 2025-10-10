@@ -125,7 +125,7 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
         .delete()
         .eq('medecin_id', data.medecin_id)
         .eq('date', formattedDate)
-        .eq('type', 'bloc_operatoire')
+        .eq('site_id', blocSiteId)
         .in('demi_journee', demiJournees);
 
       if (deleteError) throw deleteError;
@@ -133,7 +133,7 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
       // Insert new besoins
       const besoinsToInsert = demiJournees.map(dj => ({
         date: formattedDate,
-        type: 'bloc_operatoire' as const,
+        type: 'medecin' as const,
         medecin_id: data.medecin_id,
         site_id: blocSiteId,
         demi_journee: dj,

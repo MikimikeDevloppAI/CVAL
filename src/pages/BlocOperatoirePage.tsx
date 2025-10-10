@@ -39,6 +39,21 @@ const BlocOperatoirePage = () => {
 
   const fetchBesoins = async () => {
     try {
+      // Fetch bloc site ID
+      const { data: siteData } = await supabase
+        .from('sites')
+        .select('id')
+        .ilike('nom', '%bloc%')
+        .limit(1)
+        .single();
+
+      const blocSiteId = siteData?.id;
+      if (!blocSiteId) {
+        setBesoins([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('besoin_effectif')
         .select(`
@@ -51,7 +66,8 @@ const BlocOperatoirePage = () => {
             nom
           )
         `)
-        .eq('type', 'bloc_operatoire')
+        .eq('type', 'medecin')
+        .eq('site_id', blocSiteId)
         .order('date', { ascending: false });
 
       if (error) throw error;
