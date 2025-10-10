@@ -77,7 +77,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       const { data: sitesData } = await supabase.from('sites').select('id, nom').eq('actif', true).order('nom');
       if (sitesData) {
         setSites(sitesData);
-        const blocSite = sitesData.find(s => s.nom === 'Clinique La Vallée - Bloc opératoire');
+        const blocSite = sitesData.find(s => s.nom.toLowerCase().includes('bloc'));
         if (blocSite) setBlocOperatoireSiteId(blocSite.id);
       }
 
