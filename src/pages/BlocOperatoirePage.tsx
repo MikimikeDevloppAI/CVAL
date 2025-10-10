@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from '@/components/ui/modern-card';
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
+import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -34,6 +35,8 @@ const BlocOperatoirePage = () => {
   const [selectedBesoin, setSelectedBesoin] = useState<BlocOperatoireBesoin | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [besoinToDelete, setBesoinToDelete] = useState<{ id: string; medecinName: string } | null>(null);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -131,29 +134,12 @@ const BlocOperatoirePage = () => {
     fetchBesoins();
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('besoin_effectif')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      
-      toast({
-        title: "Succès",
-        description: "Besoin supprimé avec succès",
-      });
-      
-      fetchBesoins();
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la suppression",
-        variant: "destructive",
-      });
-    }
+  const handleDeleteClick = (besoin: BlocOperatoireBesoin) => {
+    setBesoinToDelete({
+      id: besoin.id,
+      medecinName: `${besoin.medecins?.first_name} ${besoin.medecins?.name}`,
+    });
+    setDeleteDialogOpen(true);
   };
 
   if (loading) {
@@ -254,14 +240,14 @@ const BlocOperatoirePage = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(besoin.id)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => handleDeleteClick(besoin)}
+                                 className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                               >
+                                 <Trash2 className="h-4 w-4" />
+                               </Button>
                             </div>
                           )}
                         </div>
@@ -310,14 +296,14 @@ const BlocOperatoirePage = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(besoin.id)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => handleDeleteClick(besoin)}
+                                 className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                               >
+                                 <Trash2 className="h-4 w-4" />
+                               </Button>
                             </div>
                           )}
                         </div>
@@ -337,6 +323,16 @@ const BlocOperatoirePage = () => {
             {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
           </p>
         </div>
+      )}
+
+      {besoinToDelete && (
+        <DeleteBesoinDialog
+          besoinId={besoinToDelete.id}
+          medecinName={besoinToDelete.medecinName}
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onSuccess={fetchBesoins}
+        />
       )}
     </div>
   );
