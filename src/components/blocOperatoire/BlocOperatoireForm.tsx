@@ -119,33 +119,89 @@ export const BlocOperatoireForm = ({ besoin, preselectedDate, onSubmit, onCancel
       const day = String(data.date.getDate()).padStart(2, '0');
       const formattedDate = `${year}-${month}-${day}`;
       
-      // Determine which demi_journees to process
-      const demiJournees: ('matin' | 'apres_midi')[] = data.demi_journee === 'toute_journee' 
+      // Determine which demi_journees to process for bloc operatoire
+      const blocDemiJournees: ('matin' | 'apres_midi')[] = data.demi_journee === 'toute_journee' 
         ? ['matin', 'apres_midi'] 
         : [data.demi_journee as 'matin' | 'apres_midi'];
 
-      // Delete existing besoins for this medecin/date/demi_journees
+      // Fetch existing besoins for this medecin/date (all sites)
+      const { data: existingBesoins, error: fetchError } = await supabase
+        .from('besoin_effectif')
+        .select('*')
+        .eq('medecin_id', data.medecin_id)
+        .eq('date', formattedDate)
+        .eq('type', 'medecin');
+
+      if (fetchError) throw fetchError;
+
+      // Determine which periods to keep from existing besoins
+      const periodsToKeep: ('matin' | 'apres_midi')[] = [];
+      
+      existingBesoins?.forEach(besoin => {
+        if (besoin.demi_journee === 'toute_journee') {
+          // If existing is toute_journee and bloc is partial, keep the other period
+          if (data.demi_journee === 'matin') {
+            periodsToKeep.push('apres_midi');
+          } else if (data.demi_journee === 'apres_midi') {
+            periodsToKeep.push('matin');
+          }
+          // If both are toute_journee, nothing to keep
+        } else {
+          // If existing is partial and bloc doesn't overlap, keep it
+          const existingPeriod = besoin.demi_journee as 'matin' | 'apres_midi';
+          if (!blocDemiJournees.includes(existingPeriod)) {
+            periodsToKeep.push(existingPeriod);
+          }
+        }
+      });
+
+      // Delete ALL existing besoins for this medecin/date (all sites, will recreate what needs to be kept)
       const { error: deleteError } = await supabase
         .from('besoin_effectif')
         .delete()
         .eq('medecin_id', data.medecin_id)
         .eq('date', formattedDate)
-        .eq('site_id', blocSiteId)
-        .in('demi_journee', demiJournees);
+        .eq('type', 'medecin');
 
       if (deleteError) throw deleteError;
 
-      // Insert new besoins
-      const besoinsToInsert = demiJournees.map(dj => ({
-        date: formattedDate,
-        type: 'medecin' as const,
-        medecin_id: data.medecin_id,
-        site_id: blocSiteId,
-        demi_journee: dj,
-        type_intervention_id: data.type_intervention_id,
-        actif: true,
-      }));
+      // Prepare besoins to insert
+      const besoinsToInsert = [];
 
+      // Add bloc operatoire besoins
+      blocDemiJournees.forEach(dj => {
+        besoinsToInsert.push({
+          date: formattedDate,
+          type: 'medecin' as const,
+          medecin_id: data.medecin_id,
+          site_id: blocSiteId,
+          demi_journee: dj,
+          type_intervention_id: data.type_intervention_id,
+          actif: true,
+        });
+      });
+
+      // Add back the periods to keep from existing besoins (non-bloc periods)
+      periodsToKeep.forEach(dj => {
+        // Find the original besoin to get its type_intervention_id
+        const originalBesoin = existingBesoins?.find(b => 
+          b.demi_journee === dj || b.demi_journee === 'toute_journee'
+        );
+        
+        if (originalBesoin && !blocDemiJournees.includes(dj)) {
+          besoinsToInsert.push({
+            date: formattedDate,
+            type: 'medecin' as const,
+            medecin_id: data.medecin_id,
+            site_id: originalBesoin.site_id, // Use original site (not bloc site)
+            demi_journee: dj,
+            type_intervention_id: originalBesoin.type_intervention_id,
+            actif: true,
+          });
+        }
+      });
+
+      // Insert all besoins
       const { error: insertError } = await supabase
         .from('besoin_effectif')
         .insert(besoinsToInsert);
