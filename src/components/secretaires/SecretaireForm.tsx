@@ -39,7 +39,7 @@ const secretaireSchema = z.object({
   email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
   telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
   sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
-  medecinAssigneId: z.string().optional(),
+  medecinAssigneId: z.string().nullable().optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
@@ -78,7 +78,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
       sitesAssignes: secretaire?.sites_assignes || [],
-      medecinAssigneId: secretaire?.medecin_assigne_id ?? undefined,
+      medecinAssigneId: secretaire?.medecin_assigne_id || null,
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
@@ -392,7 +392,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Médecin assigné (optionnel)</FormLabel>
-              <Select onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)} value={field.value ?? undefined}>
+              <Select 
+                onValueChange={(val) => field.onChange(val === 'none' ? null : val)} 
+                value={field.value || 'none'}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner un médecin" />
