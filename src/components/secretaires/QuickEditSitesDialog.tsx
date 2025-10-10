@@ -40,6 +40,7 @@ export function QuickEditSitesDialog({
         .from('sites')
         .select('id, nom')
         .eq('actif', true)
+        .not('nom', 'ilike', '%bloc opératoire%')
         .order('nom');
 
       if (error) {
