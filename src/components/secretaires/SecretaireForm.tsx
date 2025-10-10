@@ -37,7 +37,7 @@ const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
   email: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().email('Email invalide').max(255, 'Email trop long')).optional(),
-  telephone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().max(20, 'Le numéro de téléphone est trop long')).optional(),
+  telephone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().max(50, 'Le numéro de téléphone est trop long')).optional(),
   sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
   medecinAssigneId: z.string().nullable().optional(),
   preferePortEnTruie: z.boolean().default(false),
@@ -234,9 +234,18 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     }
   };
 
+  const onInvalid = (errors: any) => {
+    const first = errors && (Object.values(errors)[0] as any);
+    toast({
+      title: 'Validation',
+      description: first?.message || 'Veuillez corriger les champs en erreur.',
+      variant: 'destructive',
+    });
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
         {/* Prénom et Nom côte à côte */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
