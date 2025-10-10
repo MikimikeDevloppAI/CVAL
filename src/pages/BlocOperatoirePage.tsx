@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from '@/components/ui/modern-card';
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
@@ -123,9 +122,9 @@ const BlocOperatoirePage = () => {
     return acc;
   }, {} as Record<string, { date: string; matin: BlocOperatoireBesoin[]; apres_midi: BlocOperatoireBesoin[] }>);
 
-  // Convertir en tableau et trier du plus récent au plus ancien
+  // Convertir en tableau et trier du plus proche au plus loin
   const groupedBesoins = Object.values(besoinsByDate).sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+    new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
   const handleFormSuccess = () => {
@@ -192,127 +191,119 @@ const BlocOperatoirePage = () => {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {groupedBesoins.map((dayGroup) => (
-          <div key={dayGroup.date} className="space-y-4">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <CalendarIcon className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">
-                {format(new Date(dayGroup.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+          <div key={dayGroup.date} className="border rounded-lg p-4 bg-card">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">
+                {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
               </h2>
             </div>
 
-            {/* Matin */}
-            {dayGroup.matin.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sunrise className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Matin
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
+              {/* Matin */}
+              {dayGroup.matin.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sunrise className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs font-medium text-muted-foreground uppercase">Matin</span>
+                  </div>
                   {dayGroup.matin.map((besoin) => (
-                    <ModernCard key={besoin.id}>
-                      <ModernCardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <Badge variant="secondary">
-                              {besoin.medecins?.first_name} {besoin.medecins?.name}
-                            </Badge>
-                            {besoin.types_intervention && (
-                              <Badge variant="outline" className="text-xs">
-                                {besoin.types_intervention.nom}
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {canManage && (
-                            <div className="flex items-center space-x-2 ml-3">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedBesoin(besoin);
-                                  setIsDialogOpen(true);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => handleDeleteClick(besoin)}
-                                 className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                               >
-                                 <Trash2 className="h-4 w-4" />
-                               </Button>
-                            </div>
-                          )}
+                    <div 
+                      key={besoin.id} 
+                      className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">
+                          {besoin.medecins?.first_name} {besoin.medecins?.name}
+                        </p>
+                        {besoin.types_intervention && (
+                          <p className="text-xs text-muted-foreground">
+                            {besoin.types_intervention.nom}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {canManage && (
+                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setSelectedBesoin(besoin);
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteClick(besoin)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      </ModernCardHeader>
-                    </ModernCard>
+                      )}
+                    </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Après-midi */}
-            {dayGroup.apres_midi.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sun className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Après-midi
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Après-midi */}
+              {dayGroup.apres_midi.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sun className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs font-medium text-muted-foreground uppercase">Après-midi</span>
+                  </div>
                   {dayGroup.apres_midi.map((besoin) => (
-                    <ModernCard key={besoin.id}>
-                      <ModernCardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <Badge variant="secondary">
-                              {besoin.medecins?.first_name} {besoin.medecins?.name}
-                            </Badge>
-                            {besoin.types_intervention && (
-                              <Badge variant="outline" className="text-xs">
-                                {besoin.types_intervention.nom}
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {canManage && (
-                            <div className="flex items-center space-x-2 ml-3">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedBesoin(besoin);
-                                  setIsDialogOpen(true);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => handleDeleteClick(besoin)}
-                                 className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                               >
-                                 <Trash2 className="h-4 w-4" />
-                               </Button>
-                            </div>
-                          )}
+                    <div 
+                      key={besoin.id} 
+                      className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">
+                          {besoin.medecins?.first_name} {besoin.medecins?.name}
+                        </p>
+                        {besoin.types_intervention && (
+                          <p className="text-xs text-muted-foreground">
+                            {besoin.types_intervention.nom}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {canManage && (
+                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setSelectedBesoin(besoin);
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteClick(besoin)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      </ModernCardHeader>
-                    </ModernCard>
+                      )}
+                    </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ))}
       </div>
