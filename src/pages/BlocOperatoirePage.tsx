@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, addDays, isSameWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
@@ -123,10 +123,41 @@ const BlocOperatoirePage = () => {
     return acc;
   }, {} as Record<string, { date: string; matin: BlocOperatoireBesoin[]; apres_midi: BlocOperatoireBesoin[] }>);
 
-  // Convertir en tableau et trier du plus proche au plus loin
-  const groupedBesoins = Object.values(besoinsByDate).sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+  // Grouper par semaine
+  const weekGroups: Array<{
+    weekStart: Date;
+    days: Array<{ date: string; matin: BlocOperatoireBesoin[]; apres_midi: BlocOperatoireBesoin[] }>
+  }> = [];
+
+  // Trouver toutes les semaines uniques
+  const weeks = new Map<string, Date>();
+  filteredBesoins.forEach(besoin => {
+    const besoinDate = new Date(besoin.date);
+    const weekStart = startOfWeek(besoinDate, { weekStartsOn: 1 });
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    if (!weeks.has(weekKey)) {
+      weeks.set(weekKey, weekStart);
+    }
+  });
+
+  // Trier les semaines du plus proche au plus loin
+  const sortedWeeks = Array.from(weeks.values()).sort((a, b) => a.getTime() - b.getTime());
+
+  // Pour chaque semaine, créer les jours du lundi au vendredi
+  sortedWeeks.forEach(weekStart => {
+    const days = [];
+    for (let i = 0; i < 5; i++) { // 0 = lundi, 4 = vendredi
+      const dayDate = addDays(weekStart, i);
+      const dateKey = format(dayDate, 'yyyy-MM-dd');
+      
+      days.push({
+        date: dateKey,
+        matin: besoinsByDate[dateKey]?.matin || [],
+        apres_midi: besoinsByDate[dateKey]?.apres_midi || []
+      });
+    }
+    weekGroups.push({ weekStart, days });
+  });
 
   const handleFormSuccess = () => {
     setIsDialogOpen(false);
@@ -211,136 +242,150 @@ const BlocOperatoirePage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {groupedBesoins.map((dayGroup) => (
-          <div key={dayGroup.date} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-center justify-between mb-3 pb-2 border-b">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">
-                  {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
-                </h2>
-              </div>
-              {canManage && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => handleAddForDate(dayGroup.date)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {/* Matin */}
-              {dayGroup.matin.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sunrise className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-xs font-medium text-muted-foreground uppercase">Matin</span>
+      <div className="space-y-8">
+        {weekGroups.map((weekGroup) => (
+          <div key={format(weekGroup.weekStart, 'yyyy-MM-dd')} className="space-y-4">
+            <h2 className="text-lg font-semibold text-foreground border-b pb-2">
+              Semaine du {format(weekGroup.weekStart, 'dd MMMM yyyy', { locale: fr })}
+            </h2>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              {weekGroup.days.map((dayGroup) => (
+                <div key={dayGroup.date} className="border rounded-lg p-4 bg-card">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
+                      </h3>
+                    </div>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleAddForDate(dayGroup.date)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  {dayGroup.matin.map((besoin) => (
-                    <div 
-                      key={besoin.id} 
-                      className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {besoin.medecins?.first_name} {besoin.medecins?.name}
-                        </p>
-                        {besoin.types_intervention && (
-                          <p className="text-xs text-muted-foreground">
-                            {besoin.types_intervention.nom}
-                          </p>
-                        )}
+
+                  <div className="space-y-3">
+                    {/* Matin */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Sunrise className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground uppercase">Matin</span>
                       </div>
-                      
-                      {canManage && (
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => {
-                              setSelectedBesoin(besoin);
-                              setIsDialogOpen(true);
-                            }}
+                      {dayGroup.matin.length > 0 ? (
+                        dayGroup.matin.map((besoin) => (
+                          <div 
+                            key={besoin.id} 
+                            className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
                           >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(besoin)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-foreground">
+                                {besoin.medecins?.first_name} {besoin.medecins?.name}
+                              </p>
+                              {besoin.types_intervention && (
+                                <p className="text-xs text-muted-foreground">
+                                  {besoin.types_intervention.nom}
+                                </p>
+                              )}
+                            </div>
+                            
+                            {canManage && (
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => {
+                                    setSelectedBesoin(besoin);
+                                    setIsDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteClick(besoin)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Aucune opération</p>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
 
-              {/* Après-midi */}
-              {dayGroup.apres_midi.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sun className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-xs font-medium text-muted-foreground uppercase">Après-midi</span>
-                  </div>
-                  {dayGroup.apres_midi.map((besoin) => (
-                    <div 
-                      key={besoin.id} 
-                      className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {besoin.medecins?.first_name} {besoin.medecins?.name}
-                        </p>
-                        {besoin.types_intervention && (
-                          <p className="text-xs text-muted-foreground">
-                            {besoin.types_intervention.nom}
-                          </p>
-                        )}
+                    {/* Après-midi */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Sun className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground uppercase">Après-midi</span>
                       </div>
-                      
-                      {canManage && (
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => {
-                              setSelectedBesoin(besoin);
-                              setIsDialogOpen(true);
-                            }}
+                      {dayGroup.apres_midi.length > 0 ? (
+                        dayGroup.apres_midi.map((besoin) => (
+                          <div 
+                            key={besoin.id} 
+                            className="group relative p-2 rounded border bg-background hover:bg-accent/50 transition-colors"
                           >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(besoin)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-foreground">
+                                {besoin.medecins?.first_name} {besoin.medecins?.name}
+                              </p>
+                              {besoin.types_intervention && (
+                                <p className="text-xs text-muted-foreground">
+                                  {besoin.types_intervention.nom}
+                                </p>
+                              )}
+                            </div>
+                            
+                            {canManage && (
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => {
+                                    setSelectedBesoin(besoin);
+                                    setIsDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteClick(besoin)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Aucune opération</p>
                       )}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         ))}
       </div>
 
-      {groupedBesoins.length === 0 && (
+      {weekGroups.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
             {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
