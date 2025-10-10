@@ -36,8 +36,8 @@ const horaireSchema = z.object({
 const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
-  email: z.string().trim().email('Email invalide').max(255, 'Email trop long'),
-  telephone: z.string().trim().min(1, 'Le numéro de téléphone est requis').max(20, 'Le numéro de téléphone est trop long'),
+  email: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().email('Email invalide').max(255, 'Email trop long')).optional(),
+  telephone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().max(20, 'Le numéro de téléphone est trop long')).optional(),
   sitesAssignes: z.array(z.string()).min(1, 'Au moins un site doit être sélectionné'),
   medecinAssigneId: z.string().nullable().optional(),
   preferePortEnTruie: z.boolean().default(false),
@@ -125,8 +125,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .update({
             first_name: data.prenom,
             name: data.nom,
-            email: data.email,
-            phone_number: data.telephone,
+            email: data.email?.trim() || null,
+            phone_number: data.telephone?.trim() || null,
             sites_assignes: data.sitesAssignes,
             medecin_assigne_id: data.medecinAssigneId || null,
             prefere_port_en_truie: data.preferePortEnTruie,
@@ -177,8 +177,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .insert({
             first_name: data.prenom,
             name: data.nom,
-            email: data.email,
-            phone_number: data.telephone,
+            email: data.email?.trim() || null,
+            phone_number: data.telephone?.trim() || null,
             profile_id: null, // Pas de profil associé
             sites_assignes: data.sitesAssignes,
             medecin_assigne_id: data.medecinAssigneId || null,
