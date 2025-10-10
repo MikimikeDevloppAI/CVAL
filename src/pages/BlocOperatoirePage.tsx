@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Sunrise, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -219,9 +219,12 @@ const BlocOperatoirePage = () => {
             {/* Matin */}
             {dayGroup.matin.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  🌅 Matin
-                </h3>
+                <div className="flex items-center gap-2">
+                  <Sunrise className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Matin
+                  </h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {dayGroup.matin.map((besoin) => (
                     <ModernCard key={besoin.id}>
@@ -272,9 +275,12 @@ const BlocOperatoirePage = () => {
             {/* Après-midi */}
             {dayGroup.apres_midi.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  ☀️ Après-midi
-                </h3>
+                <div className="flex items-center gap-2">
+                  <Sun className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Après-midi
+                  </h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {dayGroup.apres_midi.map((besoin) => (
                     <ModernCard key={besoin.id}>
