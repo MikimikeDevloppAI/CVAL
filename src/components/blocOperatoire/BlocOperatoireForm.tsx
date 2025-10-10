@@ -42,11 +42,12 @@ interface TypeIntervention {
 
 interface BlocOperatoireFormProps {
   besoin?: any;
+  preselectedDate?: Date | null;
   onSubmit: () => void;
   onCancel: () => void;
 }
 
-export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoireFormProps) => {
+export const BlocOperatoireForm = ({ besoin, preselectedDate, onSubmit, onCancel }: BlocOperatoireFormProps) => {
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [blocSiteId, setBlocSiteId] = useState<string>('');
@@ -56,7 +57,7 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
   const form = useForm<BesoinFormData>({
     resolver: zodResolver(besoinSchema),
     defaultValues: {
-      date: besoin?.date ? new Date(besoin.date) : undefined,
+      date: besoin?.date ? new Date(besoin.date) : (preselectedDate || undefined),
       medecin_id: besoin?.medecin_id || '',
       type_intervention_id: besoin?.type_intervention_id || '',
       demi_journee: besoin?.demi_journee || 'toute_journee',

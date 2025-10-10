@@ -36,6 +36,7 @@ const BlocOperatoirePage = () => {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [besoinToDelete, setBesoinToDelete] = useState<{ id: string; medecinName: string } | null>(null);
+  const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -141,6 +142,18 @@ const BlocOperatoirePage = () => {
     setDeleteDialogOpen(true);
   };
 
+  const handleAddForDate = (dateString: string) => {
+    setPreselectedDate(new Date(dateString));
+    setSelectedBesoin(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setSelectedBesoin(null);
+    setPreselectedDate(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -155,9 +168,12 @@ const BlocOperatoirePage = () => {
         <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
         
         {canManage && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setSelectedBesoin(null)}>
+              <Button className="gap-2" onClick={() => {
+                setSelectedBesoin(null);
+                setPreselectedDate(null);
+              }}>
                 <Plus className="h-4 w-4" />
                 Ajouter un besoin
               </Button>
@@ -170,8 +186,12 @@ const BlocOperatoirePage = () => {
             </DialogHeader>
             <BlocOperatoireForm 
               besoin={selectedBesoin} 
-              onSubmit={handleFormSuccess}
-              onCancel={() => setIsDialogOpen(false)}
+              preselectedDate={preselectedDate}
+              onSubmit={() => {
+                handleDialogClose();
+                fetchBesoins();
+              }}
+              onCancel={handleDialogClose}
             />
           </DialogContent>
         </Dialog>
@@ -194,11 +214,23 @@ const BlocOperatoirePage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {groupedBesoins.map((dayGroup) => (
           <div key={dayGroup.date} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">
-                {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
-              </h2>
+            <div className="flex items-center justify-between mb-3 pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">
+                  {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
+                </h2>
+              </div>
+              {canManage && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => handleAddForDate(dayGroup.date)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              )}
             </div>
 
             <div className="space-y-3">
