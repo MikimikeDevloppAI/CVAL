@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -136,8 +135,8 @@ export function QuickEditSitesDialog({
               <PopoverContent className="w-full p-0" align="start">
                 <Command>
                   <CommandInput placeholder="Rechercher un site..." />
-                  <CommandEmpty>Aucun site trouvé.</CommandEmpty>
-                  <ScrollArea className="h-64">
+                  <CommandList className="max-h-64">
+                    <CommandEmpty>Aucun site trouvé.</CommandEmpty>
                     <CommandGroup>
                       {sites.map((site) => (
                         <CommandItem
@@ -156,7 +155,7 @@ export function QuickEditSitesDialog({
                         </CommandItem>
                       ))}
                     </CommandGroup>
-                  </ScrollArea>
+                  </CommandList>
                 </Command>
               </PopoverContent>
             </Popover>
