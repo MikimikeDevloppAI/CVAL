@@ -37,7 +37,7 @@ interface Secretaire {
     date_debut?: string;
     date_fin?: string;
     alternance_type?: 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre';
-    alternance_semaine_reference?: string;
+    alternance_semaine_modulo?: number;
     sites?: { nom: string } | null;
   }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
@@ -108,7 +108,7 @@ export default function SecretairesPage() {
             date_debut,
             date_fin,
             alternance_type,
-            alternance_semaine_reference
+            alternance_semaine_modulo
           )
         `);
 
