@@ -71,7 +71,7 @@ export function EditHoraireSecretaireDialog({
 
   useEffect(() => {
     const fetchSites = async () => {
-      const { data } = await supabase.from('sites').select('id, nom').eq('actif', true).order('nom');
+      const { data } = await supabase.from('sites').select('id, nom').eq('actif', true).not('nom', 'ilike', '%bloc opératoire%').order('nom');
       if (data) setSites(data);
     };
     fetchSites();
@@ -201,6 +201,8 @@ export function EditHoraireSecretaireDialog({
     }
   };
 
+  const alternanceType = form.watch('alternanceType');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -304,7 +306,7 @@ export function EditHoraireSecretaireDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="hebdomadaire">Chaque semaine</SelectItem>
+                      <SelectItem value="hebdomadaire">Toutes les semaines</SelectItem>
                       <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
                       <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
                       <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
@@ -315,16 +317,16 @@ export function EditHoraireSecretaireDialog({
               )}
             />
 
-            {form.watch('alternanceType') !== 'hebdomadaire' && (
+            {alternanceType !== 'hebdomadaire' && (
               <FormField
                 control={form.control}
                 name="alternanceSemaineModulo"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {form.watch('alternanceType') === 'une_sur_deux' && 'Semaine'}
-                      {form.watch('alternanceType') === 'une_sur_trois' && 'Semaine dans le cycle'}
-                      {form.watch('alternanceType') === 'une_sur_quatre' && 'Semaine dans le cycle'}
+                      {alternanceType === 'une_sur_deux' && 'Semaine'}
+                      {alternanceType === 'une_sur_trois' && 'Semaine dans le cycle'}
+                      {alternanceType === 'une_sur_quatre' && 'Semaine dans le cycle'}
                     </FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(parseInt(value))} 
@@ -336,20 +338,20 @@ export function EditHoraireSecretaireDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {form.watch('alternanceType') === 'une_sur_deux' && (
+                        {alternanceType === 'une_sur_deux' && (
                           <>
                             <SelectItem value="0">Paire (2, 4, 6...)</SelectItem>
                             <SelectItem value="1">Impaire (1, 3, 5...)</SelectItem>
                           </>
                         )}
-                        {form.watch('alternanceType') === 'une_sur_trois' && (
+                        {alternanceType === 'une_sur_trois' && (
                           <>
                             <SelectItem value="0">Semaine 1 (1, 4, 7...)</SelectItem>
                             <SelectItem value="1">Semaine 2 (2, 5, 8...)</SelectItem>
                             <SelectItem value="2">Semaine 3 (3, 6, 9...)</SelectItem>
                           </>
                         )}
-                        {form.watch('alternanceType') === 'une_sur_quatre' && (
+                        {alternanceType === 'une_sur_quatre' && (
                           <>
                             <SelectItem value="0">Semaine 1 (1, 5, 9...)</SelectItem>
                             <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
