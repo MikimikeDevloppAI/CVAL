@@ -29,8 +29,14 @@ const horaireSchema = z.object({
 const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
-  email: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().email('Email invalide').max(255, 'Email trop long')).optional(),
-  telephone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().max(50, 'Le numéro de téléphone est trop long')).optional(),
+  email: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val),
+    z.union([z.literal(''), z.string().email('Email invalide').max(255, 'Email trop long')])
+  ).optional(),
+  telephone: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val),
+    z.union([z.literal(''), z.string().max(50, 'Le numéro de téléphone est trop long')])
+  ).optional(),
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
