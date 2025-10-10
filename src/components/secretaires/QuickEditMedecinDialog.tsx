@@ -38,7 +38,7 @@ export function QuickEditMedecinDialog({
         .from('medecins')
         .select('id, first_name, name')
         .eq('actif', true)
-        .order('name');
+        .order('first_name');
 
       if (error) {
         console.error('Erreur lors du chargement des médecins:', error);
