@@ -112,7 +112,11 @@ export const BlocOperatoireForm = ({ besoin, onSubmit, onCancel }: BlocOperatoir
   const handleSubmit = async (data: BesoinFormData) => {
     setLoading(true);
     try {
-      const formattedDate = format(data.date, 'yyyy-MM-dd');
+      // Format date without timezone conversion to avoid day shift
+      const year = data.date.getFullYear();
+      const month = String(data.date.getMonth() + 1).padStart(2, '0');
+      const day = String(data.date.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
       
       // Determine which demi_journees to process
       const demiJournees: ('matin' | 'apres_midi')[] = data.demi_journee === 'toute_journee' 
