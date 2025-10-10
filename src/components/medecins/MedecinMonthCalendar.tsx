@@ -21,7 +21,12 @@ interface BesoinEffectif {
   date: string;
   site_id: string;
   demi_journee: string;
+  type_intervention_id?: string;
   sites?: {
+    id: string;
+    nom: string;
+  };
+  types_intervention?: {
     id: string;
     nom: string;
   };
@@ -31,12 +36,16 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [currentDate, setCurrentDate] = useState(new Date());
   const [besoins, setBesoins] = useState<BesoinEffectif[]>([]);
   const [sites, setSites] = useState<any[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
+  const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [addBesoinDialog, setAddBesoinDialog] = useState<{
     open: boolean;
     day: number;
     period: 'matin' | 'apres_midi';
-    besoinId?: string; // Pour modification d'un besoin existant
+    besoinId?: string;
+    step: 'site' | 'intervention';
+    selectedSiteId?: string;
   } | null>(null);
   const { toast } = useToast();
 
@@ -60,7 +69,18 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       .select('id, nom')
       .eq('actif', true)
       .order('nom');
-    if (data) setSites(data);
+    if (data) {
+      setSites(data);
+      const blocSite = data.find(s => s.nom.toLowerCase().includes('bloc'));
+      if (blocSite) setBlocOperatoireSiteId(blocSite.id);
+    }
+
+    const { data: typesData } = await supabase
+      .from('types_intervention')
+      .select('*')
+      .eq('actif', true)
+      .order('nom');
+    if (typesData) setTypesIntervention(typesData);
   };
 
   const fetchBesoins = async () => {
@@ -69,7 +89,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
 
     const { data } = await supabase
       .from('besoin_effectif')
-      .select('*, sites(id, nom)')
+      .select('*, sites(id, nom), types_intervention(id, nom)')
       .eq('medecin_id', medecinId)
       .eq('type', 'medecin')
       .gte('date', formatDate(startDate))
@@ -195,25 +215,81 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     console.info(`getBesoinForDate ${dateStr} [${period}] -> full-day x${fullDay.length}`);
     return fullDay;
   };
-  const handleAddBesoin = async (siteId: string) => {
+  const handleSiteSelect = async (siteId: string) => {
+    if (!addBesoinDialog) return;
+
+    // Si c'est le bloc opératoire, passer à l'étape de sélection du type d'intervention
+    if (siteId === blocOperatoireSiteId) {
+      setAddBesoinDialog({
+        ...addBesoinDialog,
+        step: 'intervention',
+        selectedSiteId: siteId,
+      });
+      return;
+    }
+
+    // Sinon, créer/modifier directement le besoin sans type d'intervention
+    await handleAddBesoin(siteId, null);
+  };
+
+  const handleInterventionSelect = async (typeInterventionId: string) => {
+    if (!addBesoinDialog?.selectedSiteId) return;
+    await handleAddBesoin(addBesoinDialog.selectedSiteId, typeInterventionId);
+  };
+
+  const handleAddBesoin = async (siteId: string, typeInterventionId: string | null) => {
     if (!addBesoinDialog) return;
     
     setLoading(true);
     try {
-      // Si besoinId existe, on modifie, sinon on ajoute
       if (addBesoinDialog.besoinId) {
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .update({ site_id: siteId })
-          .eq('id', addBesoinDialog.besoinId);
-        
-        if (error) throw error;
+        // Modification d'un besoin existant
+        const besoin = besoins.find(b => b.id === addBesoinDialog.besoinId);
+        if (!besoin) throw new Error('Besoin introuvable');
+
+        // Si le besoin est "toute_journee", on doit le scinder
+        if (besoin.demi_journee === 'toute_journee') {
+          const otherPeriod = addBesoinDialog.period === 'matin' ? 'apres_midi' : 'matin';
+          
+          // Convertir le besoin existant en l'autre période (celle qu'on ne modifie PAS)
+          const { error: updErr } = await supabase
+            .from('besoin_effectif')
+            .update({ demi_journee: otherPeriod })
+            .eq('id', addBesoinDialog.besoinId);
+          if (updErr) throw updErr;
+
+          // Créer un nouveau besoin pour la période qu'on modifie
+          const { error: insErr } = await supabase
+            .from('besoin_effectif')
+            .insert({
+              date: besoin.date,
+              type: 'medecin',
+              medecin_id: medecinId,
+              site_id: siteId,
+              type_intervention_id: typeInterventionId,
+              demi_journee: addBesoinDialog.period,
+              actif: true,
+            });
+          if (insErr) throw insErr;
+        } else {
+          // Besoin simple, on peut le modifier directement
+          const { error } = await supabase
+            .from('besoin_effectif')
+            .update({ 
+              site_id: siteId,
+              type_intervention_id: typeInterventionId,
+            })
+            .eq('id', addBesoinDialog.besoinId);
+          
+          if (error) throw error;
+        }
         
         toast({
           title: "Succès",
           description: "Site modifié",
         });
       } else {
+        // Création d'un nouveau besoin
         const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), addBesoinDialog.day);
         const dateStr = formatDate(date);
 
@@ -224,6 +300,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             type: 'medecin',
             medecin_id: medecinId,
             site_id: siteId,
+            type_intervention_id: typeInterventionId,
             demi_journee: addBesoinDialog.period,
             actif: true,
           });
@@ -274,10 +351,16 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           open: true, 
           day, 
           period, 
-          besoinId: besoin.id 
+          besoinId: besoin.id,
+          step: 'site'
         })}
       >
-        <span className="break-words leading-tight font-medium">{besoin.sites?.nom || 'Site'}</span>
+        <span className="break-words leading-tight font-medium">
+          {besoin.sites?.nom || 'Site'}
+          {besoin.types_intervention && (
+            <span className="text-muted-foreground ml-1">({besoin.types_intervention.nom})</span>
+          )}
+        </span>
       </button>
       <Button
         variant="ghost"
@@ -372,7 +455,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                             variant="outline"
                             size="sm"
                             className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'matin' })}
+                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'matin', step: 'site' })}
                             disabled={loading}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -399,7 +482,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                             variant="outline"
                             size="sm"
                             className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'apres_midi' })}
+                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'apres_midi', step: 'site' })}
                             disabled={loading}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -420,21 +503,48 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {addBesoinDialog?.besoinId ? "Changer de site" : "Sélectionner un site"}
+                {addBesoinDialog?.step === 'intervention' 
+                  ? "Sélectionner un type d'intervention"
+                  : addBesoinDialog?.besoinId ? "Changer de site" : "Sélectionner un site"
+                }
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-2 py-4">
-              {sites.map(site => (
-                <Button
-                  key={site.id}
-                  variant="outline"
-                  className="w-full justify-start text-left h-auto py-3 whitespace-normal"
-                  onClick={() => handleAddBesoin(site.id)}
-                  disabled={loading}
-                >
-                  {site.nom}
-                </Button>
-              ))}
+              {addBesoinDialog?.step === 'intervention' ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddBesoinDialog({ ...addBesoinDialog, step: 'site', selectedSiteId: undefined })}
+                    className="mb-2"
+                  >
+                    ← Retour
+                  </Button>
+                  {typesIntervention.map(type => (
+                    <Button
+                      key={type.id}
+                      variant="outline"
+                      className="w-full justify-start text-left h-auto py-3 whitespace-normal"
+                      onClick={() => handleInterventionSelect(type.id)}
+                      disabled={loading}
+                    >
+                      {type.nom}
+                    </Button>
+                  ))}
+                </>
+              ) : (
+                sites.map(site => (
+                  <Button
+                    key={site.id}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto py-3 whitespace-normal"
+                    onClick={() => handleSiteSelect(site.id)}
+                    disabled={loading}
+                  >
+                    {site.nom}
+                  </Button>
+                ))
+              )}
             </div>
           </DialogContent>
         </Dialog>
