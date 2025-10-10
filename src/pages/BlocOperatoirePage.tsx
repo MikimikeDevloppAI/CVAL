@@ -150,10 +150,18 @@ const BlocOperatoirePage = () => {
       const dayDate = addDays(weekStart, i);
       const dateKey = format(dayDate, 'yyyy-MM-dd');
       
+      // Trier les besoins par prénom du médecin
+      const matinBesoins = (besoinsByDate[dateKey]?.matin || []).sort((a, b) => 
+        (a.medecins?.first_name || '').localeCompare(b.medecins?.first_name || '')
+      );
+      const apresMidiBesoins = (besoinsByDate[dateKey]?.apres_midi || []).sort((a, b) => 
+        (a.medecins?.first_name || '').localeCompare(b.medecins?.first_name || '')
+      );
+      
       days.push({
         date: dateKey,
-        matin: besoinsByDate[dateKey]?.matin || [],
-        apres_midi: besoinsByDate[dateKey]?.apres_midi || []
+        matin: matinBesoins,
+        apres_midi: apresMidiBesoins
       });
     }
     weekGroups.push({ weekStart, days });
