@@ -313,7 +313,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel>
-                    Préfère travailler à Port-en-truie
+                    Préfère travailler à part entière
                   </FormLabel>
                 </div>
               </FormItem>
@@ -399,7 +399,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">
-                    <FormLabel>Assignation administrative</FormLabel>
+                    <FormLabel>Assignation administrative prioritaire</FormLabel>
                   </div>
                 </FormItem>
               )}
