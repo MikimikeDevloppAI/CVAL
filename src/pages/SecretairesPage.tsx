@@ -84,6 +84,13 @@ export default function SecretairesPage() {
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
+          personnel_bloc_operatoire,
+          assignation_administrative,
+          anesthesiste,
+          instrumentaliste,
+          aide_de_salle,
+          bloc_ophtalmo_accueil,
+          bloc_dermato_accueil,
           actif,
           sites (
             nom
