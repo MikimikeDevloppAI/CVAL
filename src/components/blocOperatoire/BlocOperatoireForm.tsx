@@ -72,7 +72,7 @@ export const BlocOperatoireForm = ({ besoin, preselectedDate, onSubmit, onCancel
           .from('medecins')
           .select('id, name, first_name')
           .eq('actif', true)
-          .order('name');
+          .order('first_name');
 
         if (medecinsError) throw medecinsError;
         setMedecins(medecinsData || []);
