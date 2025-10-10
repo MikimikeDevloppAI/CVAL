@@ -16,7 +16,7 @@ const horaireSchema = z.object({
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
   alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']),
-  alternanceSemaineReference: z.string().optional(),
+  alternanceSemaineModulo: z.number().int().min(0).max(3),
 }).refine((data) => {
   if (data.dateDebut && data.dateFin) {
     return data.dateDebut <= data.dateFin;
@@ -65,7 +65,7 @@ export function EditHoraireSecretaireDialog({
       dateDebut: horaire?.date_debut || '',
       dateFin: horaire?.date_fin || '',
       alternanceType: horaire?.alternance_type || 'hebdomadaire',
-      alternanceSemaineReference: horaire?.alternance_semaine_reference || new Date().toISOString().split('T')[0],
+      alternanceSemaineModulo: horaire?.alternance_semaine_modulo ?? 0,
     },
   });
 
@@ -85,7 +85,7 @@ export function EditHoraireSecretaireDialog({
         dateDebut: horaire.date_debut || '',
         dateFin: horaire.date_fin || '',
         alternanceType: horaire.alternance_type || 'hebdomadaire',
-        alternanceSemaineReference: horaire.alternance_semaine_reference || new Date().toISOString().split('T')[0],
+        alternanceSemaineModulo: horaire.alternance_semaine_modulo ?? 0,
       });
     } else {
       form.reset({
@@ -94,7 +94,7 @@ export function EditHoraireSecretaireDialog({
         dateDebut: '',
         dateFin: '',
         alternanceType: 'hebdomadaire',
-        alternanceSemaineReference: new Date().toISOString().split('T')[0],
+        alternanceSemaineModulo: 0,
       });
     }
   }, [horaire, form]);
@@ -153,7 +153,7 @@ export function EditHoraireSecretaireDialog({
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
             alternance_type: data.alternanceType,
-            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            alternance_semaine_modulo: data.alternanceSemaineModulo,
           })
           .eq('id', horaire.id);
 
@@ -175,7 +175,7 @@ export function EditHoraireSecretaireDialog({
             date_debut: data.dateDebut || null,
             date_fin: data.dateFin || null,
             alternance_type: data.alternanceType,
-            alternance_semaine_reference: data.alternanceSemaineReference || new Date().toISOString().split('T')[0],
+            alternance_semaine_modulo: data.alternanceSemaineModulo,
             actif: true,
           });
 
@@ -318,16 +318,47 @@ export function EditHoraireSecretaireDialog({
             {form.watch('alternanceType') !== 'hebdomadaire' && (
               <FormField
                 control={form.control}
-                name="alternanceSemaineReference"
+                name="alternanceSemaineModulo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Semaine de référence</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        {...field}
-                      />
-                    </FormControl>
+                    <FormLabel>
+                      {form.watch('alternanceType') === 'une_sur_deux' && 'Semaine'}
+                      {form.watch('alternanceType') === 'une_sur_trois' && 'Semaine dans le cycle'}
+                      {form.watch('alternanceType') === 'une_sur_quatre' && 'Semaine dans le cycle'}
+                    </FormLabel>
+                    <Select 
+                      onValueChange={(value) => field.onChange(parseInt(value))} 
+                      value={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {form.watch('alternanceType') === 'une_sur_deux' && (
+                          <>
+                            <SelectItem value="0">Paire (2, 4, 6...)</SelectItem>
+                            <SelectItem value="1">Impaire (1, 3, 5...)</SelectItem>
+                          </>
+                        )}
+                        {form.watch('alternanceType') === 'une_sur_trois' && (
+                          <>
+                            <SelectItem value="0">Semaine 1 (1, 4, 7...)</SelectItem>
+                            <SelectItem value="1">Semaine 2 (2, 5, 8...)</SelectItem>
+                            <SelectItem value="2">Semaine 3 (3, 6, 9...)</SelectItem>
+                          </>
+                        )}
+                        {form.watch('alternanceType') === 'une_sur_quatre' && (
+                          <>
+                            <SelectItem value="0">Semaine 1 (1, 5, 9...)</SelectItem>
+                            <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
+                            <SelectItem value="2">Semaine 3 (3, 7, 11...)</SelectItem>
+                            <SelectItem value="3">Semaine 4 (4, 8, 12...)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

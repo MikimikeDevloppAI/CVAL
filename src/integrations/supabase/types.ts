@@ -411,7 +411,7 @@ export type Database = {
       horaires_base_secretaires: {
         Row: {
           actif: boolean
-          alternance_semaine_reference: string | null
+          alternance_semaine_modulo: number | null
           alternance_type: Database["public"]["Enums"]["type_alternance"] | null
           created_at: string
           date_debut: string | null
@@ -426,7 +426,7 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          alternance_semaine_reference?: string | null
+          alternance_semaine_modulo?: number | null
           alternance_type?:
             | Database["public"]["Enums"]["type_alternance"]
             | null
@@ -443,7 +443,7 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          alternance_semaine_reference?: string | null
+          alternance_semaine_modulo?: number | null
           alternance_type?:
             | Database["public"]["Enums"]["type_alternance"]
             | null
