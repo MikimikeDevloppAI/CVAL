@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { TypeInterventionBesoinsForm } from './TypeInterventionBesoinsForm';
+import { ConfigurationsMultiFluxManagement } from './ConfigurationsMultiFluxManagement';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Separator } from '@/components/ui/separator';
 
 interface TypeIntervention {
   id: string;
@@ -229,6 +231,10 @@ export function TypesInterventionManagement() {
           Aucun type d'intervention configuré
         </div>
       )}
+
+      <Separator className="my-8" />
+
+      <ConfigurationsMultiFluxManagement />
 
       {/* Dialog pour ajouter/modifier un type */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>

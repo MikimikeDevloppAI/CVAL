@@ -334,6 +334,78 @@ export type Database = {
           },
         ]
       }
+      configurations_multi_flux: {
+        Row: {
+          actif: boolean
+          code: string
+          created_at: string
+          id: string
+          nom: string
+          type_flux: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          nom: string
+          type_flux: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          nom?: string
+          type_flux?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      configurations_multi_flux_interventions: {
+        Row: {
+          configuration_id: string
+          created_at: string
+          id: string
+          ordre: number
+          salle: string
+          type_intervention_id: string
+        }
+        Insert: {
+          configuration_id: string
+          created_at?: string
+          id?: string
+          ordre: number
+          salle: string
+          type_intervention_id: string
+        }
+        Update: {
+          configuration_id?: string
+          created_at?: string
+          id?: string
+          ordre?: number
+          salle?: string
+          type_intervention_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "configurations_multi_flux_interventio_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "configurations_multi_flux_interventions_configuration_id_fkey"
+            columns: ["configuration_id"]
+            isOneToOne: false
+            referencedRelation: "configurations_multi_flux"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       horaires_base_medecins: {
         Row: {
           actif: boolean
