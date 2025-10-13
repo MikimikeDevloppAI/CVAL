@@ -16,6 +16,7 @@ import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView';
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
 import { BlocOperatoirePlanningView } from '@/components/planning/BlocOperatoirePlanningView';
+import { SitePlanningView } from '@/components/planning/SitePlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
@@ -1157,27 +1158,21 @@ export default function PlanningPage() {
               startDate={currentWeekStart}
               endDate={weekEnd}
             />
+          ) : planningView === 'site' ? (
+            <SitePlanningView
+              startDate={currentWeekStart}
+              endDate={weekEnd}
+            />
           ) : optimizationResult ? (
-            <div className="space-y-4">
-              {planningView === 'site' ? (
-                <MILPOptimizationView
-                  assignments={optimizationResult.assignments}
-                  weekDays={weekDays}
-                  specialites={specialites}
-                  onRefresh={fetchPlanningGenere}
-                />
-              ) : (
-                <SecretaryPlanningView
-                  assignments={optimizationResult.assignments}
-                  weekDays={weekDays}
-                  onRefresh={fetchPlanningGenere}
-                />
-              )}
-            </div>
+            <SecretaryPlanningView
+              assignments={optimizationResult.assignments}
+              weekDays={weekDays}
+              onRefresh={fetchPlanningGenere}
+            />
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
-                Lancez une optimisation pour voir le planning
+                Aucun planning disponible
               </CardContent>
             </Card>
           )}
