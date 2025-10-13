@@ -290,14 +290,14 @@ export function TypesInterventionManagement() {
             <div>
               <label className="text-sm font-medium mb-2 block">Salle préférentielle (optionnel)</label>
               <Select
-                value={formData.salle_preferentielle}
-                onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value })}
+                value={formData.salle_preferentielle || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value === 'none' ? '' : value })}
               >
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Sélectionner une salle" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
-                  <SelectItem value="">Aucune</SelectItem>
+                  <SelectItem value="none">Aucune</SelectItem>
                   <SelectItem value="rouge">Salle Rouge</SelectItem>
                   <SelectItem value="verte">Salle Verte</SelectItem>
                   <SelectItem value="jaune">Salle Jaune</SelectItem>
