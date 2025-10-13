@@ -310,16 +310,9 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               <div className="text-xs font-medium text-muted-foreground">Matin</div>
                               {matin.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1 justify-between">
-                                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
-                                    </div>
-                                    {p.type_assignation === 'administratif' && (
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-300 flex-shrink-0">
-                                        Admin
-                                      </Badge>
-                                    )}
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
                                   {p.type_assignation === 'site' && (
                                     <div className="text-xs text-muted-foreground mt-1">
@@ -343,16 +336,9 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               <div className="text-xs font-medium text-muted-foreground">Après-midi</div>
                               {apresMidi.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1 justify-between">
-                                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
-                                    </div>
-                                    {p.type_assignation === 'administratif' && (
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-300 flex-shrink-0">
-                                        Admin
-                                      </Badge>
-                                    )}
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
                                   {p.type_assignation === 'site' && (
                                     <div className="text-xs text-muted-foreground mt-1">
