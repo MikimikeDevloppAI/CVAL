@@ -205,9 +205,23 @@ function identifyRemainingBlocNeeds(blocOperations: any[]): any[] {
   const remainingNeeds: any[] = [];
   
   for (const operation of blocOperations) {
-    // Simplified: Assume all bloc needs are satisfied in Phase 1
+    const personnelAssignments = operation.planning_genere_bloc_personnel || [];
+    
+    // Find personnel rows without secretaire_id (unassigned)
+    for (const personnel of personnelAssignments) {
+      if (!personnel.secretaire_id) {
+        remainingNeeds.push({
+          bloc_operation_id: operation.id,
+          periode: operation.periode,
+          type_besoin: personnel.type_besoin,
+          personnel_row_id: personnel.id,
+          ordre: personnel.ordre
+        });
+      }
+    }
   }
   
+  console.log(`  ⚠️ Found ${remainingNeeds.length} unassigned bloc personnel needs`);
   return remainingNeeds;
 }
 
@@ -270,9 +284,40 @@ function buildAndSolveSitesMILP(
     capacitesMap.set(key, c);
   });
 
-  // Variables for remaining bloc needs (PRIORITÉ 1000)
+  // Variables for remaining bloc needs (PRIORITÉ 1000 - LA PLUS HAUTE)
   for (const blocNeed of remainingBlocNeeds) {
-    // Simplified: No remaining bloc needs in this implementation
+    const periode = blocNeed.periode;
+    
+    // Get all secretaries with the required competence (NOT just personnel_bloc_operatoire)
+    const eligible = getEligibleSecretariesForBlocNeed(
+      blocNeed.type_besoin,
+      secretaires,
+      periode,
+      capacitesMap,
+      blocAssignments
+    );
+    
+    if (eligible.length === 0) {
+      console.warn(`    ⚠️ NO ELIGIBLE SECRETARIES for bloc need ${blocNeed.type_besoin} at ${periode}`);
+      continue;
+    }
+    
+    for (const sec of eligible) {
+      const varName = `b_${sec.id}_${blocNeed.personnel_row_id}`;
+      
+      // Very high priority: -1000 (negative cost = maximize)
+      model.variables[varName] = {
+        cost: -1000,
+        [`bloc_need_${blocNeed.personnel_row_id}`]: 1,
+        [`capacity_${sec.id}_${periode}`]: 1
+      };
+      model.ints[varName] = 1;
+    }
+    
+    // Each bloc need must be filled (min: 1)
+    model.constraints[`bloc_need_${blocNeed.personnel_row_id}`] = {
+      min: 1
+    };
   }
 
   // Variables for sites (PRIORITÉ 100)
@@ -358,12 +403,23 @@ async function saveSitesAssignments(
   supabase: any
 ) {
   const siteRowsMap = new Map();
-  const remainingBlocRows: any[] = [];
+  const blocPersonnelUpdates: any[] = [];
 
   for (const [varName, value] of Object.entries(solution)) {
     if ((value as number) < 0.5 || varName === 'feasible' || varName === 'result') continue;
 
-    if (varName.startsWith('x_')) {
+    if (varName.startsWith('b_')) {
+      // Bloc need assignment: b_<secretaire_id>_<personnel_row_id>
+      const parts = varName.split('_');
+      const secId = parts[1];
+      const personnelRowId = parts[2];
+
+      blocPersonnelUpdates.push({
+        id: personnelRowId,
+        secretaire_id: secId
+      });
+
+    } else if (varName.startsWith('x_')) {
       const parts = varName.split('_');
       const secId = parts[1];
       const siteId = parts[2];
@@ -404,6 +460,21 @@ async function saveSitesAssignments(
     }
   }
 
+  // Update bloc personnel assignments
+  if (blocPersonnelUpdates.length > 0) {
+    for (const update of blocPersonnelUpdates) {
+      const { error: updateError } = await supabase
+        .from('planning_genere_bloc_personnel')
+        .update({ secretaire_id: update.secretaire_id })
+        .eq('id', update.id);
+
+      if (updateError) {
+        console.error(`Failed to update personnel row ${update.id}:`, updateError);
+      }
+    }
+    console.log(`  ✅ Updated ${blocPersonnelUpdates.length} bloc personnel assignments`);
+  }
+
   const siteRows = Array.from(siteRowsMap.values());
 
   if (siteRows.length > 0) {
@@ -414,16 +485,48 @@ async function saveSitesAssignments(
     if (siteError) throw siteError;
   }
 
-  if (remainingBlocRows.length > 0) {
-    const { error: blocPersonnelError } = await supabase
-      .from('planning_genere_bloc_personnel')
-      .insert(remainingBlocRows);
-
-    if (blocPersonnelError) throw blocPersonnelError;
-  }
-
   return {
     sites_assigned: siteRows.length,
-    remaining_bloc_filled: remainingBlocRows.length
+    remaining_bloc_filled: blocPersonnelUpdates.length
   };
+}
+
+function getEligibleSecretariesForBlocNeed(
+  type_besoin: string,
+  secretaires: any[],
+  periode: string,
+  capacitesMap: Map<string, any>,
+  blocAssignments: Map<string, string[]>
+): any[] {
+  // Filter by capacity (available at this period)
+  let eligible = secretaires.filter(s => {
+    const key = `${s.id}_${periode}`;
+    const keyTouteJournee = `${s.id}_toute_journee`;
+    return (capacitesMap.has(key) || capacitesMap.has(keyTouteJournee)) &&
+           !blocAssignments.has(s.id); // Not already assigned to bloc in phase 1
+  });
+
+  // Filter by competence (NOT by personnel_bloc_operatoire)
+  switch (type_besoin) {
+    case 'instrumentiste':
+      eligible = eligible.filter(s => s.instrumentaliste);
+      break;
+    case 'aide_salle':
+      eligible = eligible.filter(s => s.aide_de_salle && s.instrumentaliste);
+      break;
+    case 'instrumentiste_aide_salle':
+      eligible = eligible.filter(s => s.instrumentaliste);
+      break;
+    case 'accueil_dermato':
+      eligible = eligible.filter(s => s.bloc_dermato_accueil);
+      break;
+    case 'accueil_ophtalmo':
+      eligible = eligible.filter(s => s.bloc_ophtalmo_accueil);
+      break;
+    case 'anesthesiste':
+      eligible = eligible.filter(s => s.anesthesiste);
+      break;
+  }
+
+  return eligible;
 }
