@@ -91,7 +91,7 @@ serve(async (req) => {
       .gte('date', fourWeeksAgo)
       .lte('date', single_day);
 
-    const portEnTruieCounts = countPortEnTruieAssignments(historicalAssignments);
+    const portEnTruieCounts = countPortEnTruieAssignments(historicalAssignments || []);
 
     // 6. Get or create planning_id
     const weekStart = getWeekStart(new Date(single_day));
@@ -150,7 +150,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Sites optimization error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -362,10 +363,10 @@ async function saveSitesAssignments(
   supabase: any
 ) {
   const siteRowsMap = new Map();
-  const remainingBlocRows = [];
+  const remainingBlocRows: any[] = [];
 
   for (const [varName, value] of Object.entries(solution)) {
-    if (value < 0.5 || varName === 'feasible' || varName === 'result') continue;
+    if ((value as number) < 0.5 || varName === 'feasible' || varName === 'result') continue;
 
     if (varName.startsWith('x_')) {
       const parts = varName.split('_');

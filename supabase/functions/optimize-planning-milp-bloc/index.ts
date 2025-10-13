@@ -161,7 +161,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Bloc optimization error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -182,7 +183,7 @@ function getWeekEnd(date: Date): Date {
 
 function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxConfigs: any[]) {
   const assignments: any[] = [];
-  const roomSchedules = { rouge: [], verte: [], jaune: [] };
+  const roomSchedules: Record<string, any[]> = { rouge: [], verte: [], jaune: [] };
   
   const sorted = operations.sort((a, b) => {
     const typeA = typesMap.get(a.type_intervention_id);
@@ -405,14 +406,14 @@ async function saveBlocAssignments(
   // Save personnel assignments
   const personnelRows = [];
   for (const [varName, value] of Object.entries(personnelSolution)) {
-    if (varName.startsWith('x_') && value > 0.5) {
+    if (varName.startsWith('x_') && (value as number) > 0.5) {
       const parts = varName.split('_');
       const secId = parts[1];
       const opId = parts[2];
       const typeBesoin = parts[3];
       const ordre = parseInt(parts[4]);
       
-      const blocId = savedBlocs.find(b => b.bloc_operatoire_besoin_id === opId)?.id;
+      const blocId = savedBlocs.find((b: any) => b.bloc_operatoire_besoin_id === opId)?.id;
       
       personnelRows.push({
         planning_genere_bloc_operatoire_id: blocId,

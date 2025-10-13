@@ -105,7 +105,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Orchestrator error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -132,7 +133,7 @@ async function assignResponsablesForClosedSites(single_day: string, supabase: an
     .from('planning_genere_site')
     .select('*')
     .eq('date', single_day)
-    .in('site_id', closedSites.map(s => s.id));
+    .in('site_id', closedSites.map((s: any) => s.id));
 
   for (const assignment of assignments || []) {
     if (assignment.secretaires_ids && assignment.secretaires_ids.length > 0) {
