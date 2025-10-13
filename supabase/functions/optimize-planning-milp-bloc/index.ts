@@ -324,8 +324,10 @@ function buildAndSolveBlocPersonnelMILP(
         }
       }
       
+      // Utiliser 'max' au lieu de 'equal' pour permettre des assignations partielles
+      // quand il n'y a pas assez de personnel disponible
       model.constraints[`need_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}`] = {
-        equal: besoin.nombre_requis
+        max: besoin.nombre_requis
       };
     }
   }
