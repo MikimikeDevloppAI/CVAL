@@ -61,8 +61,6 @@ export function ConfigurationsMultiFluxManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<Configuration | null>(null);
   const [formData, setFormData] = useState({
-    nom: '',
-    code: '',
     type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
   });
   const [interventions, setInterventions] = useState<ConfigurationIntervention[]>([
@@ -127,7 +125,7 @@ export function ConfigurationsMultiFluxManagement() {
   };
 
   const resetForm = () => {
-    setFormData({ nom: '', code: '', type_flux: 'double_flux' });
+    setFormData({ type_flux: 'double_flux' });
     setInterventions([
       { type_intervention_id: '', type_personnel: '', salle: 'rouge', ordre: 1 },
       { type_intervention_id: '', type_personnel: '', salle: 'verte', ordre: 2 },
@@ -153,8 +151,6 @@ export function ConfigurationsMultiFluxManagement() {
   const openEditDialog = (config: Configuration) => {
     setSelectedConfig(config);
     setFormData({
-      nom: config.nom,
-      code: config.code,
       type_flux: config.type_flux,
     });
     
@@ -170,15 +166,6 @@ export function ConfigurationsMultiFluxManagement() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.nom || !formData.code) {
-      toast({
-        title: 'Erreur',
-        description: 'Le nom et le code sont requis',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     const interventionsCount = formData.type_flux === 'double_flux' ? 2 : 3;
     const filledInterventions = interventions.filter(i => i.type_intervention_id);
     
@@ -191,14 +178,25 @@ export function ConfigurationsMultiFluxManagement() {
       return;
     }
 
+    // Générer le nom et le code automatiquement à partir des types d'intervention
+    const interventionCodes = filledInterventions
+      .sort((a, b) => a.ordre - b.ordre)
+      .map(i => {
+        const type = typesIntervention.find(t => t.id === i.type_intervention_id);
+        return type?.code || '';
+      });
+    
+    const nom = interventionCodes.join(' + ');
+    const code = interventionCodes.join('_');
+
     try {
       if (selectedConfig) {
         // Modification
         const { error: configError } = await supabase
           .from('configurations_multi_flux')
           .update({
-            nom: formData.nom,
-            code: formData.code,
+            nom,
+            code,
             type_flux: formData.type_flux,
           })
           .eq('id', selectedConfig.id);
@@ -231,8 +229,8 @@ export function ConfigurationsMultiFluxManagement() {
         const { data: configData, error: configError } = await supabase
           .from('configurations_multi_flux')
           .insert({
-            nom: formData.nom,
-            code: formData.code,
+            nom,
+            code,
             type_flux: formData.type_flux,
             actif: true,
           })
@@ -477,47 +475,10 @@ export function ConfigurationsMultiFluxManagement() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Nom</label>
-                <Input
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  placeholder="Ex: 2 IVT"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Code</label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="Ex: 2IVT"
-                />
-              </div>
-            </div>
-
             <div className="space-y-3">
-              <label className="text-sm font-medium">Attribution des salles</label>
+              <label className="text-sm font-medium">Sélectionnez les types d'intervention</label>
               {interventions.map((intervention, index) => (
-                <div key={index} className="grid grid-cols-3 gap-3 p-3 border rounded-lg bg-card">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Type de personnel</label>
-                    <Select
-                      value={intervention.type_personnel}
-                      onValueChange={(value) => updateIntervention(index, 'type_personnel', value)}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        {TYPES_PERSONNEL.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div key={index} className="grid grid-cols-2 gap-3 p-3 border rounded-lg bg-card">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Type d'intervention</label>
                     <Select
@@ -525,7 +486,7 @@ export function ConfigurationsMultiFluxManagement() {
                       onValueChange={(value) => updateIntervention(index, 'type_intervention_id', value)}
                     >
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner" />
+                        <SelectValue placeholder="Sélectionner un type d'intervention" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
                         {typesIntervention.map((type) => (
@@ -569,7 +530,7 @@ export function ConfigurationsMultiFluxManagement() {
             </Button>
             <Button onClick={handleSubmit}>
               <Save className="h-4 w-4 mr-2" />
-              {selectedConfig ? 'Modifier' : 'Créer'}
+              Créer
             </Button>
           </div>
         </DialogContent>
