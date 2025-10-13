@@ -79,12 +79,14 @@ serve(async (req) => {
           id: be.id,
           date: be.date,
           type_intervention_id: be.type_intervention_id,
+          medecin_id: be.medecin_id,
           demi_journee: 'matin'
         });
         operations.push({
           id: be.id,
           date: be.date,
           type_intervention_id: be.type_intervention_id,
+          medecin_id: be.medecin_id,
           demi_journee: 'apres_midi'
         });
       } else {
@@ -92,6 +94,7 @@ serve(async (req) => {
           id: be.id,
           date: be.date,
           type_intervention_id: be.type_intervention_id,
+          medecin_id: be.medecin_id,
           demi_journee: be.demi_journee
         });
       }
@@ -403,6 +406,7 @@ async function saveBlocAssignments(
       planning_id,
       date: single_day,
       type_intervention_id: operation.type_intervention_id,
+      medecin_id: operation.medecin_id,
       salle_assignee: ra.salle,
       periode: ra.demi_journee,
       statut: 'planifie'

@@ -870,7 +870,6 @@ export type Database = {
       }
       planning_genere_bloc_operatoire: {
         Row: {
-          bloc_operatoire_besoin_id: string | null
           created_at: string
           date: string
           heure_debut: string | null
@@ -885,7 +884,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date: string
           heure_debut?: string | null
@@ -900,7 +898,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date?: string
           heure_debut?: string | null
@@ -915,13 +912,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "planning_genere_bloc_operatoire_bloc_operatoire_besoin_id_fkey"
-            columns: ["bloc_operatoire_besoin_id"]
-            isOneToOne: false
-            referencedRelation: "bloc_operatoire_besoins"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
             columns: ["medecin_id"]
