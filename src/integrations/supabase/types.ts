@@ -872,8 +872,6 @@ export type Database = {
         Row: {
           created_at: string
           date: string
-          heure_debut: string | null
-          heure_fin: string | null
           id: string
           medecin_id: string | null
           periode: Database["public"]["Enums"]["demi_journee"]
@@ -886,8 +884,6 @@ export type Database = {
         Insert: {
           created_at?: string
           date: string
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           periode: Database["public"]["Enums"]["demi_journee"]
@@ -900,8 +896,6 @@ export type Database = {
         Update: {
           created_at?: string
           date?: string
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           periode?: Database["public"]["Enums"]["demi_journee"]
@@ -941,7 +935,7 @@ export type Database = {
           id: string
           ordre: number
           planning_genere_bloc_operatoire_id: string
-          secretaire_id: string
+          secretaire_id: string | null
           type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
           updated_at: string
         }
@@ -950,7 +944,7 @@ export type Database = {
           id?: string
           ordre?: number
           planning_genere_bloc_operatoire_id: string
-          secretaire_id: string
+          secretaire_id?: string | null
           type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
           updated_at?: string
         }
@@ -959,7 +953,7 @@ export type Database = {
           id?: string
           ordre?: number
           planning_genere_bloc_operatoire_id?: string
-          secretaire_id?: string
+          secretaire_id?: string | null
           type_besoin?: Database["public"]["Enums"]["type_besoin_personnel"]
           updated_at?: string
         }
