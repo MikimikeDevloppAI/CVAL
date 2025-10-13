@@ -1496,6 +1496,8 @@ export type Database = {
         | "instrumentiste_aide_salle"
         | "aide_salle"
         | "accueil"
+        | "accueil_ophtalmo"
+        | "accueil_dermato"
       type_horaire: "fixe" | "disponible"
       type_personne: "medecin" | "secretaire"
       type_planning: "medecin" | "secretaire"
@@ -1648,6 +1650,8 @@ export const Constants = {
         "instrumentiste_aide_salle",
         "aide_salle",
         "accueil",
+        "accueil_ophtalmo",
+        "accueil_dermato",
       ],
       type_horaire: ["fixe", "disponible"],
       type_personne: ["medecin", "secretaire"],

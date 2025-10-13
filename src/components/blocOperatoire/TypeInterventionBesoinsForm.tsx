@@ -14,16 +14,17 @@ interface TypeInterventionBesoinsFormProps {
 }
 
 interface BesoinPersonnel {
-  type_besoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil';
+  type_besoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato';
   nombre_requis: number;
 }
 
-const TYPES_BESOINS: Array<{ value: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil'; label: string }> = [
+const TYPES_BESOINS: Array<{ value: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato'; label: string }> = [
   { value: 'anesthesiste', label: 'Anesthésiste' },
   { value: 'instrumentiste', label: 'Instrumentiste' },
   { value: 'instrumentiste_aide_salle', label: 'Instrumentiste / Aide de salle' },
   { value: 'aide_salle', label: 'Aide de salle' },
-  { value: 'accueil', label: 'Accueil' },
+  { value: 'accueil_ophtalmo', label: 'Accueil Ophtalmologie' },
+  { value: 'accueil_dermato', label: 'Accueil Dermatologie' },
 ];
 
 export function TypeInterventionBesoinsForm({
@@ -67,7 +68,7 @@ export function TypeInterventionBesoinsForm({
     }
   };
 
-  const handleChange = (typeBesoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil', value: string) => {
+  const handleChange = (typeBesoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato', value: string) => {
     const nombre = parseInt(value) || 0;
     setBesoins((prev) => ({
       ...prev,
@@ -89,7 +90,7 @@ export function TypeInterventionBesoinsForm({
         .filter(([_, nombre]) => nombre > 0)
         .map(([type_besoin, nombre_requis]) => ({
           type_intervention_id: typeInterventionId,
-          type_besoin: type_besoin as 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil',
+          type_besoin: type_besoin as 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato',
           nombre_requis,
           actif: true,
         }));

@@ -1,0 +1,147 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    console.log('🎛️ Starting MILP orchestrator');
+    
+    const supabaseServiceRole = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { single_day, optimize_bloc = true, optimize_sites = true } = await req.json().catch(() => ({}));
+    
+    if (!single_day) {
+      throw new Error('single_day parameter is required');
+    }
+
+    console.log(`📅 Orchestrating optimization for: ${single_day}`);
+    console.log(`   Bloc: ${optimize_bloc ? 'YES' : 'NO'}, Sites: ${optimize_sites ? 'YES' : 'NO'}`);
+
+    let blocResults = null;
+    let sitesResults = null;
+
+    // PHASE 1: Bloc opératoire
+    if (optimize_bloc) {
+      console.log('🏥 Phase 1: Optimizing bloc operatoire...');
+      
+      // Delete existing bloc assignments
+      await supabaseServiceRole
+        .from('planning_genere_bloc_operatoire')
+        .delete()
+        .eq('date', single_day);
+
+      const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
+      const blocResponse = await fetch(blocUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({ single_day })
+      });
+
+      if (!blocResponse.ok) {
+        const errorText = await blocResponse.text();
+        throw new Error(`Bloc optimization failed: ${errorText}`);
+      }
+
+      blocResults = await blocResponse.json();
+      console.log(`✅ Bloc phase complete: ${JSON.stringify(blocResults)}`);
+    }
+
+    // PHASE 2: Sites + remaining bloc needs
+    if (optimize_sites) {
+      console.log('🏢 Phase 2: Optimizing sites...');
+      
+      // Delete existing sites assignments
+      await supabaseServiceRole
+        .from('planning_genere_site')
+        .delete()
+        .eq('date', single_day);
+
+      const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
+      const sitesResponse = await fetch(sitesUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({ 
+          single_day,
+          exclude_bloc_assigned: optimize_bloc
+        })
+      });
+
+      if (!sitesResponse.ok) {
+        const errorText = await sitesResponse.text();
+        throw new Error(`Sites optimization failed: ${errorText}`);
+      }
+
+      sitesResults = await sitesResponse.json();
+      console.log(`✅ Sites phase complete: ${JSON.stringify(sitesResults)}`);
+    }
+
+    // Assign responsables for closed sites
+    await assignResponsablesForClosedSites(single_day, supabaseServiceRole);
+
+    console.log('🎉 Orchestrator complete!');
+
+    return new Response(JSON.stringify({
+      success: true,
+      bloc_results: blocResults,
+      sites_results: sitesResults
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+  } catch (error) {
+    console.error('❌ Orchestrator error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
+
+async function assignResponsablesForClosedSites(single_day: string, supabase: any) {
+  console.log('🔐 Assigning responsables for closed sites...');
+  
+  // Get closed sites
+  const { data: closedSites } = await supabase
+    .from('sites')
+    .select('id')
+    .eq('fermeture', true)
+    .eq('actif', true);
+
+  if (!closedSites || closedSites.length === 0) {
+    console.log('No closed sites found');
+    return;
+  }
+
+  // Simplified: Assign first available secretary as responsable
+  const { data: assignments } = await supabase
+    .from('planning_genere_site')
+    .select('*')
+    .eq('date', single_day)
+    .in('site_id', closedSites.map(s => s.id));
+
+  for (const assignment of assignments || []) {
+    if (assignment.secretaires_ids && assignment.secretaires_ids.length > 0) {
+      await supabase
+        .from('planning_genere_site')
+        .update({ responsable_1r_id: assignment.secretaires_ids[0] })
+        .eq('id', assignment.id);
+    }
+  }
+
+  console.log('✓ Responsables assigned');
+}
