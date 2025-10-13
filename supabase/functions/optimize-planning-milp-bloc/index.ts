@@ -70,13 +70,32 @@ serve(async (req) => {
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    // Créer les opérations à partir des besoins (utilise demi_journee)
-    const operations = (besoinsEffectifs || []).map((be: any) => ({
-      id: be.id,
-      date: be.date,
-      type_intervention_id: be.type_intervention_id,
-      demi_journee: be.demi_journee
-    }));
+    // Créer les opérations à partir des besoins
+    // Si demi_journee = 'toute_journee', créer DEUX opérations (matin + après-midi)
+    const operations: any[] = [];
+    for (const be of besoinsEffectifs || []) {
+      if (be.demi_journee === 'toute_journee') {
+        operations.push({
+          id: be.id,
+          date: be.date,
+          type_intervention_id: be.type_intervention_id,
+          demi_journee: 'matin'
+        });
+        operations.push({
+          id: be.id,
+          date: be.date,
+          type_intervention_id: be.type_intervention_id,
+          demi_journee: 'apres_midi'
+        });
+      } else {
+        operations.push({
+          id: be.id,
+          date: be.date,
+          type_intervention_id: be.type_intervention_id,
+          demi_journee: be.demi_journee
+        });
+      }
+    }
 
     console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
 
@@ -376,22 +395,16 @@ async function saveBlocAssignments(
 ) {
   console.log(`\n💾 Saving ${roomAssignments.length} bloc assignments...`);
   
-  // Save bloc operations with rooms (utilise demi_journee)
+  // Save bloc operations with rooms (utilise periode)
   const blocRows = roomAssignments.map(ra => {
-    const operation = operations.find(b => b.id === ra.operation_id);
-    const [heure_debut, heure_fin] = operation.demi_journee === 'matin'
-      ? ['08:00:00', '12:30:00']
-      : operation.demi_journee === 'apres_midi'
-      ? ['13:00:00', '17:00:00']
-      : ['08:00:00', '17:00:00'];
+    const operation = operations.find(b => b.id === ra.operation_id && b.demi_journee === ra.demi_journee);
     
     return {
       planning_id,
       date: single_day,
       type_intervention_id: operation.type_intervention_id,
       salle_assignee: ra.salle,
-      heure_debut,
-      heure_fin,
+      periode: ra.demi_journee,
       statut: 'planifie'
     };
   });

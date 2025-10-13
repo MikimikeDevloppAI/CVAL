@@ -177,13 +177,10 @@ function calculateSitesNeeds(besoins: any[], sites: any[], medecinMap: Map<strin
     if (site.nom?.includes('Bloc opératoire')) continue;
     
     for (const periode of ['matin', 'apres_midi']) {
-      const [start, end] = periode === 'matin' 
-        ? ['07:30:00', '12:30:00']
-        : ['13:00:00', '18:00:00'];
-      
+      // Inclure les besoins de cette période ET les besoins "toute_journee"
       const medecinsOnSite = besoins.filter(b => 
         b.site_id === site.id &&
-        b.demi_journee === periode
+        (b.demi_journee === periode || b.demi_journee === 'toute_journee')
       );
       
       const totalBesoin = medecinsOnSite.reduce((sum, b) => {
@@ -195,8 +192,6 @@ function calculateSitesNeeds(besoins: any[], sites: any[], medecinMap: Map<strin
         needs.push({
           site_id: site.id,
           periode,
-          heure_debut: start,
-          heure_fin: end,
           nombre_requis: Math.ceil(totalBesoin)
         });
       }
@@ -220,7 +215,7 @@ function getSecretariesAssignedToBloc(blocOperations: any[]): Map<string, string
   const assignments = new Map();
   
   for (const operation of blocOperations) {
-    const periode = operation.heure_debut < '12:30:00' ? 'matin' : 'apres_midi';
+    const periode = operation.periode || 'matin';
     
     for (const personnel of operation.planning_genere_bloc_personnel || []) {
       if (!assignments.has(personnel.secretaire_id)) {
@@ -374,18 +369,13 @@ async function saveSitesAssignments(
       const siteId = parts[2];
       const periode = parts[3];
 
-      const [heure_debut, heure_fin] = periode === 'matin'
-        ? ['07:30:00', '12:30:00']
-        : ['13:00:00', '18:00:00'];
-
       const key = `${siteId}_${periode}`;
       if (!siteRowsMap.has(key)) {
         siteRowsMap.set(key, {
           planning_id,
           date: single_day,
           site_id: siteId,
-          heure_debut,
-          heure_fin,
+          periode,
           secretaires_ids: [],
           type_assignation: 'site',
           statut: 'planifie'
@@ -398,18 +388,13 @@ async function saveSitesAssignments(
       const secId = parts[1];
       const periode = parts[3];
 
-      const [heure_debut, heure_fin] = periode === 'matin'
-        ? ['07:30:00', '12:30:00']
-        : ['13:00:00', '18:00:00'];
-
       const key = `admin_${periode}`;
       if (!siteRowsMap.has(key)) {
         siteRowsMap.set(key, {
           planning_id,
           date: single_day,
           site_id: null,
-          heure_debut,
-          heure_fin,
+          periode,
           secretaires_ids: [],
           type_assignation: 'administratif',
           statut: 'planifie'

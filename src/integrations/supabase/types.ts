@@ -873,10 +873,11 @@ export type Database = {
           bloc_operatoire_besoin_id: string | null
           created_at: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          heure_debut: string | null
+          heure_fin: string | null
           id: string
           medecin_id: string | null
+          periode: Database["public"]["Enums"]["demi_journee"]
           planning_id: string | null
           salle_assignee: string | null
           statut: Database["public"]["Enums"]["statut_planning"]
@@ -887,10 +888,11 @@ export type Database = {
           bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
+          periode: Database["public"]["Enums"]["demi_journee"]
           planning_id?: string | null
           salle_assignee?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
@@ -901,10 +903,11 @@ export type Database = {
           bloc_operatoire_besoin_id?: string | null
           created_at?: string
           date?: string
-          heure_debut?: string
-          heure_fin?: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
+          periode?: Database["public"]["Enums"]["demi_journee"]
           planning_id?: string | null
           salle_assignee?: string | null
           statut?: Database["public"]["Enums"]["statut_planning"]
@@ -991,9 +994,10 @@ export type Database = {
         Row: {
           created_at: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          heure_debut: string | null
+          heure_fin: string | null
           id: string
+          periode: Database["public"]["Enums"]["demi_journee"]
           planning_id: string | null
           responsable_1r_id: string | null
           responsable_2f_id: string | null
@@ -1007,9 +1011,10 @@ export type Database = {
         Insert: {
           created_at?: string
           date: string
-          heure_debut: string
-          heure_fin: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
+          periode: Database["public"]["Enums"]["demi_journee"]
           planning_id?: string | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
@@ -1023,9 +1028,10 @@ export type Database = {
         Update: {
           created_at?: string
           date?: string
-          heure_debut?: string
-          heure_fin?: string
+          heure_debut?: string | null
+          heure_fin?: string | null
           id?: string
+          periode?: Database["public"]["Enums"]["demi_journee"]
           planning_id?: string | null
           responsable_1r_id?: string | null
           responsable_2f_id?: string | null
