@@ -27,11 +27,20 @@ serve(async (req) => {
 
     console.log(`📅 Optimizing bloc for day: ${single_day}`);
 
+    // Get Bloc operatoire site ID
+    const { data: blocSite, error: blocSiteError } = await supabaseServiceRole
+      .from('sites')
+      .select('id')
+      .ilike('nom', '%Bloc opératoire%')
+      .single();
+    
+    if (blocSiteError) throw blocSiteError;
+    const blocSiteId = blocSite.id;
+
     // 1. Fetch data
     const [
       { data: typesIntervention, error: tiError },
       { data: besoinsEffectifs, error: beError },
-      { data: blocsBesoins, error: bbError },
       { data: personnelBloc, error: pbError },
       { data: capacites, error: capError },
       { data: configurationsMultiFlux, error: cmfError }
@@ -42,10 +51,8 @@ serve(async (req) => {
       `).eq('actif', true),
       supabaseServiceRole.from('besoin_effectif').select('*')
         .eq('date', single_day)
-        .eq('type', 'bloc_operatoire')
-        .eq('actif', true),
-      supabaseServiceRole.from('bloc_operatoire_besoins').select('*')
-        .eq('date', single_day)
+        .eq('site_id', blocSiteId)
+        .not('type_intervention_id', 'is', null)
         .eq('actif', true),
       supabaseServiceRole.from('secretaires').select('*')
         .eq('personnel_bloc_operatoire', true).eq('actif', true),
@@ -59,23 +66,27 @@ serve(async (req) => {
 
     if (tiError) throw tiError;
     if (beError) throw beError;
-    if (bbError) throw bbError;
     if (pbError) throw pbError;
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    // Joindre manuellement: filtrer les blocs par les besoins effectifs (date + type_intervention)
-    const allowedKeys = new Set((besoinsEffectifs || []).map((be: any) => `${be.date}_${be.type_intervention_id}`));
-    const operations = (blocsBesoins || [])
-      .filter((bb: any) => allowedKeys.has(`${bb.date}_${bb.type_intervention_id}`))
-      .map((bb: any) => ({
-        id: bb.id,
-        date: bb.date,
-        type_intervention_id: bb.type_intervention_id,
-        heure_debut: bb.heure_debut,
-        heure_fin: bb.heure_fin,
-        specialite_id: bb.specialite_id
-      }));
+    // Créer les opérations à partir des besoins avec horaires basés sur demi_journee
+    const operations = (besoinsEffectifs || []).map((be: any) => {
+      const [heure_debut, heure_fin] = be.demi_journee === 'matin' 
+        ? ['08:00:00', '12:30:00']
+        : be.demi_journee === 'apres_midi'
+        ? ['13:00:00', '17:00:00']
+        : ['08:00:00', '17:00:00']; // toute_journee
+
+      return {
+        id: be.id,
+        date: be.date,
+        type_intervention_id: be.type_intervention_id,
+        heure_debut,
+        heure_fin,
+        demi_journee: be.demi_journee
+      };
+    });
 
     console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
 
@@ -383,7 +394,6 @@ async function saveBlocAssignments(
     return {
       planning_id,
       date: single_day,
-      bloc_operatoire_besoin_id: ra.operation_id,
       type_intervention_id: operation.type_intervention_id,
       salle_assignee: ra.salle,
       heure_debut: ra.heure_debut,
@@ -409,7 +419,11 @@ async function saveBlocAssignments(
       const typeBesoin = parts[3];
       const ordre = parseInt(parts[4]);
       
-      const blocId = savedBlocs.find((b: any) => b.bloc_operatoire_besoin_id === opId)?.id;
+      const operation = operations.find((o: any) => o.id === opId);
+      const blocId = savedBlocs.find((b: any) => 
+        b.type_intervention_id === operation?.type_intervention_id && 
+        b.heure_debut === operation?.heure_debut
+      )?.id;
       
       personnelRows.push({
         planning_genere_bloc_operatoire_id: blocId,
