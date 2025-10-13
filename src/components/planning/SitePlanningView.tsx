@@ -83,6 +83,21 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           continue;
         }
 
+        // Dédupliquer le personnel par secretaire_id
+        const uniquePersonnel = new Map();
+        (personnelData || []).forEach(p => {
+          if (p.secretaire_id && !uniquePersonnel.has(p.secretaire_id)) {
+            uniquePersonnel.set(p.secretaire_id, {
+              secretaire_id: p.secretaire_id,
+              secretaire_nom: p.secretaires 
+                ? `${(p.secretaires as any).first_name} ${(p.secretaires as any).name}`
+                : 'Non assigné',
+              ordre: p.ordre,
+              type_assignation: 'site' as const,
+            });
+          }
+        });
+
         enrichedData.push({
           id: besoin.id,
           date: besoin.date,
@@ -91,14 +106,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           site_nom: (besoin.sites as any)?.nom || 'Site inconnu',
           nombre_secretaires_requis: besoin.nombre_secretaires_requis,
           medecins_ids: besoin.medecins_ids,
-          personnel: (personnelData || []).map(p => ({
-            secretaire_id: p.secretaire_id,
-            secretaire_nom: p.secretaires 
-              ? `${(p.secretaires as any).first_name} ${(p.secretaires as any).name}`
-              : 'Non assigné',
-            ordre: p.ordre,
-            type_assignation: 'site' as const,
-          })),
+          personnel: Array.from(uniquePersonnel.values()),
         });
       }
 
@@ -124,31 +132,37 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
       console.log('adminData:', adminData, 'adminError:', adminError);
 
       if (!adminError && adminData && adminData.length > 0) {
-        // Grouper les assignations administratives par date/période
-        const adminByDatePeriod = new Map<string, any[]>();
+        // Grouper les assignations administratives par date/période et dédupliquer
+        const adminByDatePeriod = new Map<string, Map<string, any>>();
         
         for (const admin of adminData) {
           const key = `${admin.date}-${admin.periode}`;
           if (!adminByDatePeriod.has(key)) {
-            adminByDatePeriod.set(key, []);
+            adminByDatePeriod.set(key, new Map());
           }
-          adminByDatePeriod.get(key)!.push({
-            secretaire_id: admin.secretaire_id,
-            secretaire_nom: admin.secretaires 
-              ? `${(admin.secretaires as any).first_name} ${(admin.secretaires as any).name}`
-              : 'Non assigné',
-            ordre: 999,
-            type_assignation: 'administratif' as const,
-          });
+          const personnelMap = adminByDatePeriod.get(key)!;
+          
+          // Dédupliquer par secretaire_id
+          if (admin.secretaire_id && !personnelMap.has(admin.secretaire_id)) {
+            personnelMap.set(admin.secretaire_id, {
+              secretaire_id: admin.secretaire_id,
+              secretaire_nom: admin.secretaires 
+                ? `${(admin.secretaires as any).first_name} ${(admin.secretaires as any).name}`
+                : 'Non assigné',
+              ordre: 999,
+              type_assignation: 'administratif' as const,
+            });
+          }
         }
 
         console.log('adminByDatePeriod:', adminByDatePeriod);
 
         // Ajouter une entrée "Administratif" pour chaque groupe
-        adminByDatePeriod.forEach((personnel, key) => {
+        adminByDatePeriod.forEach((personnelMap, key) => {
           const parts = key.split('-');
           const periode = parts[parts.length - 1]; // dernier élément (matin ou apres_midi)
           const date = parts.slice(0, -1).join('-'); // tous les éléments sauf le dernier, rejoints avec -
+          const personnel = Array.from(personnelMap.values());
           enrichedData.push({
             id: `admin-${key}`,
             date,
