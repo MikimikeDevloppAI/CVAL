@@ -47,6 +47,8 @@ interface Secretaire {
   prefere_port_en_truie?: boolean;
   flexible_jours_supplementaires?: boolean;
   nombre_jours_supplementaires?: number;
+  horaire_flexible?: boolean;
+  pourcentage_temps?: number;
   actif?: boolean;
   sites?: {
     nom: string;
@@ -87,6 +89,8 @@ export default function SecretairesPage() {
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
+          horaire_flexible,
+          pourcentage_temps,
           personnel_bloc_operatoire,
           assignation_administrative,
           anesthesiste,
@@ -544,110 +548,130 @@ export default function SecretairesPage() {
                     </div>
                   </div>
                   
-                  {/* Jours de travail */}
+                  {/* Jours de travail ou horaire flexible */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                      Jours de travail
-                    </p>
-                    <div className="space-y-2">
-                      {[1, 2, 3, 4, 5].map((jour) => {
-                        const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-                        const horairesJour = (secretaire.horaires_base_secretaires?.filter(h => h.jour_semaine === jour) || [])
-                          .sort((a, b) => {
-                            const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
-                            return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
-                          });
-                        
-                        return (
-                          <div key={jour} className="space-y-2">
-                            {horairesJour.length === 0 && (
-                              <div className="flex items-center justify-between gap-2 p-2 bg-muted/10 rounded-md">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs font-medium">
-                                    {jours[jour]}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">Non travaillé</span>
-                                </div>
-                                {canManage && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleAddHoraire(secretaire.id, jour)}
-                                    className="h-7 w-7 p-0"
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                            
-                            {horairesJour.map((horaire, index) => (
-                              <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md group">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant="outline" className="text-xs font-medium">
-                                      {jours[jour]}
-                                    </Badge>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={`text-xs bg-transparent ${
-                                        horaire.demi_journee === 'toute_journee' 
-                                          ? 'border-2 border-green-600' 
-                                          : horaire.demi_journee === 'apres_midi'
-                                          ? 'border-2 border-yellow-600'
-                                          : 'border-2 border-blue-600'
-                                      }`}
-                                    >
-                                      {horaire.demi_journee === 'matin' ? 'Matin' : 
-                                       horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
-                                       'Toute la journée'}
-                                    </Badge>
-                                     {horaire.sites?.nom && (
-                                      <span className="text-xs text-muted-foreground truncate">
-                                        {horaire.sites.nom}
-                                      </span>
-                                    )}
-                                    {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {horaire.alternance_type === 'une_sur_deux' ? '1/2' :
-                                         horaire.alternance_type === 'une_sur_trois' ? '1/3' :
-                                         horaire.alternance_type === 'une_sur_quatre' ? '1/4' : ''}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {(horaire.date_debut || horaire.date_fin) && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                      {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
-                                    </p>
-                                  )}
-                                </div>
-                                {canManage && (
-                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditHoraire(secretaire.id, horaire)}
-                                      className="h-7 w-7 p-0"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDeleteHoraire(horaire.id)}
-                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                    {secretaire.horaire_flexible ? (
+                      // Affichage pour horaire flexible
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                          Horaire flexible
+                        </p>
+                        <div className="p-3 bg-primary/10 rounded-lg border-2 border-primary/30">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-2xl font-bold text-primary">
+                              {secretaire.pourcentage_temps}%
+                            </span>
+                            <span className="text-xs text-muted-foreground">du temps</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Affichage normal des jours de travail
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                          Jours de travail
+                        </p>
+                        <div className="space-y-2">
+                          {[1, 2, 3, 4, 5].map((jour) => {
+                            const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+                            const horairesJour = (secretaire.horaires_base_secretaires?.filter(h => h.jour_semaine === jour) || [])
+                              .sort((a, b) => {
+                                const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+                                return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
+                              });
+                            
+                            return (
+                              <div key={jour} className="space-y-2">
+                                {horairesJour.length === 0 && (
+                                  <div className="flex items-center justify-between gap-2 p-2 bg-muted/10 rounded-md">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs font-medium">
+                                        {jours[jour]}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">Non travaillé</span>
+                                    </div>
+                                    {canManage && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleAddHoraire(secretaire.id, jour)}
+                                        className="h-7 w-7 p-0"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {horairesJour.map((horaire, index) => (
+                                  <div key={`${jour}-${index}`} className="flex items-start justify-between gap-3 p-2 bg-muted/30 rounded-md group">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Badge variant="outline" className="text-xs font-medium">
+                                          {jours[jour]}
+                                        </Badge>
+                                        <Badge 
+                                          variant="outline" 
+                                          className={`text-xs bg-transparent ${
+                                            horaire.demi_journee === 'toute_journee' 
+                                              ? 'border-2 border-green-600' 
+                                              : horaire.demi_journee === 'apres_midi'
+                                              ? 'border-2 border-yellow-600'
+                                              : 'border-2 border-blue-600'
+                                          }`}
+                                        >
+                                          {horaire.demi_journee === 'matin' ? 'Matin' : 
+                                           horaire.demi_journee === 'apres_midi' ? 'Après-midi' : 
+                                           'Toute la journée'}
+                                        </Badge>
+                                         {horaire.sites?.nom && (
+                                          <span className="text-xs text-muted-foreground truncate">
+                                            {horaire.sites.nom}
+                                          </span>
+                                        )}
+                                        {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            {horaire.alternance_type === 'une_sur_deux' ? '1/2' :
+                                             horaire.alternance_type === 'une_sur_trois' ? '1/3' :
+                                             horaire.alternance_type === 'une_sur_quatre' ? '1/4' : ''}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {(horaire.date_debut || horaire.date_fin) && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                          {horaire.date_fin && ` au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {canManage && (
+                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleEditHoraire(secretaire.id, horaire)}
+                                          className="h-7 w-7 p-0"
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteHoraire(horaire.id)}
+                                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Site préférentiel */}

@@ -838,6 +838,7 @@ export type Database = {
           email: string | null
           first_name: string | null
           flexible_jours_supplementaires: boolean
+          horaire_flexible: boolean
           id: string
           instrumentaliste: boolean
           medecin_assigne_id: string | null
@@ -845,6 +846,7 @@ export type Database = {
           nombre_jours_supplementaires: number | null
           personnel_bloc_operatoire: boolean
           phone_number: string | null
+          pourcentage_temps: number | null
           prefere_port_en_truie: boolean
           profile_id: string | null
           site_preferentiel_id: string | null
@@ -862,6 +864,7 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
+          horaire_flexible?: boolean
           id?: string
           instrumentaliste?: boolean
           medecin_assigne_id?: string | null
@@ -869,6 +872,7 @@ export type Database = {
           nombre_jours_supplementaires?: number | null
           personnel_bloc_operatoire?: boolean
           phone_number?: string | null
+          pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
@@ -886,6 +890,7 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
+          horaire_flexible?: boolean
           id?: string
           instrumentaliste?: boolean
           medecin_assigne_id?: string | null
@@ -893,6 +898,7 @@ export type Database = {
           nombre_jours_supplementaires?: number | null
           personnel_bloc_operatoire?: boolean
           phone_number?: string | null
+          pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null

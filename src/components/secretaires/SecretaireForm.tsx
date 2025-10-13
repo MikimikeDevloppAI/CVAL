@@ -40,6 +40,8 @@ const secretaireSchema = z.object({
   preferePortEnTruie: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
+  horaireFlexible: z.boolean().default(false),
+  pourcentageTemps: z.number().min(0.01).max(100).optional(),
   personnelBlocOperatoire: z.boolean().default(false),
   assignationAdministrative: z.boolean().default(false),
   anesthesiste: z.boolean().default(false),
@@ -48,6 +50,14 @@ const secretaireSchema = z.object({
   blocOphtalmoAccueil: z.boolean().default(false),
   blocDermatoAccueil: z.boolean().default(false),
   horaires: z.array(horaireSchema),
+}).refine((data) => {
+  if (data.horaireFlexible && !data.pourcentageTemps) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Le pourcentage est requis pour un horaire flexible",
+  path: ["pourcentageTemps"],
 });
 
 type SecretaireFormData = z.infer<typeof secretaireSchema>;
@@ -71,6 +81,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
+      horaireFlexible: secretaire?.horaire_flexible || false,
+      pourcentageTemps: secretaire?.pourcentage_temps || undefined,
       personnelBlocOperatoire: secretaire?.personnel_bloc_operatoire || false,
       assignationAdministrative: secretaire?.assignation_administrative || false,
       anesthesiste: secretaire?.anesthesiste || false,
@@ -108,6 +120,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
+            horaire_flexible: data.horaireFlexible,
+            pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
             personnel_bloc_operatoire: data.personnelBlocOperatoire,
             assignation_administrative: data.assignationAdministrative,
             anesthesiste: data.anesthesiste,
@@ -168,6 +182,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
+            horaire_flexible: data.horaireFlexible,
+            pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
             personnel_bloc_operatoire: data.personnelBlocOperatoire,
             assignation_administrative: data.assignationAdministrative,
             anesthesiste: data.anesthesiste,
@@ -298,6 +314,60 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           />
         </div>
 
+
+        {/* Horaire flexible */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-sm font-medium">Configuration horaire</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="horaireFlexible"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                        if (!checked) {
+                          form.setValue('pourcentageTemps', undefined);
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Horaire flexible</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {form.watch('horaireFlexible') && (
+              <FormField
+                control={form.control}
+                name="pourcentageTemps"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pourcentage de temps (%)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        type="number" 
+                        min="0.01"
+                        max="100"
+                        step="0.01"
+                        placeholder="80" 
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+        </div>
 
         {/* Caractéristiques professionnelles */}
         <div className="space-y-4 pt-4 border-t">
