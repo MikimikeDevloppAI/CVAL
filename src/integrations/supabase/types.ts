@@ -1021,6 +1021,44 @@ export type Database = {
         }
         Relationships: []
       }
+      types_intervention_besoins_personnel: {
+        Row: {
+          actif: boolean
+          created_at: string
+          id: string
+          nombre_requis: number
+          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
+          type_intervention_id: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          nombre_requis?: number
+          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
+          type_intervention_id: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          nombre_requis?: number
+          type_besoin?: Database["public"]["Enums"]["type_besoin_personnel"]
+          type_intervention_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "types_intervention_besoins_personnel_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1171,6 +1209,12 @@ export type Database = {
         | "une_sur_trois"
         | "une_sur_quatre"
       type_besoin: "medecin" | "bloc_operatoire"
+      type_besoin_personnel:
+        | "anesthesiste"
+        | "instrumentaliste"
+        | "instrumentaliste_aide_salle"
+        | "aide_salle"
+        | "accueil"
       type_horaire: "fixe" | "disponible"
       type_personne: "medecin" | "secretaire"
       type_planning: "medecin" | "secretaire"
@@ -1317,6 +1361,13 @@ export const Constants = {
         "une_sur_quatre",
       ],
       type_besoin: ["medecin", "bloc_operatoire"],
+      type_besoin_personnel: [
+        "anesthesiste",
+        "instrumentaliste",
+        "instrumentaliste_aide_salle",
+        "aide_salle",
+        "accueil",
+      ],
       type_horaire: ["fixe", "disponible"],
       type_personne: ["medecin", "secretaire"],
       type_planning: ["medecin", "secretaire"],

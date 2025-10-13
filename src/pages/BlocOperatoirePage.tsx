@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Sunrise, Sun } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Sunrise, Sun, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
+import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfWeek, addDays, isSameWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -205,50 +207,62 @@ const BlocOperatoirePage = () => {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
-        
-        {canManage && (
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => {
-                setSelectedBesoin(null);
-                setPreselectedDate(null);
-              }}>
-                <Plus className="h-4 w-4" />
-                Ajouter un besoin
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
-              </DialogTitle>
-            </DialogHeader>
-            <BlocOperatoireForm 
-              besoin={selectedBesoin} 
-              preselectedDate={preselectedDate}
-              onSubmit={() => {
-                handleDialogClose();
-                fetchBesoins();
-              }}
-              onCancel={handleDialogClose}
-            />
-          </DialogContent>
-        </Dialog>
-        )}
       </div>
 
-      {/* Search */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-        <div className="relative flex-1 max-w-full md:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par médecin ou date..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      <Tabs defaultValue="planning" className="w-full">
+        <TabsList>
+          <TabsTrigger value="planning">Planning</TabsTrigger>
+          <TabsTrigger value="types">
+            <Settings className="h-4 w-4 mr-2" />
+            Types d'intervention
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planning" className="space-y-6">
+          {canManage && (
+            <div className="flex justify-end">
+              <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => {
+                    setSelectedBesoin(null);
+                    setPreselectedDate(null);
+                  }}>
+                    <Plus className="h-4 w-4" />
+                    Ajouter un besoin
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <BlocOperatoireForm 
+                    besoin={selectedBesoin} 
+                    preselectedDate={preselectedDate}
+                    onSubmit={() => {
+                      handleDialogClose();
+                      fetchBesoins();
+                    }}
+                    onCancel={handleDialogClose}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+            <div className="relative flex-1 max-w-full md:max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher par médecin ou date..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
 
       <div className="space-y-8">
         {weekGroups.map((weekGroup) => (
@@ -393,23 +407,29 @@ const BlocOperatoirePage = () => {
         ))}
       </div>
 
-      {weekGroups.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
-          </p>
-        </div>
-      )}
+          {weekGroups.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
+              </p>
+            </div>
+          )}
 
-      {besoinToDelete && (
-        <DeleteBesoinDialog
-          besoinId={besoinToDelete.id}
-          medecinName={besoinToDelete.medecinName}
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          onSuccess={fetchBesoins}
-        />
-      )}
+          {besoinToDelete && (
+            <DeleteBesoinDialog
+              besoinId={besoinToDelete.id}
+              medecinName={besoinToDelete.medecinName}
+              open={deleteDialogOpen}
+              onOpenChange={setDeleteDialogOpen}
+              onSuccess={fetchBesoins}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="types">
+          <TypesInterventionManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
