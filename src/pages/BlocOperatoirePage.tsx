@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
@@ -305,28 +305,7 @@ const BlocOperatoirePage = () => {
         )}
       </div>
 
-      <Tabs defaultValue="planning" className="w-full">
-        <div className="flex justify-center mb-6">
-          <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
-            <TabsTrigger 
-              value="planning" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Planning
-            </TabsTrigger>
-            <TabsTrigger 
-              value="types"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Types d'intervention
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="planning" className="space-y-6 mt-0">
-          {/* Filtres */}
+      {/* Filtres */}
           <div className="bg-card border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
@@ -390,24 +369,6 @@ const BlocOperatoirePage = () => {
               </div>
             </div>
           </div>
-        <div className="flex justify-center mb-6">
-          <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
-            <TabsTrigger 
-              value="planning" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Planning
-            </TabsTrigger>
-            <TabsTrigger 
-              value="types"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Types d'intervention
-            </TabsTrigger>
-          </TabsList>
-        </div>
 
           <div className="space-y-8">
         {weekGroups.map((weekGroup) => (
@@ -567,12 +528,6 @@ const BlocOperatoirePage = () => {
               onSuccess={fetchBesoins}
             />
           )}
-        </TabsContent>
-
-        <TabsContent value="types">
-          <TypesInterventionManagement />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 };
