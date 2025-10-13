@@ -31,6 +31,7 @@ serve(async (req) => {
     const [
       { data: typesIntervention, error: tiError },
       { data: besoinsEffectifs, error: beError },
+      { data: blocsBesoins, error: bbError },
       { data: personnelBloc, error: pbError },
       { data: capacites, error: capError },
       { data: configurationsMultiFlux, error: cmfError }
@@ -39,12 +40,12 @@ serve(async (req) => {
         *,
         types_intervention_besoins_personnel(type_besoin, nombre_requis)
       `).eq('actif', true),
-      supabaseServiceRole.from('besoin_effectif').select(`
-        *,
-        bloc_operatoire_besoins!inner(heure_debut, heure_fin, specialite_id, nombre_secretaires_requis)
-      `)
+      supabaseServiceRole.from('besoin_effectif').select('*')
         .eq('date', single_day)
         .eq('type', 'bloc_operatoire')
+        .eq('actif', true),
+      supabaseServiceRole.from('bloc_operatoire_besoins').select('*')
+        .eq('date', single_day)
         .eq('actif', true),
       supabaseServiceRole.from('secretaires').select('*')
         .eq('personnel_bloc_operatoire', true).eq('actif', true),
@@ -58,20 +59,27 @@ serve(async (req) => {
 
     if (tiError) throw tiError;
     if (beError) throw beError;
+    if (bbError) throw bbError;
     if (pbError) throw pbError;
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    // Transformer les données pour avoir les operations avec type_intervention_id
-    const operations = besoinsEffectifs.map(be => ({
-      id: be.id,
-      bloc_operatoire_besoin_id: be.bloc_operatoire_besoin_id,
-      date: be.date,
-      type_intervention_id: be.type_intervention_id,
-      heure_debut: be.bloc_operatoire_besoins.heure_debut,
-      heure_fin: be.bloc_operatoire_besoins.heure_fin,
-      specialite_id: be.bloc_operatoire_besoins.specialite_id
-    }));
+    // Joindre manuellement besoins_effectifs avec bloc_operatoire_besoins
+    const blocsBesoinsMap = new Map(blocsBesoins.map(b => [b.id, b]));
+    const operations = besoinsEffectifs
+      .filter(be => be.bloc_operatoire_besoin_id && blocsBesoinsMap.has(be.bloc_operatoire_besoin_id))
+      .map(be => {
+        const blocInfo = blocsBesoinsMap.get(be.bloc_operatoire_besoin_id);
+        return {
+          id: be.id,
+          bloc_operatoire_besoin_id: be.bloc_operatoire_besoin_id,
+          date: be.date,
+          type_intervention_id: be.type_intervention_id,
+          heure_debut: blocInfo.heure_debut,
+          heure_fin: blocInfo.heure_fin,
+          specialite_id: blocInfo.specialite_id
+        };
+      });
 
     console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
 
