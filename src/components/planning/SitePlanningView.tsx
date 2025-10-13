@@ -25,6 +25,7 @@ interface SiteBesoinsData {
     secretaire_id: string | null;
     secretaire_nom: string;
     ordre: number;
+    type_assignation?: 'site' | 'administratif';
   }[];
 }
 
@@ -94,7 +95,59 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
               ? `${(p.secretaires as any).first_name} ${(p.secretaires as any).name}`
               : 'Non assigné',
             ordre: p.ordre,
+            type_assignation: 'site' as const,
           })),
+        });
+      }
+
+      // Récupérer aussi les assignations administratives
+      const { data: adminData, error: adminError } = await supabase
+        .from('planning_genere')
+        .select(`
+          id,
+          date,
+          periode,
+          secretaire_id,
+          secretaires!inner(first_name, name)
+        `)
+        .eq('type', 'administratif')
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .order('date')
+        .order('periode');
+
+      if (!adminError && adminData) {
+        // Grouper les assignations administratives par date/période
+        const adminByDatePeriod = new Map<string, any[]>();
+        
+        for (const admin of adminData) {
+          const key = `${admin.date}-${admin.periode}`;
+          if (!adminByDatePeriod.has(key)) {
+            adminByDatePeriod.set(key, []);
+          }
+          adminByDatePeriod.get(key)!.push({
+            secretaire_id: admin.secretaire_id,
+            secretaire_nom: admin.secretaires 
+              ? `${(admin.secretaires as any).first_name} ${(admin.secretaires as any).name}`
+              : 'Non assigné',
+            ordre: 999, // Mettre à la fin
+            type_assignation: 'administratif' as const,
+          });
+        }
+
+        // Ajouter une entrée "Administratif" pour chaque groupe
+        adminByDatePeriod.forEach((personnel, key) => {
+          const [date, periode] = key.split('-');
+          enrichedData.push({
+            id: `admin-${key}`,
+            date,
+            periode: periode as 'matin' | 'apres_midi',
+            site_id: 'administratif',
+            site_nom: 'Administratif',
+            nombre_secretaires_requis: personnel.length,
+            medecins_ids: [],
+            personnel,
+          });
         });
       }
 
@@ -231,13 +284,22 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               <div className="text-xs font-medium text-muted-foreground">Matin</div>
                               {matin.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1">
-                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                  <div className="flex items-center gap-1 justify-between">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                    </div>
+                                    {p.type_assignation === 'administratif' && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-300 flex-shrink-0">
+                                        Admin
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    Ordre: {p.ordre}
-                                  </div>
+                                  {p.type_assignation === 'site' && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Ordre: {p.ordre}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                               <Badge 
@@ -255,13 +317,22 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               <div className="text-xs font-medium text-muted-foreground">Après-midi</div>
                               {apresMidi.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1">
-                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                  <div className="flex items-center gap-1 justify-between">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                    </div>
+                                    {p.type_assignation === 'administratif' && (
+                                      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-300 flex-shrink-0">
+                                        Admin
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    Ordre: {p.ordre}
-                                  </div>
+                                  {p.type_assignation === 'site' && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Ordre: {p.ordre}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                               <Badge 
