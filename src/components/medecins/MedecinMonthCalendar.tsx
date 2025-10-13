@@ -381,13 +381,24 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-4 pb-4">
+            <div className="flex items-center gap-3">
+              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
+                Calendrier mensuel
+              </span>
+              <Separator orientation="vertical" className="h-6" />
+              <span className="text-muted-foreground font-normal">{medecinNom}</span>
+            </div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
-                  Calendrier mensuel
+                <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-base font-semibold capitalize min-w-[200px] text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  {monthName}
                 </span>
-                <Separator orientation="vertical" className="h-6" />
-                <span className="text-muted-foreground font-normal">{medecinNom}</span>
+                <Button variant="outline" size="sm" onClick={handleNextMonth} className="hover:bg-primary/10">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
               <Button
                 variant="default"
@@ -397,17 +408,6 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
               >
                 <CalendarPlus className="h-4 w-4" />
                 Ajouter plusieurs créneaux
-              </Button>
-            </div>
-            <div className="flex items-center justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-base font-semibold capitalize min-w-[200px] text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                {monthName}
-              </span>
-              <Button variant="outline" size="sm" onClick={handleNextMonth} className="hover:bg-primary/10">
-                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </DialogTitle>
