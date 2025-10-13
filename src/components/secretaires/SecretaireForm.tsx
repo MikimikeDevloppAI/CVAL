@@ -319,7 +319,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         <div className="space-y-4 pt-4 border-t">
           <h3 className="text-sm font-medium">Configuration horaire</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="horaireFlexible"
@@ -348,7 +348,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 control={form.control}
                 name="pourcentageTemps"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="max-w-xs">
                     <FormLabel>Pourcentage de temps (%)</FormLabel>
                     <FormControl>
                       <Input 
