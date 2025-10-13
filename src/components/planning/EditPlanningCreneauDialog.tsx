@@ -41,18 +41,18 @@ export function EditPlanningCreneauDialog({
   creneau,
   onSuccess,
 }: EditPlanningCreneauDialogProps) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [heureDebut, setHeureDebut] = useState('');
   const [heureFin, setHeureFin] = useState('');
   const [typeAssignation, setTypeAssignation] = useState<'site' | 'administratif'>('site');
+  const [siteId, setSiteId] = useState('');
   const [sites, setSites] = useState<any[]>([]);
-  const [siteId, setSiteId] = useState<string>('');
   const [secretaires, setSecretaires] = useState<any[]>([]);
   const [selectedSecretaires, setSelectedSecretaires] = useState<string[]>([]);
-  const [responsable1R, setResponsable1R] = useState<string>('');
-  const [responsable2F, setResponsable2F] = useState<string>('');
-  const [responsable3F, setResponsable3F] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const [responsable1R, setResponsable1R] = useState('');
+  const [responsable2F, setResponsable2F] = useState('');
+  const [responsable3F, setResponsable3F] = useState('');
 
   useEffect(() => {
     if (creneau) {

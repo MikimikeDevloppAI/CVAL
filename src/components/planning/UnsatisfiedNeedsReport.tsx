@@ -70,13 +70,13 @@ interface Suggestion {
 }
 
 export function UnsatisfiedNeedsReport({ assignments, weekDays, onRefresh, closureStatuses }: UnsatisfiedNeedsReportProps) {
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [needsAnalyzed, setNeedsAnalyzed] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedNeed, setSelectedNeed] = useState<UnsatisfiedNeed | null>(null);
   const [availableSecretaries, setAvailableSecretaries] = useState<SecretaryInfo[]>([]);
   const [selectedSecretaryId, setSelectedSecretaryId] = useState<string>('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [needsAnalyzed, setNeedsAnalyzed] = useState(false);
 
   // Mémoriser les besoins non satisfaits pour éviter les rechargements constants
   const unsatisfiedNeeds = useMemo(() => {
