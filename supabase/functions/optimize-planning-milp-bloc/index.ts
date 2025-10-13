@@ -30,6 +30,7 @@ serve(async (req) => {
     // 1. Fetch data
     const [
       { data: typesIntervention, error: tiError },
+      { data: besoinsEffectifs, error: beError },
       { data: blocsBesoins, error: bbError },
       { data: personnelBloc, error: pbError },
       { data: capacites, error: capError },
@@ -39,6 +40,10 @@ serve(async (req) => {
         *,
         types_intervention_besoins_personnel(type_besoin, nombre_requis)
       `).eq('actif', true),
+      supabaseServiceRole.from('besoin_effectif').select('*')
+        .eq('date', single_day)
+        .eq('type', 'bloc_operatoire')
+        .eq('actif', true),
       supabaseServiceRole.from('bloc_operatoire_besoins').select('*')
         .eq('date', single_day).eq('actif', true),
       supabaseServiceRole.from('secretaires').select('*')
@@ -52,14 +57,32 @@ serve(async (req) => {
     ]);
 
     if (tiError) throw tiError;
+    if (beError) throw beError;
     if (bbError) throw bbError;
     if (pbError) throw pbError;
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    console.log(`✓ ${blocsBesoins.length} operations, ${personnelBloc.length} personnel bloc`);
+    // Enrichir besoinsEffectifs avec les données de bloc_operatoire_besoins
+    const blocsBesoinsMap = new Map(blocsBesoins.map(b => [b.id, b]));
+    const operations = besoinsEffectifs
+      .filter(be => blocsBesoinsMap.has(be.bloc_operatoire_besoin_id))
+      .map(be => {
+        const blocInfo = blocsBesoinsMap.get(be.bloc_operatoire_besoin_id);
+        return {
+          id: be.id,
+          bloc_operatoire_besoin_id: be.bloc_operatoire_besoin_id,
+          date: be.date,
+          type_intervention_id: be.type_intervention_id,
+          heure_debut: blocInfo.heure_debut,
+          heure_fin: blocInfo.heure_fin,
+          medecin_id: blocInfo.medecin_id
+        };
+      });
 
-    if (blocsBesoins.length === 0) {
+    console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
+
+    if (operations.length === 0) {
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'No bloc operations for this day',
@@ -78,7 +101,7 @@ serve(async (req) => {
     });
 
     // 2. Assign rooms
-    const roomAssignments = assignRooms(blocsBesoins, typesInterventionMap, configurationsMultiFlux);
+    const roomAssignments = assignRooms(operations, typesInterventionMap, configurationsMultiFlux);
 
     // 3. Get or create planning_id
     const weekStart = getWeekStart(new Date(single_day));
@@ -112,7 +135,7 @@ serve(async (req) => {
 
     // 4. Build MILP for personnel
     const personnelAssignments = await buildAndSolveBlocPersonnelMILP(
-      blocsBesoins,
+      operations,
       personnelBloc,
       typesInterventionMap,
       capacitesMap
@@ -124,7 +147,7 @@ serve(async (req) => {
       personnelAssignments,
       planning_id,
       single_day,
-      blocsBesoins,
+      operations,
       typesInterventionMap,
       supabaseServiceRole
     );
@@ -352,17 +375,17 @@ async function saveBlocAssignments(
   personnelSolution: any,
   planning_id: string,
   single_day: string,
-  blocsBesoins: any[],
+  operations: any[],
   typesMap: Map<string, any>,
   supabase: any
 ) {
   // Save bloc operations with rooms
   const blocRows = roomAssignments.map(ra => {
-    const operation = blocsBesoins.find(b => b.id === ra.operation_id);
+    const operation = operations.find(b => b.id === ra.operation_id);
     return {
       planning_id,
       date: single_day,
-      bloc_operatoire_besoin_id: ra.operation_id,
+      bloc_operatoire_besoin_id: operation.bloc_operatoire_besoin_id,
       type_intervention_id: operation.type_intervention_id,
       salle_assignee: ra.salle,
       heure_debut: ra.heure_debut,
