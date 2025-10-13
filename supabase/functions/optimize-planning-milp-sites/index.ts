@@ -222,21 +222,43 @@ async function generateSitesBesoins(
     if (site.nom?.includes('Bloc opératoire') || site.id === SITE_ADMIN_ID) continue;
     
     for (const periode of ['matin', 'apres_midi']) {
-      // Find medecins working at this site/periode
-      const medecinsOnSite = besoins.filter(b => 
+      // Find medecins working EXACTLY at this periode (not toute_journee)
+      const medecinsExactPeriode = besoins.filter(b => 
         b.site_id === site.id &&
-        (b.demi_journee === periode || b.demi_journee === 'toute_journee')
+        b.demi_journee === periode
       );
       
-      if (medecinsOnSite.length === 0) continue;
+      // Find medecins working toute_journee (need to split in half)
+      const medecinsTouteJournee = besoins.filter(b => 
+        b.site_id === site.id &&
+        b.demi_journee === 'toute_journee'
+      );
+      
+      if (medecinsExactPeriode.length === 0 && medecinsTouteJournee.length === 0) continue;
 
       // Calculate total secretary requirement
-      const totalBesoin = medecinsOnSite.reduce((sum, b) => {
+      let totalBesoin = 0;
+      
+      // Exact period needs: full requirement
+      totalBesoin += medecinsExactPeriode.reduce((sum, b) => {
         const medecin = medecinMap.get(b.medecin_id);
         return sum + (Number(medecin?.besoin_secretaires) || 1.2);
       }, 0);
+      
+      // Toute journee needs: divide by 2 for each half-day
+      totalBesoin += medecinsTouteJournee.reduce((sum, b) => {
+        const medecin = medecinMap.get(b.medecin_id);
+        const besoinComplet = Number(medecin?.besoin_secretaires) || 1.2;
+        return sum + (besoinComplet / 2);
+      }, 0);
 
       const nombreRequis = Math.ceil(totalBesoin);
+      
+      // Combine all medecins for tracking
+      const allMedecins = [
+        ...medecinsExactPeriode.map(b => b.medecin_id),
+        ...medecinsTouteJournee.map(b => b.medecin_id)
+      ];
 
       // Create besoin entry
       besoinRows.push({
@@ -244,7 +266,7 @@ async function generateSitesBesoins(
         date: single_day,
         site_id: site.id,
         periode,
-        medecins_ids: medecinsOnSite.map(b => b.medecin_id),
+        medecins_ids: allMedecins,
         nombre_secretaires_requis: nombreRequis
       });
 
@@ -252,7 +274,7 @@ async function generateSitesBesoins(
       personnelRowsData.push({
         site_id: site.id,
         periode,
-        medecins: medecinsOnSite.map(b => b.medecin_id),
+        medecins: allMedecins,
         nombre_requis: nombreRequis
       });
     }
