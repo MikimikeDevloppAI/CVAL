@@ -146,7 +146,9 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
         // Ajouter une entrée "Administratif" pour chaque groupe
         adminByDatePeriod.forEach((personnel, key) => {
-          const [date, periode] = key.split('-');
+          const parts = key.split('-');
+          const periode = parts[parts.length - 1]; // dernier élément (matin ou apres_midi)
+          const date = parts.slice(0, -1).join('-'); // tous les éléments sauf le dernier, rejoints avec -
           enrichedData.push({
             id: `admin-${key}`,
             date,
