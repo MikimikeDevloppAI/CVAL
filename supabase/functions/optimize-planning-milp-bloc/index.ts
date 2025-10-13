@@ -312,11 +312,11 @@ function buildAndSolveBlocPersonnelMILP(
       
       for (let ordre = 1; ordre <= besoin.nombre_requis; ordre++) {
         for (const sec of eligible) {
-          const varName = `x_${sec.id}_${operation.id}_${besoin.type_besoin}_${ordre}`;
+          const varName = `x_${sec.id}_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}_${ordre}`;
           
           model.variables[varName] = {
             score: score,
-            [`need_${operation.id}_${besoin.type_besoin}`]: 1,
+            [`need_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}`]: 1,
             [`capacity_${sec.id}_${operation.demi_journee}`]: 1
           };
           model.ints[varName] = 1;
@@ -324,7 +324,7 @@ function buildAndSolveBlocPersonnelMILP(
         }
       }
       
-      model.constraints[`need_${operation.id}_${besoin.type_besoin}`] = {
+      model.constraints[`need_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}`] = {
         equal: besoin.nombre_requis
       };
     }
@@ -384,7 +384,8 @@ function getEligibleSecretaries(
 
 function isAvailableForOperation(secId: string, demi_journee: string, capacitesMap: Map<string, any>): boolean {
   const key = `${secId}_${demi_journee}`;
-  return capacitesMap.has(key);
+  const keyTouteJournee = `${secId}_toute_journee`;
+  return capacitesMap.has(key) || capacitesMap.has(keyTouteJournee);
 }
 
 async function saveBlocAssignments(
@@ -428,12 +429,17 @@ async function saveBlocAssignments(
       const parts = varName.split('_');
       const secId = parts[1];
       const opId = parts[2];
-      const typeBesoin = parts[3];
-      const ordre = parseInt(parts[4]);
+      const periode = parts[3];
+      const typeBesoin = parts[4];
+      const ordre = parseInt(parts[5]);
       
-      const operation = operations.find((o: any) => o.id === opId);
+      const operation = operations.find((o: any) => o.id === opId && o.demi_journee === periode);
+      if (!operation) continue;
+      
+      // Match by both type_intervention_id AND periode
       const blocId = savedBlocs.find((b: any) => 
-        b.type_intervention_id === operation?.type_intervention_id
+        b.type_intervention_id === operation.type_intervention_id &&
+        b.periode === operation.demi_journee
       )?.id;
       
       if (blocId) {
