@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { TypeInterventionBesoinsForm } from './TypeInterventionBesoinsForm';
@@ -16,6 +17,7 @@ interface TypeIntervention {
   nom: string;
   code: string;
   actif: boolean;
+  salle_preferentielle?: string | null;
   types_intervention_besoins_personnel?: Array<{
     type_besoin: string;
     nombre_requis: number;
@@ -28,7 +30,7 @@ export function TypesInterventionManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isBesoinsOpen, setIsBesoinsOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<TypeIntervention | null>(null);
-  const [formData, setFormData] = useState({ nom: '', code: '' });
+  const [formData, setFormData] = useState({ nom: '', code: '', salle_preferentielle: '' });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState<string | null>(null);
   const { toast } = useToast();
@@ -80,7 +82,11 @@ export function TypesInterventionManagement() {
         // Modification
         const { error } = await supabase
           .from('types_intervention')
-          .update({ nom: formData.nom, code: formData.code })
+          .update({ 
+            nom: formData.nom, 
+            code: formData.code,
+            salle_preferentielle: formData.salle_preferentielle || null
+          })
           .eq('id', selectedType.id);
 
         if (error) throw error;
@@ -89,7 +95,12 @@ export function TypesInterventionManagement() {
         // Création
         const { error } = await supabase
           .from('types_intervention')
-          .insert({ nom: formData.nom, code: formData.code, actif: true });
+          .insert({ 
+            nom: formData.nom, 
+            code: formData.code, 
+            salle_preferentielle: formData.salle_preferentielle || null,
+            actif: true 
+          });
 
         if (error) throw error;
         toast({ title: 'Succès', description: 'Type d\'intervention créé' });
@@ -97,7 +108,7 @@ export function TypesInterventionManagement() {
 
       setIsFormOpen(false);
       setSelectedType(null);
-      setFormData({ nom: '', code: '' });
+      setFormData({ nom: '', code: '', salle_preferentielle: '' });
       fetchTypes();
     } catch (error) {
       console.error('Erreur:', error);
@@ -141,13 +152,17 @@ export function TypesInterventionManagement() {
 
   const openEditDialog = (type: TypeIntervention) => {
     setSelectedType(type);
-    setFormData({ nom: type.nom, code: type.code });
+    setFormData({ 
+      nom: type.nom, 
+      code: type.code, 
+      salle_preferentielle: type.salle_preferentielle || '' 
+    });
     setIsFormOpen(true);
   };
 
   const openAddDialog = () => {
     setSelectedType(null);
-    setFormData({ nom: '', code: '' });
+    setFormData({ nom: '', code: '', salle_preferentielle: '' });
     setIsFormOpen(true);
   };
 
@@ -178,6 +193,17 @@ export function TypesInterventionManagement() {
                   <Badge variant="outline" className="text-xs">
                     {type.code}
                   </Badge>
+                  {type.salle_preferentielle && (
+                    <Badge 
+                      className={`text-xs ${
+                        type.salle_preferentielle === 'rouge' ? 'bg-red-100 text-red-800 border-red-300' :
+                        type.salle_preferentielle === 'verte' ? 'bg-green-100 text-green-800 border-green-300' :
+                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                      }`}
+                    >
+                      Salle {type.salle_preferentielle}
+                    </Badge>
+                  )}
                 </div>
                 
                 {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
@@ -260,6 +286,23 @@ export function TypesInterventionManagement() {
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                 placeholder="Ex: CARDIO"
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Salle préférentielle (optionnel)</label>
+              <Select
+                value={formData.salle_preferentielle}
+                onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Sélectionner une salle" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="">Aucune</SelectItem>
+                  <SelectItem value="rouge">Salle Rouge</SelectItem>
+                  <SelectItem value="verte">Salle Verte</SelectItem>
+                  <SelectItem value="jaune">Salle Jaune</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="flex justify-end gap-2">
