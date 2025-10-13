@@ -305,71 +305,6 @@ const BlocOperatoirePage = () => {
         )}
       </div>
 
-      {/* Filtres */}
-      <div className="bg-card border rounded-lg p-4 space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-medium text-sm">Filtres</h3>
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="ml-auto h-7 px-2 text-xs"
-            >
-              <X className="h-3 w-3 mr-1" />
-              Réinitialiser
-            </Button>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Médecin</label>
-            <Select value={selectedMedecin} onValueChange={setSelectedMedecin}>
-              <SelectTrigger>
-                <SelectValue placeholder="Tous les médecins" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les médecins</SelectItem>
-                {medecins.map((medecin) => (
-                  <SelectItem key={medecin.id} value={medecin.id}>
-                    {medecin.first_name} {medecin.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Type d'intervention</label>
-            <Select value={selectedTypeIntervention} onValueChange={setSelectedTypeIntervention}>
-              <SelectTrigger>
-                <SelectValue placeholder="Tous les types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                {typesIntervention.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Date</label>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full"
-            />
-          </div>
-        </div>
-      </div>
-
       <Tabs defaultValue="planning" className="w-full">
         <div className="flex justify-center mb-6">
           <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
@@ -391,8 +326,90 @@ const BlocOperatoirePage = () => {
         </div>
 
         <TabsContent value="planning" className="space-y-6 mt-0">
+          {/* Filtres */}
+          <div className="bg-card border rounded-lg p-4 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-medium text-sm">Filtres</h3>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="ml-auto h-7 px-2 text-xs"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Réinitialiser
+                </Button>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Médecin</label>
+                <Select value={selectedMedecin} onValueChange={setSelectedMedecin}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tous les médecins" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les médecins</SelectItem>
+                    {medecins.map((medecin) => (
+                      <SelectItem key={medecin.id} value={medecin.id}>
+                        {medecin.first_name} {medecin.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <div className="space-y-8">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Type d'intervention</label>
+                <Select value={selectedTypeIntervention} onValueChange={setSelectedTypeIntervention}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tous les types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les types</SelectItem>
+                    {typesIntervention.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Date</label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        <div className="flex justify-center mb-6">
+          <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
+            <TabsTrigger 
+              value="planning" 
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
+            >
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Planning
+            </TabsTrigger>
+            <TabsTrigger 
+              value="types"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Types d'intervention
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+          <div className="space-y-8">
         {weekGroups.map((weekGroup) => (
           <div key={format(weekGroup.weekStart, 'yyyy-MM-dd')} className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground border-b pb-2">
@@ -529,9 +546,9 @@ const BlocOperatoirePage = () => {
                 </div>
               ))}
             </div>
+            </div>
+          ))}
           </div>
-        ))}
-      </div>
 
           {weekGroups.length === 0 && (
             <div className="text-center py-12">
