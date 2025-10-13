@@ -292,7 +292,12 @@ async function generateSitesBesoins(
     .from('planning_genere_site_personnel')
     .insert(personnelRows)
     .select(`
-      *,
+      id,
+      planning_genere_site_besoin_id,
+      secretaire_id,
+      ordre,
+      created_at,
+      updated_at,
       planning_genere_site_besoin!inner(site_id, periode)
     `);
 
