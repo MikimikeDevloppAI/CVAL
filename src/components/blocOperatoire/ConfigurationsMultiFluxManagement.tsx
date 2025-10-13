@@ -18,6 +18,7 @@ interface TypeIntervention {
 
 interface ConfigurationIntervention {
   type_intervention_id: string;
+  type_personnel: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil' | '';
   salle: 'rouge' | 'verte' | 'jaune';
   ordre: number;
 }
@@ -45,6 +46,14 @@ const SALLES = [
   { value: 'jaune', label: 'Salle Jaune' },
 ];
 
+const TYPES_PERSONNEL = [
+  { value: 'anesthesiste', label: 'Anesthésiste' },
+  { value: 'instrumentiste', label: 'Instrumentiste' },
+  { value: 'instrumentiste_aide_salle', label: 'Instrumentiste / Aide de salle' },
+  { value: 'aide_salle', label: 'Aide de salle' },
+  { value: 'accueil', label: 'Accueil' },
+];
+
 export function ConfigurationsMultiFluxManagement() {
   const [configurations, setConfigurations] = useState<Configuration[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
@@ -57,8 +66,8 @@ export function ConfigurationsMultiFluxManagement() {
     type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
   });
   const [interventions, setInterventions] = useState<ConfigurationIntervention[]>([
-    { type_intervention_id: '', salle: 'rouge' as const, ordre: 1 },
-    { type_intervention_id: '', salle: 'verte' as const, ordre: 2 },
+    { type_intervention_id: '', type_personnel: '', salle: 'rouge' as const, ordre: 1 },
+    { type_intervention_id: '', type_personnel: '', salle: 'verte' as const, ordre: 2 },
   ]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [configToDelete, setConfigToDelete] = useState<string | null>(null);
@@ -120,8 +129,8 @@ export function ConfigurationsMultiFluxManagement() {
   const resetForm = () => {
     setFormData({ nom: '', code: '', type_flux: 'double_flux' });
     setInterventions([
-      { type_intervention_id: '', salle: 'rouge', ordre: 1 },
-      { type_intervention_id: '', salle: 'verte', ordre: 2 },
+      { type_intervention_id: '', type_personnel: '', salle: 'rouge', ordre: 1 },
+      { type_intervention_id: '', type_personnel: '', salle: 'verte', ordre: 2 },
     ]);
   };
 
@@ -132,9 +141,9 @@ export function ConfigurationsMultiFluxManagement() {
     
     if (typeFlux === 'triple_flux') {
       setInterventions([
-        { type_intervention_id: '', salle: 'rouge', ordre: 1 },
-        { type_intervention_id: '', salle: 'verte', ordre: 2 },
-        { type_intervention_id: '', salle: 'jaune', ordre: 3 },
+        { type_intervention_id: '', type_personnel: '', salle: 'rouge', ordre: 1 },
+        { type_intervention_id: '', type_personnel: '', salle: 'verte', ordre: 2 },
+        { type_intervention_id: '', type_personnel: '', salle: 'jaune', ordre: 3 },
       ]);
     }
     
@@ -489,17 +498,35 @@ export function ConfigurationsMultiFluxManagement() {
             <div className="space-y-3">
               <label className="text-sm font-medium">Attribution des salles</label>
               {interventions.map((intervention, index) => (
-                <div key={index} className="grid grid-cols-2 gap-3 p-3 border rounded-lg">
+                <div key={index} className="grid grid-cols-3 gap-3 p-3 border rounded-lg bg-card">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Type de personnel</label>
+                    <Select
+                      value={intervention.type_personnel}
+                      onValueChange={(value) => updateIntervention(index, 'type_personnel', value)}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {TYPES_PERSONNEL.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Type d'intervention</label>
                     <Select
                       value={intervention.type_intervention_id}
                       onValueChange={(value) => updateIntervention(index, 'type_intervention_id', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Sélectionner" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-popover z-50">
                         {typesIntervention.map((type) => (
                           <SelectItem key={type.id} value={type.id}>
                             {type.nom}
@@ -514,10 +541,10 @@ export function ConfigurationsMultiFluxManagement() {
                       value={intervention.salle}
                       onValueChange={(value) => updateIntervention(index, 'salle', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-popover z-50">
                         {SALLES.map((salle) => (
                           <SelectItem key={salle.value} value={salle.value}>
                             {salle.label}
