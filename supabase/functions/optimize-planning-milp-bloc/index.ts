@@ -64,22 +64,18 @@ serve(async (req) => {
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    // Joindre manuellement besoins_effectifs avec bloc_operatoire_besoins
-    const blocsBesoinsMap = new Map(blocsBesoins.map(b => [b.id, b]));
-    const operations = besoinsEffectifs
-      .filter(be => be.bloc_operatoire_besoin_id && blocsBesoinsMap.has(be.bloc_operatoire_besoin_id))
-      .map(be => {
-        const blocInfo = blocsBesoinsMap.get(be.bloc_operatoire_besoin_id);
-        return {
-          id: be.id,
-          bloc_operatoire_besoin_id: be.bloc_operatoire_besoin_id,
-          date: be.date,
-          type_intervention_id: be.type_intervention_id,
-          heure_debut: blocInfo.heure_debut,
-          heure_fin: blocInfo.heure_fin,
-          specialite_id: blocInfo.specialite_id
-        };
-      });
+    // Joindre manuellement: filtrer les blocs par les besoins effectifs (date + type_intervention)
+    const allowedKeys = new Set((besoinsEffectifs || []).map((be: any) => `${be.date}_${be.type_intervention_id}`));
+    const operations = (blocsBesoins || [])
+      .filter((bb: any) => allowedKeys.has(`${bb.date}_${bb.type_intervention_id}`))
+      .map((bb: any) => ({
+        id: bb.id,
+        date: bb.date,
+        type_intervention_id: bb.type_intervention_id,
+        heure_debut: bb.heure_debut,
+        heure_fin: bb.heure_fin,
+        specialite_id: bb.specialite_id
+      }));
 
     console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
 
@@ -387,7 +383,7 @@ async function saveBlocAssignments(
     return {
       planning_id,
       date: single_day,
-      bloc_operatoire_besoin_id: operation.bloc_operatoire_besoin_id,
+      bloc_operatoire_besoin_id: ra.operation_id,
       type_intervention_id: operation.type_intervention_id,
       salle_assignee: ra.salle,
       heure_debut: ra.heure_debut,
