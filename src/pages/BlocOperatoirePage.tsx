@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Sunrise, Sun, Settings } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -297,7 +297,6 @@ const BlocOperatoirePage = () => {
                     {/* Matin */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5">
-                        <Sunrise className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground uppercase">Matin</span>
                       </div>
                       {dayGroup.matin.length > 0 ? (
@@ -350,7 +349,6 @@ const BlocOperatoirePage = () => {
                     {/* Après-midi */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5">
-                        <Sun className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground uppercase">Après-midi</span>
                       </div>
                       {dayGroup.apres_midi.length > 0 ? (
