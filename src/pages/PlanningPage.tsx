@@ -1311,42 +1311,47 @@ export default function PlanningPage() {
             </div>
           )}
 
-          {optimizationResult && (
-              <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex-1 flex justify-start">
-                  <div className="inline-flex rounded-lg border p-1 bg-muted">
-                    <Button
-                      variant={planningView === 'site' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setPlanningView('site')}
-                      className="gap-2"
-                    >
-                      <Building2 className="h-4 w-4" />
-                      Par site
-                    </Button>
-                    <Button
-                      variant={planningView === 'secretary' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setPlanningView('secretary')}
-                      className="gap-2"
-                    >
-                      <Users className="h-4 w-4" />
-                      Par secrétaire
-                    </Button>
-                    <Button
-                      variant={planningView === 'bloc' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setPlanningView('bloc')}
-                      className="gap-2"
-                    >
-                      <Scissors className="h-4 w-4" />
-                      Bloc opératoire
-                    </Button>
-                  </div>
-                </div>
-              </div>
+          {/* View Selector */}
+          <div className="flex justify-center mb-4">
+            <div className="inline-flex rounded-lg border p-1 bg-muted">
+              <Button
+                variant={planningView === 'site' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPlanningView('site')}
+                className="gap-2"
+              >
+                <Building2 className="h-4 w-4" />
+                Par site
+              </Button>
+              <Button
+                variant={planningView === 'secretary' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPlanningView('secretary')}
+                className="gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Par secrétaire
+              </Button>
+              <Button
+                variant={planningView === 'bloc' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setPlanningView('bloc')}
+                className="gap-2"
+              >
+                <Scissors className="h-4 w-4" />
+                Bloc opératoire
+              </Button>
+            </div>
+          </div>
 
+          {/* Planning Views */}
+          {planningView === 'bloc' ? (
+            <BlocOperatoirePlanningView
+              startDate={currentWeekStart}
+              endDate={weekEnd}
+            />
+          ) : optimizationResult ? (
+            <div className="space-y-4">
               {planningView === 'site' ? (
                 <MILPOptimizationView
                   assignments={optimizationResult.assignments}
@@ -1354,19 +1359,20 @@ export default function PlanningPage() {
                   specialites={specialites}
                   onRefresh={fetchPlanningGenere}
                 />
-              ) : planningView === 'secretary' ? (
+              ) : (
                 <SecretaryPlanningView
                   assignments={optimizationResult.assignments}
                   weekDays={weekDays}
                   onRefresh={fetchPlanningGenere}
                 />
-              ) : (
-                <BlocOperatoirePlanningView
-                  startDate={currentWeekStart}
-                  endDate={weekEnd}
-                />
               )}
             </div>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center text-muted-foreground">
+                Lancez une optimisation pour voir le planning
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
