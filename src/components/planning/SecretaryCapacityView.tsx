@@ -19,6 +19,10 @@ interface CapaciteEffective {
     first_name: string;
     name: string;
     sites_assignes: string[];
+    medecin_assigne?: {
+      first_name: string;
+      name: string;
+    };
   };
   backup?: {
     first_name: string;
@@ -40,6 +44,10 @@ interface SecretaryGroup {
   isBackup: boolean;
   capacites: CapaciteEffective[];
   sites_assignes: string[];
+  medecin_assigne?: {
+    first_name: string;
+    name: string;
+  };
 }
 
 interface HoraireBase {
@@ -125,6 +133,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
         isBackup: !!cap.backup_id,
         capacites: [],
         sites_assignes: ('sites_assignes' in person) ? (person.sites_assignes || []) : [],
+        medecin_assigne: ('medecin_assigne' in person) ? person.medecin_assigne : undefined,
       });
     }
 
@@ -227,10 +236,17 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                     return (
                       <tr key={secretary.id} className="border-b hover:bg-muted/30">
                         <td className="p-3 font-medium">
-                          <div className="flex items-center gap-2">
-                            {secretary.name}
-                            {secretary.isBackup && (
-                              <Badge variant="secondary" className="text-xs">Backup</Badge>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              {secretary.name}
+                              {secretary.isBackup && (
+                                <Badge variant="secondary" className="text-xs">Backup</Badge>
+                              )}
+                            </div>
+                            {secretary.medecin_assigne && (
+                              <span className="text-xs text-muted-foreground">
+                                Assigné à: Dr {secretary.medecin_assigne.first_name} {secretary.medecin_assigne.name}
+                              </span>
                             )}
                           </div>
                         </td>

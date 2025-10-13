@@ -517,7 +517,7 @@ export default function PlanningPage() {
         .from('capacite_effective')
         .select(`
           *,
-          secretaire:secretaires(first_name, name, sites_assignes),
+          secretaire:secretaires(first_name, name, sites_assignes, medecin_assigne:medecins(first_name, name)),
           backup:backup(first_name, name, specialites)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
