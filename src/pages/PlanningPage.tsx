@@ -20,6 +20,7 @@ import { SitePlanningView } from '@/components/planning/SitePlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
+import { OptimizationProgressDialog } from '@/components/planning/OptimizationProgressDialog';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -96,6 +97,20 @@ export default function PlanningPage() {
   const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
   const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
   const [selectDatesDialogOpen, setSelectDatesDialogOpen] = useState(false);
+  const [showProgressDialog, setShowProgressDialog] = useState(false);
+  const [optimizationProgress, setOptimizationProgress] = useState({
+    currentDay: 0,
+    totalDays: 0,
+    currentPhase: 'bloc' as 'bloc' | 'sites' | 'complete',
+    currentDate: '',
+    completedDays: [] as Array<{
+      date: string;
+      blocAssignments: number;
+      sitesAssignments: number;
+    }>,
+    optimizeBloc: true,
+    optimizeSites: true,
+  });
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -630,10 +645,17 @@ export default function PlanningPage() {
         ? selectedDates
         : weekDays.map(d => format(d, 'yyyy-MM-dd'));
 
-      toast({
-        title: "Optimisation MILP en cours",
-        description: `Traitement de ${daysToOptimize.length} jour${daysToOptimize.length > 1 ? 's' : ''}...`,
+      // Initialiser et afficher la modal de progression
+      setOptimizationProgress({
+        currentDay: 0,
+        totalDays: daysToOptimize.length,
+        currentPhase: optimizeBloc ? 'bloc' : 'sites',
+        currentDate: daysToOptimize[0],
+        completedDays: [],
+        optimizeBloc,
+        optimizeSites,
       });
+      setShowProgressDialog(true);
 
       let totalAssignments = 0;
       let savedPlanningId: string | null = null;
@@ -643,6 +665,14 @@ export default function PlanningPage() {
         const day = daysToOptimize[i];
         
         console.log(`Optimizing day ${i + 1}/${daysToOptimize.length}: ${day}`);
+        
+        // Mettre à jour la progression
+        setOptimizationProgress(prev => ({
+          ...prev,
+          currentDay: i + 1,
+          currentDate: day,
+          currentPhase: optimizeBloc ? 'bloc' : 'sites',
+        }));
         
         const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
           body: {
@@ -662,27 +692,62 @@ export default function PlanningPage() {
         }
 
         // Compter les assignations retournées par l'orchestrateur
-        let dayAssignments = 0;
+        let blocAssignments = 0;
+        let sitesAssignments = 0;
+        
         if (optimizeBloc && data?.bloc_results) {
           const br = data.bloc_results as any;
-          dayAssignments += (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
+          blocAssignments = (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
         }
-        if (optimizeSites && data?.sites_results) {
-          const sr = data.sites_results as any;
-          dayAssignments += (sr.sites_assigned ?? 0) + (sr.remaining_bloc_filled ?? 0);
+        
+        // Si on optimise les sites, mettre à jour la phase
+        if (optimizeSites) {
+          setOptimizationProgress(prev => ({
+            ...prev,
+            currentPhase: 'sites',
+          }));
+          
+          if (data?.sites_results) {
+            const sr = data.sites_results as any;
+            sitesAssignments = (sr.sites_assigned ?? 0) + (sr.remaining_bloc_filled ?? 0);
+          }
         }
-        totalAssignments += dayAssignments;
+        
+        totalAssignments += blocAssignments + sitesAssignments;
+        
+        // Ajouter le jour complété
+        setOptimizationProgress(prev => ({
+          ...prev,
+          completedDays: [...prev.completedDays, {
+            date: day,
+            blocAssignments,
+            sitesAssignments,
+          }],
+        }));
       }
 
+      // Marquer comme terminé
+      setOptimizationProgress(prev => ({
+        ...prev,
+        currentPhase: 'complete',
+      }));
+
+      // Attendre un peu pour que l'utilisateur voie le message de complétion
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Fermer la modal de progression
+      setShowProgressDialog(false);
+
       toast({
-        title: "Optimisation MILP terminée",
-        description: `${totalAssignments} assignations créées avec succès`,
+        title: "✅ Optimisation MILP terminée",
+        description: `${totalAssignments} assignations créées avec succès sur ${daysToOptimize.length} jour${daysToOptimize.length > 1 ? 's' : ''}`,
       });
 
       // Rafraîchir le planning généré
       await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
     } catch (error: any) {
       console.error('MILP optimization error:', error);
+      setShowProgressDialog(false);
       toast({
         title: "Erreur lors de l'optimisation MILP",
         description: error.message,
@@ -1285,6 +1350,17 @@ export default function PlanningPage() {
         weekDays={weekDays}
         onOptimize={executeOptimizeMILP}
         isOptimizing={isOptimizingMILP}
+      />
+
+      <OptimizationProgressDialog
+        open={showProgressDialog}
+        currentDay={optimizationProgress.currentDay}
+        totalDays={optimizationProgress.totalDays}
+        currentPhase={optimizationProgress.currentPhase}
+        currentDate={optimizationProgress.currentDate}
+        completedDays={optimizationProgress.completedDays}
+        optimizeBloc={optimizationProgress.optimizeBloc}
+        optimizeSites={optimizationProgress.optimizeSites}
       />
     </div>
   );
