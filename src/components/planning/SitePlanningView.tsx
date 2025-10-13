@@ -62,6 +62,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
       if (besoinsError) throw besoinsError;
 
+      console.log('besoinsData:', besoinsData);
+
       // Pour chaque besoin, récupérer le personnel assigné
       const enrichedData: SiteBesoinsData[] = [];
       
@@ -100,6 +102,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         });
       }
 
+      console.log('enrichedData after sites:', enrichedData);
+
       // Récupérer aussi les assignations administratives
       const { data: adminData, error: adminError } = await supabase
         .from('planning_genere')
@@ -108,15 +112,18 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           date,
           periode,
           secretaire_id,
-          secretaires!inner(first_name, name)
+          secretaires(first_name, name)
         `)
         .eq('type', 'administratif')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
         .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .not('secretaire_id', 'is', null)
         .order('date')
         .order('periode');
 
-      if (!adminError && adminData) {
+      console.log('adminData:', adminData, 'adminError:', adminError);
+
+      if (!adminError && adminData && adminData.length > 0) {
         // Grouper les assignations administratives par date/période
         const adminByDatePeriod = new Map<string, any[]>();
         
@@ -130,10 +137,12 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             secretaire_nom: admin.secretaires 
               ? `${(admin.secretaires as any).first_name} ${(admin.secretaires as any).name}`
               : 'Non assigné',
-            ordre: 999, // Mettre à la fin
+            ordre: 999,
             type_assignation: 'administratif' as const,
           });
         }
+
+        console.log('adminByDatePeriod:', adminByDatePeriod);
 
         // Ajouter une entrée "Administratif" pour chaque groupe
         adminByDatePeriod.forEach((personnel, key) => {
@@ -151,6 +160,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         });
       }
 
+      console.log('enrichedData final:', enrichedData);
       setSiteBesoins(enrichedData);
     } catch (error) {
       console.error('Error fetching site planning:', error);
