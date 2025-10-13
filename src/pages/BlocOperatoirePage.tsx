@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Settings } from 'lucide-react';
+import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Settings, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
 import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfWeek, addDays, isSameWeek } from 'date-fns';
+import { format, startOfWeek, addDays, isSameWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
@@ -30,15 +31,33 @@ interface BlocOperatoireBesoin {
   };
 }
 
+interface Medecin {
+  id: string;
+  name: string;
+  first_name: string;
+}
+
+interface TypeIntervention {
+  id: string;
+  nom: string;
+}
+
 const BlocOperatoirePage = () => {
   const [besoins, setBesoins] = useState<BlocOperatoireBesoin[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [medecins, setMedecins] = useState<Medecin[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [selectedBesoin, setSelectedBesoin] = useState<BlocOperatoireBesoin | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [besoinToDelete, setBesoinToDelete] = useState<{ id: string; medecinName: string } | null>(null);
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
+  
+  // Filtres
+  const [selectedMedecin, setSelectedMedecin] = useState<string>('all');
+  const [selectedTypeIntervention, setSelectedTypeIntervention] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -89,23 +108,71 @@ const BlocOperatoirePage = () => {
     }
   };
 
+  const fetchMedecins = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('medecins')
+        .select('id, name, first_name')
+        .eq('actif', true)
+        .order('first_name');
+      
+      if (error) throw error;
+      setMedecins(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des médecins:', error);
+    }
+  };
+
+  const fetchTypesIntervention = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('types_intervention')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom');
+      
+      if (error) throw error;
+      setTypesIntervention(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des types d\'intervention:', error);
+    }
+  };
+
   useEffect(() => {
     fetchBesoins();
+    fetchMedecins();
+    fetchTypesIntervention();
   }, []);
 
   const filteredBesoins = besoins.filter(besoin => {
     const besoinDate = new Date(besoin.date);
-    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // 1 = Lundi
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     
     // Ne garder que les besoins futurs (>= semaine en cours)
     const isFuture = besoinDate >= currentWeekStart;
     
-    const medecinName = `${besoin.medecins?.first_name || ''} ${besoin.medecins?.name || ''}`.toLowerCase();
-    const matchesSearch = medecinName.includes(searchTerm.toLowerCase()) ||
-           format(besoinDate, 'dd/MM/yyyy', { locale: fr }).includes(searchTerm);
+    // Filtre par médecin
+    const matchesMedecin = selectedMedecin === 'all' || besoin.medecin_id === selectedMedecin;
     
-    return isFuture && matchesSearch;
+    // Filtre par type d'intervention
+    const matchesTypeIntervention = selectedTypeIntervention === 'all' || 
+      besoin.type_intervention_id === selectedTypeIntervention;
+    
+    // Filtre par date
+    const matchesDate = !selectedDate || besoin.date === selectedDate;
+    
+    return isFuture && matchesMedecin && matchesTypeIntervention && matchesDate;
   });
+
+  const hasActiveFilters = selectedMedecin !== 'all' || 
+    selectedTypeIntervention !== 'all' || 
+    selectedDate !== '';
+
+  const clearFilters = () => {
+    setSelectedMedecin('all');
+    setSelectedTypeIntervention('all');
+    setSelectedDate('');
+  };
 
   // Grouper les besoins par date pour affichage par jour
   const besoinsByDate = filteredBesoins.reduce((acc, besoin) => {
@@ -207,62 +274,123 @@ const BlocOperatoirePage = () => {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
+        {canManage && (
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => {
+                setSelectedBesoin(null);
+                setPreselectedDate(null);
+              }}>
+                <Plus className="h-4 w-4" />
+                Ajouter un besoin
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
+                </DialogTitle>
+              </DialogHeader>
+              <BlocOperatoireForm 
+                besoin={selectedBesoin} 
+                preselectedDate={preselectedDate}
+                onSubmit={() => {
+                  handleDialogClose();
+                  fetchBesoins();
+                }}
+                onCancel={handleDialogClose}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {/* Filtres */}
+      <div className="bg-card border rounded-lg p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-medium text-sm">Filtres</h3>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="ml-auto h-7 px-2 text-xs"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Réinitialiser
+            </Button>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Médecin</label>
+            <Select value={selectedMedecin} onValueChange={setSelectedMedecin}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les médecins" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les médecins</SelectItem>
+                {medecins.map((medecin) => (
+                  <SelectItem key={medecin.id} value={medecin.id}>
+                    {medecin.first_name} {medecin.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Type d'intervention</label>
+            <Select value={selectedTypeIntervention} onValueChange={setSelectedTypeIntervention}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                {typesIntervention.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Date</label>
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full"
+            />
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="planning" className="w-full">
-        <TabsList>
-          <TabsTrigger value="planning">Planning</TabsTrigger>
-          <TabsTrigger value="types">
-            <Settings className="h-4 w-4 mr-2" />
-            Types d'intervention
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex justify-center mb-6">
+          <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
+            <TabsTrigger 
+              value="planning" 
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
+            >
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Planning
+            </TabsTrigger>
+            <TabsTrigger 
+              value="types"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Types d'intervention
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="planning" className="space-y-6">
-          {canManage && (
-            <div className="flex justify-end">
-              <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2" onClick={() => {
-                    setSelectedBesoin(null);
-                    setPreselectedDate(null);
-                  }}>
-                    <Plus className="h-4 w-4" />
-                    Ajouter un besoin
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <BlocOperatoireForm 
-                    besoin={selectedBesoin} 
-                    preselectedDate={preselectedDate}
-                    onSubmit={() => {
-                      handleDialogClose();
-                      fetchBesoins();
-                    }}
-                    onCancel={handleDialogClose}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-            <div className="relative flex-1 max-w-full md:max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher par médecin ou date..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
+        <TabsContent value="planning" className="space-y-6 mt-0">
 
       <div className="space-y-8">
         {weekGroups.map((weekGroup) => (
@@ -408,7 +536,7 @@ const BlocOperatoirePage = () => {
           {weekGroups.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
-                {searchTerm ? 'Aucun besoin trouvé pour cette recherche' : 'Aucun besoin enregistré'}
+                {hasActiveFilters ? 'Aucun besoin trouvé avec ces filtres' : 'Aucun besoin enregistré'}
               </p>
             </div>
           )}
