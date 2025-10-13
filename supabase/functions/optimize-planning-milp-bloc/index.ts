@@ -422,54 +422,84 @@ async function saveBlocAssignments(
   if (blocError) throw blocError;
   console.log(`  ✅ ${savedBlocs.length} blocs saved`);
   
-  // Save personnel assignments
-  const personnelRows = [];
-  for (const [varName, value] of Object.entries(personnelSolution)) {
-    if (varName.startsWith('x_') && (value as number) > 0.5) {
-      const parts = varName.split('_');
-      const secId = parts[1];
-      const opId = parts[2];
-      const periode = parts[3];
-      const ordre = parseInt(parts[parts.length - 1]);
-      // Le type_besoin est tout ce qui reste entre periode et ordre
-      const typeBesoin = parts.slice(4, parts.length - 1).join('_');
-      
-      const operation = operations.find((o: any) => o.id === opId && o.demi_journee === periode);
-      if (!operation) continue;
-      
-      // Match by both type_intervention_id AND periode
-      const blocId = savedBlocs.find((b: any) => 
-        b.type_intervention_id === operation.type_intervention_id &&
-        b.periode === operation.demi_journee
-      )?.id;
-      
-      if (blocId) {
-        personnelRows.push({
-          planning_genere_bloc_operatoire_id: blocId,
-          type_besoin: typeBesoin,
-          secretaire_id: secId,
+  // Create ALL personnel need rows first (with secretaire_id = NULL)
+  const allPersonnelRows = [];
+  for (const savedBloc of savedBlocs) {
+    const operation = operations.find((o: any) => 
+      o.type_intervention_id === savedBloc.type_intervention_id &&
+      o.demi_journee === savedBloc.periode
+    );
+    
+    if (!operation) continue;
+    
+    const typeIntervention = typesMap.get(savedBloc.type_intervention_id);
+    const besoins = typeIntervention?.types_intervention_besoins_personnel || [];
+    
+    for (const besoin of besoins) {
+      for (let ordre = 1; ordre <= besoin.nombre_requis; ordre++) {
+        allPersonnelRows.push({
+          planning_genere_bloc_operatoire_id: savedBloc.id,
+          type_besoin: besoin.type_besoin,
+          secretaire_id: null,
           ordre
         });
       }
     }
   }
   
-  console.log(`  👥 ${personnelRows.length} personnel assignments to save`);
+  console.log(`  📋 Creating ${allPersonnelRows.length} personnel need rows...`);
   
-  if (personnelRows.length > 0) {
-    const { error: personnelError } = await supabase
+  let assignmentCount = 0;
+  
+  if (allPersonnelRows.length > 0) {
+    const { data: insertedPersonnel, error: personnelError } = await supabase
       .from('planning_genere_bloc_personnel')
-      .insert(personnelRows);
+      .insert(allPersonnelRows)
+      .select();
     
     if (personnelError) {
-      console.error('  ❌ Personnel error:', personnelError);
+      console.error('  ❌ Personnel creation error:', personnelError);
       throw personnelError;
     }
-    console.log(`  ✅ ${personnelRows.length} personnel saved`);
+    console.log(`  ✅ ${insertedPersonnel.length} personnel rows created`);
+    
+    // Now update with MILP assignments
+    for (const [varName, value] of Object.entries(personnelSolution)) {
+      if (varName.startsWith('x_') && (value as number) > 0.5) {
+        const parts = varName.split('_');
+        const secId = parts[1];
+        const opId = parts[2];
+        const periode = parts[3];
+        const ordre = parseInt(parts[parts.length - 1]);
+        const typeBesoin = parts.slice(4, parts.length - 1).join('_');
+        
+        const operation = operations.find((o: any) => o.id === opId && o.demi_journee === periode);
+        if (!operation) continue;
+        
+        const blocId = savedBlocs.find((b: any) => 
+          b.type_intervention_id === operation.type_intervention_id &&
+          b.periode === operation.demi_journee
+        )?.id;
+        
+        if (blocId) {
+          const { error: updateError } = await supabase
+            .from('planning_genere_bloc_personnel')
+            .update({ secretaire_id: secId })
+            .eq('planning_genere_bloc_operatoire_id', blocId)
+            .eq('type_besoin', typeBesoin)
+            .eq('ordre', ordre)
+            .is('secretaire_id', null);
+          
+          if (!updateError) assignmentCount++;
+        }
+      }
+    }
+    
+    console.log(`  ✅ ${assignmentCount} personnel assigned via MILP`);
   }
   
   return {
     blocs_assigned: savedBlocs.length,
-    personnel_assigned: personnelRows.length
+    personnel_assigned: assignmentCount
   };
 }
