@@ -868,6 +868,212 @@ export type Database = {
           },
         ]
       }
+      planning_genere_bloc_operatoire: {
+        Row: {
+          bloc_operatoire_besoin_id: string | null
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          medecin_id: string | null
+          planning_id: string | null
+          salle_assignee: string | null
+          statut: Database["public"]["Enums"]["statut_planning"]
+          type_intervention_id: string
+          updated_at: string
+        }
+        Insert: {
+          bloc_operatoire_besoin_id?: string | null
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          medecin_id?: string | null
+          planning_id?: string | null
+          salle_assignee?: string | null
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type_intervention_id: string
+          updated_at?: string
+        }
+        Update: {
+          bloc_operatoire_besoin_id?: string | null
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          medecin_id?: string | null
+          planning_id?: string | null
+          salle_assignee?: string | null
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type_intervention_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_bloc_operatoire_besoin_id_fkey"
+            columns: ["bloc_operatoire_besoin_id"]
+            isOneToOne: false
+            referencedRelation: "bloc_operatoire_besoins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_planning_id_fkey"
+            columns: ["planning_id"]
+            isOneToOne: false
+            referencedRelation: "planning"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planning_genere_bloc_personnel: {
+        Row: {
+          created_at: string
+          id: string
+          ordre: number
+          planning_genere_bloc_operatoire_id: string
+          secretaire_id: string
+          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ordre?: number
+          planning_genere_bloc_operatoire_id: string
+          secretaire_id: string
+          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ordre?: number
+          planning_genere_bloc_operatoire_id?: string
+          secretaire_id?: string
+          type_besoin?: Database["public"]["Enums"]["type_besoin_personnel"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_bloc_personne_planning_genere_bloc_operato_fkey"
+            columns: ["planning_genere_bloc_operatoire_id"]
+            isOneToOne: false
+            referencedRelation: "planning_genere_bloc_operatoire"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_personnel_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planning_genere_site: {
+        Row: {
+          created_at: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          planning_id: string | null
+          responsable_1r_id: string | null
+          responsable_2f_id: string | null
+          responsable_3f_id: string | null
+          secretaires_ids: string[] | null
+          site_id: string | null
+          statut: Database["public"]["Enums"]["statut_planning"]
+          type_assignation: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          planning_id?: string | null
+          responsable_1r_id?: string | null
+          responsable_2f_id?: string | null
+          responsable_3f_id?: string | null
+          secretaires_ids?: string[] | null
+          site_id?: string | null
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type_assignation?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          planning_id?: string | null
+          responsable_1r_id?: string | null
+          responsable_2f_id?: string | null
+          responsable_3f_id?: string | null
+          secretaires_ids?: string[] | null
+          site_id?: string | null
+          statut?: Database["public"]["Enums"]["statut_planning"]
+          type_assignation?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_site_planning_id_fkey"
+            columns: ["planning_id"]
+            isOneToOne: false
+            referencedRelation: "planning"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_site_responsable_1r_id_fkey"
+            columns: ["responsable_1r_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_site_responsable_2f_id_fkey"
+            columns: ["responsable_2f_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_site_responsable_3f_id_fkey"
+            columns: ["responsable_3f_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_site_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
