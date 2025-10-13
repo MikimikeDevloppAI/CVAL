@@ -430,8 +430,9 @@ async function saveBlocAssignments(
       const secId = parts[1];
       const opId = parts[2];
       const periode = parts[3];
-      const typeBesoin = parts[4];
-      const ordre = parseInt(parts[5]);
+      const ordre = parseInt(parts[parts.length - 1]);
+      // Le type_besoin est tout ce qui reste entre periode et ordre
+      const typeBesoin = parts.slice(4, parts.length - 1).join('_');
       
       const operation = operations.find((o: any) => o.id === opId && o.demi_journee === periode);
       if (!operation) continue;
