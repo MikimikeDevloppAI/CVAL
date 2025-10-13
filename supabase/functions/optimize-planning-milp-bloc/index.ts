@@ -153,22 +153,28 @@ serve(async (req) => {
       planning_id = newPlanning.id;
     }
 
-    // 4. Build MILP for personnel
-    const personnelAssignments = await buildAndSolveBlocPersonnelMILP(
-      operations,
-      personnelBloc,
-      typesInterventionMap,
-      capacitesMap
-    );
-
-    // 5. Save results
-    const results = await saveBlocAssignments(
+    // 4. Save bloc operations and create personnel rows
+    const { savedBlocs, personnelRows } = await createBlocAndPersonnelRows(
       roomAssignments,
-      personnelAssignments,
       planning_id,
       single_day,
       operations,
       typesInterventionMap,
+      supabaseServiceRole
+    );
+
+    // 5. Build MILP to assign personnel to rows
+    const personnelAssignments = buildAndSolveBlocPersonnelMILP(
+      personnelRows,
+      personnelBloc,
+      capacitesMap
+    );
+
+    // 6. Update personnel rows with assignments
+    const results = await updatePersonnelAssignments(
+      personnelRows,
+      personnelAssignments,
+      savedBlocs.length,
       supabaseServiceRole
     );
 
@@ -263,9 +269,8 @@ function isRoomAvailable(room: string, demi_journee: string, schedules: any): bo
 
 
 function buildAndSolveBlocPersonnelMILP(
-  operations: any[],
+  personnelRows: any[],
   personnelBloc: any[],
-  typesMap: Map<string, any>,
   capacitesMap: Map<string, any>
 ): any {
   const model: any = {
@@ -276,68 +281,62 @@ function buildAndSolveBlocPersonnelMILP(
     ints: {}
   };
   
-  console.log(`\n🔍 Building MILP for ${operations.length} operations and ${personnelBloc.length} personnel`);
+  console.log(`\n🔍 Building MILP for ${personnelRows.length} personnel rows and ${personnelBloc.length} personnel`);
   
   let totalVariables = 0;
   
-  for (const operation of operations) {
-    const typeIntervention = typesMap.get(operation.type_intervention_id);
-    const besoins = typeIntervention?.types_intervention_besoins_personnel || [];
+  // Group rows by demi_journee to enforce uniqueness
+  const rowsByDemiJournee = new Map<string, any[]>();
+  for (const row of personnelRows) {
+    if (!rowsByDemiJournee.has(row.demi_journee)) {
+      rowsByDemiJournee.set(row.demi_journee, []);
+    }
+    rowsByDemiJournee.get(row.demi_journee)!.push(row);
+  }
+  
+  // Create variables: x_<secretaire_id>_<personnel_row_id>
+  for (const row of personnelRows) {
+    const eligible = getEligibleSecretaries(
+      row.type_besoin,
+      row,
+      personnelBloc,
+      capacitesMap
+    );
     
-    console.log(`  📋 Operation ${operation.id} (${typeIntervention?.nom}): ${besoins.length} besoins`);
-    
-    if (besoins.length === 0) {
-      console.warn(`  ⚠️ No personnel needs defined for ${typeIntervention?.nom}`);
+    if (eligible.length === 0) {
+      console.warn(`    ⚠️ NO ELIGIBLE SECRETARIES for row ${row.id} (${row.type_besoin})`);
+      continue;
     }
     
-    for (const besoin of besoins) {
-      const eligible = getEligibleSecretaries(
-        besoin.type_besoin,
-        operation,
-        personnelBloc,
-        capacitesMap
-      );
+    // Score: 1.0 pour base, 0.5 pour accueil
+    const score = (row.type_besoin === 'accueil_ophtalmo' || row.type_besoin === 'accueil_dermato') 
+      ? 0.5 
+      : 1.0;
+    
+    for (const sec of eligible) {
+      const varName = `x_${sec.id}_${row.id}`;
       
-      console.log(`    👥 ${besoin.type_besoin} (x${besoin.nombre_requis}): ${eligible.length} eligible`);
-      
-      if (eligible.length === 0) {
-        console.warn(`    ⚠️ NO ELIGIBLE SECRETARIES for ${besoin.type_besoin}`);
-        continue;
-      }
-      
-      // Score différencié selon type de besoin
-      const score = (besoin.type_besoin === 'accueil_ophtalmo' || besoin.type_besoin === 'accueil_dermato') 
-        ? 0.5 
-        : 1.0;
-      
-      for (let ordre = 1; ordre <= besoin.nombre_requis; ordre++) {
-        for (const sec of eligible) {
-          const varName = `x_${sec.id}_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}_${ordre}`;
-          
-          model.variables[varName] = {
-            score: score,
-            [`need_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}`]: 1,
-            [`capacity_${sec.id}_${operation.demi_journee}`]: 1
-          };
-          model.ints[varName] = 1;
-          totalVariables++;
-        }
-      }
-      
-      // Utiliser 'max' au lieu de 'equal' pour permettre des assignations partielles
-      // quand il n'y a pas assez de personnel disponible
-      model.constraints[`need_${operation.id}_${operation.demi_journee}_${besoin.type_besoin}`] = {
-        max: besoin.nombre_requis
+      model.variables[varName] = {
+        score: score,
+        [`row_${row.id}`]: 1,
+        [`sec_${sec.id}_${row.demi_journee}`]: 1
       };
+      model.ints[varName] = 1;
+      totalVariables++;
     }
+    
+    // Contrainte: chaque ligne peut avoir au maximum 1 secrétaire
+    model.constraints[`row_${row.id}`] = {
+      max: 1
+    };
   }
   
   console.log(`  📊 Total variables: ${totalVariables}`);
   
-  // Unicité temporelle par demi-journée
+  // Contrainte: chaque secrétaire peut être assignée au maximum 1 fois par demi-journée
   for (const sec of personnelBloc) {
-    for (const demiJournee of ['matin', 'apres_midi', 'toute_journee']) {
-      model.constraints[`capacity_${sec.id}_${demiJournee}`] = {
+    for (const demiJournee of ['matin', 'apres_midi']) {
+      model.constraints[`sec_${sec.id}_${demiJournee}`] = {
         max: 1
       };
     }
@@ -345,7 +344,7 @@ function buildAndSolveBlocPersonnelMILP(
   
   console.log(`  🔧 Solving MILP...`);
   const solution = solver.Solve(model);
-  console.log(`  ✅ Solution feasible: ${solution.feasible !== false}`);
+  console.log(`  ✅ Solution feasible: ${solution.feasible !== false}, score: ${solution.result || 0}`);
   
   return solution;
 }
@@ -390,18 +389,17 @@ function isAvailableForOperation(secId: string, demi_journee: string, capacitesM
   return capacitesMap.has(key) || capacitesMap.has(keyTouteJournee);
 }
 
-async function saveBlocAssignments(
+async function createBlocAndPersonnelRows(
   roomAssignments: any[],
-  personnelSolution: any,
   planning_id: string,
   single_day: string,
   operations: any[],
   typesMap: Map<string, any>,
   supabase: any
 ) {
-  console.log(`\n💾 Saving ${roomAssignments.length} bloc assignments...`);
+  console.log(`\n💾 Creating ${roomAssignments.length} bloc operations...`);
   
-  // Save bloc operations with rooms (utilise periode)
+  // Save bloc operations with rooms
   const blocRows = roomAssignments.map(ra => {
     const operation = operations.find(b => b.id === ra.operation_id && b.demi_journee === ra.demi_journee);
     
@@ -424,7 +422,7 @@ async function saveBlocAssignments(
   if (blocError) throw blocError;
   console.log(`  ✅ ${savedBlocs.length} blocs saved`);
   
-  // Create ALL personnel need rows first (with secretaire_id = NULL)
+  // Create ALL personnel need rows (with secretaire_id = NULL)
   const allPersonnelRows = [];
   for (const savedBloc of savedBlocs) {
     const operation = operations.find((o: any) => 
@@ -443,7 +441,8 @@ async function saveBlocAssignments(
           planning_genere_bloc_operatoire_id: savedBloc.id,
           type_besoin: besoin.type_besoin,
           secretaire_id: null,
-          ordre
+          ordre,
+          demi_journee: savedBloc.periode
         });
       }
     }
@@ -451,57 +450,68 @@ async function saveBlocAssignments(
   
   console.log(`  📋 Creating ${allPersonnelRows.length} personnel need rows...`);
   
-  let assignmentCount = 0;
-  
-  if (allPersonnelRows.length > 0) {
-    const { data: insertedPersonnel, error: personnelError } = await supabase
-      .from('planning_genere_bloc_personnel')
-      .insert(allPersonnelRows)
-      .select();
-    
-    if (personnelError) {
-      console.error('  ❌ Personnel creation error:', personnelError);
-      throw personnelError;
-    }
-    console.log(`  ✅ ${insertedPersonnel.length} personnel rows created`);
-    
-    // Now update with MILP assignments
-    for (const [varName, value] of Object.entries(personnelSolution)) {
-      if (varName.startsWith('x_') && (value as number) > 0.5) {
-        const parts = varName.split('_');
-        const secId = parts[1];
-        const opId = parts[2];
-        const periode = parts[3];
-        const ordre = parseInt(parts[parts.length - 1]);
-        const typeBesoin = parts.slice(4, parts.length - 1).join('_');
-        
-        const operation = operations.find((o: any) => o.id === opId && o.demi_journee === periode);
-        if (!operation) continue;
-        
-        const blocId = savedBlocs.find((b: any) => 
-          b.type_intervention_id === operation.type_intervention_id &&
-          b.periode === operation.demi_journee
-        )?.id;
-        
-        if (blocId) {
-          const { error: updateError } = await supabase
-            .from('planning_genere_bloc_personnel')
-            .update({ secretaire_id: secId })
-            .eq('planning_genere_bloc_operatoire_id', blocId)
-            .eq('type_besoin', typeBesoin)
-            .eq('ordre', ordre)
-            .is('secretaire_id', null);
-          
-          if (!updateError) assignmentCount++;
-        }
-      }
-    }
-    
-    console.log(`  ✅ ${assignmentCount} personnel assigned via MILP`);
+  if (allPersonnelRows.length === 0) {
+    return { savedBlocs, personnelRows: [] };
   }
   
+  const { data: insertedPersonnel, error: personnelError } = await supabase
+    .from('planning_genere_bloc_personnel')
+    .insert(allPersonnelRows)
+    .select();
+  
+  if (personnelError) {
+    console.error('  ❌ Personnel creation error:', personnelError);
+    throw personnelError;
+  }
+  
+  console.log(`  ✅ ${insertedPersonnel.length} personnel rows created`);
+  
+  // Enrich rows with demi_journee for MILP
+  const enrichedRows = insertedPersonnel.map((row: any) => {
+    const bloc = savedBlocs.find((b: any) => b.id === row.planning_genere_bloc_operatoire_id);
+    return {
+      ...row,
+      demi_journee: bloc?.periode || 'matin'
+    };
+  });
+  
+  return { savedBlocs, personnelRows: enrichedRows };
+}
+
+async function updatePersonnelAssignments(
+  personnelRows: any[],
+  personnelSolution: any,
+  blocsCount: number,
+  supabase: any
+) {
+  console.log(`\n🔄 Updating personnel assignments from MILP solution...`);
+  
+  let assignmentCount = 0;
+  
+  // Parse MILP solution: x_<secretaire_id>_<personnel_row_id>
+  for (const [varName, value] of Object.entries(personnelSolution)) {
+    if (varName.startsWith('x_') && (value as number) > 0.5) {
+      const parts = varName.split('_');
+      const secId = parts[1];
+      const rowId = parts[2];
+      
+      const { error: updateError } = await supabase
+        .from('planning_genere_bloc_personnel')
+        .update({ secretaire_id: secId })
+        .eq('id', rowId);
+      
+      if (!updateError) {
+        assignmentCount++;
+      } else {
+        console.error(`  ❌ Failed to assign secretary ${secId} to row ${rowId}:`, updateError);
+      }
+    }
+  }
+  
+  console.log(`  ✅ ${assignmentCount} personnel assigned via MILP`);
+  
   return {
-    blocs_assigned: savedBlocs.length,
+    blocs_assigned: blocsCount,
     personnel_assigned: assignmentCount
   };
 }
