@@ -70,23 +70,13 @@ serve(async (req) => {
     if (capError) throw capError;
     if (cmfError) throw cmfError;
 
-    // Créer les opérations à partir des besoins avec horaires basés sur demi_journee
-    const operations = (besoinsEffectifs || []).map((be: any) => {
-      const [heure_debut, heure_fin] = be.demi_journee === 'matin' 
-        ? ['08:00:00', '12:30:00']
-        : be.demi_journee === 'apres_midi'
-        ? ['13:00:00', '17:00:00']
-        : ['08:00:00', '17:00:00']; // toute_journee
-
-      return {
-        id: be.id,
-        date: be.date,
-        type_intervention_id: be.type_intervention_id,
-        heure_debut,
-        heure_fin,
-        demi_journee: be.demi_journee
-      };
-    });
+    // Créer les opérations à partir des besoins (utilise demi_journee)
+    const operations = (besoinsEffectifs || []).map((be: any) => ({
+      id: be.id,
+      date: be.date,
+      type_intervention_id: be.type_intervention_id,
+      demi_journee: be.demi_journee
+    }));
 
     console.log(`✓ ${operations.length} operations, ${personnelBloc.length} personnel bloc`);
 
@@ -191,14 +181,18 @@ function getWeekEnd(date: Date): Date {
 
 function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxConfigs: any[]) {
   const assignments: any[] = [];
-  const roomSchedules: Record<string, any[]> = { rouge: [], verte: [], jaune: [] };
+  const roomSchedules: Record<string, Record<string, any[]>> = { 
+    rouge: { matin: [], apres_midi: [] }, 
+    verte: { matin: [], apres_midi: [] }, 
+    jaune: { matin: [], apres_midi: [] } 
+  };
   
   const sorted = operations.sort((a, b) => {
     const typeA = typesMap.get(a.type_intervention_id);
     const typeB = typesMap.get(b.type_intervention_id);
     if (typeA?.salle_preferentielle && !typeB?.salle_preferentielle) return -1;
     if (!typeA?.salle_preferentielle && typeB?.salle_preferentielle) return 1;
-    return a.heure_debut.localeCompare(b.heure_debut);
+    return a.demi_journee.localeCompare(b.demi_journee);
   });
   
   for (const operation of sorted) {
@@ -208,23 +202,15 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
     // Try preferred room first
     if (typeIntervention?.salle_preferentielle) {
       const preferred = typeIntervention.salle_preferentielle;
-      if (isRoomAvailable(preferred, operation.heure_debut, operation.heure_fin, roomSchedules)) {
+      if (isRoomAvailable(preferred, operation.demi_journee, roomSchedules)) {
         assignedRoom = preferred;
-      }
-    }
-    
-    // Try multi-flux if preferred is occupied
-    if (!assignedRoom && multiFluxConfigs.length > 0) {
-      const compatibleConfig = findCompatibleMultiFluxConfig(operation, roomSchedules, multiFluxConfigs, typesMap);
-      if (compatibleConfig) {
-        assignedRoom = compatibleConfig.salle_suggeree;
       }
     }
     
     // Fallback: first available room
     if (!assignedRoom) {
       for (const room of ['rouge', 'verte', 'jaune']) {
-        if (isRoomAvailable(room, operation.heure_debut, operation.heure_fin, roomSchedules)) {
+        if (isRoomAvailable(room, operation.demi_journee, roomSchedules)) {
           assignedRoom = room;
           break;
         }
@@ -236,36 +222,23 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
       continue;
     }
     
-    roomSchedules[assignedRoom].push({
-      heure_debut: operation.heure_debut,
-      heure_fin: operation.heure_fin
-    });
+    roomSchedules[assignedRoom][operation.demi_journee].push(operation.id);
     
     assignments.push({
       operation_id: operation.id,
       salle: assignedRoom,
-      heure_debut: operation.heure_debut,
-      heure_fin: operation.heure_fin
+      demi_journee: operation.demi_journee
     });
   }
   
   return assignments;
 }
 
-function isRoomAvailable(room: string, debut: string, fin: string, schedules: any): boolean {
-  const schedule = schedules[room] || [];
-  for (const slot of schedule) {
-    if (debut < slot.heure_fin && fin > slot.heure_debut) {
-      return false;
-    }
-  }
-  return true;
+function isRoomAvailable(room: string, demi_journee: string, schedules: any): boolean {
+  const schedule = schedules[room]?.[demi_journee] || [];
+  return schedule.length === 0; // Une seule opération par salle par demi-journée
 }
 
-function findCompatibleMultiFluxConfig(operation: any, roomSchedules: any, configs: any[], typesMap: Map<string, any>): any {
-  // Simplified multi-flux logic
-  return null;
-}
 
 function buildAndSolveBlocPersonnelMILP(
   operations: any[],
@@ -281,9 +254,19 @@ function buildAndSolveBlocPersonnelMILP(
     ints: {}
   };
   
+  console.log(`\n🔍 Building MILP for ${operations.length} operations and ${personnelBloc.length} personnel`);
+  
+  let totalVariables = 0;
+  
   for (const operation of operations) {
     const typeIntervention = typesMap.get(operation.type_intervention_id);
     const besoins = typeIntervention?.types_intervention_besoins_personnel || [];
+    
+    console.log(`  📋 Operation ${operation.id} (${typeIntervention?.nom}): ${besoins.length} besoins`);
+    
+    if (besoins.length === 0) {
+      console.warn(`  ⚠️ No personnel needs defined for ${typeIntervention?.nom}`);
+    }
     
     for (const besoin of besoins) {
       const eligible = getEligibleSecretaries(
@@ -292,6 +275,13 @@ function buildAndSolveBlocPersonnelMILP(
         personnelBloc,
         capacitesMap
       );
+      
+      console.log(`    👥 ${besoin.type_besoin} (x${besoin.nombre_requis}): ${eligible.length} eligible`);
+      
+      if (eligible.length === 0) {
+        console.warn(`    ⚠️ NO ELIGIBLE SECRETARIES for ${besoin.type_besoin}`);
+        continue;
+      }
       
       // Score différencié selon type de besoin
       const score = (besoin.type_besoin === 'accueil_ophtalmo' || besoin.type_besoin === 'accueil_dermato') 
@@ -305,9 +295,10 @@ function buildAndSolveBlocPersonnelMILP(
           model.variables[varName] = {
             score: score,
             [`need_${operation.id}_${besoin.type_besoin}`]: 1,
-            [`capacity_${sec.id}_${operation.heure_debut}`]: 1
+            [`capacity_${sec.id}_${operation.demi_journee}`]: 1
           };
           model.ints[varName] = 1;
+          totalVariables++;
         }
       }
       
@@ -317,17 +308,21 @@ function buildAndSolveBlocPersonnelMILP(
     }
   }
   
-  // Unicité temporelle
+  console.log(`  📊 Total variables: ${totalVariables}`);
+  
+  // Unicité temporelle par demi-journée
   for (const sec of personnelBloc) {
-    const timeSlots = getUniqueTimeSlots(operations);
-    for (const timeSlot of timeSlots) {
-      model.constraints[`capacity_${sec.id}_${timeSlot.debut}`] = {
+    for (const demiJournee of ['matin', 'apres_midi', 'toute_journee']) {
+      model.constraints[`capacity_${sec.id}_${demiJournee}`] = {
         max: 1
       };
     }
   }
   
+  console.log(`  🔧 Solving MILP...`);
   const solution = solver.Solve(model);
+  console.log(`  ✅ Solution feasible: ${solution.feasible !== false}`);
+  
   return solution;
 }
 
@@ -338,7 +333,7 @@ function getEligibleSecretaries(
   capacitesMap: Map<string, any>
 ): any[] {
   let eligible = personnelBloc.filter(s => 
-    isAvailableForOperation(s.id, operation.heure_debut, operation.heure_fin, capacitesMap)
+    isAvailableForOperation(s.id, operation.demi_journee, capacitesMap)
   );
   
   switch (type_besoin) {
@@ -365,18 +360,9 @@ function getEligibleSecretaries(
   return eligible;
 }
 
-function isAvailableForOperation(secId: string, debut: string, fin: string, capacitesMap: Map<string, any>): boolean {
-  const periode = debut < '12:30:00' ? 'matin' : 'apres_midi';
-  const key = `${secId}_${periode}`;
+function isAvailableForOperation(secId: string, demi_journee: string, capacitesMap: Map<string, any>): boolean {
+  const key = `${secId}_${demi_journee}`;
   return capacitesMap.has(key);
-}
-
-function getUniqueTimeSlots(operations: any[]): any[] {
-  const slots = new Set();
-  operations.forEach(op => {
-    slots.add(op.heure_debut);
-  });
-  return Array.from(slots).map(debut => ({ debut }));
 }
 
 async function saveBlocAssignments(
@@ -388,16 +374,24 @@ async function saveBlocAssignments(
   typesMap: Map<string, any>,
   supabase: any
 ) {
-  // Save bloc operations with rooms
+  console.log(`\n💾 Saving ${roomAssignments.length} bloc assignments...`);
+  
+  // Save bloc operations with rooms (utilise demi_journee)
   const blocRows = roomAssignments.map(ra => {
     const operation = operations.find(b => b.id === ra.operation_id);
+    const [heure_debut, heure_fin] = operation.demi_journee === 'matin'
+      ? ['08:00:00', '12:30:00']
+      : operation.demi_journee === 'apres_midi'
+      ? ['13:00:00', '17:00:00']
+      : ['08:00:00', '17:00:00'];
+    
     return {
       planning_id,
       date: single_day,
       type_intervention_id: operation.type_intervention_id,
       salle_assignee: ra.salle,
-      heure_debut: ra.heure_debut,
-      heure_fin: ra.heure_fin,
+      heure_debut,
+      heure_fin,
       statut: 'planifie'
     };
   });
@@ -408,6 +402,7 @@ async function saveBlocAssignments(
     .select();
   
   if (blocError) throw blocError;
+  console.log(`  ✅ ${savedBlocs.length} blocs saved`);
   
   // Save personnel assignments
   const personnelRows = [];
@@ -421,25 +416,32 @@ async function saveBlocAssignments(
       
       const operation = operations.find((o: any) => o.id === opId);
       const blocId = savedBlocs.find((b: any) => 
-        b.type_intervention_id === operation?.type_intervention_id && 
-        b.heure_debut === operation?.heure_debut
+        b.type_intervention_id === operation?.type_intervention_id
       )?.id;
       
-      personnelRows.push({
-        planning_genere_bloc_operatoire_id: blocId,
-        type_besoin: typeBesoin,
-        secretaire_id: secId,
-        ordre
-      });
+      if (blocId) {
+        personnelRows.push({
+          planning_genere_bloc_operatoire_id: blocId,
+          type_besoin: typeBesoin,
+          secretaire_id: secId,
+          ordre
+        });
+      }
     }
   }
+  
+  console.log(`  👥 ${personnelRows.length} personnel assignments to save`);
   
   if (personnelRows.length > 0) {
     const { error: personnelError } = await supabase
       .from('planning_genere_bloc_personnel')
       .insert(personnelRows);
     
-    if (personnelError) throw personnelError;
+    if (personnelError) {
+      console.error('  ❌ Personnel error:', personnelError);
+      throw personnelError;
+    }
+    console.log(`  ✅ ${personnelRows.length} personnel saved`);
   }
   
   return {
