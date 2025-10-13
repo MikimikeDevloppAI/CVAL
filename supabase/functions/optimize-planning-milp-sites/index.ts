@@ -410,9 +410,19 @@ function buildSitesMILP(
     // PRIORITY 2: Secretaries eligible for this site (-100)
     const eligibleSecs = secretaires.filter(s => {
       const keyCapacite = `${s.id}_${periode}`;
-      return !blocAssignments.has(s.id) &&
-             capacitesMap.has(keyCapacite) &&
-             (s.sites_assignes || []).includes(site_id);
+      if (!capacitesMap.has(keyCapacite) || blocAssignments.has(s.id)) {
+        return false;
+      }
+      
+      const capacite = capacitesMap.get(keyCapacite);
+      
+      // If capacity has a specific site_id, secretary can only be assigned to that site
+      if (capacite.site_id) {
+        return capacite.site_id === site_id;
+      }
+      
+      // If capacity has no site_id (NULL), secretary can be assigned to any site in their profile
+      return (s.sites_assignes || []).includes(site_id);
     });
 
     for (const sec of eligibleSecs) {
