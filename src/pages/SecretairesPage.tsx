@@ -375,7 +375,7 @@ export default function SecretairesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSecretaires.map((secretaire) => (
-            <ModernCard key={secretaire.id} className={secretaire.actif === false ? 'opacity-60' : ''}>
+            <ModernCard key={secretaire.id} className={`group ${secretaire.actif === false ? 'opacity-60' : ''}`}>
               <ModernCardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -390,6 +390,19 @@ export default function SecretairesPage() {
                         <Badge variant="secondary" className="text-xs">
                           Inactif
                         </Badge>
+                      )}
+                      {canManage && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedSecretaire(secretaire);
+                            setIsDialogOpen(true);
+                          }}
+                          className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                     
@@ -413,7 +426,7 @@ export default function SecretairesPage() {
                   {canManage && (
                     <div className="flex items-center space-x-3 ml-3">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => {
                           setSelectedSecretaireForCalendar({
@@ -422,22 +435,9 @@ export default function SecretairesPage() {
                           });
                           setIsCalendarOpen(true);
                         }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Calendrier mensuel"
                       >
                         <Calendar className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedSecretaire(secretaire);
-                          setIsDialogOpen(true);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Edit className="h-4 w-4" />
                       </Button>
                       
                       {secretaire.actif !== false ? (
