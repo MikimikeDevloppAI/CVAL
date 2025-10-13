@@ -55,13 +55,26 @@ interface HoraireBase {
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
 }
 
+interface SecretaireFlexible {
+  id: string;
+  first_name: string;
+  name: string;
+  pourcentage_temps: number;
+  sites_assignes: string[];
+  medecin_assigne?: {
+    first_name: string;
+    name: string;
+  };
+}
+
 export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefresh }: SecretaryCapacityViewProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCapacites, setSelectedCapacites] = useState<CapaciteEffective[]>([]);
   const [horairesBase, setHorairesBase] = useState<Map<string, HoraireBase[]>>(new Map());
   const [sites, setSites] = useState<Map<string, string>>(new Map());
+  const [secretairesFlexibles, setSecretairesFlexibles] = useState<SecretaireFlexible[]>([]);
 
-  // Récupérer les sites et horaires de base
+  // Récupérer les sites, horaires de base et secrétaires flexibles
   useEffect(() => {
     const fetchData = async () => {
       // Fetch sites
@@ -85,35 +98,63 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
           .map(cap => cap.secretaire_id!)
       ));
 
-      if (secretaireIds.length === 0) return;
+      if (secretaireIds.length > 0) {
+        const { data, error } = await supabase
+          .from('horaires_base_secretaires')
+          .select('secretaire_id, jour_semaine, demi_journee')
+          .in('secretaire_id', secretaireIds)
+          .eq('actif', true);
 
-      const { data, error } = await supabase
-        .from('horaires_base_secretaires')
-        .select('secretaire_id, jour_semaine, demi_journee')
-        .in('secretaire_id', secretaireIds)
-        .eq('actif', true);
-
-      if (error) {
-        console.error('Erreur lors de la récupération des horaires de base:', error);
-        return;
+        if (error) {
+          console.error('Erreur lors de la récupération des horaires de base:', error);
+        } else {
+          const horaireMap = new Map<string, HoraireBase[]>();
+          data?.forEach(horaire => {
+            if (!horaireMap.has(horaire.secretaire_id)) {
+              horaireMap.set(horaire.secretaire_id, []);
+            }
+            horaireMap.get(horaire.secretaire_id)!.push({
+              jour_semaine: horaire.jour_semaine,
+              demi_journee: horaire.demi_journee,
+            });
+          });
+          setHorairesBase(horaireMap);
+        }
       }
 
-      const horaireMap = new Map<string, HoraireBase[]>();
-      data?.forEach(horaire => {
-        if (!horaireMap.has(horaire.secretaire_id)) {
-          horaireMap.set(horaire.secretaire_id, []);
-        }
-        horaireMap.get(horaire.secretaire_id)!.push({
-          jour_semaine: horaire.jour_semaine,
-          demi_journee: horaire.demi_journee,
-        });
-      });
+      // Fetch secrétaires flexibles
+      const weekStart = format(weekDays[0], 'yyyy-MM-dd');
+      const weekEnd = format(weekDays[weekDays.length - 1], 'yyyy-MM-dd');
 
-      setHorairesBase(horaireMap);
+      const { data: flexibleSecretaries } = await supabase
+        .from('secretaires')
+        .select('id, first_name, name, pourcentage_temps, sites_assignes, medecin_assigne:medecins(first_name, name)')
+        .eq('horaire_flexible', true)
+        .eq('actif', true)
+        .not('pourcentage_temps', 'is', null);
+
+      if (flexibleSecretaries) {
+        // Vérifier les absences pour chaque secrétaire flexible
+        const { data: absences } = await supabase
+          .from('absences')
+          .select('secretaire_id, date_debut, date_fin')
+          .eq('type_personne', 'secretaire')
+          .in('statut', ['approuve', 'en_attente'])
+          .or(`and(date_debut.lte.${weekEnd},date_fin.gte.${weekStart})`);
+
+        // Filtrer les secrétaires qui n'ont pas déjà leur semaine prise
+        const flexiblesDisponibles = flexibleSecretaries.filter(sec => {
+          // Vérifier si la secrétaire a des congés cette semaine
+          const hasAbsence = absences?.some(abs => abs.secretaire_id === sec.id);
+          return !hasAbsence;
+        });
+
+        setSecretairesFlexibles(flexiblesDisponibles as SecretaireFlexible[]);
+      }
     };
 
     fetchData();
-  }, [capacites]);
+  }, [capacites, weekDays]);
 
   // Regrouper les capacités par secrétaire
   const secretariesGroups: SecretaryGroup[] = [];
@@ -138,6 +179,20 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
     }
 
     secretariesMap.get(id)!.capacites.push(cap);
+  });
+
+  // Ajouter les secrétaires flexibles (sans capacités assignées mais avec pourcentage)
+  secretairesFlexibles.forEach(sec => {
+    if (!secretariesMap.has(sec.id)) {
+      secretariesMap.set(sec.id, {
+        id: sec.id,
+        name: `${sec.first_name} ${sec.name}`,
+        isBackup: false,
+        capacites: [],
+        sites_assignes: sec.sites_assignes || [],
+        medecin_assigne: sec.medecin_assigne,
+      });
+    }
   });
 
   secretariesGroups.push(...Array.from(secretariesMap.values()));
@@ -233,6 +288,10 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                       };
                     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+                    // Vérifier si c'est une secrétaire flexible
+                    const secretaireFlexible = secretairesFlexibles.find(s => s.id === secretary.id);
+                    const isFlexible = !!secretaireFlexible;
+
                     return (
                       <tr key={secretary.id} className="border-b hover:bg-muted/30">
                         <td className="p-3 font-medium">
@@ -241,6 +300,11 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                               {secretary.name}
                               {secretary.isBackup && (
                                 <Badge variant="secondary" className="text-xs">Backup</Badge>
+                              )}
+                              {isFlexible && secretaireFlexible.pourcentage_temps && (
+                                <Badge variant="outline" className="text-xs border-purple-500 text-purple-700">
+                                  Flexible {secretaireFlexible.pourcentage_temps}%
+                                </Badge>
                               )}
                             </div>
                             {secretary.medecin_assigne && (
@@ -265,7 +329,12 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {joursParNom.map((jour, idx) => {
+                            {isFlexible && joursParNom.length === 0 ? (
+                              <span className="text-xs text-muted-foreground italic">
+                                Pas de jours assignés (horaire flexible)
+                              </span>
+                            ) : (
+                              joursParNom.map((jour, idx) => {
                               const borderColor = jour.periode === 'journee' 
                                 ? 'border-2 border-green-600' 
                                 : jour.periode === 'matin'
@@ -282,9 +351,10 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                                       {jour.siteNom}
                                     </span>
                                   )}
-                                </div>
-                              );
-                            })}
+                                 </div>
+                               );
+                             })
+                            )}
                           </div>
                         </td>
                         {canManage && (
