@@ -964,16 +964,11 @@ export type Database = {
         Row: {
           created_at: string | null
           date: string
-          heure_debut: string | null
-          heure_fin: string | null
           id: string
           medecins_ids: string[]
           nombre_secretaires_requis: number
           periode: Database["public"]["Enums"]["periode"]
           planning_id: string | null
-          responsable_1r_id: string | null
-          responsable_2f_id: string | null
-          responsable_3f_id: string | null
           site_id: string
           statut: Database["public"]["Enums"]["statut_planning"] | null
           updated_at: string | null
@@ -981,16 +976,11 @@ export type Database = {
         Insert: {
           created_at?: string | null
           date: string
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecins_ids?: string[]
           nombre_secretaires_requis?: number
           periode: Database["public"]["Enums"]["periode"]
           planning_id?: string | null
-          responsable_1r_id?: string | null
-          responsable_2f_id?: string | null
-          responsable_3f_id?: string | null
           site_id: string
           statut?: Database["public"]["Enums"]["statut_planning"] | null
           updated_at?: string | null
@@ -998,16 +988,11 @@ export type Database = {
         Update: {
           created_at?: string | null
           date?: string
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecins_ids?: string[]
           nombre_secretaires_requis?: number
           periode?: Database["public"]["Enums"]["periode"]
           planning_id?: string | null
-          responsable_1r_id?: string | null
-          responsable_2f_id?: string | null
-          responsable_3f_id?: string | null
           site_id?: string
           statut?: Database["public"]["Enums"]["statut_planning"] | null
           updated_at?: string | null
@@ -1018,27 +1003,6 @@ export type Database = {
             columns: ["planning_id"]
             isOneToOne: false
             referencedRelation: "planning"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_site_besoin_responsable_1r_id_fkey"
-            columns: ["responsable_1r_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_site_besoin_responsable_2f_id_fkey"
-            columns: ["responsable_2f_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_site_besoin_responsable_3f_id_fkey"
-            columns: ["responsable_3f_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
             referencedColumns: ["id"]
           },
           {
@@ -1054,7 +1018,6 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          medecin_id: string | null
           ordre: number
           planning_genere_site_besoin_id: string
           secretaire_id: string | null
@@ -1063,7 +1026,6 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
-          medecin_id?: string | null
           ordre?: number
           planning_genere_site_besoin_id: string
           secretaire_id?: string | null
@@ -1072,7 +1034,6 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
-          medecin_id?: string | null
           ordre?: number
           planning_genere_site_besoin_id?: string
           secretaire_id?: string | null
@@ -1084,13 +1045,6 @@ export type Database = {
             columns: ["planning_genere_site_besoin_id"]
             isOneToOne: false
             referencedRelation: "planning_genere_site_besoin"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_site_personnel_medecin_id_fkey"
-            columns: ["medecin_id"]
-            isOneToOne: false
-            referencedRelation: "medecins"
             referencedColumns: ["id"]
           },
           {

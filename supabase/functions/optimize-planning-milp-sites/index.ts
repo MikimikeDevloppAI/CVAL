@@ -282,7 +282,6 @@ async function generateSitesBesoins(
     for (let ordre = 1; ordre <= data.nombre_requis; ordre++) {
       personnelRows.push({
         planning_genere_site_besoin_id: besoin.id,
-        medecin_id: data.medecins[ordre - 1] || null, // Assign medecins in order
         secretaire_id: null, // Will be filled by MILP
         ordre
       });

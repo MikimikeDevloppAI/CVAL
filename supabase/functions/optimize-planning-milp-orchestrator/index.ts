@@ -134,37 +134,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function assignResponsablesForClosedSites(single_day: string, supabase: any) {
-  console.log('🔐 Assigning responsables for closed sites...');
-  
-  // Get closed sites
-  const { data: closedSites } = await supabase
-    .from('sites')
-    .select('id')
-    .eq('fermeture', true)
-    .eq('actif', true);
-
-  if (!closedSites || closedSites.length === 0) {
-    console.log('No closed sites found');
-    return;
-  }
-
-  // Simplified: Assign first available secretary as responsable
-  const { data: assignments } = await supabase
-    .from('planning_genere_site')
-    .select('*')
-    .eq('date', single_day)
-    .in('site_id', closedSites.map((s: any) => s.id));
-
-  for (const assignment of assignments || []) {
-    if (assignment.secretaires_ids && assignment.secretaires_ids.length > 0) {
-      await supabase
-        .from('planning_genere_site')
-        .update({ responsable_1r_id: assignment.secretaires_ids[0] })
-        .eq('id', assignment.id);
-    }
-  }
-
-  console.log('✓ Responsables assigned');
-}
