@@ -466,8 +466,7 @@ export default function PlanningPage() {
         .select(`
           *,
           medecin:medecins(first_name, name, besoin_secretaires),
-          site:sites(nom),
-          medecin:medecins(first_name, name, besoin_secretaires)
+          site:sites(nom)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
         .lte('date', format(weekEnd, 'yyyy-MM-dd'))
