@@ -314,11 +314,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
-                                  {p.type_assignation === 'site' && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      Ordre: {p.ordre}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                               <Badge 
@@ -340,11 +335,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
-                                  {p.type_assignation === 'site' && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      Ordre: {p.ordre}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                               <Badge 
