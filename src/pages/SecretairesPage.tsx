@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -11,6 +11,7 @@ import { SecretaireForm } from '@/components/secretaires/SecretaireForm';
 import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDialog';
 import { QuickEditMedecinDialog } from '@/components/secretaires/QuickEditMedecinDialog';
 import { EditHoraireSecretaireDialog } from '@/components/secretaires/EditHoraireSecretaireDialog';
+import { SecretaireMonthCalendar } from '@/components/secretaires/SecretaireMonthCalendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -63,6 +64,8 @@ export default function SecretairesPage() {
   const [selectedJour, setSelectedJour] = useState<number>(1);
   const [selectedHoraire, setSelectedHoraire] = useState<any>(null);
   const [editingSecretaireId, setEditingSecretaireId] = useState<string>('');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectedSecretaireForCalendar, setSelectedSecretaireForCalendar] = useState<{ id: string; nom: string } | null>(null);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -413,6 +416,22 @@ export default function SecretairesPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          setSelectedSecretaireForCalendar({
+                            id: secretaire.id,
+                            nom: `${secretaire.first_name} ${secretaire.name}`
+                          });
+                          setIsCalendarOpen(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Calendrier mensuel"
+                      >
+                        <Calendar className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
                           setSelectedSecretaire(secretaire);
                           setIsDialogOpen(true);
                         }}
@@ -665,6 +684,16 @@ export default function SecretairesPage() {
           horaire={selectedHoraire}
           onSuccess={handleHoraireSuccess}
         />
+
+        {/* Calendrier mensuel */}
+        {selectedSecretaireForCalendar && (
+          <SecretaireMonthCalendar
+            open={isCalendarOpen}
+            onOpenChange={setIsCalendarOpen}
+            secretaireId={selectedSecretaireForCalendar.id}
+            secretaireNom={selectedSecretaireForCalendar.nom}
+          />
+        )}
     </div>
   );
 }
