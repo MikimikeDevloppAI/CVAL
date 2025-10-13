@@ -160,6 +160,7 @@ export function ConfigurationsMultiFluxManagement() {
     
     const interventionsData = config.configurations_multi_flux_interventions?.map(ci => ({
       type_intervention_id: ci.type_intervention_id,
+      type_personnel: '' as const,
       salle: ci.salle as 'rouge' | 'verte' | 'jaune',
       ordre: ci.ordre,
     })) || [];
