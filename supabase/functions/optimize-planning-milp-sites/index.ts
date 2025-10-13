@@ -446,9 +446,9 @@ function buildSitesMILP(
     }
   }
 
-  // Constraints: 1 secretary per row
+  // Constraints: 0 or 1 secretary per row (optional assignment)
   for (const row of personnelRows) {
-    model.constraints[`row_${row.id}`] = { min: 1, max: 1 };
+    model.constraints[`row_${row.id}`] = { min: 0, max: 1 };
   }
 
   // Constraints: max 1 assignment per secretary/period
