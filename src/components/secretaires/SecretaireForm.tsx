@@ -458,7 +458,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">
-                    <FormLabel>Instrumentaliste</FormLabel>
+                    <FormLabel>Instrumentiste</FormLabel>
                   </div>
                 </FormItem>
               )}
