@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle, RefreshCw, Scissors } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { EditBesoinDialog } from '@/components/planning/EditBesoinDialog';
 import { AddCapaciteDialog } from '@/components/planning/AddCapaciteDialog';
 import { MILPOptimizationView } from '@/components/planning/MILPOptimizationView';
 import { SecretaryPlanningView } from '@/components/planning/SecretaryPlanningView';
+import { BlocOperatoirePlanningView } from '@/components/planning/BlocOperatoirePlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
@@ -88,7 +89,7 @@ export default function PlanningPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [confirmRegenerateDialogOpen, setConfirmRegenerateDialogOpen] = useState(false);
-  const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
+  const [planningView, setPlanningView] = useState<'site' | 'secretary' | 'bloc'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null);
   const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
@@ -1311,7 +1312,7 @@ export default function PlanningPage() {
           )}
 
           {optimizationResult && (
-            <div className="space-y-4">
+              <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <div className="flex-1 flex justify-start">
                   <div className="inline-flex rounded-lg border p-1 bg-muted">
@@ -1333,6 +1334,15 @@ export default function PlanningPage() {
                       <Users className="h-4 w-4" />
                       Par secrétaire
                     </Button>
+                    <Button
+                      variant={planningView === 'bloc' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setPlanningView('bloc')}
+                      className="gap-2"
+                    >
+                      <Scissors className="h-4 w-4" />
+                      Bloc opératoire
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1344,11 +1354,16 @@ export default function PlanningPage() {
                   specialites={specialites}
                   onRefresh={fetchPlanningGenere}
                 />
-              ) : (
+              ) : planningView === 'secretary' ? (
                 <SecretaryPlanningView
                   assignments={optimizationResult.assignments}
                   weekDays={weekDays}
                   onRefresh={fetchPlanningGenere}
+                />
+              ) : (
+                <BlocOperatoirePlanningView
+                  startDate={currentWeekStart}
+                  endDate={weekEnd}
                 />
               )}
             </div>
