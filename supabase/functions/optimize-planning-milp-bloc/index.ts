@@ -364,7 +364,8 @@ function getEligibleSecretaries(
       eligible = eligible.filter(s => s.instrumentaliste);
       break;
     case 'aide_salle':
-      eligible = eligible.filter(s => s.aide_de_salle);
+      // Aide de salle uniquement si la personne est aussi instrumentiste
+      eligible = eligible.filter(s => s.aide_de_salle && s.instrumentaliste);
       break;
     case 'instrumentiste_aide_salle':
       eligible = eligible.filter(s => s.instrumentaliste);
@@ -441,8 +442,7 @@ async function createBlocAndPersonnelRows(
           planning_genere_bloc_operatoire_id: savedBloc.id,
           type_besoin: besoin.type_besoin,
           secretaire_id: null,
-          ordre,
-          demi_journee: savedBloc.periode
+          ordre
         });
       }
     }
