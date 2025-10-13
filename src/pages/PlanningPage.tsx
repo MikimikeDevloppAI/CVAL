@@ -38,8 +38,10 @@ interface BesoinEffectif {
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   site_id: string;
   medecin_id?: string;
+  type_intervention_id?: string;
   medecin?: { first_name: string; name: string; besoin_secretaires: number };
   site?: { nom: string };
+  type_intervention?: { nom: string; code: string };
 }
 
 interface BesoinParSite {
@@ -466,7 +468,8 @@ export default function PlanningPage() {
         .select(`
           *,
           medecin:medecins(first_name, name, besoin_secretaires),
-          site:sites(nom)
+          site:sites(nom),
+          type_intervention:types_intervention(nom, code)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
         .lte('date', format(weekEnd, 'yyyy-MM-dd'))
@@ -1086,9 +1089,27 @@ export default function PlanningPage() {
                                 <tr key={key} className={`border-b hover:bg-muted/30 ${isBloc ? 'bg-blue-50/50' : ''}`}>
                                   <td className="p-2 font-medium">
                                     {isBloc 
-                                      ? <span className="text-blue-700">Intervention chirurgicale</span>
+                                      ? (
+                                        <div className="flex flex-col gap-1">
+                                          <span className="text-blue-700">Intervention chirurgicale</span>
+                                          {premierBesoin.type_intervention && (
+                                            <span className="text-xs text-muted-foreground">
+                                              {premierBesoin.type_intervention.nom}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )
                                       : premierBesoin.medecin 
-                                        ? `${premierBesoin.medecin.first_name} ${premierBesoin.medecin.name}` 
+                                        ? (
+                                          <div className="flex flex-col gap-1">
+                                            <span>{`${premierBesoin.medecin.first_name} ${premierBesoin.medecin.name}`}</span>
+                                            {premierBesoin.type_intervention && (
+                                              <span className="text-xs text-muted-foreground">
+                                                {premierBesoin.type_intervention.nom}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )
                                         : '-'
                                     }
                                   </td>
