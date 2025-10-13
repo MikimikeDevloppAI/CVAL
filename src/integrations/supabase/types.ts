@@ -1211,8 +1211,8 @@ export type Database = {
       type_besoin: "medecin" | "bloc_operatoire"
       type_besoin_personnel:
         | "anesthesiste"
-        | "instrumentaliste"
-        | "instrumentaliste_aide_salle"
+        | "instrumentiste"
+        | "instrumentiste_aide_salle"
         | "aide_salle"
         | "accueil"
       type_horaire: "fixe" | "disponible"
@@ -1363,8 +1363,8 @@ export const Constants = {
       type_besoin: ["medecin", "bloc_operatoire"],
       type_besoin_personnel: [
         "anesthesiste",
-        "instrumentaliste",
-        "instrumentaliste_aide_salle",
+        "instrumentiste",
+        "instrumentiste_aide_salle",
         "aide_salle",
         "accueil",
       ],

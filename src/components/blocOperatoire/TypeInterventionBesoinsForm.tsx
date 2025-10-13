@@ -14,14 +14,14 @@ interface TypeInterventionBesoinsFormProps {
 }
 
 interface BesoinPersonnel {
-  type_besoin: 'anesthesiste' | 'instrumentaliste' | 'instrumentaliste_aide_salle' | 'aide_salle' | 'accueil';
+  type_besoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil';
   nombre_requis: number;
 }
 
-const TYPES_BESOINS: Array<{ value: 'anesthesiste' | 'instrumentaliste' | 'instrumentaliste_aide_salle' | 'aide_salle' | 'accueil'; label: string }> = [
+const TYPES_BESOINS: Array<{ value: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil'; label: string }> = [
   { value: 'anesthesiste', label: 'Anesthésiste' },
-  { value: 'instrumentaliste', label: 'Instrumentaliste' },
-  { value: 'instrumentaliste_aide_salle', label: 'Instrumentaliste / Aide de salle' },
+  { value: 'instrumentiste', label: 'Instrumentiste' },
+  { value: 'instrumentiste_aide_salle', label: 'Instrumentiste / Aide de salle' },
   { value: 'aide_salle', label: 'Aide de salle' },
   { value: 'accueil', label: 'Accueil' },
 ];
@@ -67,7 +67,7 @@ export function TypeInterventionBesoinsForm({
     }
   };
 
-  const handleChange = (typeBesoin: 'anesthesiste' | 'instrumentaliste' | 'instrumentaliste_aide_salle' | 'aide_salle' | 'accueil', value: string) => {
+  const handleChange = (typeBesoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil', value: string) => {
     const nombre = parseInt(value) || 0;
     setBesoins((prev) => ({
       ...prev,
@@ -89,7 +89,7 @@ export function TypeInterventionBesoinsForm({
         .filter(([_, nombre]) => nombre > 0)
         .map(([type_besoin, nombre_requis]) => ({
           type_intervention_id: typeInterventionId,
-          type_besoin: type_besoin as 'anesthesiste' | 'instrumentaliste' | 'instrumentaliste_aide_salle' | 'aide_salle' | 'accueil',
+          type_besoin: type_besoin as 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil',
           nombre_requis,
           actif: true,
         }));
