@@ -275,35 +275,6 @@ const BlocOperatoirePage = () => {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
-        {canManage && (
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => {
-                setSelectedBesoin(null);
-                setPreselectedDate(null);
-              }}>
-                <Plus className="h-4 w-4" />
-                Ajouter un besoin
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
-                </DialogTitle>
-              </DialogHeader>
-              <BlocOperatoireForm 
-                besoin={selectedBesoin} 
-                preselectedDate={preselectedDate}
-                onSubmit={() => {
-                  handleDialogClose();
-                  fetchBesoins();
-                }}
-                onCancel={handleDialogClose}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
 
       <Tabs defaultValue="planning" className="w-full">
@@ -327,6 +298,38 @@ const BlocOperatoirePage = () => {
         </div>
 
         <TabsContent value="planning" className="space-y-6 mt-0">
+          {canManage && (
+            <div className="flex justify-end">
+              <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => {
+                    setSelectedBesoin(null);
+                    setPreselectedDate(null);
+                  }}>
+                    <Plus className="h-4 w-4" />
+                    Ajouter un besoin
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {selectedBesoin ? 'Modifier le besoin' : 'Ajouter un besoin'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <BlocOperatoireForm 
+                    besoin={selectedBesoin} 
+                    preselectedDate={preselectedDate}
+                    onSubmit={() => {
+                      handleDialogClose();
+                      fetchBesoins();
+                    }}
+                    onCancel={handleDialogClose}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
           {/* Filtres */}
           <div className="bg-card border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-2 mb-2">
