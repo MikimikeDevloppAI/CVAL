@@ -852,7 +852,17 @@ export default function PlanningPage() {
           setCurrentPlanningStatus('en_cours');
         }
 
-        totalAssignments += data?.assignments_count || 0;
+        // Compter les assignations retournées par l'orchestrateur
+        let dayAssignments = 0;
+        if (optimizeBloc && data?.bloc_results) {
+          const br = data.bloc_results as any;
+          dayAssignments += (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
+        }
+        if (optimizeSites && data?.sites_results) {
+          const sr = data.sites_results as any;
+          dayAssignments += (sr.sites_assigned ?? 0) + (sr.remaining_bloc_filled ?? 0);
+        }
+        totalAssignments += dayAssignments;
       }
 
       toast({
