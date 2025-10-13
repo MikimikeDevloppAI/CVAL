@@ -8,13 +8,9 @@ const corsHeaders = {
 };
 
 const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-const SITE_GASTRO = '7723c334-d06c-413d-96f0-be281d76520d';
-const SITES_INTERDITS_SI_BLOC = [SITE_PORT_EN_TRUIE, SITE_GASTRO];
-
+const SITE_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
 const PENALTY_SITE_CHANGE = 0.001;
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001;
-const BONUS_ADMIN_BASE = -0.00001;
-const BONUS_ADMIN_PRIORITAIRE = -0.001;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -22,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🏢 Phase 2: Starting sites + remaining bloc MILP optimization');
+    console.log('🏢 Phase 2: Starting sites optimization');
     
     const supabaseServiceRole = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -69,31 +65,8 @@ serve(async (req) => {
 
     // Create maps
     const medecinMap = new Map(medecins.map(m => [m.id, m]));
-
-    // 2. Calculate sites needs
-    const sitesNeeds = calculateSitesNeeds(besoins, sites, medecinMap);
-    console.log(`✓ ${sitesNeeds.length} sites needs calculated`);
-
-    // 3. Identify remaining bloc needs
-    const remainingBlocNeeds = identifyRemainingBlocNeeds(blocOperations);
-    console.log(`⚠️ ${remainingBlocNeeds.length} remaining bloc needs`);
-
-    // 4. Identify secretaries assigned to bloc
-    const blocAssignments = getSecretariesAssignedToBloc(blocOperations);
-    console.log(`✓ ${blocAssignments.size} secretaries already assigned to bloc`);
-
-    // 5. Fetch historical Port-en-Truie assignments
-    const fourWeeksAgo = new Date(new Date(single_day).getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const { data: historicalAssignments } = await supabaseServiceRole
-      .from('planning_genere_site')
-      .select('secretaires_ids')
-      .eq('site_id', SITE_PORT_EN_TRUIE)
-      .gte('date', fourWeeksAgo)
-      .lte('date', single_day);
-
-    const portEnTruieCounts = countPortEnTruieAssignments(historicalAssignments || []);
-
-    // 6. Get or create planning_id
+    
+    // 2. Get or create planning_id
     const weekStart = getWeekStart(new Date(single_day));
     const weekEnd = getWeekEnd(new Date(single_day));
     const weekStartStr = weekStart.toISOString().split('T')[0];
@@ -123,29 +96,90 @@ serve(async (req) => {
       planning_id = newPlanning.id;
     }
 
-    // 7. Build and solve MILP
-    const solution = buildAndSolveSitesMILP(
-      sitesNeeds,
-      remainingBlocNeeds,
+    // 3. Generate sites besoins and personnel rows
+    const { personnelRows } = await generateSitesBesoins(
+      besoins,
+      sites,
+      medecinMap,
+      planning_id,
+      single_day,
+      supabaseServiceRole
+    );
+    
+    console.log(`✓ ${personnelRows.length} personnel rows created`);
+
+    // 4. Identify secretaries assigned to bloc
+    const blocAssignments = getSecretariesAssignedToBloc(blocOperations);
+    console.log(`✓ ${blocAssignments.size} secretaries already assigned to bloc`);
+
+    // 5. Fetch historical Port-en-Truie assignments (last 4 weeks)
+    const fourWeeksAgo = new Date(new Date(single_day).getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data: historicalAssignments } = await supabaseServiceRole
+      .from('planning_genere_site_besoin')
+      .select(`
+        planning_genere_site_personnel!inner(secretaire_id)
+      `)
+      .eq('site_id', SITE_PORT_EN_TRUIE)
+      .gte('date', fourWeeksAgo)
+      .lte('date', single_day);
+
+    const portEnTruieCounts = countPortEnTruieAssignments(historicalAssignments || []);
+
+    // 6. Build and solve MILP
+    const solution = buildSitesMILP(
+      personnelRows,
       secretaires,
       capacites,
       blocAssignments,
-      portEnTruieCounts
+      portEnTruieCounts,
+      besoins
     );
 
-    // 8. Save results
-    const results = await saveSitesAssignments(
+    if (!solution.feasible) {
+      console.error('❌ MILP solution not feasible!');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'No feasible solution found'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`✅ MILP solved: objective = ${solution.result}`);
+
+    // 7. Update personnel assignments
+    const assignedCount = await updateSitePersonnelAssignments(
+      personnelRows,
       solution,
+      supabaseServiceRole
+    );
+
+    // 8. Create unified planning_genere entries
+    await createPlanningGenereEntriesSites(
       planning_id,
       single_day,
       supabaseServiceRole
     );
 
-    console.log(`✅ Phase 2 complete: ${results.sites_assigned} sites, ${results.remaining_bloc_filled} bloc filled`);
+    // 9. Create administrative assignments for unassigned capacities
+    const adminCount = await createAdminAssignments(
+      capacites,
+      blocAssignments,
+      personnelRows,
+      solution,
+      secretaires,
+      planning_id,
+      single_day,
+      supabaseServiceRole
+    );
+
+    console.log(`✅ Phase 2 complete: ${assignedCount} sites personnel, ${adminCount} admin`);
 
     return new Response(JSON.stringify({
       success: true,
-      ...results
+      sites_personnel_assigned: assignedCount,
+      admin_assigned: adminCount
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
@@ -170,59 +204,103 @@ function getWeekEnd(date: Date): Date {
   return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
 }
 
-function calculateSitesNeeds(besoins: any[], sites: any[], medecinMap: Map<string, any>): any[] {
-  const needs: any[] = [];
+async function generateSitesBesoins(
+  besoins: any[],
+  sites: any[],
+  medecinMap: Map<string, any>,
+  planning_id: string,
+  single_day: string,
+  supabase: any
+): Promise<{ personnelRows: any[] }> {
+  console.log('\n💾 Generating sites besoins...');
   
+  const besoinRows = [];
+  const personnelRowsData = [];
+
   for (const site of sites) {
-    if (site.nom?.includes('Bloc opératoire')) continue;
+    // Skip bloc operatoire and admin sites
+    if (site.nom?.includes('Bloc opératoire') || site.id === SITE_ADMIN_ID) continue;
     
     for (const periode of ['matin', 'apres_midi']) {
-      // Inclure les besoins de cette période ET les besoins "toute_journee"
+      // Find medecins working at this site/periode
       const medecinsOnSite = besoins.filter(b => 
         b.site_id === site.id &&
         (b.demi_journee === periode || b.demi_journee === 'toute_journee')
       );
       
+      if (medecinsOnSite.length === 0) continue;
+
+      // Calculate total secretary requirement
       const totalBesoin = medecinsOnSite.reduce((sum, b) => {
         const medecin = medecinMap.get(b.medecin_id);
         return sum + (Number(medecin?.besoin_secretaires) || 1.2);
       }, 0);
-      
-      if (totalBesoin > 0) {
-        needs.push({
-          site_id: site.id,
-          periode,
-          nombre_requis: Math.ceil(totalBesoin)
-        });
-      }
-    }
-  }
-  
-  return needs;
-}
 
-function identifyRemainingBlocNeeds(blocOperations: any[]): any[] {
-  const remainingNeeds: any[] = [];
-  
-  for (const operation of blocOperations) {
-    const personnelAssignments = operation.planning_genere_bloc_personnel || [];
-    
-    // Find personnel rows without secretaire_id (unassigned)
-    for (const personnel of personnelAssignments) {
-      if (!personnel.secretaire_id) {
-        remainingNeeds.push({
-          bloc_operation_id: operation.id,
-          periode: operation.periode,
-          type_besoin: personnel.type_besoin,
-          personnel_row_id: personnel.id,
-          ordre: personnel.ordre
-        });
-      }
+      const nombreRequis = Math.ceil(totalBesoin);
+
+      // Create besoin entry
+      besoinRows.push({
+        planning_id,
+        date: single_day,
+        site_id: site.id,
+        periode,
+        medecins_ids: medecinsOnSite.map(b => b.medecin_id),
+        nombre_secretaires_requis: nombreRequis
+      });
+
+      // Will create personnel rows after getting besoin IDs
+      personnelRowsData.push({
+        site_id: site.id,
+        periode,
+        medecins: medecinsOnSite.map(b => b.medecin_id),
+        nombre_requis: nombreRequis
+      });
     }
   }
-  
-  console.log(`  ⚠️ Found ${remainingNeeds.length} unassigned bloc personnel needs`);
-  return remainingNeeds;
+
+  if (besoinRows.length === 0) {
+    console.log('  ℹ️ No sites besoins to create');
+    return { personnelRows: [] };
+  }
+
+  // Insert besoins
+  const { data: savedBesoins, error: besoinError } = await supabase
+    .from('planning_genere_site_besoin')
+    .insert(besoinRows)
+    .select();
+
+  if (besoinError) throw besoinError;
+  console.log(`  ✅ ${savedBesoins.length} besoins created`);
+
+  // Create personnel rows
+  const personnelRows = [];
+  for (let i = 0; i < personnelRowsData.length; i++) {
+    const data = personnelRowsData[i];
+    const besoin = savedBesoins[i];
+
+    // Create one row per required secretary
+    for (let ordre = 1; ordre <= data.nombre_requis; ordre++) {
+      personnelRows.push({
+        planning_genere_site_besoin_id: besoin.id,
+        medecin_id: data.medecins[ordre - 1] || null, // Assign medecins in order
+        secretaire_id: null, // Will be filled by MILP
+        ordre
+      });
+    }
+  }
+
+  const { data: insertedPersonnel, error: personnelError } = await supabase
+    .from('planning_genere_site_personnel')
+    .insert(personnelRows)
+    .select(`
+      *,
+      planning_genere_site_besoin!inner(site_id, periode)
+    `);
+
+  if (personnelError) throw personnelError;
+  console.log(`  ✅ ${insertedPersonnel.length} personnel rows created`);
+
+  return { personnelRows: insertedPersonnel };
 }
 
 function getSecretariesAssignedToBloc(blocOperations: any[]): Map<string, string[]> {
@@ -232,10 +310,12 @@ function getSecretariesAssignedToBloc(blocOperations: any[]): Map<string, string
     const periode = operation.periode || 'matin';
     
     for (const personnel of operation.planning_genere_bloc_personnel || []) {
-      if (!assignments.has(personnel.secretaire_id)) {
-        assignments.set(personnel.secretaire_id, []);
+      if (personnel.secretaire_id) {
+        if (!assignments.has(personnel.secretaire_id)) {
+          assignments.set(personnel.secretaire_id, []);
+        }
+        assignments.get(personnel.secretaire_id).push(periode);
       }
-      assignments.get(personnel.secretaire_id).push(periode);
     }
   }
   
@@ -246,22 +326,26 @@ function countPortEnTruieAssignments(historicalAssignments: any[]): Map<string, 
   const counts = new Map();
   
   for (const assignment of historicalAssignments || []) {
-    for (const secId of assignment.secretaires_ids || []) {
-      counts.set(secId, (counts.get(secId) || 0) + 1);
+    for (const personnel of assignment.planning_genere_site_personnel || []) {
+      if (personnel.secretaire_id) {
+        counts.set(personnel.secretaire_id, (counts.get(personnel.secretaire_id) || 0) + 1);
+      }
     }
   }
   
   return counts;
 }
 
-function buildAndSolveSitesMILP(
-  sitesNeeds: any[],
-  remainingBlocNeeds: any[],
+function buildSitesMILP(
+  personnelRows: any[],
   secretaires: any[],
   capacites: any[],
   blocAssignments: Map<string, string[]>,
-  portEnTruieCounts: Map<string, number>
+  portEnTruieCounts: Map<string, number>,
+  besoins: any[]
 ): any {
+  console.log('\n🔍 Building MILP model...');
+  
   const model: any = {
     optimize: 'cost',
     opType: 'min',
@@ -270,263 +354,253 @@ function buildAndSolveSitesMILP(
     ints: {}
   };
 
-  const secretairesAuBlocMatin = new Set();
-  const secretairesAuBlocAM = new Set();
-  
-  for (const [secId, periodes] of blocAssignments.entries()) {
-    if (periodes.includes('matin')) secretairesAuBlocMatin.add(secId);
-    if (periodes.includes('apres_midi')) secretairesAuBlocAM.add(secId);
-  }
-
+  // Map capacities
   const capacitesMap = new Map();
   capacites.forEach(c => {
-    const key = `${c.secretaire_id || c.backup_id}_${c.demi_journee}`;
-    capacitesMap.set(key, c);
+    const secId = c.secretaire_id || c.backup_id;
+    const periode = c.demi_journee === 'toute_journee' ? 'toute_journee' : c.demi_journee;
+    capacitesMap.set(`${secId}_${periode}`, c);
+    if (periode === 'toute_journee') {
+      capacitesMap.set(`${secId}_matin`, c);
+      capacitesMap.set(`${secId}_apres_midi`, c);
+    }
   });
 
-  // Variables for remaining bloc needs (PRIORITÉ 1000 - LA PLUS HAUTE)
-  for (const blocNeed of remainingBlocNeeds) {
-    const periode = blocNeed.periode;
+  // Create map of medecins by site/period for obliged secretaries
+  const medecinsBySite = new Map<string, Set<string>>();
+  for (const besoin of besoins) {
+    const periodes = besoin.demi_journee === 'toute_journee' 
+      ? ['matin', 'apres_midi'] 
+      : [besoin.demi_journee];
     
-    // Get all secretaries with the required competence (NOT just personnel_bloc_operatoire)
-    const eligible = getEligibleSecretariesForBlocNeed(
-      blocNeed.type_besoin,
-      secretaires,
-      periode,
-      capacitesMap,
-      blocAssignments
-    );
-    
-    if (eligible.length === 0) {
-      console.warn(`    ⚠️ NO ELIGIBLE SECRETARIES for bloc need ${blocNeed.type_besoin} at ${periode}`);
-      continue;
+    for (const periode of periodes) {
+      const key = `${besoin.site_id}_${periode}`;
+      if (!medecinsBySite.has(key)) {
+        medecinsBySite.set(key, new Set());
+      }
+      medecinsBySite.get(key)!.add(besoin.medecin_id);
     }
-    
-    for (const sec of eligible) {
-      const varName = `b_${sec.id}_${blocNeed.personnel_row_id}`;
-      
-      // Very high priority: -1000 (negative cost = maximize)
-      model.variables[varName] = {
-        cost: -1000,
-        [`bloc_need_${blocNeed.personnel_row_id}`]: 1,
-        [`capacity_${sec.id}_${periode}`]: 1
-      };
-      model.ints[varName] = 1;
-    }
-    
-    // Each bloc need must be filled (min: 1)
-    model.constraints[`bloc_need_${blocNeed.personnel_row_id}`] = {
-      min: 1
-    };
   }
 
-  // Variables for sites (PRIORITÉ 100)
-  for (const need of sitesNeeds) {
-    const periode = need.periode;
-    
-    let available = secretaires.filter(s => {
-      const key = `${s.id}_${periode}`;
-      return !blocAssignments.has(s.id) &&
-             capacitesMap.has(key) &&
-             (s.sites_assignes || []).includes(need.site_id);
-    });
+  // Variables for each personnel row × secretary
+  for (const row of personnelRows) {
+    const besoin = row.planning_genere_site_besoin;
+    const site_id = besoin.site_id;
+    const periode = besoin.periode;
+    const key = `${site_id}_${periode}`;
+    const medecinsOnSite = medecinsBySite.get(key) || new Set();
 
-    // Constraint géographique "Clinique La Vallée First"
-    if (SITES_INTERDITS_SI_BLOC.includes(need.site_id)) {
-      if (periode === 'matin') {
-        available = available.filter(s => !secretairesAuBlocAM.has(s.id));
-      } else {
-        available = available.filter(s => !secretairesAuBlocMatin.has(s.id));
+    // PRIORITY 1: Secretary linked to the medecin of this row (-10000)
+    if (row.medecin_id) {
+      const linkedSec = secretaires.find(s => s.medecin_assigne_id === row.medecin_id);
+      if (linkedSec) {
+        const keyCapacite = `${linkedSec.id}_${periode}`;
+        if (capacitesMap.has(keyCapacite) && !blocAssignments.has(linkedSec.id)) {
+          const varName = `x_${linkedSec.id}_${row.id}`;
+          model.variables[varName] = {
+            cost: -10000,
+            [`row_${row.id}`]: 1,
+            [`capacity_${linkedSec.id}_${periode}`]: 1
+          };
+          model.ints[varName] = 1;
+        }
       }
     }
 
-    for (const sec of available) {
-      const varName = `x_${sec.id}_${need.site_id}_${periode}`;
-      
+    // PRIORITY 2: Secretaries eligible for this site (-100)
+    const eligibleSecs = secretaires.filter(s => {
+      const keyCapacite = `${s.id}_${periode}`;
+      return !blocAssignments.has(s.id) &&
+             capacitesMap.has(keyCapacite) &&
+             (s.sites_assignes || []).includes(site_id);
+    });
+
+    for (const sec of eligibleSecs) {
+      const varName = `x_${sec.id}_${row.id}`;
+      if (model.variables[varName]) continue; // Already created in priority 1
+
       let cost = -100;
 
-      // Pénalité changement de site (simplified)
-      // Pénalité Port-en-Truie progressive
-      if (need.site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
+      // Penalty for Port-en-Truie
+      if (site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
         const count = portEnTruieCounts.get(sec.id) || 0;
-        cost += PENALTY_PORT_EN_TRUIE_BASE * (1 + count);
+        cost += PENALTY_PORT_EN_TRUIE_BASE * (count + 1);
       }
 
       model.variables[varName] = {
         cost,
-        [`site_need_${need.site_id}_${periode}`]: 1,
-        [`capacity_${sec.id}_${periode}`]: 1
-      };
-      model.ints[varName] = 1;
-    }
-
-    model.constraints[`site_need_${need.site_id}_${periode}`] = {
-      min: need.nombre_requis
-    };
-  }
-
-  // Variables administratives
-  for (const sec of secretaires.filter(s => !blocAssignments.has(s.id))) {
-    for (const periode of ['matin', 'apres_midi']) {
-      const key = `${sec.id}_${periode}`;
-      if (!capacitesMap.has(key)) continue;
-
-      const varName = `z_${sec.id}_admin_${periode}`;
-      
-      const bonus = sec.assignation_administrative ? BONUS_ADMIN_PRIORITAIRE : BONUS_ADMIN_BASE;
-
-      model.variables[varName] = {
-        cost: bonus,
+        [`row_${row.id}`]: 1,
         [`capacity_${sec.id}_${periode}`]: 1
       };
       model.ints[varName] = 1;
     }
   }
 
-  // Contrainte unicité
+  // Constraints: 1 secretary per row
+  for (const row of personnelRows) {
+    model.constraints[`row_${row.id}`] = { min: 1, max: 1 };
+  }
+
+  // Constraints: max 1 assignment per secretary/period
   for (const sec of secretaires) {
     for (const periode of ['matin', 'apres_midi']) {
-      model.constraints[`capacity_${sec.id}_${periode}`] = {
-        max: 1
-      };
+      const keyCapacite = `${sec.id}_${periode}`;
+      if (capacitesMap.has(keyCapacite) && !blocAssignments.has(sec.id)) {
+        model.constraints[`capacity_${sec.id}_${periode}`] = { max: 1 };
+      }
     }
   }
 
+  console.log(`  📊 Variables: ${Object.keys(model.variables).length}, Constraints: ${Object.keys(model.constraints).length}`);
+  
   const solution = solver.Solve(model);
+  console.log(`  ✅ Solution: feasible=${solution.feasible}, objective=${solution.result}`);
+  
   return solution;
 }
 
-async function saveSitesAssignments(
+async function updateSitePersonnelAssignments(
+  personnelRows: any[],
   solution: any,
+  supabase: any
+): Promise<number> {
+  console.log('\n🔄 Updating site personnel assignments...');
+  
+  let assignmentCount = 0;
+  
+  for (const [varName, value] of Object.entries(solution)) {
+    if (varName.startsWith('x_') && (value as number) > 0.5) {
+      const parts = varName.split('_');
+      const secId = parts[1];
+      const rowId = parts[2];
+      
+      const { error } = await supabase
+        .from('planning_genere_site_personnel')
+        .update({ secretaire_id: secId })
+        .eq('id', rowId);
+      
+      if (error) {
+        console.error(`  ❌ Failed to update row ${rowId}:`, error);
+      } else {
+        assignmentCount++;
+      }
+    }
+  }
+  
+  console.log(`  ✅ ${assignmentCount} assignments updated`);
+  return assignmentCount;
+}
+
+async function createPlanningGenereEntriesSites(
   planning_id: string,
   single_day: string,
   supabase: any
-) {
-  const siteRowsMap = new Map();
-  const blocPersonnelUpdates: any[] = [];
-
-  for (const [varName, value] of Object.entries(solution)) {
-    if ((value as number) < 0.5 || varName === 'feasible' || varName === 'result') continue;
-
-    if (varName.startsWith('b_')) {
-      // Bloc need assignment: b_<secretaire_id>_<personnel_row_id>
-      const parts = varName.split('_');
-      const secId = parts[1];
-      const personnelRowId = parts[2];
-
-      blocPersonnelUpdates.push({
-        id: personnelRowId,
-        secretaire_id: secId
-      });
-
-    } else if (varName.startsWith('x_')) {
-      const parts = varName.split('_');
-      const secId = parts[1];
-      const siteId = parts[2];
-      const periode = parts[3];
-
-      const key = `${siteId}_${periode}`;
-      if (!siteRowsMap.has(key)) {
-        siteRowsMap.set(key, {
-          planning_id,
-          date: single_day,
-          site_id: siteId,
-          periode,
-          secretaires_ids: [],
-          type_assignation: 'site',
-          statut: 'planifie'
-        });
-      }
-      siteRowsMap.get(key).secretaires_ids.push(secId);
-
-    } else if (varName.startsWith('z_')) {
-      const parts = varName.split('_');
-      const secId = parts[1];
-      const periode = parts[3];
-
-      const key = `admin_${periode}`;
-      if (!siteRowsMap.has(key)) {
-        siteRowsMap.set(key, {
-          planning_id,
-          date: single_day,
-          site_id: null,
-          periode,
-          secretaires_ids: [],
-          type_assignation: 'administratif',
-          statut: 'planifie'
-        });
-      }
-      siteRowsMap.get(key).secretaires_ids.push(secId);
-    }
+): Promise<void> {
+  console.log('\n📊 Creating unified planning_genere entries for sites...');
+  
+  // Get all site besoins for this day
+  const { data: siteBesoins, error } = await supabase
+    .from('planning_genere_site_besoin')
+    .select('id, periode')
+    .eq('date', single_day)
+    .eq('planning_id', planning_id);
+  
+  if (error) throw error;
+  
+  if (!siteBesoins || siteBesoins.length === 0) {
+    console.log('  ℹ️ No site besoins to create entries for');
+    return;
   }
 
-  // Update bloc personnel assignments
-  if (blocPersonnelUpdates.length > 0) {
-    for (const update of blocPersonnelUpdates) {
-      const { error: updateError } = await supabase
-        .from('planning_genere_bloc_personnel')
-        .update({ secretaire_id: update.secretaire_id })
-        .eq('id', update.id);
+  const entries = siteBesoins.map((b: any) => ({
+    planning_id,
+    date: single_day,
+    periode: b.periode,
+    type: 'site',
+    planning_genere_site_besoin_id: b.id,
+    statut: 'planifie'
+  }));
 
-      if (updateError) {
-        console.error(`Failed to update personnel row ${update.id}:`, updateError);
-      }
-    }
-    console.log(`  ✅ Updated ${blocPersonnelUpdates.length} bloc personnel assignments`);
-  }
+  const { error: insertError } = await supabase
+    .from('planning_genere')
+    .insert(entries);
 
-  const siteRows = Array.from(siteRowsMap.values());
-
-  if (siteRows.length > 0) {
-    const { error: siteError } = await supabase
-      .from('planning_genere_site')
-      .insert(siteRows);
-
-    if (siteError) throw siteError;
-  }
-
-  return {
-    sites_assigned: siteRows.length,
-    remaining_bloc_filled: blocPersonnelUpdates.length
-  };
+  if (insertError) throw insertError;
+  
+  console.log(`  ✅ ${entries.length} site entries created in planning_genere`);
 }
 
-function getEligibleSecretariesForBlocNeed(
-  type_besoin: string,
+async function createAdminAssignments(
+  capacites: any[],
+  blocAssignments: Map<string, string[]>,
+  personnelRows: any[],
+  solution: any,
   secretaires: any[],
-  periode: string,
-  capacitesMap: Map<string, any>,
-  blocAssignments: Map<string, string[]>
-): any[] {
-  // Filter by capacity (available at this period)
-  let eligible = secretaires.filter(s => {
-    const key = `${s.id}_${periode}`;
-    const keyTouteJournee = `${s.id}_toute_journee`;
-    return (capacitesMap.has(key) || capacitesMap.has(keyTouteJournee)) &&
-           !blocAssignments.has(s.id); // Not already assigned to bloc in phase 1
-  });
-
-  // Filter by competence (NOT by personnel_bloc_operatoire)
-  switch (type_besoin) {
-    case 'instrumentiste':
-      eligible = eligible.filter(s => s.instrumentaliste);
-      break;
-    case 'aide_salle':
-      eligible = eligible.filter(s => s.aide_de_salle && s.instrumentaliste);
-      break;
-    case 'instrumentiste_aide_salle':
-      eligible = eligible.filter(s => s.instrumentaliste);
-      break;
-    case 'accueil_dermato':
-      eligible = eligible.filter(s => s.bloc_dermato_accueil);
-      break;
-    case 'accueil_ophtalmo':
-      eligible = eligible.filter(s => s.bloc_ophtalmo_accueil);
-      break;
-    case 'anesthesiste':
-      eligible = eligible.filter(s => s.anesthesiste);
-      break;
+  planning_id: string,
+  single_day: string,
+  supabase: any
+): Promise<number> {
+  console.log('\n📋 Creating administrative assignments...');
+  
+  // Build set of assigned secretaries from solution
+  const assignedSecretaries = new Map<string, Set<string>>(); // sec_id -> Set<periode>
+  
+  for (const [varName, value] of Object.entries(solution)) {
+    if (varName.startsWith('x_') && (value as number) > 0.5) {
+      const parts = varName.split('_');
+      const secId = parts[1];
+      const rowId = parts[2];
+      
+      // Find period for this row
+      const row = personnelRows.find(r => r.id === rowId);
+      if (row) {
+        const periode = row.planning_genere_site_besoin.periode;
+        if (!assignedSecretaries.has(secId)) {
+          assignedSecretaries.set(secId, new Set());
+        }
+        assignedSecretaries.get(secId)!.add(periode);
+      }
+    }
   }
 
-  return eligible;
+  const adminAssignments = [];
+  
+  for (const cap of capacites) {
+    const secId = cap.secretaire_id || cap.backup_id;
+    if (!secId) continue;
+
+    const periodes = cap.demi_journee === 'toute_journee' 
+      ? ['matin', 'apres_midi'] 
+      : [cap.demi_journee];
+
+    for (const periode of periodes) {
+      const isAtBloc = blocAssignments.has(secId) && blocAssignments.get(secId)!.includes(periode);
+      const isAtSite = assignedSecretaries.has(secId) && assignedSecretaries.get(secId)!.has(periode);
+
+      if (!isAtBloc && !isAtSite) {
+        adminAssignments.push({
+          planning_id,
+          date: single_day,
+          periode,
+          type: 'administratif',
+          secretaire_id: secId,
+          statut: 'planifie'
+        });
+      }
+    }
+  }
+
+  if (adminAssignments.length === 0) {
+    console.log('  ℹ️ No unassigned capacities for admin');
+    return 0;
+  }
+
+  const { error } = await supabase
+    .from('planning_genere')
+    .insert(adminAssignments);
+
+  if (error) throw error;
+  
+  console.log(`  ✅ ${adminAssignments.length} admin assignments created`);
+  return adminAssignments.length;
 }
