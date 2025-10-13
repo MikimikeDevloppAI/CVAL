@@ -31,69 +31,91 @@ serve(async (req) => {
     let blocResults = null;
     let sitesResults = null;
 
-    // PHASE 1: Bloc opératoire
-    if (optimize_bloc) {
-      console.log('🏥 Phase 1: Optimizing bloc operatoire...');
-      
-      // Delete existing bloc assignments
-      await supabaseServiceRole
+  // PHASE 1: Bloc opératoire
+  if (optimize_bloc) {
+    console.log('🏥 Phase 1: Optimizing bloc operatoire...');
+    
+    // Delete existing bloc assignments
+    await supabaseServiceRole
+      .from('planning_genere_bloc_operatoire')
+      .delete()
+      .eq('date', single_day);
+
+    const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
+    const blocResponse = await fetch(blocUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      },
+      body: JSON.stringify({ single_day })
+    });
+
+    if (!blocResponse.ok) {
+      const errorText = await blocResponse.text();
+      throw new Error(`Bloc optimization failed: ${errorText}`);
+    }
+
+    blocResults = await blocResponse.json();
+    console.log(`✅ Bloc phase complete: ${JSON.stringify(blocResults)}`);
+    
+    // Create planning_genere entries for bloc
+    if (blocResults.blocs_assigned > 0) {
+      const { data: blocOps } = await supabaseServiceRole
         .from('planning_genere_bloc_operatoire')
-        .delete()
+        .select('id, periode')
         .eq('date', single_day);
-
-      const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
-      const blocResponse = await fetch(blocUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-        },
-        body: JSON.stringify({ single_day })
-      });
-
-      if (!blocResponse.ok) {
-        const errorText = await blocResponse.text();
-        throw new Error(`Bloc optimization failed: ${errorText}`);
-      }
-
-      blocResults = await blocResponse.json();
-      console.log(`✅ Bloc phase complete: ${JSON.stringify(blocResults)}`);
-    }
-
-    // PHASE 2: Sites + remaining bloc needs
-    if (optimize_sites) {
-      console.log('🏢 Phase 2: Optimizing sites...');
       
-      // Delete existing sites assignments
-      await supabaseServiceRole
-        .from('planning_genere_site')
-        .delete()
-        .eq('date', single_day);
-
-      const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
-      const sitesResponse = await fetch(sitesUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-        },
-        body: JSON.stringify({ 
-          single_day,
-          exclude_bloc_assigned: optimize_bloc
-        })
-      });
-
-      if (!sitesResponse.ok) {
-        const errorText = await sitesResponse.text();
-        throw new Error(`Sites optimization failed: ${errorText}`);
+      if (blocOps && blocOps.length > 0) {
+        const blocEntries = blocOps.map((b: any) => ({
+          planning_id: null, // Will be set later
+          date: single_day,
+          periode: b.periode,
+          type: 'bloc_operatoire',
+          planning_genere_bloc_operatoire_id: b.id,
+          statut: 'planifie'
+        }));
+        
+        await supabaseServiceRole
+          .from('planning_genere')
+          .insert(blocEntries);
+        
+        console.log(`  ✅ ${blocEntries.length} bloc entries created in planning_genere`);
       }
+    }
+  }
 
-      sitesResults = await sitesResponse.json();
-      console.log(`✅ Sites phase complete: ${JSON.stringify(sitesResults)}`);
+  // PHASE 2: Sites + remaining bloc needs
+  if (optimize_sites) {
+    console.log('🏢 Phase 2: Optimizing sites...');
+    
+    // Delete existing sites assignments
+    await supabaseServiceRole
+      .from('planning_genere_site_besoin')
+      .delete()
+      .eq('date', single_day);
+
+    const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
+    const sitesResponse = await fetch(sitesUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      },
+      body: JSON.stringify({ 
+        single_day,
+        exclude_bloc_assigned: optimize_bloc
+      })
+    });
+
+    if (!sitesResponse.ok) {
+      const errorText = await sitesResponse.text();
+      throw new Error(`Sites optimization failed: ${errorText}`);
     }
 
-    // Assign responsables for closed sites
-    await assignResponsablesForClosedSites(single_day, supabaseServiceRole);
+    sitesResults = await sitesResponse.json();
+    console.log(`✅ Sites phase complete: ${JSON.stringify(sitesResults)}`);
+  }
 
     console.log('🎉 Orchestrator complete!');
 
