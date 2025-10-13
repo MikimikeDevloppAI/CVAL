@@ -98,6 +98,7 @@ export default function PlanningPage() {
   const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
   const [selectDatesDialogOpen, setSelectDatesDialogOpen] = useState(false);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
+  const [isLoadingOptimizationResults, setIsLoadingOptimizationResults] = useState(false);
   const [optimizationProgress, setOptimizationProgress] = useState({
     currentDay: 0,
     totalDays: 0,
@@ -616,6 +617,7 @@ export default function PlanningPage() {
 
   const executeOptimizeMILP = async (selectedDates?: string[], optimizeBloc = true, optimizeSites = true) => {
     setIsOptimizingMILP(true);
+    setIsLoadingOptimizationResults(true);
     setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
     
     // Si on réoptimise un planning validé, le repasser en cours
@@ -732,22 +734,24 @@ export default function PlanningPage() {
         currentPhase: 'complete',
       }));
 
+      // Rafraîchir le planning généré AVANT de fermer la modal
+      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
+
       // Attendre un peu pour que l'utilisateur voie le message de complétion
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Fermer la modal de progression
       setShowProgressDialog(false);
+      setIsLoadingOptimizationResults(false);
 
       toast({
         title: "✅ Optimisation MILP terminée",
         description: `${totalAssignments} assignations créées avec succès sur ${daysToOptimize.length} jour${daysToOptimize.length > 1 ? 's' : ''}`,
       });
-
-      // Rafraîchir le planning généré
-      await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
     } catch (error: any) {
       console.error('MILP optimization error:', error);
       setShowProgressDialog(false);
+      setIsLoadingOptimizationResults(false);
       toast({
         title: "Erreur lors de l'optimisation MILP",
         description: error.message,
@@ -1218,7 +1222,14 @@ export default function PlanningPage() {
           </div>
 
           {/* Planning Views */}
-          {planningView === 'bloc' ? (
+          {isLoadingOptimizationResults ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Chargement du planning optimisé...</p>
+              </CardContent>
+            </Card>
+          ) : planningView === 'bloc' ? (
             <BlocOperatoirePlanningView
               startDate={currentWeekStart}
               endDate={weekEnd}

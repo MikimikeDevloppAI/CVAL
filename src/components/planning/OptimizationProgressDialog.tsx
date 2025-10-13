@@ -33,14 +33,13 @@ export function OptimizationProgressDialog({
   
   const getPhaseLabel = () => {
     if (currentPhase === 'complete') return '✅ Optimisation terminée';
-    if (currentPhase === 'bloc' && optimizeBloc) return '🏥 Optimisation du bloc opératoire...';
-    if (currentPhase === 'sites' && optimizeSites) return '🏢 Optimisation des sites et administration...';
+    if (currentPhase === 'bloc' && optimizeBloc) return '🏥 Optimisation du bloc opératoire (salles, personnel médical)';
+    if (currentPhase === 'sites' && optimizeSites) return '🏢 Optimisation des sites (secrétaires, tâches administratives)';
     return 'Optimisation en cours...';
   };
 
   const getCurrentPhaseNumber = () => {
-    if (!optimizeBloc) return '1/1';
-    if (!optimizeSites) return '1/1';
+    if (!optimizeBloc || !optimizeSites) return '1/1';
     if (currentPhase === 'bloc') return '1/2';
     if (currentPhase === 'sites') return '2/2';
     return '';
@@ -69,10 +68,10 @@ export function OptimizationProgressDialog({
           {/* Current progress */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">
-                Jour {currentDay} sur {totalDays}
+              <span className="font-medium text-base">
+                Jour {currentDay} / {totalDays}
               </span>
-              <span className="text-muted-foreground">{Math.round(progress)}%</span>
+              <span className="text-muted-foreground font-semibold">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-2" />
           </div>
@@ -109,11 +108,15 @@ export function OptimizationProgressDialog({
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      {optimizeBloc && day.blocAssignments > 0 && (
-                        <span>🏥 {day.blocAssignments}</span>
+                      {optimizeBloc && (
+                        <span>
+                          🏥 Bloc: {day.blocAssignments > 0 ? `${day.blocAssignments} assignations` : 'Aucune opération'}
+                        </span>
                       )}
-                      {optimizeSites && day.sitesAssignments > 0 && (
-                        <span>🏢 {day.sitesAssignments}</span>
+                      {optimizeSites && (
+                        <span>
+                          🏢 Sites: {day.sitesAssignments > 0 ? `${day.sitesAssignments} assignations` : 'Aucune assignation'}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -131,7 +134,7 @@ export function OptimizationProgressDialog({
               <p>Assignation des secrétaires sur les sites et tâches administratives...</p>
             )}
             {currentPhase === 'complete' && (
-              <p>L'optimisation est terminée. Le planning sera affiché dans un instant.</p>
+              <p className="font-medium text-primary">✅ Optimisation terminée ! Chargement du planning...</p>
             )}
           </div>
         </div>
