@@ -31,6 +31,57 @@ serve(async (req) => {
     let blocResults = null;
     let sitesResults = null;
 
+  // Get or create planning_id for the week
+  const targetDate = new Date(single_day);
+  const dayOfWeek = targetDate.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const weekStart = new Date(targetDate);
+  weekStart.setDate(targetDate.getDate() + diff);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+  let planning_id;
+  const { data: existingPlanning } = await supabaseServiceRole
+    .from('planning')
+    .select('*')
+    .eq('date_debut', weekStartStr)
+    .eq('date_fin', weekEndStr)
+    .maybeSingle();
+
+  if (existingPlanning) {
+    planning_id = existingPlanning.id;
+  } else {
+    const { data: newPlanning, error: planningError } = await supabaseServiceRole
+      .from('planning')
+      .insert({
+        date_debut: weekStartStr,
+        date_fin: weekEndStr,
+        statut: 'en_cours'
+      })
+      .select()
+      .single();
+    if (planningError) throw planningError;
+    planning_id = newPlanning.id;
+  }
+
+  console.log(`📋 Using planning_id: ${planning_id} for week ${weekStartStr} to ${weekEndStr}`);
+
+  // Delete ALL existing planning_genere entries for this day (idempotency)
+  console.log('🧹 Cleaning up existing entries...');
+  await supabaseServiceRole
+    .from('planning_genere')
+    .delete()
+    .eq('date', single_day)
+    .in('type', ['site', 'administratif', 'bloc_operatoire']);
+
+  await supabaseServiceRole
+    .from('planning_genere_site_besoin')
+    .delete()
+    .eq('date', single_day);
+
   // PHASE 1: Bloc opératoire
   if (optimize_bloc) {
     console.log('🏥 Phase 1: Optimizing bloc operatoire...');
@@ -68,7 +119,7 @@ serve(async (req) => {
       
       if (blocOps && blocOps.length > 0) {
         const blocEntries = blocOps.map((b: any) => ({
-          planning_id: null, // Will be set later
+          planning_id,
           date: single_day,
           periode: b.periode,
           type: 'bloc_operatoire',
@@ -80,7 +131,7 @@ serve(async (req) => {
           .from('planning_genere')
           .insert(blocEntries);
         
-        console.log(`  ✅ ${blocEntries.length} bloc entries created in planning_genere`);
+        console.log(`  ✅ ${blocEntries.length} bloc entries created in planning_genere with planning_id`);
       }
     }
   }
@@ -120,18 +171,6 @@ serve(async (req) => {
   // PHASE 3: Flexible secretaries
   let flexibleResults = null;
   console.log('👥 Phase 3: Optimizing flexible secretaries...');
-  
-  // Calculate week start and end
-  const targetDate = new Date(single_day);
-  const dayOfWeek = targetDate.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday
-  const weekStart = new Date(targetDate);
-  weekStart.setDate(targetDate.getDate() + diff);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  
-  const weekStartStr = weekStart.toISOString().split('T')[0];
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
   
   const flexibleUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-flexible`;
   const flexibleResponse = await fetch(flexibleUrl, {

@@ -596,6 +596,13 @@ async function createUnifiedPlanningGenere(
 ): Promise<{ sites: number; admin: number }> {
   console.log('\n📊 Creating unified planning_genere entries...');
   
+  // IDEMPOTENCY: Delete existing site/admin entries for this day
+  await supabase
+    .from('planning_genere')
+    .delete()
+    .eq('date', single_day)
+    .in('type', ['site', 'administratif']);
+  
   // Step 1: Build assignment map from MILP solution
   const assignmentMap = new Map<string, { besoinId: string; personnelRowId: string }>();
   // Key: "secretaire_id_periode"
