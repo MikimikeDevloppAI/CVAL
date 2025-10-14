@@ -195,7 +195,7 @@ serve(async (req) => {
       // Get secretaries assigned to this site on this date (morning and afternoon)
       const { data: assignedMorning, error: amError } = await supabase
         .from('planning_genere_personnel')
-        .select('secretaire_id, secretaires(id, first_name, name)')
+        .select('secretaire_id, secretaires!secretaire_id(id, first_name, name)')
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('periode', 'matin')
@@ -206,7 +206,7 @@ serve(async (req) => {
 
       const { data: assignedAfternoon, error: pmError } = await supabase
         .from('planning_genere_personnel')
-        .select('secretaire_id, secretaires(id, first_name, name)')
+        .select('secretaire_id, secretaires!secretaire_id(id, first_name, name)')
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('periode', 'apres_midi')
