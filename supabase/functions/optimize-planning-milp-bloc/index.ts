@@ -461,8 +461,12 @@ async function createBlocAndPersonnelRows(
     for (const besoin of besoins) {
       for (let ordre = 1; ordre <= besoin.nombre_requis; ordre++) {
         allPersonnelRows.push({
+          planning_id,
           planning_genere_bloc_operatoire_id: savedBloc.id,
-          type_besoin: besoin.type_besoin,
+          date: savedBloc.date,
+          periode: savedBloc.periode,
+          type_assignation: 'bloc',
+          type_besoin_bloc: besoin.type_besoin,
           secretaire_id: null,
           ordre
         });
@@ -477,7 +481,7 @@ async function createBlocAndPersonnelRows(
   }
   
   const { data: insertedPersonnel, error: personnelError } = await supabase
-    .from('planning_genere_bloc_personnel')
+    .from('planning_genere_personnel')
     .insert(allPersonnelRows)
     .select();
   
@@ -494,7 +498,8 @@ async function createBlocAndPersonnelRows(
     return {
       ...row,
       date: bloc?.date,
-      demi_journee: bloc?.periode || 'matin'
+      demi_journee: bloc?.periode || 'matin',
+      type_besoin: row.type_besoin_bloc  // Map type_besoin_bloc to type_besoin for MILP compatibility
     };
   });
   
@@ -519,7 +524,7 @@ async function updatePersonnelAssignments(
       const rowId = parts[2];
       
       const { error: updateError } = await supabase
-        .from('planning_genere_bloc_personnel')
+        .from('planning_genere_personnel')
         .update({ secretaire_id: secId })
         .eq('id', rowId);
       
