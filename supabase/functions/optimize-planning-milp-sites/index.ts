@@ -546,32 +546,80 @@ function buildMILP(
 
   console.log(`    ✅ ${continuityBonusCount} continuity bonus variables (score +1000 each)`);
 
-  // === 6. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS (sites + admin) ===
-  console.log('  📅 Adding flexible constraints...');
+  // === 6. FLEXIBLE SECRETARIES: FORCE FULL DAYS ONLY ===
+  console.log('  📅 Adding flexible full-day constraints...');
   
-  // ⚠️ ONLY apply this constraint in WEEK mode (multiple days)
   if (dates.length > 1) {
     for (const [flexSecId, requiredDays] of flexibleSecs) {
       const sec = secretaires.find((s: any) => s.id === flexSecId);
       if (!sec) continue;
 
-      const maxPeriods = requiredDays * 2; // 2 periods per day
-      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days (max ${maxPeriods} periods)`);
+      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days ONLY`);
 
-      const constraintKey = `max_periods_${flexSecId}`;
-      model.constraints[constraintKey] = { max: maxPeriods };
-      
-      // Add all SITE assignment variables (new format: x|secId|...)
-      for (const varName of Object.keys(model.variables)) {
-        if (varName.startsWith(`x|${flexSecId}|`)) {
-          model.variables[varName][constraintKey] = 1;
+      for (const date of dates) {
+        const matinVars = [];
+        const pmVars = [];
+
+        // Collect all variables for this secretary on this date
+        for (const varName of Object.keys(model.variables)) {
+          // Site assignments: x|secId|date|periode|siteId|ordre
+          if (varName.startsWith(`x|${flexSecId}|${date}|matin|`)) {
+            matinVars.push(varName);
+          } else if (varName.startsWith(`x|${flexSecId}|${date}|apres_midi|`)) {
+            pmVars.push(varName);
+          }
+          
+          // Admin assignments: admin_secId_date_periode
+          if (varName === `admin_${flexSecId}_${date}_matin`) {
+            matinVars.push(varName);
+          } else if (varName === `admin_${flexSecId}_${date}_apres_midi`) {
+            pmVars.push(varName);
+          }
+        }
+
+        if (matinVars.length === 0 && pmVars.length === 0) continue;
+
+        // Constraint: sum(matin_vars) == sum(pm_vars)
+        // This forces: if works morning → must work afternoon (and vice versa)
+        const constraintKey = `fullday_${flexSecId}_${date}`;
+        model.constraints[constraintKey] = { equal: 0 };
+        
+        for (const mVar of matinVars) {
+          model.variables[mVar][constraintKey] = 1;
+        }
+        for (const pVar of pmVars) {
+          model.variables[pVar][constraintKey] = -1;
         }
       }
+
+      // Also add max constraint on DAYS (not periods)
+      // Create binary day variables: d_{secId}_{date} = 1 if works that day
+      for (const date of dates) {
+        const dayVar = `d_${flexSecId}_${date}`;
+        model.variables[dayVar] = { score: 0 }; // Neutral score
+        model.ints[dayVar] = 1;
+
+        const activateConstraint = `activate_day_${flexSecId}_${date}`;
+        model.constraints[activateConstraint] = { max: 0 };
+        model.variables[dayVar][activateConstraint] = 1;
+
+        // d_{secId}_{date} is activated if ANY period is worked
+        for (const varName of Object.keys(model.variables)) {
+          if (varName.startsWith(`x|${flexSecId}|${date}|`) || 
+              varName.startsWith(`admin_${flexSecId}_${date}_`)) {
+            model.variables[varName][activateConstraint] = -1;
+          }
+        }
+      }
+
+      // Constraint: sum of all day variables <= requiredDays
+      const maxDaysConstraint = `max_days_${flexSecId}`;
+      model.constraints[maxDaysConstraint] = { max: requiredDays };
       
-      // Add all ADMIN assignment variables
-      for (const varName of Object.keys(model.variables)) {
-        if (varName.startsWith(`admin_${flexSecId}_`)) {
-          model.variables[varName][constraintKey] = 1;
+      for (const date of dates) {
+        const dayVar = `d_${flexSecId}_${date}`;
+        if (model.variables[dayVar]) {
+          model.variables[dayVar][maxDaysConstraint] = 1;
         }
       }
     }
