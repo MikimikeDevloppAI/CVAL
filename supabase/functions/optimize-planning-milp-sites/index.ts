@@ -565,6 +565,101 @@ function buildSitesMILP(
     }
   }
 
+  // === SITE CLOSURE CONTINUITY CONSTRAINT ===
+  // Ensure at least 2 secretaries work full day (morning + afternoon) on closure sites
+  console.log('  🔒 Adding site closure continuity constraints...');
+
+  const closureSites = sites.filter(s => s.fermeture === true);
+  const closureSiteIds = new Set(closureSites.map(s => s.id));
+
+  if (closureSites.length === 0) {
+    console.log('  ℹ️ No closure sites found');
+  } else {
+    // Map: site_id_secretary_id -> { matin: [x_vars], apres_midi: [x_vars] }
+    const closureAssignmentsBySiteAndSec = new Map<string, { matin: string[], apres_midi: string[] }>();
+
+    for (const row of personnelRows) {
+      const besoin = row.planning_genere_site_besoin;
+      const site_id = besoin.site_id;
+      const periode = besoin.periode as 'matin' | 'apres_midi';
+      
+      if (!closureSiteIds.has(site_id)) continue;
+      
+      // Find all x_ variables that reference this row
+      for (const varName of Object.keys(model.variables)) {
+        if (!varName.startsWith('x_')) continue;
+        if (!model.variables[varName][`row_${row.id}`]) continue;
+        
+        const secId = varName.split('_')[1];
+        const key = `${site_id}_${secId}`;
+        
+        if (!closureAssignmentsBySiteAndSec.has(key)) {
+          closureAssignmentsBySiteAndSec.set(key, { matin: [], apres_midi: [] });
+        }
+        
+        closureAssignmentsBySiteAndSec.get(key)![periode].push(varName);
+      }
+    }
+
+    // Create continuity variables
+    let continuitiesCount = 0;
+
+    for (const [key, periods] of closureAssignmentsBySiteAndSec) {
+      // Skip if secretary cannot work both periods at this site
+      if (periods.matin.length === 0 || periods.apres_midi.length === 0) continue;
+      
+      const [site_id, secId] = key.split('_');
+      const contVar = `continuity_${site_id.substring(0, 8)}_${secId.substring(0, 8)}`;
+      
+      // Binary variable with strong bonus (-200)
+      model.variables[contVar] = { cost: -200 };
+      model.ints[contVar] = 1;
+      
+      // Constraint 1: continuity <= sum(matin_vars)
+      // If no matin assignment, continuity must be 0
+      const constraintMatin = `cont_matin_${site_id.substring(0, 8)}_${secId.substring(0, 8)}`;
+      model.constraints[constraintMatin] = { max: 0 };
+      model.variables[contVar][constraintMatin] = 1;
+      for (const matinVar of periods.matin) {
+        model.variables[matinVar][constraintMatin] = -1;
+      }
+      
+      // Constraint 2: continuity <= sum(pm_vars)
+      // If no PM assignment, continuity must be 0
+      const constraintPM = `cont_pm_${site_id.substring(0, 8)}_${secId.substring(0, 8)}`;
+      model.constraints[constraintPM] = { max: 0 };
+      model.variables[contVar][constraintPM] = 1;
+      for (const pmVar of periods.apres_midi) {
+        model.variables[pmVar][constraintPM] = -1;
+      }
+      
+      continuitiesCount++;
+    }
+
+    console.log(`  ✅ Created ${continuitiesCount} continuity variables`);
+
+    // Minimum 2 continuities per closure site
+    for (const site of closureSites) {
+      const continuityVars = Object.keys(model.variables).filter(v => 
+        v.startsWith(`continuity_${site.id.substring(0, 8)}`)
+      );
+      
+      if (continuityVars.length === 0) {
+        console.log(`  ⚠️ Warning: No continuity possible for ${site.nom}`);
+        continue;
+      }
+      
+      const constraintName = `min_continuity_${site.id.substring(0, 8)}`;
+      model.constraints[constraintName] = { min: 2 };
+      
+      for (const contVar of continuityVars) {
+        model.variables[contVar][constraintName] = 1;
+      }
+      
+      console.log(`  ✓ Constraint added: ${site.nom} requires 2+ full-day presences`);
+    }
+  }
+
   // === SITE CHANGE PENALTY ===
   // Create variables to track site changes between morning and afternoon
   console.log('  🔄 Adding site change penalties...');
