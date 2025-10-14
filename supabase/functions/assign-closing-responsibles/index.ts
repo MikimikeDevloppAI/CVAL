@@ -71,6 +71,9 @@ serve(async (req) => {
 
     console.log(`📊 Calculated scores for ${scores.size} secretaries`);
 
+    // Also track scores for current week to balance within the week
+    const currentWeekScores = new Map<string, number>();
+
     // Step 3: Get all secretaries info
     const { data: secretaries, error: secError } = await supabase
       .from('secretaires')
@@ -158,15 +161,16 @@ serve(async (req) => {
       const { date, site_id } = siteDay;
       const dayOfWeek = new Date(date).getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, ...
 
-      // Check if Paul Jacquier works on Thursday (4) and Friday (5) this week
-      const needsThreeF = paulJacquier && dayOfWeek === 4; // Thursday = 4
+      // Check if Paul Jacquier works Thursday AND Friday at THIS SPECIFIC SITE
+      let needsThreeF = false;
       
-      if (needsThreeF && paulJacquier) {
-        // Check if Paul Jacquier actually works Thursday and Friday
+      if (paulJacquier && dayOfWeek === 4) { // Thursday = 4
+        // Check if Paul Jacquier works Thursday at this site
         const { data: jacquierThursday, error: jThurError } = await supabase
           .from('besoin_effectif')
           .select('id')
           .eq('medecin_id', paulJacquier.id)
+          .eq('site_id', site_id) // Check for THIS site
           .eq('date', date)
           .limit(1)
           .maybeSingle();
@@ -177,10 +181,12 @@ serve(async (req) => {
         friday.setDate(friday.getDate() + 1);
         const fridayStr = friday.toISOString().split('T')[0];
 
+        // Check if Paul Jacquier works Friday at this site
         const { data: jacquierFriday, error: jFriError } = await supabase
           .from('besoin_effectif')
           .select('id')
           .eq('medecin_id', paulJacquier.id)
+          .eq('site_id', site_id) // Check for THIS site
           .eq('date', fridayStr)
           .limit(1)
           .maybeSingle();
@@ -188,7 +194,8 @@ serve(async (req) => {
         if (jFriError) throw jFriError;
 
         if (jacquierThursday && jacquierFriday) {
-          console.log(`⚠️ Paul Jacquier works Thursday ${date} and Friday ${fridayStr}, need 3F on Thursday`);
+          needsThreeF = true;
+          console.log(`⚠️ Paul Jacquier works Thursday ${date} and Friday ${fridayStr} at ${siteDay.site_nom}, need 3F on Thursday`);
         }
       }
 
@@ -230,23 +237,33 @@ serve(async (req) => {
       let candidates = bothPeriods;
       const isTuesday = dayOfWeek === 2;
       
-      // Sort candidates by score (lowest first)
+      // Sort candidates by combined score (historical + current week)
       candidates.sort((a, b) => {
-        const scoreA = scores.get(a) || 0;
-        const scoreB = scores.get(b) || 0;
-        return scoreA - scoreB;
+        const historicalScoreA = scores.get(a) || 0;
+        const historicalScoreB = scores.get(b) || 0;
+        const currentWeekScoreA = currentWeekScores.get(a) || 0;
+        const currentWeekScoreB = currentWeekScores.get(b) || 0;
+        
+        // Total score = historical + current week (both weighted equally)
+        const totalScoreA = historicalScoreA + currentWeekScoreA;
+        const totalScoreB = historicalScoreB + currentWeekScoreB;
+        
+        return totalScoreA - totalScoreB;
       });
 
-      // Assign 1R (lowest score)
+      // Assign 1R (lowest combined score)
       const responsable1R = candidates[0];
       
-      // Assign 2F or 3F (second lowest score, but not Florence Bron on Tuesday for 2F)
+      // Update current week score for 1R
+      currentWeekScores.set(responsable1R, (currentWeekScores.get(responsable1R) || 0) + 1);
+      
+      // Assign 2F or 3F (second lowest combined score, but not Florence Bron on Tuesday for 2F)
       let responsable2F3F = null;
       for (const candidate of candidates) {
         if (candidate === responsable1R) continue;
         
-        // If Tuesday and Florence Bron, skip for 2F
-        if (isTuesday && florenceBron && candidate === florenceBron.id) {
+        // If Tuesday and Florence Bron and assigning 2F (not 3F), skip
+        if (!needsThreeF && isTuesday && florenceBron && candidate === florenceBron.id) {
           console.log(`🚫 Skipping Florence Bron for 2F on Tuesday ${date}`);
           continue;
         }
@@ -260,10 +277,19 @@ serve(async (req) => {
         responsable2F3F = responsable1R;
       }
 
+      // Update current week score for 2F/3F
+      const pointsFor2F3F = needsThreeF ? 2 : 2; // Both 2F and 3F worth 2 points
+      currentWeekScores.set(responsable2F3F, (currentWeekScores.get(responsable2F3F) || 0) + pointsFor2F3F);
+
       const secName1R = secretaries?.find(s => s.id === responsable1R);
       const secName2F3F = secretaries?.find(s => s.id === responsable2F3F);
       
-      console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${scores.get(responsable1R) || 0}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${scores.get(responsable2F3F) || 0})`);
+      const historicalScore1R = scores.get(responsable1R) || 0;
+      const historicalScore2F3F = scores.get(responsable2F3F) || 0;
+      const currentScore1R = currentWeekScores.get(responsable1R) || 0;
+      const currentScore2F3F = currentWeekScores.get(responsable2F3F) || 0;
+      
+      console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (hist: ${historicalScore1R}, week: ${currentScore1R}, total: ${historicalScore1R + currentScore1R}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (hist: ${historicalScore2F3F}, week: ${currentScore2F3F}, total: ${historicalScore2F3F + currentScore2F3F})`);
 
       // First, reset all responsable flags for this site/date
       const { error: resetError } = await supabase
