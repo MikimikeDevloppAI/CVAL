@@ -418,8 +418,9 @@ function buildMILP(
   
   console.log(`    ✅ ${changeCount} change penalties`);
 
-  // === 4. SITE CLOSURE CONTINUITY (min 2 full days) ===
-  console.log('  🔒 Adding closure site continuity...');
+  // === 4. SITE CLOSURE CONTINUITY (soft bonus, highly valued) ===
+  console.log('  🔒 Adding closure site continuity bonuses (soft)...');
+  let continuityBonusCount = 0;
   
   for (const date of dates) {
     const closureBesoins = besoins.filter((b: any) => {
@@ -451,10 +452,11 @@ function buildMILP(
 
         if (matinVars.length === 0 || pmVars.length === 0) continue;
 
-        // Continuity variable: bonus if works both periods
+        // Continuity variable: bonus if works both periods (high value to incentivize)
         const contVar = `cont_${site_id.substring(0,8)}_${sec.id}_${date}`;
-        model.variables[contVar] = { score: 200 };
+        model.variables[contVar] = { score: 1000 };
         model.ints[contVar] = 1;
+        continuityBonusCount++;
 
         // cont <= sum(matin)
         const c1 = `${contVar}_matin`;
@@ -467,15 +469,11 @@ function buildMILP(
         model.constraints[c2] = { max: 0 };
         model.variables[contVar][c2] = 1;
         for (const pVar of pmVars) model.variables[pVar][c2] = -1;
-
-        // Track for minimum
-        model.variables[contVar][`min_cont_${site_id}_${date}`] = 1;
       }
-
-      // Min 2 continuities
-      model.constraints[`min_cont_${site_id}_${date}`] = { min: 2 };
     }
   }
+
+  console.log(`    ✅ ${continuityBonusCount} continuity bonus variables (score +1000 each)`);
 
   // === 5. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS (sites + admin) ===
   console.log('  📅 Adding flexible constraints...');
