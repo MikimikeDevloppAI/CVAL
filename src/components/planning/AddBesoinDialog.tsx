@@ -193,7 +193,7 @@ export function AddBesoinDialog({ open, onOpenChange, date, siteId, siteName, on
       await Promise.all(
         selectedDates.map(date => 
           supabase
-            .from('bloc_operatoire_besoins')
+            .from('bloc_operatoire_besoins' as any)
             .insert({
               date: format(date, 'yyyy-MM-dd'),
               specialite_id: data.specialite_id,
