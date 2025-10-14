@@ -69,30 +69,33 @@ serve(async (req) => {
 
   console.log(`📋 Using planning_id: ${planning_id} for week ${weekStartStr} to ${weekEndStr}`);
 
-  // Delete ALL existing planning_genere entries for this day (idempotency)
-  console.log('🧹 Cleaning up existing entries...');
+  // Delete existing unified personnel rows for this week/day (idempotency)
+  console.log('🧹 Cleaning up existing unified personnel entries...');
   await supabaseServiceRole
-    .from('planning_genere')
+    .from('planning_genere_personnel')
     .delete()
-    .eq('date', single_day)
-    .in('type', ['site', 'administratif', 'bloc_operatoire']);
-
-  await supabaseServiceRole
-    .from('planning_genere_site_besoin')
-    .delete()
-    .eq('date', single_day);
+    .gte('date', weekStartStr)
+    .lte('date', weekEndStr)
+    .in('type_assignation', ['site', 'administratif']);
 
   // PHASE 1: Bloc opératoire
   if (optimize_bloc) {
     console.log('🏥 Phase 1: Optimizing bloc operatoire...');
     
-    // Delete existing bloc assignments for the entire week
+    // Delete existing bloc operations and bloc personnel for the week
     await supabaseServiceRole
       .from('planning_genere_bloc_operatoire')
       .delete()
       .eq('planning_id', planning_id)
       .gte('date', weekStartStr)
       .lte('date', weekEndStr);
+
+    await supabaseServiceRole
+      .from('planning_genere_personnel')
+      .delete()
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr)
+      .eq('type_assignation', 'bloc');
 
     const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
     const blocResponse = await fetch(blocUrl, {
@@ -111,148 +114,10 @@ serve(async (req) => {
 
     blocResults = await blocResponse.json();
     console.log(`✅ Bloc phase complete: ${JSON.stringify(blocResults)}`);
-    
-    // Create planning_genere entries for bloc
-    if (blocResults.blocs_assigned > 0) {
-      const { data: blocOps } = await supabaseServiceRole
-        .from('planning_genere_bloc_operatoire')
-        .select('id, periode')
-        .eq('date', single_day);
-      
-      if (blocOps && blocOps.length > 0) {
-        const blocEntries = blocOps.map((b: any) => ({
-          planning_id,
-          date: single_day,
-          periode: b.periode,
-          type: 'bloc_operatoire',
-          planning_genere_bloc_operatoire_id: b.id,
-          statut: 'planifie'
-        }));
-        
-        await supabaseServiceRole
-          .from('planning_genere')
-          .insert(blocEntries);
-        
-        console.log(`  ✅ ${blocEntries.length} bloc entries created in planning_genere with planning_id`);
-      }
-    }
   }
 
-  // PHASE 1.5: Generate empty personnel rows
-  console.log('📋 Phase 1.5: Generating empty personnel rows for the week...');
-  
-  // Delete existing site besoins/personnel for the week
-  await supabaseServiceRole
-    .from('planning_genere_site_besoin')
-    .delete()
-    .gte('date', weekStartStr)
-    .lte('date', weekEndStr);
-  
-  // Helper to get dates in range
-  const getDatesInRange = (start: string, end: string): string[] => {
-    const dates = [];
-    const current = new Date(start);
-    const endDate = new Date(end);
-    while (current <= endDate) {
-      dates.push(current.toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 1);
-    }
-    return dates;
-  };
-  
-  // Fetch all besoins (doctor needs) for the week
-  const { data: besoinsData, error: besoinsError } = await supabaseServiceRole
-    .from('besoin_effectif')
-    .select('*, medecins(besoin_secretaires)')
-    .gte('date', weekStartStr)
-    .lte('date', weekEndStr)
-    .eq('type', 'medecin')
-    .eq('actif', true);
-
-  console.log(`  📊 Fetched ${besoinsData?.length || 0} besoin_effectif records`);
-  if (besoinsError) console.error('  ❌ Error fetching besoins:', besoinsError);
-
-  // Log besoins by date
-  const besoinsByDate = new Map<string, number>();
-  for (const b of besoinsData || []) {
-    besoinsByDate.set(b.date, (besoinsByDate.get(b.date) || 0) + 1);
-  }
-  console.log('  📅 Besoins by date:', Object.fromEntries(besoinsByDate));
-  
-  // Fetch all sites (excluding bloc)
-  const { data: sitesData } = await supabaseServiceRole
-    .from('sites')
-    .select('*')
-    .eq('actif', true);
-  
-  const sites = sitesData?.filter((s: any) => !s.nom?.includes('Bloc opératoire')) || [];
-  
-  // Generate rows for each date/site/periode
-  let totalPersonnelRows = 0;
-  for (const date of getDatesInRange(weekStartStr, weekEndStr)) {
-    const dayBesoins = besoinsData?.filter((b: any) => b.date === date) || [];
-    
-    for (const site of sites) {
-      for (const periode of ['matin', 'apres_midi']) {
-        // Find medecins for this site/period
-        const medecinsThisPeriod = dayBesoins.filter((b: any) => {
-          if (b.site_id !== site.id) return false;
-          if (b.demi_journee === periode || b.demi_journee === 'toute_journee') return true;
-          return false;
-        });
-        
-        if (medecinsThisPeriod.length === 0) {
-          // Log pour déboguer
-          if (dayBesoins.some((b: any) => b.site_id === site.id)) {
-            console.log(`    ⚠️ Site ${site.nom} has besoins but none for ${periode} on ${date}`);
-          }
-          continue;
-        }
-        
-        // Calculate total need
-        const totalBesoin = medecinsThisPeriod.reduce((sum: number, b: any) => {
-          return sum + (Number(b.medecins?.besoin_secretaires) || 1.2);
-        }, 0);
-        
-        const nombreRequis = Math.ceil(totalBesoin);
-        const medecinsIds = medecinsThisPeriod.map((b: any) => b.medecin_id);
-        
-        // Create besoin entry
-        const { data: savedBesoin } = await supabaseServiceRole
-          .from('planning_genere_site_besoin')
-          .insert({
-            planning_id,
-            date,
-            site_id: site.id,
-            periode,
-            medecins_ids: medecinsIds,
-            nombre_secretaires_requis: nombreRequis,
-            statut: 'planifie'
-          })
-          .select()
-          .single();
-        
-        // Create empty personnel rows
-        const personnelRows = [];
-        for (let ordre = 1; ordre <= nombreRequis; ordre++) {
-          personnelRows.push({
-            planning_genere_site_besoin_id: savedBesoin.id,
-            secretaire_id: null,
-            ordre
-          });
-        }
-        
-        if (personnelRows.length > 0) {
-          await supabaseServiceRole
-            .from('planning_genere_site_personnel')
-            .insert(personnelRows);
-          totalPersonnelRows += personnelRows.length;
-        }
-      }
-    }
-  }
-  
-  console.log(`✅ Phase 1.5 complete: ${totalPersonnelRows} empty personnel rows created`);
+  // PHASE 1.5 skipped: unified table handles site/admin directly
+  console.log('📋 Phase 1.5 skipped (using planning_genere_personnel directly)');
 
   // PHASE 2: Sites optimization (simplified)
   if (optimize_sites) {
