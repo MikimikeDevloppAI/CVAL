@@ -160,31 +160,34 @@ serve(async (req) => {
       supabaseServiceRole
     );
 
-    // 8. Create unified planning_genere entries
-    await createPlanningGenereEntriesSites(
-      planning_id,
-      single_day,
-      supabaseServiceRole
-    );
+    // 8. Fetch site besoins for unified creation
+    const { data: siteBesoins, error: siteBesoinsError } = await supabaseServiceRole
+      .from('planning_genere_site_besoin')
+      .select('*')
+      .eq('date', single_day)
+      .eq('planning_id', planning_id);
 
-    // 9. Create administrative assignments for unassigned capacities
-    const adminCount = await createAdminAssignments(
+    if (siteBesoinsError) throw siteBesoinsError;
+
+    // 9. Create unified planning_genere entries (sites + admin)
+    const { sites: sitesAssigned, admin: adminAssigned } = await createUnifiedPlanningGenere(
       capacites,
       blocAssignments,
       personnelRows,
+      siteBesoins || [],
       solution,
-      secretaires,
       planning_id,
       single_day,
       supabaseServiceRole
     );
 
-    console.log(`✅ Phase 2 complete: ${assignedCount} sites personnel, ${adminCount} admin`);
+    console.log(`✅ Phase 2 complete: ${sitesAssigned} sites entries, ${adminAssigned} admin entries`);
 
     return new Response(JSON.stringify({
       success: true,
       sites_personnel_assigned: assignedCount,
-      admin_assigned: adminCount
+      sites_entries: sitesAssigned,
+      admin_entries: adminAssigned
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
@@ -581,59 +584,21 @@ async function updateSitePersonnelAssignments(
   return assignmentCount;
 }
 
-async function createPlanningGenereEntriesSites(
-  planning_id: string,
-  single_day: string,
-  supabase: any
-): Promise<void> {
-  console.log('\n📊 Creating unified planning_genere entries for sites...');
-  
-  // Get all site besoins for this day
-  const { data: siteBesoins, error } = await supabase
-    .from('planning_genere_site_besoin')
-    .select('id, periode')
-    .eq('date', single_day)
-    .eq('planning_id', planning_id);
-  
-  if (error) throw error;
-  
-  if (!siteBesoins || siteBesoins.length === 0) {
-    console.log('  ℹ️ No site besoins to create entries for');
-    return;
-  }
-
-  const entries = siteBesoins.map((b: any) => ({
-    planning_id,
-    date: single_day,
-    periode: b.periode,
-    type: 'site',
-    planning_genere_site_besoin_id: b.id,
-    statut: 'planifie'
-  }));
-
-  const { error: insertError } = await supabase
-    .from('planning_genere')
-    .insert(entries);
-
-  if (insertError) throw insertError;
-  
-  console.log(`  ✅ ${entries.length} site entries created in planning_genere`);
-}
-
-async function createAdminAssignments(
+async function createUnifiedPlanningGenere(
   capacites: any[],
   blocAssignments: Map<string, string[]>,
   personnelRows: any[],
+  siteBesoins: any[],
   solution: any,
-  secretaires: any[],
   planning_id: string,
   single_day: string,
   supabase: any
-): Promise<number> {
-  console.log('\n📋 Creating administrative assignments...');
+): Promise<{ sites: number; admin: number }> {
+  console.log('\n📊 Creating unified planning_genere entries...');
   
-  // Build set of assigned secretaries from solution
-  const assignedSecretaries = new Map<string, Set<string>>(); // sec_id -> Set<periode>
+  // Step 1: Build assignment map from MILP solution
+  const assignmentMap = new Map<string, { besoinId: string; personnelRowId: string }>();
+  // Key: "secretaire_id_periode"
   
   for (const [varName, value] of Object.entries(solution)) {
     if (varName.startsWith('x_') && (value as number) > 0.5) {
@@ -641,20 +606,37 @@ async function createAdminAssignments(
       const secId = parts[1];
       const rowId = parts[2];
       
-      // Find period for this row
       const row = personnelRows.find(r => r.id === rowId);
       if (row) {
         const periode = row.planning_genere_site_besoin.periode;
-        if (!assignedSecretaries.has(secId)) {
-          assignedSecretaries.set(secId, new Set());
-        }
-        assignedSecretaries.get(secId)!.add(periode);
+        const besoinId = row.planning_genere_site_besoin_id;
+        assignmentMap.set(`${secId}_${periode}`, { besoinId, personnelRowId: rowId });
       }
     }
   }
-
-  const adminAssignments = [];
   
+  // Step 2: Create planning_genere entries
+  const entries = [];
+  const processedSecretaries = new Set<string>(); // Track "secId_periode"
+  
+  // 2a. For each secretary assigned to a site need
+  for (const [key, assignment] of assignmentMap.entries()) {
+    const [secId, periode] = key.split('_');
+    
+    entries.push({
+      planning_id,
+      date: single_day,
+      periode,
+      type: 'site',
+      secretaire_id: secId,
+      planning_genere_site_besoin_id: assignment.besoinId,
+      statut: 'planifie'
+    });
+    
+    processedSecretaries.add(key);
+  }
+  
+  // 2b. For each capacity not assigned to site or bloc
   for (const cap of capacites) {
     const secId = cap.secretaire_id || cap.backup_id;
     if (!secId) continue;
@@ -664,33 +646,44 @@ async function createAdminAssignments(
       : [cap.demi_journee];
 
     for (const periode of periodes) {
-      const isAtBloc = blocAssignments.has(secId) && blocAssignments.get(secId)!.includes(periode);
-      const isAtSite = assignedSecretaries.has(secId) && assignedSecretaries.get(secId)!.has(periode);
+      const key = `${secId}_${periode}`;
+      
+      // Skip if already processed (assigned to site)
+      if (processedSecretaries.has(key)) continue;
+      
+      // Skip if at bloc
+      const isAtBloc = blocAssignments.has(secId) && 
+                      blocAssignments.get(secId)!.includes(periode);
+      if (isAtBloc) continue;
 
-      if (!isAtBloc && !isAtSite) {
-        adminAssignments.push({
-          planning_id,
-          date: single_day,
-          periode,
-          type: 'administratif',
-          secretaire_id: secId,
-          statut: 'planifie'
-        });
-      }
+      // Create admin assignment
+      entries.push({
+        planning_id,
+        date: single_day,
+        periode,
+        type: 'administratif',
+        secretaire_id: secId,
+        statut: 'planifie'
+      });
+      
+      processedSecretaries.add(key);
     }
   }
-
-  if (adminAssignments.length === 0) {
-    console.log('  ℹ️ No unassigned capacities for admin');
-    return 0;
+  
+  if (entries.length === 0) {
+    console.log('  ℹ️ No planning_genere entries to create');
+    return { sites: 0, admin: 0 };
   }
-
+  
   const { error } = await supabase
     .from('planning_genere')
-    .insert(adminAssignments);
-
+    .insert(entries);
+  
   if (error) throw error;
   
-  console.log(`  ✅ ${adminAssignments.length} admin assignments created`);
-  return adminAssignments.length;
+  const sitesCount = entries.filter(e => e.type === 'site').length;
+  const adminCount = entries.filter(e => e.type === 'administratif').length;
+  
+  console.log(`  ✅ Created ${sitesCount} site entries + ${adminCount} admin entries`);
+  return { sites: sitesCount, admin: adminCount };
 }
