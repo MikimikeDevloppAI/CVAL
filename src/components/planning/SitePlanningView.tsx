@@ -22,6 +22,7 @@ interface SiteBesoinsData {
   site_nom: string;
   nombre_secretaires_requis: number;
   medecins_ids: string[];
+  medecins_noms: string[];
   personnel: {
     secretaire_id: string | null;
     secretaire_nom: string;
@@ -65,6 +66,23 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
       console.log('besoinsData:', besoinsData);
 
+      // Récupérer tous les médecins pour créer un mapping
+      const allMedecinIds = [...new Set(besoinsData?.flatMap(b => b.medecins_ids || []) || [])];
+      const medecinsMap = new Map<string, string>();
+      
+      if (allMedecinIds.length > 0) {
+        const { data: medecinsData, error: medecinsError } = await supabase
+          .from('medecins')
+          .select('id, first_name, name')
+          .in('id', allMedecinIds);
+        
+        if (!medecinsError && medecinsData) {
+          medecinsData.forEach(m => {
+            medecinsMap.set(m.id, `${m.first_name} ${m.name}`);
+          });
+        }
+      }
+
       // Pour chaque besoin, récupérer le personnel assigné
       const enrichedData: SiteBesoinsData[] = [];
       
@@ -99,6 +117,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           }
         });
 
+        const medecinsNoms = (besoin.medecins_ids || [])
+          .map(id => medecinsMap.get(id))
+          .filter(Boolean) as string[];
+
         enrichedData.push({
           id: besoin.id,
           date: besoin.date,
@@ -107,6 +129,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           site_nom: (besoin.sites as any)?.nom || 'Site inconnu',
           nombre_secretaires_requis: besoin.nombre_secretaires_requis,
           medecins_ids: besoin.medecins_ids,
+          medecins_noms: medecinsNoms,
           personnel: Array.from(uniquePersonnel.values()),
         });
       }
@@ -172,6 +195,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             site_nom: 'Administratif',
             nombre_secretaires_requis: personnel.length,
             medecins_ids: [],
+            medecins_noms: [],
             personnel,
           });
         });
@@ -310,9 +334,18 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                         {/* Personnel du jour */}
                         <div className="space-y-3 p-3 flex-1">
                           {/* Matin */}
-                          {matin && matin.personnel.length > 0 && (
+                          {matin && (matin.personnel.length > 0 || matin.medecins_noms.length > 0) && (
                             <div className="space-y-2">
                               <div className="text-xs font-medium text-muted-foreground">Matin</div>
+                              {matin.medecins_noms.length > 0 && (
+                                <div className="space-y-1">
+                                  {matin.medecins_noms.map((nom, idx) => (
+                                    <div key={idx} className="text-xs text-muted-foreground">
+                                      Dr {nom}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               {matin.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
                                   <div className="flex items-center gap-1">
@@ -321,19 +354,30 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   </div>
                                 </div>
                               ))}
-                              <Badge 
-                                variant={matin.personnel.length >= matin.nombre_secretaires_requis ? "default" : "destructive"}
-                                className="text-xs w-full justify-center"
-                              >
-                                {matin.personnel.length} / {matin.nombre_secretaires_requis}
-                              </Badge>
+                              {matin.personnel.length > 0 && (
+                                <Badge 
+                                  variant={matin.personnel.length >= matin.nombre_secretaires_requis ? "default" : "destructive"}
+                                  className="text-xs w-full justify-center"
+                                >
+                                  {matin.personnel.length} / {matin.nombre_secretaires_requis}
+                                </Badge>
+                              )}
                             </div>
                           )}
                           
                           {/* Après-midi */}
-                          {apresMidi && apresMidi.personnel.length > 0 && (
+                          {apresMidi && (apresMidi.personnel.length > 0 || apresMidi.medecins_noms.length > 0) && (
                             <div className="space-y-2">
                               <div className="text-xs font-medium text-muted-foreground">Après-midi</div>
+                              {apresMidi.medecins_noms.length > 0 && (
+                                <div className="space-y-1">
+                                  {apresMidi.medecins_noms.map((nom, idx) => (
+                                    <div key={idx} className="text-xs text-muted-foreground">
+                                      Dr {nom}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               {apresMidi.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
                                   <div className="flex items-center gap-1">
@@ -342,16 +386,19 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   </div>
                                 </div>
                               ))}
-                              <Badge 
-                                variant={apresMidi.personnel.length >= apresMidi.nombre_secretaires_requis ? "default" : "destructive"}
-                                className="text-xs w-full justify-center"
-                              >
-                                {apresMidi.personnel.length} / {apresMidi.nombre_secretaires_requis}
-                              </Badge>
+                              {apresMidi.personnel.length > 0 && (
+                                <Badge 
+                                  variant={apresMidi.personnel.length >= apresMidi.nombre_secretaires_requis ? "default" : "destructive"}
+                                  className="text-xs w-full justify-center"
+                                >
+                                  {apresMidi.personnel.length} / {apresMidi.nombre_secretaires_requis}
+                                </Badge>
+                              )}
                             </div>
                           )}
                           
-                          {(!matin || matin.personnel.length === 0) && (!apresMidi || apresMidi.personnel.length === 0) && (
+                          {(!matin || (matin.personnel.length === 0 && matin.medecins_noms.length === 0)) && 
+                           (!apresMidi || (apresMidi.personnel.length === 0 && apresMidi.medecins_noms.length === 0)) && (
                             <div className="text-xs text-muted-foreground text-center py-4">
                               Aucune assignation
                             </div>
