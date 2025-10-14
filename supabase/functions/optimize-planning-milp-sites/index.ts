@@ -45,7 +45,7 @@ serve(async (req) => {
       { data: capacites, error: capError },
       { data: blocOperations, error: blocError }
     ] = await Promise.all([
-      supabaseServiceRole.from('secretaires').select('*').eq('actif', true),
+      supabaseServiceRole.from('secretaires').select('*, assignation_administrative').eq('actif', true),
       supabaseServiceRole.from('sites').select('*').eq('actif', true),
       supabaseServiceRole.from('medecins').select('*').eq('actif', true),
       supabaseServiceRole.from('besoin_effectif').select('*')
@@ -116,18 +116,13 @@ serve(async (req) => {
     const blocAssignments = getSecretariesAssignedToBloc(blocOperations);
     console.log(`✓ ${blocAssignments.size} secretaries already assigned to bloc`);
 
-    // 5. Fetch historical Port-en-Truie assignments (last 4 weeks)
-    const fourWeeksAgo = new Date(new Date(single_day).getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const { data: historicalAssignments } = await supabaseServiceRole
-      .from('planning_genere_site_besoin')
-      .select(`
-        planning_genere_site_personnel!inner(secretaire_id)
-      `)
-      .eq('site_id', SITE_PORT_EN_TRUIE)
-      .gte('date', fourWeeksAgo)
-      .lte('date', single_day);
-
-    const portEnTruieCounts = countPortEnTruieAssignments(historicalAssignments || []);
+    // 5. Fetch weekly history (admin + Port-en-Truie) for this week
+    const weeklyHistory = await getWeeklyHistory(
+      weekStartStr,
+      single_day,
+      supabaseServiceRole
+    );
+    console.log(`✓ Weekly history: ${weeklyHistory.admin.size} secretaries with admin, ${weeklyHistory.portEnTruie.size} with Port-en-Truie`);
 
     // 6. Build and solve MILP
     const solution = buildSitesMILP(
@@ -135,7 +130,7 @@ serve(async (req) => {
       secretaires,
       capacites,
       blocAssignments,
-      portEnTruieCounts,
+      weeklyHistory,
       besoins,
       sites
     );
@@ -355,18 +350,50 @@ function getSecretariesAssignedToBloc(blocOperations: any[]): Map<string, string
   return assignments;
 }
 
-function countPortEnTruieAssignments(historicalAssignments: any[]): Map<string, number> {
-  const counts = new Map();
+async function getWeeklyHistory(
+  weekStartStr: string,
+  currentDay: string,
+  supabase: any
+): Promise<{ admin: Map<string, number>; portEnTruie: Map<string, number> }> {
+  // Fetch planning_genere entries for the week up to (but NOT including) current day
+  const { data: planningEntries } = await supabase
+    .from('planning_genere')
+    .select('secretaire_id, type, planning_genere_site_besoin_id')
+    .gte('date', weekStartStr)
+    .lt('date', currentDay);
   
-  for (const assignment of historicalAssignments || []) {
-    for (const personnel of assignment.planning_genere_site_personnel || []) {
-      if (personnel.secretaire_id) {
-        counts.set(personnel.secretaire_id, (counts.get(personnel.secretaire_id) || 0) + 1);
-      }
+  const adminCounts = new Map<string, number>();
+  const portEnTruieCounts = new Map<string, number>();
+  
+  // Count admin assignments (type = 'administratif')
+  for (const entry of planningEntries || []) {
+    if (entry.type === 'administratif' && entry.secretaire_id) {
+      adminCounts.set(entry.secretaire_id, (adminCounts.get(entry.secretaire_id) || 0) + 1);
     }
   }
   
-  return counts;
+  // Fetch Port-en-Truie assignments (need to join with site_besoin)
+  const { data: siteAssignments } = await supabase
+    .from('planning_genere')
+    .select(`
+      secretaire_id,
+      planning_genere_site_besoin!inner(site_id)
+    `)
+    .gte('date', weekStartStr)
+    .lt('date', currentDay)
+    .eq('type', 'site');
+  
+  for (const entry of siteAssignments || []) {
+    if (entry.secretaire_id && 
+        entry.planning_genere_site_besoin?.site_id === SITE_PORT_EN_TRUIE) {
+      portEnTruieCounts.set(
+        entry.secretaire_id,
+        (portEnTruieCounts.get(entry.secretaire_id) || 0) + 1
+      );
+    }
+  }
+  
+  return { admin: adminCounts, portEnTruie: portEnTruieCounts };
 }
 
 function buildSitesMILP(
@@ -374,7 +401,7 @@ function buildSitesMILP(
   secretaires: any[],
   capacites: any[],
   blocAssignments: Map<string, string[]>,
-  portEnTruieCounts: Map<string, number>,
+  weeklyHistory: { admin: Map<string, number>; portEnTruie: Map<string, number> },
   besoins: any[],
   sites: any[]
 ): any {
@@ -504,11 +531,7 @@ function buildSitesMILP(
 
       let cost = -100;
 
-      // Penalty for Port-en-Truie
-      if (site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
-        const count = portEnTruieCounts.get(sec.id) || 0;
-        cost += PENALTY_PORT_EN_TRUIE_BASE * (count + 1);
-      }
+      // NO PENALTY for Port-en-Truie here (will be handled by pet_count_k)
 
       model.variables[varName] = {
         cost,
@@ -516,6 +539,22 @@ function buildSitesMILP(
         [`capacity_${sec.id}_${periode}`]: 1
       };
       model.ints[varName] = 1;
+      
+      // Add to exclusivity constraint (for admin)
+      const exclusiveConstraint = `exclusive_${sec.id}_${periode}`;
+      if (!model.constraints[exclusiveConstraint]) {
+        model.constraints[exclusiveConstraint] = { max: 1 };
+      }
+      model.variables[varName][exclusiveConstraint] = 1;
+      
+      // Track Port-en-Truie assignments for counter
+      if (site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
+        const petSumConstraint = `pet_sum_${sec.id}`;
+        if (!model.constraints[petSumConstraint]) {
+          model.constraints[petSumConstraint] = { min: 0, max: 0 };
+        }
+        model.variables[varName][petSumConstraint] = 1;
+      }
     }
   }
 
@@ -542,6 +581,134 @@ function buildSitesMILP(
         model.constraints[`capacity_${sec.id}_${periode}`] = { max: 1 };
       }
     }
+  }
+
+  // === ADMIN VARIABLES WITH WEEKLY HISTORY ===
+  const secretaryPeriods = new Map<string, Set<string>>();
+  for (const cap of capacites) {
+    const secId = cap.secretaire_id || cap.backup_id;
+    if (!secId) continue;
+    
+    const periodes = cap.demi_journee === 'toute_journee' 
+      ? ['matin', 'apres_midi'] 
+      : [cap.demi_journee];
+    
+    if (!secretaryPeriods.has(secId)) {
+      secretaryPeriods.set(secId, new Set());
+    }
+    for (const p of periodes) {
+      secretaryPeriods.get(secId)!.add(p);
+    }
+  }
+
+  // Create admin variables and counter variables with weekly history
+  for (const sec of secretaires) {
+    const blocPeriods = blocAssignments.get(sec.id) || [];
+    const availablePeriods = secretaryPeriods.get(sec.id) || new Set();
+    const historicAdmin = weeklyHistory.admin.get(sec.id) || 0;
+    
+    // Create admin_s_p variables (one per available period)
+    for (const periode of ['matin', 'apres_midi']) {
+      if (!availablePeriods.has(periode) || blocPeriods.includes(periode)) {
+        continue;
+      }
+      
+      const adminVarName = `admin_${sec.id}_${periode}`;
+      model.variables[adminVarName] = {
+        cost: 0, // Neutral, score comes from admin_count_k
+        [`capacity_${sec.id}_${periode}`]: 1, // Uses capacity
+        [`admin_sum_${sec.id}`]: 1 // For linking to counter
+      };
+      model.ints[adminVarName] = 1;
+      
+      // Add to exclusivity constraint
+      const exclusiveConstraint = `exclusive_${sec.id}_${periode}`;
+      if (!model.constraints[exclusiveConstraint]) {
+        model.constraints[exclusiveConstraint] = { max: 1 };
+      }
+      model.variables[adminVarName][exclusiveConstraint] = 1;
+    }
+    
+    // Create admin counter variables (with offset for history)
+    const hasAdminOption = availablePeriods.size > 0 && 
+                           (!blocPeriods.includes('matin') || !blocPeriods.includes('apres_midi'));
+    
+    if (hasAdminOption) {
+      // Determine coefficient pattern based on secretary preference
+      let getCoefficient: (k: number) => number;
+      if (sec.assignation_administrative) {
+        // Linear bonus for admin-preferring secretaries
+        getCoefficient = (k) => -40 * k;
+      } else {
+        // Decreasing bonus for normal secretaries
+        // k=0:0, k=1:-50, k=2:-70, k=3:-85, k=4:-97, etc.
+        getCoefficient = (k) => {
+          if (k === 0) return 0;
+          let total = 0;
+          for (let i = 1; i <= k; i++) {
+            total += -50 / (i * 1.5); // Decreasing marginal value
+          }
+          return Math.round(total);
+        };
+      }
+      
+      // Create counters from historicAdmin to historicAdmin + 2
+      // (can add 0, 1, or 2 admin assignments today)
+      for (let todayAdmin = 0; todayAdmin <= 2; todayAdmin++) {
+        const totalWeekly = historicAdmin + todayAdmin;
+        const countVarName = `admin_count_${totalWeekly}_${sec.id}`;
+        model.variables[countVarName] = {
+          cost: getCoefficient(totalWeekly),
+          [`admin_count_active_${sec.id}`]: 1, // Exactly one counter active
+          [`admin_sum_${sec.id}`]: -todayAdmin // Link to actual admin count TODAY
+        };
+        model.ints[countVarName] = 1;
+      }
+      
+      // Constraint: exactly one admin counter active
+      model.constraints[`admin_count_active_${sec.id}`] = { min: 1, max: 1 };
+      
+      // Constraint: admin sum matches counter (TODAY's assignments)
+      model.constraints[`admin_sum_${sec.id}`] = { min: 0, max: 0 };
+    }
+  }
+
+  // === PORT-EN-TRUIE COUNTER VARIABLES WITH WEEKLY HISTORY ===
+  for (const sec of secretaires) {
+    if (sec.prefere_port_en_truie) continue; // Skip secretaries who prefer it
+    
+    const historicPET = weeklyHistory.portEnTruie.get(sec.id) || 0;
+    
+    // Check if this secretary can be assigned to Port-en-Truie
+    const hasPETOption = personnelRows.some(row => 
+      row.planning_genere_site_besoin.site_id === SITE_PORT_EN_TRUIE
+    );
+    
+    if (!hasPETOption) continue;
+    
+    // Increasing penalty for multiple Port-en-Truie assignments
+    // k=0:0, k=1:+15, k=2:+40, k=3:+75, k=4:+120
+    const getPETCoefficient = (k: number) => {
+      if (k === 0) return 0;
+      return 15 * k * k; // Quadratic growth
+    };
+    
+    // Create counters from historicPET to historicPET + 2
+    for (let todayPET = 0; todayPET <= 2; todayPET++) {
+      const totalWeekly = historicPET + todayPET;
+      const countVarName = `pet_count_${totalWeekly}_${sec.id}`;
+      model.variables[countVarName] = {
+        cost: getPETCoefficient(totalWeekly),
+        [`pet_count_active_${sec.id}`]: 1,
+        [`pet_sum_${sec.id}`]: -todayPET
+      };
+      model.ints[countVarName] = 1;
+    }
+    
+    // Constraint: exactly one pet counter active
+    model.constraints[`pet_count_active_${sec.id}`] = { min: 1, max: 1 };
+    
+    // Constraint: pet_sum already created above in x loop
   }
 
   console.log(`  📊 Variables: ${Object.keys(model.variables).length}, Constraints: ${Object.keys(model.constraints).length}`);
@@ -645,27 +812,16 @@ async function createUnifiedPlanningGenere(
     processedSecretaries.add(key);
   }
   
-  // 2b. For each capacity not assigned to site or bloc
-  for (const cap of capacites) {
-    const secId = cap.secretaire_id || cap.backup_id;
-    if (!secId) continue;
-
-    const periodes = cap.demi_journee === 'toute_journee' 
-      ? ['matin', 'apres_midi'] 
-      : [cap.demi_journee];
-
-    for (const periode of periodes) {
-      const key = `${secId}_${periode}`;
+  // 2b. For each admin assignment from MILP solution
+  for (const [varName, value] of Object.entries(solution)) {
+    if (varName.startsWith('admin_') && 
+        !varName.startsWith('admin_count_') && 
+        !varName.startsWith('admin_sum_') &&
+        (value as number) > 0.5) {
+      const parts = varName.split('_');
+      const secId = parts[1];
+      const periode = parts[2];
       
-      // Skip if already processed (assigned to site)
-      if (processedSecretaries.has(key)) continue;
-      
-      // Skip if at bloc
-      const isAtBloc = blocAssignments.has(secId) && 
-                      blocAssignments.get(secId)!.includes(periode);
-      if (isAtBloc) continue;
-
-      // Create admin assignment
       entries.push({
         planning_id,
         date: single_day,
@@ -675,7 +831,7 @@ async function createUnifiedPlanningGenere(
         statut: 'planifie'
       });
       
-      processedSecretaries.add(key);
+      processedSecretaries.add(`${secId}_${periode}`);
     }
   }
   
