@@ -125,57 +125,46 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
         }
       }
 
-      // Fetch bloc personnel rows (single query) for the range
-      const { data: blocPersonnel, error: blocPersonnelError } = await supabase
+      // Fetch bloc missing rows only: operations with unassigned personnel
+      const { data: blocMissingRows, error: blocMissingError } = await supabase
         .from('planning_genere_personnel')
-        .select('planning_genere_bloc_operatoire_id, date, periode, secretaire_id')
+        .select('planning_genere_bloc_operatoire_id, date, periode')
         .eq('type_assignation', 'bloc')
+        .is('secretaire_id', null)
         .gte('date', startDateStr)
         .lte('date', endDateStr);
 
-      if (blocPersonnelError) throw blocPersonnelError;
+      if (blocMissingError) throw blocMissingError;
 
-      // Group by operation and period to compute required/assigned/missing directly from generated rows
-      const blocGroups = new Map<string, { opId: string; date: string; periode: 'matin' | 'apres_midi'; required: number; assigned: number; missing: number }>();
-      for (const row of blocPersonnel || []) {
-        const opId = row.planning_genere_bloc_operatoire_id as string | null;
-        if (!opId) continue; // safety
-        const periode = row.periode as 'matin' | 'apres_midi';
-        const key = `${opId}|${row.date}|${periode}`;
-        const g = blocGroups.get(key) || { opId, date: row.date, periode, required: 0, assigned: 0, missing: 0 };
-        g.required += 1;
-        if (row.secretaire_id) g.assigned += 1;
-        blocGroups.set(key, g);
+      // Build set of operation IDs to fetch labels for
+      const opIds = Array.from(new Set((blocMissingRows || [])
+        .map((r: any) => r.planning_genere_bloc_operatoire_id)
+        .filter(Boolean)));
+
+      let opLabelMap = new Map<string, { nom?: string; code?: string }>();
+      if (opIds.length > 0) {
+        const { data: blocOpsMeta, error: blocOpsMetaError } = await supabase
+          .from('planning_genere_bloc_operatoire')
+          .select('id, type_intervention:types_intervention(nom, code)')
+          .in('id', opIds);
+        if (blocOpsMetaError) throw blocOpsMetaError;
+        opLabelMap = new Map<string, { nom?: string; code?: string }>((blocOpsMeta || [])
+          .map((op: any) => [op.id, { nom: op.type_intervention?.nom, code: op.type_intervention?.code }]));
       }
-      // Finalize missing counts
-      for (const g of blocGroups.values()) {
-        g.missing = Math.max(0, g.required - g.assigned);
-      }
 
-      // Fetch operations meta (for labels)
-      const { data: blocOpsMeta, error: blocOpsMetaError } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select('id, type_intervention:types_intervention(nom, code)')
-        .gte('date', startDateStr)
-        .lte('date', endDateStr);
-      if (blocOpsMetaError) throw blocOpsMetaError;
-      const opLabelMap = new Map<string, { nom?: string; code?: string }>((blocOpsMeta || []).map((op: any) => [op.id, { nom: op.type_intervention?.nom, code: op.type_intervention?.code }]));
-
-      // Add missing entries for bloc groups with unassigned rows
-      for (const g of blocGroups.values()) {
-        if (g.missing > 0) {
-          const labels = opLabelMap.get(g.opId) || {};
-          missing.push({
-            date: g.date,
-            periode: g.periode,
-            type: 'bloc',
-            type_intervention_nom: labels.nom,
-            type_intervention_code: labels.code,
-            required: g.required,
-            assigned: g.assigned,
-            missing: g.missing,
-          });
-        }
+      // Each missing row corresponds to exactly one unassigned need
+      for (const row of blocMissingRows || []) {
+        const labels = opLabelMap.get(row.planning_genere_bloc_operatoire_id) || {};
+        missing.push({
+          date: row.date,
+          periode: row.periode as 'matin' | 'apres_midi',
+          type: 'bloc',
+          type_intervention_nom: labels.nom,
+          type_intervention_code: labels.code,
+          required: 1,
+          assigned: 0,
+          missing: 1,
+        });
       }
 
       // Sort by date then by type
