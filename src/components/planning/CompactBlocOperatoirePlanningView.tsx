@@ -51,9 +51,9 @@ const TYPE_BESOIN_LABELS: Record<string, string> = {
 };
 
 const PERIODE_LABELS: Record<string, string> = {
-  matin: 'M',
-  apres_midi: 'AM',
-  toute_journee: 'J'
+  matin: 'Matin',
+  apres_midi: 'Après-midi',
+  toute_journee: 'Journée'
 };
 
 const SALLE_COLORS: Record<string, string> = {
@@ -160,49 +160,51 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-1 flex-wrap">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0">
+                          <Badge variant="outline" className="text-xs px-2 py-0">
                             {PERIODE_LABELS[operation.periode]}
                           </Badge>
                           <Badge 
-                            className={`text-xs px-1.5 py-0 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
+                            className={`text-xs px-2 py-0 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
                             variant="outline"
                           >
                             <MapPin className="h-3 w-3 mr-0.5" />
-                            {operation.salle_assignee}
+                            Salle {operation.salle_assignee}
                           </Badge>
+                          <span className="text-xs font-medium">
+                            {operation.type_intervention?.nom || 'Type non défini'}
+                          </span>
                         </div>
-                        <div className="text-xs font-medium truncate">
-                          {operation.type_intervention?.nom || 'Type non défini'}
-                        </div>
-                        {operation.medecin && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            Dr. {operation.medecin.first_name} {operation.medecin.name}
-                          </div>
-                        )}
                       </div>
                     </div>
 
-                    {operation.personnel.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {operation.personnel.map((p) => (
-                          <div 
-                            key={p.id}
-                            className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs"
-                          >
-                            <span className="text-muted-foreground">
-                              {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
-                            </span>
-                            <span className="font-medium truncate">
-                              {p.secretaire ? (
-                                `${p.secretaire.first_name.charAt(0)}. ${p.secretaire.name}`
-                              ) : (
-                                <span className="text-muted-foreground italic">-</span>
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {operation.medecin && (
+                        <div className="flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5 text-xs">
+                          <span className="text-muted-foreground">Docteur</span>
+                          <span className="font-medium">
+                            {operation.medecin.first_name} {operation.medecin.name}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {operation.personnel.map((p) => (
+                        <div 
+                          key={p.id}
+                          className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs"
+                        >
+                          <span className="text-muted-foreground">
+                            {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
+                          </span>
+                          <span className="font-medium truncate">
+                            {p.secretaire ? (
+                              `${p.secretaire.first_name.charAt(0)}. ${p.secretaire.name}`
+                            ) : (
+                              <span className="text-muted-foreground italic">-</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
