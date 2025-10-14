@@ -8,6 +8,12 @@ import { fr } from 'date-fns/locale';
 import { User, Clock, MapPin, Loader2, X } from 'lucide-react';
 import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 
+const SALLE_COLORS: Record<string, string> = {
+  rouge: 'bg-red-100 text-red-700 border-red-300',
+  verte: 'bg-green-100 text-green-700 border-green-300',
+  jaune: 'bg-yellow-100 text-yellow-700 border-yellow-300'
+};
+
 interface SecretaryPlanningViewProps {
   startDate: Date;
   endDate: Date;
@@ -25,6 +31,7 @@ interface SecretaryAssignment {
   is_3f: boolean;
   ordre: number;
   type_besoin_bloc?: string;
+  salle_assignee?: string;
 }
 
 interface SecretaryData {
@@ -94,7 +101,8 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
         .select(`
           *,
           secretaire:secretaires(first_name, name),
-          site:sites(nom)
+          site:sites(nom),
+          bloc:planning_genere_bloc_operatoire(salle_assignee)
         `)
         .gte('date', startDateStr)
         .lte('date', endDateStr)
@@ -180,6 +188,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
             is_3f: assignment.is_3f,
             ordre: assignment.ordre,
             type_besoin_bloc: assignment.type_besoin_bloc,
+            salle_assignee: assignment.bloc?.salle_assignee
           };
 
           if (assignment.periode === 'matin') {
@@ -224,19 +233,30 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
     }
 
     if (assignment.type_assignation === 'bloc') {
+      const salleColor = assignment.salle_assignee 
+        ? SALLE_COLORS[assignment.salle_assignee.toLowerCase()] || 'bg-purple-100 text-purple-800'
+        : 'bg-purple-100 text-purple-800';
+      
       return (
-        <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs">
-          Bloc - {assignment.type_besoin_bloc || 'Personnel'}
-        </Badge>
+        <div className="flex items-center gap-1 flex-wrap">
+          {assignment.salle_assignee && (
+            <Badge variant="outline" className={`text-xs border ${salleColor}`}>
+              Salle {assignment.salle_assignee}
+            </Badge>
+          )}
+          <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs">
+            {assignment.type_besoin_bloc || 'Personnel'}
+          </Badge>
+        </div>
       );
     }
 
     return (
       <div className="flex items-center gap-1 flex-wrap">
         <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-        <span className="font-medium text-sm truncate">
-          {assignment.site_nom?.split(' - ')[0]}
-        </span>
+            <span className="font-medium text-sm">
+              {assignment.site_nom}
+            </span>
         {assignment.is_1r && (
           <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
             1R
