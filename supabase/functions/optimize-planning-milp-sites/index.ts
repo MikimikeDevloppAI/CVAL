@@ -556,6 +556,7 @@ function buildMILP(
 
       console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days ONLY`);
 
+      // 1. Force full-day equality (accounting for bloc assignments)
       for (const date of dates) {
         const matinVars = [];
         const pmVars = [];
@@ -579,10 +580,14 @@ function buildMILP(
 
         if (matinVars.length === 0 && pmVars.length === 0) continue;
 
-        // Constraint: sum(matin_vars) == sum(pm_vars)
-        // This forces: if works morning → must work afternoon (and vice versa)
+        // Check bloc assignments for this date
+        const blocMorning = (blocAssignments.get(`${date}_matin`) || new Set()).has(flexSecId) ? 1 : 0;
+        const blocPm = (blocAssignments.get(`${date}_apres_midi`) || new Set()).has(flexSecId) ? 1 : 0;
+
+        // Constraint: sum(matin_vars) - sum(pm_vars) = (blocPm - blocMorning)
+        // This forces full days while accounting for pre-fixed bloc assignments
         const constraintKey = `fullday_${flexSecId}_${date}`;
-        model.constraints[constraintKey] = { equal: 0 };
+        model.constraints[constraintKey] = { equal: blocPm - blocMorning };
         
         for (const mVar of matinVars) {
           model.variables[mVar][constraintKey] = 1;
@@ -592,27 +597,32 @@ function buildMILP(
         }
       }
 
-      // Also add max constraint on DAYS (not periods)
-      // Create binary day variables: d_{secId}_{date} = 1 if works that day
+      // 2. Create day variables and activation constraints (corrected)
       for (const date of dates) {
         const dayVar = `d_${flexSecId}_${date}`;
         model.variables[dayVar] = { score: 0 }; // Neutral score
         model.ints[dayVar] = 1;
 
-        const activateConstraint = `activate_day_${flexSecId}_${date}`;
-        model.constraints[activateConstraint] = { max: 0 };
-        model.variables[dayVar][activateConstraint] = 1;
+        // Upper bound: dayVar <= 1
+        const capConstraint = `cap_day_${flexSecId}_${date}`;
+        model.constraints[capConstraint] = { max: 1 };
+        model.variables[dayVar][capConstraint] = 1;
 
-        // d_{secId}_{date} is activated if ANY period is worked
+        // Individual activation constraints: a - dayVar <= 0 for each assignment
+        let constraintCount = 0;
         for (const varName of Object.keys(model.variables)) {
           if (varName.startsWith(`x|${flexSecId}|${date}|`) || 
               varName.startsWith(`admin_${flexSecId}_${date}_`)) {
-            model.variables[varName][activateConstraint] = -1;
+            const actConstraint = `act_${flexSecId}_${date}_${constraintCount}`;
+            model.constraints[actConstraint] = { max: 0 };
+            model.variables[varName][actConstraint] = 1;     // a
+            model.variables[dayVar][actConstraint] = -1;     // - dayVar
+            constraintCount++;
           }
         }
       }
 
-      // Constraint: sum of all day variables <= requiredDays
+      // 3. Limit total number of days to requiredDays
       const maxDaysConstraint = `max_days_${flexSecId}`;
       model.constraints[maxDaysConstraint] = { max: requiredDays };
       
@@ -670,6 +680,45 @@ function buildMILP(
   
   const solution = solver.Solve(model);
   console.log(`  ✅ Solution: feasible=${solution.feasible}, score=${solution.result}`);
+  
+  // Validate flexible secretaries: verify number of days worked
+  if (solution.feasible && flexibleSecs.size > 0) {
+    console.log('\n  🔍 Validating flexible secretaries...');
+    for (const [flexSecId, requiredDays] of flexibleSecs) {
+      const sec = secretaires.find((s: any) => s.id === flexSecId);
+      if (!sec) continue;
+
+      let daysWorked = 0;
+      for (const date of dates) {
+        let worksThisDay = false;
+
+        // Check bloc assignments
+        const blocMorning = (blocAssignments.get(`${date}_matin`) || new Set()).has(flexSecId);
+        const blocPm = (blocAssignments.get(`${date}_apres_midi`) || new Set()).has(flexSecId);
+        if (blocMorning || blocPm) {
+          worksThisDay = true;
+        }
+
+        // Check solution variables
+        if (!worksThisDay) {
+          for (const varName of Object.keys(solution)) {
+            if (solution[varName] > 0.5) {
+              if (varName.startsWith(`x|${flexSecId}|${date}|`) || 
+                  varName.startsWith(`admin_${flexSecId}_${date}_`)) {
+                worksThisDay = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (worksThisDay) daysWorked++;
+      }
+
+      const status = daysWorked === requiredDays ? '✅' : '⚠️';
+      console.log(`    ${status} ${sec.first_name} ${sec.name}: ${daysWorked}/${requiredDays} jours`);
+    }
+  }
   
   return solution;
 }
