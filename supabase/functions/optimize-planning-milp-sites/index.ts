@@ -471,9 +471,18 @@ function buildSitesMILP(
     }
   }
 
-  // Constraints: 0 or 1 secretary per row (optional assignment)
+  // Constraints: Exactly 1 assignment per row (required OR penalty for unsatisfied)
   for (const row of personnelRows) {
-    model.constraints[`row_${row.id}`] = { min: 0, max: 1 };
+    // Add a penalty variable for unsatisfied needs
+    const unsatisfiedVar = `unsatisfied_${row.id}`;
+    model.variables[unsatisfiedVar] = {
+      cost: 10000,  // Heavy penalty for not assigning a secretary
+      [`row_${row.id}`]: 1
+    };
+    model.ints[unsatisfiedVar] = 1;
+    
+    // Constraint: exactly 1 (either a secretary OR the penalty variable)
+    model.constraints[`row_${row.id}`] = { min: 1, max: 1 };
   }
 
   // Constraints: max 1 assignment per secretary/period
