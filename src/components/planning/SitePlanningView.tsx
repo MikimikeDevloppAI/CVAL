@@ -30,6 +30,9 @@ interface SiteBesoinsData {
     secretaire_nom: string;
     ordre: number;
     type_assignation?: 'site' | 'administratif';
+    is_1r?: boolean;
+    is_2f?: boolean;
+    is_3f?: boolean;
   }[];
   type_assignation?: 'site' | 'administratif';
 }
@@ -120,7 +123,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
-            type_assignation: 'site'
+            type_assignation: 'site',
+            is_1r: assignment.is_1r || false,
+            is_2f: assignment.is_2f || false,
+            is_3f: assignment.is_3f || false
           });
         }
       }
@@ -167,7 +173,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
-            type_assignation: 'administratif'
+            type_assignation: 'administratif',
+            is_1r: assignment.is_1r || false,
+            is_2f: assignment.is_2f || false,
+            is_3f: assignment.is_3f || false
           });
         }
       }
@@ -322,6 +331,23 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
+                                  <div className="flex gap-1 mt-1">
+                                    {p.is_1r && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300">
+                                        1R
+                                      </Badge>
+                                    )}
+                                    {p.is_2f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                                        2F
+                                      </Badge>
+                                    )}
+                                    {p.is_3f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300">
+                                        3F
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                               {matin.personnel.length > 0 && (
@@ -353,6 +379,23 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   <div className="flex items-center gap-1">
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                  </div>
+                                  <div className="flex gap-1 mt-1">
+                                    {p.is_1r && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300">
+                                        1R
+                                      </Badge>
+                                    )}
+                                    {p.is_2f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                                        2F
+                                      </Badge>
+                                    )}
+                                    {p.is_3f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300">
+                                        3F
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
                               ))}
