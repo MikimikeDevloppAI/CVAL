@@ -308,36 +308,6 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                   <User className="h-5 w-5 text-primary" />
                   <span className="truncate">{secretary.name}</span>
                 </CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {secretary.totalAssignments} assignation{secretary.totalAssignments > 1 ? 's' : ''}
-                  </Badge>
-                  {secretary.siteAssignments > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      {secretary.siteAssignments} site{secretary.siteAssignments > 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                  {secretary.blocAssignments > 0 && (
-                    <Badge variant="outline" className="bg-purple-50 text-xs">
-                      {secretary.blocAssignments} bloc
-                    </Badge>
-                  )}
-                  {secretary.adminAssignments > 0 && (
-                    <Badge variant="outline" className="bg-gray-50 text-xs">
-                      {secretary.adminAssignments} admin
-                    </Badge>
-                  )}
-                  {secretary.is1RCount > 0 && (
-                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                      1R: {secretary.is1RCount}
-                    </Badge>
-                  )}
-                  {secretary.is2FCount > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      2F: {secretary.is2FCount}
-                    </Badge>
-                  )}
-                </div>
               </div>
             </CardHeader>
             
