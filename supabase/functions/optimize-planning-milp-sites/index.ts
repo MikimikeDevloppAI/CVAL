@@ -899,7 +899,8 @@ async function createUnifiedPlanningGenere(
         (value as number) > 0.5) {
       const parts = varName.split('_');
       const secId = parts[1];
-      const periode = parts[2];
+      // Handle "apres_midi" which becomes ["admin", secId, "apres", "midi"]
+      const periode = parts.length > 3 ? `${parts[2]}_${parts[3]}` : parts[2];
       
       entries.push({
         planning_id,
