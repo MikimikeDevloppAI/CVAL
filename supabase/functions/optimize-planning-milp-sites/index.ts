@@ -621,7 +621,9 @@ async function createUnifiedPlanningGenere(
   
   // 2a. For each secretary assigned to a site need
   for (const [key, assignment] of assignmentMap.entries()) {
-    const [secId, periode] = key.split('_');
+    const lastUnderscoreIndex = key.lastIndexOf('_');
+    const secId = key.substring(0, lastUnderscoreIndex);
+    const periode = key.substring(lastUnderscoreIndex + 1);
     
     entries.push({
       planning_id,
