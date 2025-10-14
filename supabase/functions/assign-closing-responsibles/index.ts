@@ -154,6 +154,10 @@ serve(async (req) => {
 
     console.log(`🔒 Found ${sitesNeedingClosing.length} site/date combinations needing closing responsibles`);
 
+    // Sort by date to ensure day-by-day processing in chronological order
+    sitesNeedingClosing.sort((a, b) => a.date.localeCompare(b.date));
+    console.log(`📅 Processing in chronological order from ${sitesNeedingClosing[0]?.date} to ${sitesNeedingClosing[sitesNeedingClosing.length - 1]?.date}`);
+
     let assignmentCount = 0;
 
     // Step 6: Assign closing responsibles for each site/date
