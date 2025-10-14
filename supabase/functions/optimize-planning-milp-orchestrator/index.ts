@@ -138,16 +138,109 @@ serve(async (req) => {
     }
   }
 
-  // PHASE 2: Sites + remaining bloc needs
-  if (optimize_sites) {
-    console.log('🏢 Phase 2: Optimizing sites...');
+  // PHASE 1.5: Generate empty personnel rows
+  console.log('📋 Phase 1.5: Generating empty personnel rows for the week...');
+  
+  // Delete existing site besoins/personnel for the week
+  await supabaseServiceRole
+    .from('planning_genere_site_besoin')
+    .delete()
+    .gte('date', weekStartStr)
+    .lte('date', weekEndStr);
+  
+  // Helper to get dates in range
+  const getDatesInRange = (start: string, end: string): string[] => {
+    const dates = [];
+    const current = new Date(start);
+    const endDate = new Date(end);
+    while (current <= endDate) {
+      dates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+  
+  // Fetch all besoins (doctor needs) for the week
+  const { data: besoinsData } = await supabaseServiceRole
+    .from('besoin_effectif')
+    .select('*, medecins(besoin_secretaires)')
+    .gte('date', weekStartStr)
+    .lte('date', weekEndStr)
+    .eq('type', 'medecin')
+    .eq('actif', true);
+  
+  // Fetch all sites (excluding bloc)
+  const { data: sitesData } = await supabaseServiceRole
+    .from('sites')
+    .select('*')
+    .eq('actif', true);
+  
+  const sites = sitesData?.filter((s: any) => !s.nom?.includes('Bloc opératoire')) || [];
+  
+  // Generate rows for each date/site/periode
+  let totalPersonnelRows = 0;
+  for (const date of getDatesInRange(weekStartStr, weekEndStr)) {
+    const dayBesoins = besoinsData?.filter((b: any) => b.date === date) || [];
     
-    // Delete existing sites assignments for the entire week
-    await supabaseServiceRole
-      .from('planning_genere_site_besoin')
-      .delete()
-      .gte('date', weekStartStr)
-      .lte('date', weekEndStr);
+    for (const site of sites) {
+      for (const periode of ['matin', 'apres_midi']) {
+        // Find medecins for this site/period
+        const medecinsThisPeriod = dayBesoins.filter((b: any) => {
+          if (b.site_id !== site.id) return false;
+          if (b.demi_journee === periode || b.demi_journee === 'toute_journee') return true;
+          return false;
+        });
+        
+        if (medecinsThisPeriod.length === 0) continue;
+        
+        // Calculate total need
+        const totalBesoin = medecinsThisPeriod.reduce((sum: number, b: any) => {
+          return sum + (Number(b.medecins?.besoin_secretaires) || 1.2);
+        }, 0);
+        
+        const nombreRequis = Math.ceil(totalBesoin);
+        const medecinsIds = medecinsThisPeriod.map((b: any) => b.medecin_id);
+        
+        // Create besoin entry
+        const { data: savedBesoin } = await supabaseServiceRole
+          .from('planning_genere_site_besoin')
+          .insert({
+            planning_id,
+            date,
+            site_id: site.id,
+            periode,
+            medecins_ids: medecinsIds,
+            nombre_secretaires_requis: nombreRequis,
+            statut: 'planifie'
+          })
+          .select()
+          .single();
+        
+        // Create empty personnel rows
+        const personnelRows = [];
+        for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+          personnelRows.push({
+            planning_genere_site_besoin_id: savedBesoin.id,
+            secretaire_id: null,
+            ordre
+          });
+        }
+        
+        if (personnelRows.length > 0) {
+          await supabaseServiceRole
+            .from('planning_genere_site_personnel')
+            .insert(personnelRows);
+          totalPersonnelRows += personnelRows.length;
+        }
+      }
+    }
+  }
+  
+  console.log(`✅ Phase 1.5 complete: ${totalPersonnelRows} empty personnel rows created`);
+
+  // PHASE 2: Sites optimization (simplified)
+  if (optimize_sites) {
+    console.log('🏢 Phase 2: Optimizing sites (filling pre-generated rows)...');
 
     const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
     const sitesResponse = await fetch(sitesUrl, {
