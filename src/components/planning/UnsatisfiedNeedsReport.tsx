@@ -125,61 +125,56 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
         }
       }
 
-      // Fetch bloc operations with their required personnel needs
-      const { data: blocOperationsData, error: blocOperationsError } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select(`
-          *,
-          type_intervention:types_intervention(
-            nom,
-            code,
-            besoins:types_intervention_besoins_personnel(
-              type_besoin,
-              nombre_requis
-            )
-          )
-        `)
+      // Fetch bloc personnel rows (single query) for the range
+      const { data: blocPersonnel, error: blocPersonnelError } = await supabase
+        .from('planning_genere_personnel')
+        .select('planning_genere_bloc_operatoire_id, date, periode, secretaire_id')
+        .eq('type_assignation', 'bloc')
         .gte('date', startDateStr)
         .lte('date', endDateStr);
 
-      if (blocOperationsError) throw blocOperationsError;
+      if (blocPersonnelError) throw blocPersonnelError;
 
-      // Calculate missing needs for bloc operations
-      for (const operation of blocOperationsData || []) {
-        // Fetch assigned personnel for this operation
-        const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_personnel')
-          .select('id, type_besoin_bloc')
-          .eq('planning_genere_bloc_operatoire_id', operation.id)
-          .eq('type_assignation', 'bloc')
-          .not('secretaire_id', 'is', null); // Only count assigned personnel
+      // Group by operation and period to compute required/assigned/missing directly from generated rows
+      const blocGroups = new Map<string, { opId: string; date: string; periode: 'matin' | 'apres_midi'; required: number; assigned: number; missing: number }>();
+      for (const row of blocPersonnel || []) {
+        const opId = row.planning_genere_bloc_operatoire_id as string | null;
+        if (!opId) continue; // safety
+        const periode = row.periode as 'matin' | 'apres_midi';
+        const key = `${opId}|${row.date}|${periode}`;
+        const g = blocGroups.get(key) || { opId, date: row.date, periode, required: 0, assigned: 0, missing: 0 };
+        g.required += 1;
+        if (row.secretaire_id) g.assigned += 1;
+        blocGroups.set(key, g);
+      }
+      // Finalize missing counts
+      for (const g of blocGroups.values()) {
+        g.missing = Math.max(0, g.required - g.assigned);
+      }
 
-        if (personnelError) throw personnelError;
+      // Fetch operations meta (for labels)
+      const { data: blocOpsMeta, error: blocOpsMetaError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select('id, type_intervention:types_intervention(nom, code)')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+      if (blocOpsMetaError) throw blocOpsMetaError;
+      const opLabelMap = new Map<string, { nom?: string; code?: string }>((blocOpsMeta || []).map((op: any) => [op.id, { nom: op.type_intervention?.nom, code: op.type_intervention?.code }]));
 
-        // Calculate total required personnel from type_intervention besoins
-        const totalRequired = (operation.type_intervention?.besoins || [])
-          .reduce((sum: number, b: any) => sum + (b.nombre_requis || 1), 0);
-        
-        const totalAssigned = (personnelData || []).length;
-        const missingCount = totalRequired - totalAssigned;
-
-        if (missingCount > 0) {
-          const periodes = operation.periode === 'toute_journee' 
-            ? ['matin', 'apres_midi'] 
-            : [operation.periode];
-
-          for (const periode of periodes) {
-            missing.push({
-              date: operation.date,
-              periode: periode as 'matin' | 'apres_midi',
-              type: 'bloc',
-              type_intervention_nom: operation.type_intervention?.nom,
-              type_intervention_code: operation.type_intervention?.code,
-              required: totalRequired,
-              assigned: totalAssigned,
-              missing: missingCount,
-            });
-          }
+      // Add missing entries for bloc groups with unassigned rows
+      for (const g of blocGroups.values()) {
+        if (g.missing > 0) {
+          const labels = opLabelMap.get(g.opId) || {};
+          missing.push({
+            date: g.date,
+            periode: g.periode,
+            type: 'bloc',
+            type_intervention_nom: labels.nom,
+            type_intervention_code: labels.code,
+            required: g.required,
+            assigned: g.assigned,
+            missing: g.missing,
+          });
         }
       }
 
