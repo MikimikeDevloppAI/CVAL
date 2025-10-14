@@ -1,25 +1,30 @@
-import { useState } from 'react';
-import { AssignmentResult } from '@/types/planning';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
+import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Calendar, MapPin, Clock, Edit, X } from 'lucide-react';
-import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
+import { User, Clock, MapPin, Loader2, X } from 'lucide-react';
 import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 
 interface SecretaryPlanningViewProps {
-  assignments: AssignmentResult[];
-  weekDays: Date[];
-  onRefresh?: () => void;
+  startDate: Date;
+  endDate: Date;
 }
 
-interface EditDialogState {
-  secretaryId: string;
+interface SecretaryAssignment {
+  id: string;
   date: string;
-  period: 'matin' | 'apres_midi';
-  siteId?: string;
+  periode: 'matin' | 'apres_midi';
+  type_assignation: 'site' | 'administratif' | 'bloc';
+  site_id?: string;
+  site_nom?: string;
+  is_1r: boolean;
+  is_2f: boolean;
+  is_3f: boolean;
+  ordre: number;
+  type_besoin_bloc?: string;
 }
 
 interface SecretaryData {
@@ -28,34 +33,22 @@ interface SecretaryData {
   totalAssignments: number;
   siteAssignments: number;
   adminAssignments: number;
+  blocAssignments: number;
   sites: string[];
   is1RCount: number;
   is2FCount: number;
+  is3FCount: number;
   weekSchedule: Array<{
     date: Date;
     dateStr: string;
-    matin?: {
-      site_nom?: string;
-      site_id?: string;
-      medecins: string[];
-      is_1r?: boolean;
-      is_2f?: boolean;
-      type_assignation: 'site' | 'administratif';
-    };
-    apresMidi?: {
-      site_nom?: string;
-      site_id?: string;
-      medecins: string[];
-      is_1r?: boolean;
-      is_2f?: boolean;
-      type_assignation: 'site' | 'administratif';
-    };
+    matin?: SecretaryAssignment;
+    apresMidi?: SecretaryAssignment;
   }>;
 }
 
-export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: SecretaryPlanningViewProps) {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editDialogState, setEditDialogState] = useState<EditDialogState | null>(null);
+export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningViewProps) {
+  const [loading, setLoading] = useState(true);
+  const [secretaries, setSecretaries] = useState<SecretaryData[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [secretaryToDelete, setSecretaryToDelete] = useState<{
     id: string;
@@ -65,9 +58,149 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
     hasApresMidi: boolean;
   } | null>(null);
 
-  const handleEditClick = (secretaryId: string, dateStr: string, period: 'matin' | 'apres_midi', siteId?: string) => {
-    setEditDialogState({ secretaryId, date: dateStr, period, siteId });
-    setEditDialogOpen(true);
+  useEffect(() => {
+    fetchSecretaryPlanning();
+
+    // Real-time updates
+    const channel = supabase
+      .channel('secretary-planning-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere_personnel'
+        },
+        () => {
+          fetchSecretaryPlanning();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [startDate, endDate]);
+
+  const fetchSecretaryPlanning = async () => {
+    try {
+      setLoading(true);
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      // Fetch planning personnel data with secretaries and sites
+      const { data: personnelData, error: personnelError } = await supabase
+        .from('planning_genere_personnel')
+        .select(`
+          *,
+          secretaire:secretaires(first_name, name),
+          site:sites(nom)
+        `)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .not('secretaire_id', 'is', null)
+        .order('date')
+        .order('periode')
+        .order('ordre');
+
+      if (personnelError) throw personnelError;
+
+      // Get all days in the week (Monday to Friday)
+      const weekDays = eachDayOfInterval({ start: startDate, end: endDate })
+        .filter(d => {
+          const dow = d.getDay();
+          return dow !== 0 && dow !== 6; // Exclude weekends
+        });
+
+      // Group by secretary
+      const secretaryMap = new Map<string, SecretaryData>();
+
+      personnelData?.forEach(assignment => {
+        const secId = assignment.secretaire_id;
+        if (!secId) return;
+
+        const secName = assignment.secretaire
+          ? `${assignment.secretaire.first_name} ${assignment.secretaire.name}`
+          : 'Secrétaire inconnue';
+
+        if (!secretaryMap.has(secId)) {
+          const weekSchedule = weekDays.map(day => ({
+            date: day,
+            dateStr: format(day, 'yyyy-MM-dd'),
+            matin: undefined,
+            apresMidi: undefined,
+          }));
+
+          secretaryMap.set(secId, {
+            id: secId,
+            name: secName,
+            totalAssignments: 0,
+            siteAssignments: 0,
+            adminAssignments: 0,
+            blocAssignments: 0,
+            sites: [],
+            is1RCount: 0,
+            is2FCount: 0,
+            is3FCount: 0,
+            weekSchedule,
+          });
+        }
+
+        const secData = secretaryMap.get(secId)!;
+        secData.totalAssignments++;
+
+        if (assignment.type_assignation === 'site') {
+          secData.siteAssignments++;
+          const siteName = assignment.site?.nom || 'Site inconnu';
+          if (!secData.sites.includes(siteName)) {
+            secData.sites.push(siteName);
+          }
+        } else if (assignment.type_assignation === 'administratif') {
+          secData.adminAssignments++;
+        } else if (assignment.type_assignation === 'bloc') {
+          secData.blocAssignments++;
+        }
+
+        if (assignment.is_1r) secData.is1RCount++;
+        if (assignment.is_2f) secData.is2FCount++;
+        if (assignment.is_3f) secData.is3FCount++;
+
+        // Add to week schedule
+        const daySchedule = secData.weekSchedule.find(d => d.dateStr === assignment.date);
+        if (daySchedule) {
+          const assignmentData: SecretaryAssignment = {
+            id: assignment.id,
+            date: assignment.date,
+            periode: assignment.periode,
+            type_assignation: (assignment.type_assignation || 'site') as 'site' | 'administratif' | 'bloc',
+            site_id: assignment.site_id,
+            site_nom: assignment.site?.nom,
+            is_1r: assignment.is_1r,
+            is_2f: assignment.is_2f,
+            is_3f: assignment.is_3f,
+            ordre: assignment.ordre,
+            type_besoin_bloc: assignment.type_besoin_bloc,
+          };
+
+          if (assignment.periode === 'matin') {
+            daySchedule.matin = assignmentData;
+          } else {
+            daySchedule.apresMidi = assignmentData;
+          }
+        }
+      });
+
+      // Convert to array and sort by total assignments
+      const sortedSecretaries = Array.from(secretaryMap.values()).sort(
+        (a, b) => b.totalAssignments - a.totalAssignments
+      );
+
+      setSecretaries(sortedSecretaries);
+    } catch (error) {
+      console.error('Error fetching secretary planning:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteClick = (secretaryId: string, secretaryName: string, date: string, hasMatin: boolean, hasApresMidi: boolean) => {
@@ -81,229 +214,172 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
     setDeleteDialogOpen(true);
   };
 
-  // Filtrer les jours ouvrés (lundi à vendredi)
-  const weekdaysOnly = weekDays.filter(d => {
-    const dow = d.getDay();
-    return dow !== 0 && dow !== 6;
-  });
+  const getAssignmentBadge = (assignment: SecretaryAssignment) => {
+    if (assignment.type_assignation === 'administratif') {
+      return (
+        <Badge variant="outline" className="bg-gray-100 text-xs">
+          Administratif
+        </Badge>
+      );
+    }
 
-  // Regrouper les assignations par secrétaire
-  const secretaryMap = new Map<string, SecretaryData>();
+    if (assignment.type_assignation === 'bloc') {
+      return (
+        <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs">
+          Bloc - {assignment.type_besoin_bloc || 'Personnel'}
+        </Badge>
+      );
+    }
 
-  assignments.forEach(assignment => {
-    assignment.secretaires.forEach(sec => {
-      const key = sec.id;
-      const name = sec.nom;
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
+        <span className="font-medium text-sm truncate">
+          {assignment.site_nom?.split(' - ')[0]}
+        </span>
+        {assignment.is_1r && (
+          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+            1R
+          </Badge>
+        )}
+        {assignment.is_2f && (
+          <Badge variant="outline" className="text-xs">
+            2F
+          </Badge>
+        )}
+        {assignment.is_3f && (
+          <Badge variant="outline" className="text-xs bg-green-100 text-green-800">
+            3F
+          </Badge>
+        )}
+      </div>
+    );
+  };
 
-      if (!secretaryMap.has(key)) {
-        // Créer le planning de la semaine pour cette secrétaire
-        const weekSchedule = weekdaysOnly.map(day => {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          return {
-            date: day,
-            dateStr,
-            matin: undefined,
-            apresMidi: undefined,
-          };
-        });
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Chargement du planning par secrétaire...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-        secretaryMap.set(key, {
-          id: key,
-          name,
-          totalAssignments: 0,
-          siteAssignments: 0,
-          adminAssignments: 0,
-          sites: [],
-          is1RCount: 0,
-          is2FCount: 0,
-          weekSchedule,
-        });
-      }
-
-      const data = secretaryMap.get(key)!;
-      data.totalAssignments++;
-
-      if (assignment.type_assignation === 'site') {
-        data.siteAssignments++;
-        if (assignment.site_nom && !data.sites.includes(assignment.site_nom)) {
-          data.sites.push(assignment.site_nom);
-        }
-      } else {
-        data.adminAssignments++;
-      }
-
-      if (sec.is_1r) data.is1RCount++;
-      if (sec.is_2f) data.is2FCount++;
-
-      // Ajouter l'assignation au planning de la semaine
-      const daySchedule = data.weekSchedule.find(d => d.dateStr === assignment.date);
-      if (daySchedule) {
-        const assignmentData = {
-          site_nom: assignment.site_nom,
-          site_id: assignment.site_id,
-          medecins: assignment.medecins,
-          is_1r: sec.is_1r,
-          is_2f: sec.is_2f,
-          type_assignation: assignment.type_assignation || 'site',
-        };
-
-        if (assignment.periode === 'matin') {
-          daySchedule.matin = assignmentData;
-        } else {
-          daySchedule.apresMidi = assignmentData;
-        }
-      }
-    });
-  });
-
-  // Convertir en tableau et trier par nombre d'assignations
-  const secretaries = Array.from(secretaryMap.values()).sort(
-    (a, b) => b.totalAssignments - a.totalAssignments
-  );
+  if (secretaries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-muted-foreground">
+          Aucune assignation de secrétaire pour cette semaine
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {secretaries.map(secretary => (
-        <Card key={secretary.id} className="overflow-hidden">
-          <CardHeader className="bg-white">
-            <div className="space-y-3">
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5 text-primary" />
-                <span className="truncate">{secretary.name}</span>
-              </CardTitle>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="pt-4">
-            <div className="space-y-3">
-              {secretary.weekSchedule
-                .filter(({ matin, apresMidi }) => matin || apresMidi)
-                .map(({ date, dateStr, matin, apresMidi }) => (
-                <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
-                  <div className="mb-2 pb-2 border-b">
-                    <h4 className="font-medium text-sm">
-                      {format(date, 'EEEE d MMM', { locale: fr })}
-                    </h4>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {(() => {
-                      // Déterminer si on peut regrouper : même site (ou les 2 administratifs) matin ET après-midi
-                      const canMerge = matin && apresMidi && 
-                        matin.site_id === apresMidi.site_id &&
-                        matin.type_assignation === apresMidi.type_assignation;
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {secretaries.map(secretary => (
+          <Card key={secretary.id} className="overflow-hidden">
+            <CardHeader className="bg-white">
+              <div className="space-y-3">
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  <span className="truncate">{secretary.name}</span>
+                </CardTitle>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {secretary.totalAssignments} assignation{secretary.totalAssignments > 1 ? 's' : ''}
+                  </Badge>
+                  {secretary.siteAssignments > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {secretary.siteAssignments} site{secretary.siteAssignments > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  {secretary.blocAssignments > 0 && (
+                    <Badge variant="outline" className="bg-purple-50 text-xs">
+                      {secretary.blocAssignments} bloc
+                    </Badge>
+                  )}
+                  {secretary.adminAssignments > 0 && (
+                    <Badge variant="outline" className="bg-gray-50 text-xs">
+                      {secretary.adminAssignments} admin
+                    </Badge>
+                  )}
+                  {secretary.is1RCount > 0 && (
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                      1R: {secretary.is1RCount}
+                    </Badge>
+                  )}
+                  {secretary.is2FCount > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      2F: {secretary.is2FCount}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                {secretary.weekSchedule
+                  .filter(({ matin, apresMidi }) => matin || apresMidi)
+                  .map(({ date, dateStr, matin, apresMidi }) => (
+                  <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                    <div className="mb-2 pb-2 border-b">
+                      <h4 className="font-medium text-sm">
+                        {format(date, 'EEEE d MMM', { locale: fr })}
+                      </h4>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {(() => {
+                        // Check if we can merge: same site (or both admin) for both periods
+                        const canMerge = matin && apresMidi && 
+                          matin.site_id === apresMidi.site_id &&
+                          matin.type_assignation === apresMidi.type_assignation;
 
-                      if (canMerge) {
-                        // Journée complète au même endroit
-                        return (
-                          <div className="flex gap-2 items-center">
-                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
-                              <Clock className="h-3 w-3" />
-                              07:30-17:00
+                        if (canMerge) {
+                          // Full day at the same place
+                          return (
+                            <div className="flex gap-2 items-center">
+                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                07:30-17:00
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {getAssignmentBadge(matin)}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="space-y-1">
-                                {matin.type_assignation === 'administratif' ? (
-                                  <Badge variant="outline" className="bg-gray-100 text-xs">
-                                    Administratif
-                                  </Badge>
+                          );
+                        }
+
+                        // Separate morning and afternoon display
+                        return (
+                          <>
+                            {/* Morning */}
+                            <div className="flex gap-2 items-center">
+                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                07:30-12:00
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {matin ? (
+                                  getAssignmentBadge(matin)
                                 ) : (
-                                  <>
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-                                      <span className="font-medium text-sm">
-                                        {matin.site_nom}
-                                      </span>
-                                      {(matin.is_1r || apresMidi.is_1r) && (
-                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                                          1R
-                                        </Badge>
-                                      )}
-                                      {(matin.is_2f || apresMidi.is_2f) && (
-                                        <Badge variant="outline" className="text-xs">
-                                          2F
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </>
+                                  <span className="text-xs text-muted-foreground italic">-</span>
                                 )}
                               </div>
-                            </div>
-                            {onRefresh && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      // Affichage séparé matin et après-midi
-                      return (
-                        <>
-                          {/* Matin */}
-                          <div className="flex gap-2 items-center">
-                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
-                              <Clock className="h-3 w-3" />
-                              07:30-12:00
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {matin ? (
-                                <div className="space-y-1">
-                                  {matin.type_assignation === 'administratif' ? (
-                                    <Badge variant="outline" className="bg-gray-100 text-xs">
-                                      Administratif
-                                    </Badge>
-                                  ) : (
-                                    <>
-                                      <div className="flex items-center gap-1 flex-wrap">
-                                        <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-                                        <span className="font-medium text-sm truncate">
-                                          {matin.site_nom?.split(' - ')[0]}
-                                        </span>
-                                        {matin.is_1r && (
-                                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                                            1R
-                                          </Badge>
-                                        )}
-                                        {matin.is_2f && (
-                                          <Badge variant="outline" className="text-xs">
-                                            2F
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground italic">-</span>
-                              )}
-                            </div>
-                            {matin && onRefresh && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditClick(secretary.id, dateStr, 'matin', matin.site_id)}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
+                              {matin && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -312,58 +388,23 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                 >
                                   <X className="h-3 w-3" />
                                 </Button>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Après-midi */}
-                          <div className="flex gap-2 items-center">
-                            <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
-                              <Clock className="h-3 w-3" />
-                              13:00-17:00
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {apresMidi ? (
-                                <div className="space-y-1">
-                                  {apresMidi.type_assignation === 'administratif' ? (
-                                    <Badge variant="outline" className="bg-gray-100 text-xs">
-                                      Administratif
-                                    </Badge>
-                                  ) : (
-                                    <>
-                                      <div className="flex items-center gap-1 flex-wrap">
-                                        <MapPin className="h-3 w-3 text-primary flex-shrink-0" />
-                                        <span className="font-medium text-sm truncate">
-                                          {apresMidi.site_nom?.split(' - ')[0]}
-                                        </span>
-                                        {apresMidi.is_1r && (
-                                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                                            1R
-                                          </Badge>
-                                        )}
-                                        {apresMidi.is_2f && (
-                                          <Badge variant="outline" className="text-xs">
-                                            2F
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground italic">-</span>
                               )}
                             </div>
-                            {apresMidi && onRefresh && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditClick(secretary.id, dateStr, 'apres_midi', apresMidi.site_id)}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
+
+                            {/* Afternoon */}
+                            <div className="flex gap-2 items-center">
+                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                13:00-17:00
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {apresMidi ? (
+                                  getAssignmentBadge(apresMidi)
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">-</span>
+                                )}
+                              </div>
+                              {apresMidi && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -372,33 +413,19 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
                                 >
                                   <X className="h-3 w-3" />
                                 </Button>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      );
-                    })()}
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {editDialogState && (
-        <EditSecretaryAssignmentDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          secretaryId={editDialogState.secretaryId}
-          date={editDialogState.date}
-          period={editDialogState.period}
-          siteId={editDialogState.siteId}
-          onSuccess={() => {
-            if (onRefresh) onRefresh();
-          }}
-        />
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {secretaryToDelete && (
         <DeleteSecretaryDialog
@@ -410,11 +437,11 @@ export function SecretaryPlanningView({ assignments, weekDays, onRefresh }: Secr
           hasMatinAssignment={secretaryToDelete.hasMatin}
           hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
           onSuccess={() => {
-            onRefresh?.();
+            fetchSecretaryPlanning();
             setSecretaryToDelete(null);
           }}
         />
       )}
-    </div>
+    </>
   );
 }

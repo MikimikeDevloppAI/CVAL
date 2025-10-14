@@ -1212,18 +1212,11 @@ export default function PlanningPage() {
               startDate={currentWeekStart}
               endDate={weekEnd}
             />
-          ) : optimizationResult ? (
-            <SecretaryPlanningView
-              assignments={optimizationResult.assignments}
-              weekDays={weekDays}
-              onRefresh={fetchPlanningGenere}
-            />
           ) : (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                Aucun planning disponible
-              </CardContent>
-            </Card>
+            <SecretaryPlanningView
+              startDate={currentWeekStart}
+              endDate={weekEnd}
+            />
           )}
         </TabsContent>
       </Tabs>
