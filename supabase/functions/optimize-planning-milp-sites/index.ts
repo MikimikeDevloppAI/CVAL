@@ -620,7 +620,18 @@ function buildMILP(
             constraintCount++;
           }
         }
+
+        // Force dayVar = 1 if secretary is at bloc any period this date
+        const hasBloc = (blocAssignments.get(`${date}_matin`) || new Set()).has(flexSecId) ||
+                        (blocAssignments.get(`${date}_apres_midi`) || new Set()).has(flexSecId);
+        if (hasBloc) {
+          const blocAct = `act_bloc_${flexSecId}_${date}`;
+          // -dayVar <= -1  => dayVar >= 1
+          model.constraints[blocAct] = { max: -1 };
+          model.variables[dayVar][blocAct] = -1;
+        }
       }
+
 
       // 3. Limit total number of days to requiredDays
       const maxDaysConstraint = `max_days_${flexSecId}`;
