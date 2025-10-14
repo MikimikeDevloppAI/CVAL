@@ -217,7 +217,7 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
   }, {} as Record<string, MissingNeed[]>);
 
   return (
-    <Card className="border-destructive/50 bg-destructive/5">
+    <Card className="border-destructive/50 bg-background">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-5 w-5" />
