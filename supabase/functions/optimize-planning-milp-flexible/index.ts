@@ -22,7 +22,10 @@ interface Position {
     sites_assignes: string[];
     name: string;
     first_name: string;
+    admin_count: number;
+    medecin_assigne_id: string | null;
   } | null;
+  medecins_ids: string[];
 }
 
 serve(async (req) => {
@@ -51,13 +54,56 @@ serve(async (req) => {
     // 1. Fetch ALL secretaries (for preferences)
     const { data: allSecretaires, error: allSecError } = await supabase
       .from('secretaires')
-      .select('id, name, first_name, prefere_port_en_truie, sites_assignes, horaire_flexible, pourcentage_temps')
+      .select('id, name, first_name, prefere_port_en_truie, sites_assignes, horaire_flexible, pourcentage_temps, medecin_assigne_id')
       .eq('actif', true);
 
     if (allSecError) throw allSecError;
 
     // Build secretary map for quick lookup
     const secretaryMap = new Map(allSecretaires?.map(s => [s.id, s]) || []);
+
+    // 1.5. Fetch admin history for the week
+    const { data: adminHistory } = await supabase
+      .from('planning_genere')
+      .select('secretaire_id, date, periode')
+      .eq('type', 'administratif')
+      .gte('date', week_start)
+      .lte('date', week_end);
+
+    // Count admin periods per secretary
+    const adminCountMap = new Map<string, number>();
+    for (const admin of adminHistory || []) {
+      const count = adminCountMap.get(admin.secretaire_id) || 0;
+      adminCountMap.set(admin.secretaire_id, count + 1);
+    }
+
+    // 1.6. Fetch medecins_ids from besoins (for doctor assignment priority)
+    const { data: besoinsWithMedecins } = await supabase
+      .from('planning_genere_site_besoin')
+      .select('id, medecins_ids')
+      .gte('date', week_start)
+      .lte('date', week_end);
+
+    const besoinsMap = new Map(besoinsWithMedecins?.map(b => [b.id, b.medecins_ids || []]) || []);
+
+    // 1.7. Fetch bloc assignments for geographic constraints
+    const { data: blocAssignmentsData } = await supabase
+      .from('planning_genere_bloc_personnel')
+      .select(`
+        secretaire_id,
+        planning_genere_bloc_operatoire!inner(date, periode)
+      `)
+      .gte('planning_genere_bloc_operatoire.date', week_start)
+      .lte('planning_genere_bloc_operatoire.date', week_end);
+
+    const blocMap = new Map<string, Set<string>>();
+    for (const bloc of blocAssignmentsData || []) {
+      const key = `${bloc.secretaire_id}_${(bloc.planning_genere_bloc_operatoire as any).date}`;
+      if (!blocMap.has(key)) {
+        blocMap.set(key, new Set());
+      }
+      blocMap.get(key)!.add((bloc.planning_genere_bloc_operatoire as any).periode);
+    }
 
     // 2. Get flexible secretaries
     const flexibleSecretaries = allSecretaires?.filter(s => 
@@ -175,8 +221,11 @@ serve(async (req) => {
             prefere_port_en_truie: currentSecretary.prefere_port_en_truie || false,
             sites_assignes: currentSecretary.sites_assignes || [],
             name: currentSecretary.name || '',
-            first_name: currentSecretary.first_name || ''
-          } : null
+            first_name: currentSecretary.first_name || '',
+            admin_count: adminCountMap.get(currentSecretary.id) || 0,
+            medecin_assigne_id: currentSecretary.medecin_assigne_id || null
+          } : null,
+          medecins_ids: besoinsMap.get(besoin.id) || []
         });
       }
     }
@@ -239,45 +288,68 @@ serve(async (req) => {
           // Check site compatibility
           if (!secretary.sites_assignes.includes(pos.site_id)) continue;
           
+          // Check geographic constraint (bloc + CLV compatibility)
+          const blocKey = `${secretary.id}_${pos.date}`;
+          const blocPeriods = blocMap.get(blocKey) || new Set();
+          const otherPeriode = pos.periode === 'matin' ? 'apres_midi' : 'matin';
+          const isAtBlocOtherPeriod = blocPeriods.has(otherPeriode);
+
+          const isCLVCompatible = !isAtBlocOtherPeriod || 
+            pos.site_nom.includes('Clinique La Vallée');
+
+          if (!isCLVCompatible) {
+            continue; // Skip this position
+          }
+          
           const periode_key = pos.periode === 'matin' ? 'matin' : 'apres_midi';
           const varName = `x_${f_id}_${date}_${periode_key}_${pos.personnel_row_id}`;
           
-          // Calculate coefficient (score)
+          // Calculate coefficient (score) with new hierarchy
           let coefficient = 0;
           
-          // 1. Besoin manquant comblé: +100
+          // PRIORITY 1: Secretary linked to doctor working at this site (-10000)
+          if (secretary.medecin_assigne_id && pos.medecins_ids.includes(secretary.medecin_assigne_id)) {
+            coefficient -= 10000;
+          }
+
+          // PRIORITY 2: Fill missing need (+1000)
           if (pos.is_manquant) {
-            coefficient += 100;
+            coefficient += 1000;
           }
-          
-          // 2. Flexible préfère Port-en-Truie ET pos est Port-en-Truie: +80
-          if (secretary.prefere_port_en_truie && pos.site_id === PORT_EN_TRUIE_ID) {
-            coefficient += 80;
+
+          // PRIORITY 3: Reduce admin overload (+200 * admin_count)
+          if (!pos.is_manquant && pos.current_secretaire_info && pos.current_secretaire_info.admin_count >= 2) {
+            coefficient += 200 * pos.current_secretaire_info.admin_count;
           }
-          
-          // 3. Swap bénéfique Port-en-Truie: +50
+
+          // PRIORITY 4: Beneficial PET swap (+150)
           if (!pos.is_manquant && 
               secretary.prefere_port_en_truie && 
               pos.site_id === PORT_EN_TRUIE_ID && 
               pos.current_secretaire_info &&
               !pos.current_secretaire_info.prefere_port_en_truie) {
-            coefficient += 50;
+            coefficient += 150;
           }
-          
-          // 4. Pénalité: déplacer quelqu'un de son site préféré: -30
+
+          // PRIORITY 5: PET preference for flexible (+80)
+          if (secretary.prefere_port_en_truie && pos.site_id === PORT_EN_TRUIE_ID) {
+            coefficient += 80;
+          }
+
+          // PENALTY: Don't displace someone from preferred PET (-100)
           if (!pos.is_manquant && 
               pos.current_secretaire_info &&
               pos.current_secretaire_info.prefere_port_en_truie &&
               pos.site_id === PORT_EN_TRUIE_ID &&
               !secretary.prefere_port_en_truie) {
-            coefficient -= 30;
+            coefficient -= 100;
           }
-          
-          // 5. Bonus: site compatible neutre: +10
+
+          // BONUS: Compatible site (+20)
           if (!pos.is_manquant && 
               pos.current_secretaire_info &&
               !pos.current_secretaire_info.prefere_port_en_truie) {
-            coefficient += 10;
+            coefficient += 20;
           }
           
           // Create variable
@@ -349,6 +421,36 @@ serve(async (req) => {
       model.constraints[constraintJoursRequis] = { equal: jours_requis };
       for (const dayVar of dayVars) {
         model.variables[dayVar][constraintJoursRequis] = 1;
+      }
+    }
+    
+    // PENALTY: Site change between morning and afternoon (-500)
+    for (const secretary of secretariesWithDays) {
+      for (const date of allDates) {
+        const matinPositions = positions.filter(p => p.date === date && p.periode === 'matin');
+        const amPositions = positions.filter(p => p.date === date && p.periode === 'apres_midi');
+        
+        for (const matinPos of matinPositions) {
+          for (const amPos of amPositions) {
+            if (matinPos.site_id !== amPos.site_id) {
+              const matinVar = `x_${secretary.id}_${date}_matin_${matinPos.personnel_row_id}`;
+              const amVar = `x_${secretary.id}_${date}_apres_${amPos.personnel_row_id}`;
+              
+              if (model.variables[matinVar] && model.variables[amVar]) {
+                const penaltyVar = `site_change_${secretary.id}_${date}`;
+                model.variables[penaltyVar] = { score: -500 };
+                model.ints[penaltyVar] = 1;
+                
+                // penalty >= matin + am - 1
+                const constraintChange = `site_change_constraint_${secretary.id}_${date}_${matinPos.site_id}_${amPos.site_id}`;
+                model.constraints[constraintChange] = { max: 1 };
+                model.variables[penaltyVar][constraintChange] = -1;
+                model.variables[matinVar][constraintChange] = 1;
+                model.variables[amVar][constraintChange] = 1;
+              }
+            }
+          }
+        }
       }
     }
     
