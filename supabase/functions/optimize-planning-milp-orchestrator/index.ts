@@ -117,12 +117,50 @@ serve(async (req) => {
     console.log(`✅ Sites phase complete: ${JSON.stringify(sitesResults)}`);
   }
 
+  // PHASE 3: Flexible secretaries
+  let flexibleResults = null;
+  console.log('👥 Phase 3: Optimizing flexible secretaries...');
+  
+  // Calculate week start and end
+  const targetDate = new Date(single_day);
+  const dayOfWeek = targetDate.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday
+  const weekStart = new Date(targetDate);
+  weekStart.setDate(targetDate.getDate() + diff);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+  
+  const flexibleUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-flexible`;
+  const flexibleResponse = await fetch(flexibleUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+    },
+    body: JSON.stringify({ 
+      week_start: weekStartStr,
+      week_end: weekEndStr
+    })
+  });
+
+  if (!flexibleResponse.ok) {
+    const errorText = await flexibleResponse.text();
+    console.error('⚠️ Flexible optimization failed:', errorText);
+  } else {
+    flexibleResults = await flexibleResponse.json();
+    console.log(`✅ Flexible phase complete: ${JSON.stringify(flexibleResults)}`);
+  }
+
     console.log('🎉 Orchestrator complete!');
 
     return new Response(JSON.stringify({
       success: true,
       bloc_results: blocResults,
-      sites_results: sitesResults
+      sites_results: sitesResults,
+      flexible_results: flexibleResults
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {

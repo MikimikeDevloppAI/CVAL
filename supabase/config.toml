@@ -18,3 +18,15 @@ verify_jwt = false
 
 [functions.validate-planning]
 verify_jwt = false
+
+[functions.optimize-planning-milp-orchestrator]
+verify_jwt = false
+
+[functions.optimize-planning-milp-bloc]
+verify_jwt = false
+
+[functions.optimize-planning-milp-sites]
+verify_jwt = false
+
+[functions.optimize-planning-milp-flexible]
+verify_jwt = false
