@@ -29,46 +29,72 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { single_day, exclude_bloc_assigned = true } = await req.json().catch(() => ({}));
-    if (!single_day) {
-      throw new Error('single_day parameter is required');
+    const { single_day, week_start, week_end, exclude_bloc_assigned = true } = await req.json().catch(() => ({}));
+    
+    // Detect mode: week or single day
+    const isWeekMode = !single_day && week_start && week_end;
+    
+    if (!isWeekMode && !single_day) {
+      throw new Error('Either single_day OR (week_start AND week_end) must be provided');
     }
 
-    console.log(`📅 Optimizing sites for day: ${single_day}`);
+    if (isWeekMode) {
+      console.log(`📅 Week mode: Optimizing ${week_start} to ${week_end}`);
+      return await optimizeWeek(supabaseServiceRole, week_start, week_end, exclude_bloc_assigned);
+    } else {
+      console.log(`📅 Day mode: Optimizing ${single_day}`);
+      return await optimizeSingleDay(supabaseServiceRole, single_day, exclude_bloc_assigned);
+    }
 
-    // 1. Fetch data
-    const [
-      { data: secretaires, error: secError },
-      { data: sites, error: siteError },
-      { data: medecins, error: medError },
-      { data: besoins, error: besError },
-      { data: capacites, error: capError },
-      { data: blocOperations, error: blocError }
-    ] = await Promise.all([
-      supabaseServiceRole.from('secretaires').select('*, assignation_administrative').eq('actif', true),
-      supabaseServiceRole.from('sites').select('*').eq('actif', true),
-      supabaseServiceRole.from('medecins').select('*').eq('actif', true),
-      supabaseServiceRole.from('besoin_effectif').select('*')
-        .eq('date', single_day).eq('actif', true).eq('type', 'medecin'),
-      supabaseServiceRole.from('capacite_effective').select('*')
-        .eq('date', single_day).eq('actif', true),
-      supabaseServiceRole.from('planning_genere_bloc_operatoire').select(`
-        *,
-        planning_genere_bloc_personnel(*)
-      `).eq('date', single_day)
-    ]);
+  } catch (error) {
+    console.error('❌ Sites optimization error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
 
-    if (secError) throw secError;
-    if (siteError) throw siteError;
-    if (medError) throw medError;
-    if (besError) throw besError;
-    if (capError) throw capError;
-    if (blocError) throw blocError;
+// ========== SINGLE DAY OPTIMIZATION ==========
+async function optimizeSingleDay(
+  supabaseServiceRole: any,
+  single_day: string,
+  exclude_bloc_assigned: boolean
+) {
+  // 1. Fetch data
+  const [
+    { data: secretaires, error: secError },
+    { data: sites, error: siteError },
+    { data: medecins, error: medError },
+    { data: besoins, error: besError },
+    { data: capacites, error: capError },
+    { data: blocOperations, error: blocError }
+  ] = await Promise.all([
+    supabaseServiceRole.from('secretaires').select('*, assignation_administrative').eq('actif', true),
+    supabaseServiceRole.from('sites').select('*').eq('actif', true),
+    supabaseServiceRole.from('medecins').select('*').eq('actif', true),
+    supabaseServiceRole.from('besoin_effectif').select('*')
+      .eq('date', single_day).eq('actif', true).eq('type', 'medecin'),
+    supabaseServiceRole.from('capacite_effective').select('*')
+      .eq('date', single_day).eq('actif', true),
+    supabaseServiceRole.from('planning_genere_bloc_operatoire').select(`
+      *,
+      planning_genere_bloc_personnel(*)
+    `).eq('date', single_day)
+  ]);
 
-    console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
+  if (secError) throw secError;
+  if (siteError) throw siteError;
+  if (medError) throw medError;
+  if (besError) throw besError;
+  if (capError) throw capError;
+  if (blocError) throw blocError;
 
-    // Create maps
-    const medecinMap = new Map(medecins.map(m => [m.id, m]));
+  console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
+
+  // Create maps
+    const medecinMap = new Map<string, any>(medecins.map((m: any) => [m.id, m]));
     
     // 2. Get or create planning_id
     const weekStart = getWeekStart(new Date(single_day));
@@ -176,24 +202,220 @@ serve(async (req) => {
       supabaseServiceRole
     );
 
-    console.log(`✅ Phase 2 complete: ${sitesAssigned} sites entries, ${adminAssigned} admin entries`);
+  console.log(`✅ Day optimization complete: ${sitesAssigned} sites entries, ${adminAssigned} admin entries`);
 
+  return new Response(JSON.stringify({
+    success: true,
+    sites_personnel_assigned: assignedCount,
+    sites_entries: sitesAssigned,
+    admin_entries: adminAssigned
+  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+
+// ========== WEEK OPTIMIZATION (with flexible secretaries) ==========
+async function optimizeWeek(
+  supabaseServiceRole: any,
+  week_start: string,
+  week_end: string,
+  exclude_bloc_assigned: boolean
+) {
+  console.log('\n🗓️  WEEK MODE: Optimizing entire week with flexible secretaries');
+  
+  // 1. Fetch all data for the week
+  const [
+    { data: secretaires, error: secError },
+    { data: sites, error: siteError },
+    { data: medecins, error: medError },
+    { data: besoins, error: besError },
+    { data: capacites, error: capError },
+    { data: blocOperations, error: blocError }
+  ] = await Promise.all([
+    supabaseServiceRole.from('secretaires').select('*').eq('actif', true),
+    supabaseServiceRole.from('sites').select('*').eq('actif', true),
+    supabaseServiceRole.from('medecins').select('*').eq('actif', true),
+    supabaseServiceRole.from('besoin_effectif').select('*')
+      .gte('date', week_start).lte('date', week_end)
+      .eq('actif', true).eq('type', 'medecin'),
+    supabaseServiceRole.from('capacite_effective').select('*')
+      .gte('date', week_start).lte('date', week_end)
+      .eq('actif', true),
+    supabaseServiceRole.from('planning_genere_bloc_operatoire').select(`
+      *,
+      planning_genere_bloc_personnel(*)
+    `).gte('date', week_start).lte('date', week_end)
+  ]);
+
+  if (secError) throw secError;
+  if (siteError) throw siteError;
+  if (medError) throw medError;
+  if (besError) throw besError;
+  if (capError) throw capError;
+  if (blocError) throw blocError;
+
+  console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins across week`);
+
+  // 2. Identify flexible secretaries
+  const flexibleSecretaries = new Map<string, number>();
+  const standardSecretaries = [];
+  
+  for (const sec of secretaires) {
+    if (sec.horaire_flexible && sec.pourcentage_temps) {
+      const requiredDays = Math.round((sec.pourcentage_temps / 100) * 5);
+      flexibleSecretaries.set(sec.id, requiredDays);
+      console.log(`  📊 Flexible: ${sec.first_name} ${sec.name} → ${requiredDays} full days required (${sec.pourcentage_temps}%)`);
+    } else {
+      standardSecretaries.push(sec);
+    }
+  }
+
+  // 3. Get or create planning_id
+  let planning_id;
+  const { data: existingPlanning } = await supabaseServiceRole
+    .from('planning')
+    .select('*')
+    .eq('date_debut', week_start)
+    .eq('date_fin', week_end)
+    .maybeSingle();
+
+  if (existingPlanning) {
+    planning_id = existingPlanning.id;
+  } else {
+    const { data: newPlanning, error: planningError } = await supabaseServiceRole
+      .from('planning')
+      .insert({
+        date_debut: week_start,
+        date_fin: week_end,
+        statut: 'en_cours'
+      })
+      .select()
+      .single();
+    if (planningError) throw planningError;
+    planning_id = newPlanning.id;
+  }
+
+  // 4. Generate dates in the week
+  const dates = [];
+  const currentDate = new Date(week_start);
+  const endDate = new Date(week_end);
+  
+  while (currentDate <= endDate) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    dates.push(dateStr);
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  console.log(`✓ Processing ${dates.length} days: ${dates.join(', ')}`);
+
+  // 5. Generate besoins and personnel rows for ALL days
+  const medecinMap = new Map<string, any>(medecins.map((m: any) => [m.id, m]));
+  const allPersonnelRows = [];
+  
+  for (const date of dates) {
+    const dayBesoins = besoins.filter((b: any) => b.date === date);
+    const { personnelRows } = await generateSitesBesoins(
+      dayBesoins,
+      sites,
+      medecinMap,
+      planning_id,
+      date,
+      supabaseServiceRole
+    );
+    allPersonnelRows.push(...personnelRows);
+  }
+  
+  console.log(`✓ ${allPersonnelRows.length} total personnel rows created for the week`);
+
+  // 6. Get bloc assignments for all days
+  const blocAssignmentsByDate = new Map<string, Map<string, string[]>>();
+  for (const date of dates) {
+    const dayBloc = blocOperations.filter((b: any) => b.date === date);
+    blocAssignmentsByDate.set(date, getSecretariesAssignedToBloc(dayBloc));
+  }
+
+  // 7. Build and solve weekly MILP
+  const solution = buildWeekMILP(
+    allPersonnelRows,
+    secretaires,
+    capacites,
+    blocAssignmentsByDate,
+    besoins,
+    sites,
+    dates,
+    flexibleSecretaries
+  );
+
+  if (!solution.feasible) {
+    console.error('❌ Weekly MILP solution not feasible!');
     return new Response(JSON.stringify({
-      success: true,
-      sites_personnel_assigned: assignedCount,
-      sites_entries: sitesAssigned,
-      admin_entries: adminAssigned
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
-  } catch (error) {
-    console.error('❌ Sites optimization error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+      success: false,
+      error: 'No feasible solution found for the week'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-});
+
+  console.log(`✅ Weekly MILP solved: objective = ${solution.result}`);
+
+  // 8. Update personnel assignments for all days
+  let totalAssigned = 0;
+  for (const date of dates) {
+    const dayPersonnelRows = allPersonnelRows.filter(r => 
+      r.planning_genere_site_besoin.date === date
+    );
+    const assigned = await updateSitePersonnelAssignments(
+      dayPersonnelRows,
+      solution,
+      supabaseServiceRole
+    );
+    totalAssigned += assigned;
+  }
+
+  // 9. Create unified planning_genere for all days
+  let totalSites = 0, totalAdmin = 0;
+  
+  for (const date of dates) {
+    const dayCapacites = capacites.filter((c: any) => c.date === date);
+    const dayBesoins = besoins.filter((b: any) => b.date === date);
+    const dayPersonnelRows = allPersonnelRows.filter(r =>
+      r.planning_genere_site_besoin.date === date
+    );
+    
+    const { data: siteBesoins } = await supabaseServiceRole
+      .from('planning_genere_site_besoin')
+      .select('*')
+      .eq('date', date)
+      .eq('planning_id', planning_id);
+
+    const blocAssignments = blocAssignmentsByDate.get(date) || new Map();
+
+    const { sites: sitesAssigned, admin: adminAssigned } = await createUnifiedPlanningGenere(
+      dayCapacites,
+      blocAssignments,
+      dayPersonnelRows,
+      siteBesoins || [],
+      solution,
+      planning_id,
+      date,
+      supabaseServiceRole
+    );
+    
+    totalSites += sitesAssigned;
+    totalAdmin += adminAssigned;
+  }
+
+  console.log(`✅ Week optimization complete: ${totalSites} sites entries, ${totalAdmin} admin entries`);
+
+  return new Response(JSON.stringify({
+    success: true,
+    mode: 'week',
+    days_optimized: dates.length,
+    sites_personnel_assigned: totalAssigned,
+    sites_entries: totalSites,
+    admin_entries: totalAdmin,
+    flexible_secretaries: Array.from(flexibleSecretaries.entries()).map(([id, days]) => ({ id, required_days: days }))
+  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
@@ -896,6 +1118,308 @@ function buildSitesMILP(
   
   const solution = solver.Solve(model);
   console.log(`  ✅ Solution: feasible=${solution.feasible}, objective=${solution.result}`);
+  
+  return solution;
+}
+
+// ========== WEEK MILP (with flexible secretaries) ==========
+function buildWeekMILP(
+  personnelRows: any[],
+  secretaires: any[],
+  capacites: any[],
+  blocAssignmentsByDate: Map<string, Map<string, string[]>>,
+  besoins: any[],
+  sites: any[],
+  dates: string[],
+  flexibleSecretaries: Map<string, number>
+): any {
+  console.log('\n🔍 Building WEEK MILP model with flexible secretaries...');
+  
+  const model: any = {
+    optimize: 'cost',
+    opType: 'min',
+    constraints: {},
+    variables: {},
+    ints: {}
+  };
+
+  // Map capacities by date_secId_periode
+  const capacitesMap = new Map();
+  capacites.forEach((c: any) => {
+    const secId = c.secretaire_id || c.backup_id;
+    const periode = c.demi_journee === 'toute_journee' ? 'toute_journee' : c.demi_journee;
+    const key = `${c.date}_${secId}_${periode}`;
+    capacitesMap.set(key, c);
+    if (periode === 'toute_journee') {
+      capacitesMap.set(`${c.date}_${secId}_matin`, c);
+      capacitesMap.set(`${c.date}_${secId}_apres_midi`, c);
+    }
+  });
+
+  const sitesMap = new Map();
+  sites.forEach((site: any) => sitesMap.set(site.id, site));
+
+  // ===== PHASE 1: Create assignment variables x_secId_rowId_date =====
+  console.log('  📝 Creating assignment variables...');
+  
+  for (const row of personnelRows) {
+    const besoin = row.planning_genere_site_besoin;
+    const site_id = besoin.site_id;
+    const periode = besoin.periode;
+    const date = besoin.date;
+    
+    // Skip bloc and admin sites
+    if (site_id === SITE_ADMIN_ID) continue;
+    const site = sitesMap.get(site_id);
+    if (!site || site.nom?.includes('Bloc opératoire')) continue;
+
+    const blocAssignments = blocAssignmentsByDate.get(date) || new Map();
+    
+    // For each secretary (flexible + standard)
+    for (const sec of secretaires) {
+      const capaciteKey = `${date}_${sec.id}_${periode}`;
+      
+      // Check bloc conflicts
+      const blocPeriods = blocAssignments.get(sec.id) || [];
+      if (blocPeriods.includes(periode)) continue;
+      
+      // Check geographic compatibility (bloc other period)
+      const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
+      const isAtBlocOtherPeriod = blocPeriods.includes(otherPeriode);
+      const isGeographicallyCompatible = !isAtBlocOtherPeriod || 
+        (site && isCliniqueLaValleeCompatible(site.nom));
+      
+      if (!isGeographicallyCompatible) continue;
+      
+      // Check capacity exists
+      const hasCapacity = capacitesMap.has(capaciteKey);
+      
+      // For flexible secretaries: allow assignment to ANY compatible site (ignore capacites)
+      const isFlexible = flexibleSecretaries.has(sec.id);
+      const isSiteCompatible = (sec.sites_assignes || []).includes(site_id);
+      
+      if (!hasCapacity && !isFlexible) continue;
+      if (isFlexible && !isSiteCompatible) continue;
+      
+      // Create variable x_secId_rowId
+      const varName = `x_${sec.id}_${row.id}`;
+      let cost = -100; // Base: fill a need
+      
+      // Priority: linked medecin
+      const medecinsIds = besoin.medecins_ids || [];
+      if (medecinsIds.includes(sec.medecin_assigne_id)) {
+        cost = -10000;
+      }
+      
+      // Bonus: Port-en-Truie preference
+      if (sec.prefere_port_en_truie && site_id === SITE_PORT_EN_TRUIE) {
+        cost -= 80;
+      }
+      
+      model.variables[varName] = {
+        cost,
+        [`row_${row.id}`]: 1,
+        [`capacity_${sec.id}_${date}_${periode}`]: 1
+      };
+      model.ints[varName] = 1;
+    }
+  }
+  
+  console.log(`  ✅ ${Object.keys(model.variables).length} assignment variables created`);
+
+  // ===== PHASE 2: Constraints =====
+  
+  // 2.1: Each row gets exactly 1 secretary
+  console.log('  🔒 Adding row assignment constraints...');
+  for (const row of personnelRows) {
+    const constraint = `row_${row.id}`;
+    model.constraints[constraint] = { equal: 1 };
+  }
+  
+  // 2.2: Each secretary can work max 1 row per date/period
+  console.log('  🔒 Adding capacity constraints...');
+  for (const sec of secretaires) {
+    for (const date of dates) {
+      for (const periode of ['matin', 'apres_midi']) {
+        const constraint = `capacity_${sec.id}_${date}_${periode}`;
+        model.constraints[constraint] = { max: 1 };
+      }
+    }
+  }
+  
+  // 2.3: FLEXIBLE SECRETARIES - Full day constraints
+  console.log('  📅 Adding flexible secretaries constraints...');
+  
+  for (const [flexSecId, requiredDays] of flexibleSecretaries) {
+    const sec = secretaires.find((s: any) => s.id === flexSecId);
+    if (!sec) continue;
+    
+    console.log(`    🧮 Configuring ${sec.first_name} ${sec.name} for ${requiredDays} full days`);
+    
+    // Create day variables: has_matin, has_pm, fullday for each date
+    for (const date of dates) {
+      // has_matin_{secId}_{date} = 1 if works at least one morning slot this date
+      const hasMatinVar = `has_matin_${flexSecId}_${date}`;
+      model.variables[hasMatinVar] = {};
+      model.ints[hasMatinVar] = 1;
+      
+      // has_pm_{secId}_{date} = 1 if works at least one PM slot this date
+      const hasPmVar = `has_pm_${flexSecId}_${date}`;
+      model.variables[hasPmVar] = {};
+      model.ints[hasPmVar] = 1;
+      
+      // fullday_{secId}_{date} = 1 if works BOTH morning AND afternoon this date
+      const fulldayVar = `fullday_${flexSecId}_${date}`;
+      model.variables[fulldayVar] = {};
+      model.ints[fulldayVar] = 1;
+      
+      // Link has_matin to assignments: sum(x matin) <= M * has_matin
+      // And: sum(x matin) >= has_matin (if any assignment, has_matin must be 1)
+      const matinVars = Object.keys(model.variables).filter(v => {
+        if (!v.startsWith(`x_${flexSecId}_`)) return false;
+        const rowId = v.split('_')[2];
+        const row = personnelRows.find((r: any) => r.id === rowId);
+        return row && row.planning_genere_site_besoin.date === date && 
+               row.planning_genere_site_besoin.periode === 'matin';
+      });
+      
+      if (matinVars.length > 0) {
+        // sum(x) >= has_matin => sum(x) - has_matin >= 0
+        const linkConstraint1 = `link_has_matin_${flexSecId}_${date}`;
+        model.constraints[linkConstraint1] = { min: 0 };
+        model.variables[hasMatinVar][linkConstraint1] = -1;
+        for (const xVar of matinVars) {
+          model.variables[xVar][linkConstraint1] = 1;
+        }
+        
+        // sum(x) <= M * has_matin => sum(x) - M * has_matin <= 0
+        const M = matinVars.length; // Max possible assignments
+        const linkConstraint2 = `limit_has_matin_${flexSecId}_${date}`;
+        model.constraints[linkConstraint2] = { max: 0 };
+        model.variables[hasMatinVar][linkConstraint2] = -M;
+        for (const xVar of matinVars) {
+          model.variables[xVar][linkConstraint2] = 1;
+        }
+      }
+      
+      // Same for PM
+      const pmVars = Object.keys(model.variables).filter(v => {
+        if (!v.startsWith(`x_${flexSecId}_`)) return false;
+        const rowId = v.split('_')[2];
+        const row = personnelRows.find((r: any) => r.id === rowId);
+        return row && row.planning_genere_site_besoin.date === date && 
+               row.planning_genere_site_besoin.periode === 'apres_midi';
+      });
+      
+      if (pmVars.length > 0) {
+        const linkConstraint1 = `link_has_pm_${flexSecId}_${date}`;
+        model.constraints[linkConstraint1] = { min: 0 };
+        model.variables[hasPmVar][linkConstraint1] = -1;
+        for (const xVar of pmVars) {
+          model.variables[xVar][linkConstraint1] = 1;
+        }
+        
+        const M = pmVars.length;
+        const linkConstraint2 = `limit_has_pm_${flexSecId}_${date}`;
+        model.constraints[linkConstraint2] = { max: 0 };
+        model.variables[hasPmVar][linkConstraint2] = -M;
+        for (const xVar of pmVars) {
+          model.variables[xVar][linkConstraint2] = 1;
+        }
+      }
+      
+      // fullday = has_matin AND has_pm
+      // fullday <= has_matin
+      const fulldayConstraint1 = `fullday_matin_${flexSecId}_${date}`;
+      model.constraints[fulldayConstraint1] = { max: 0 };
+      model.variables[fulldayVar][fulldayConstraint1] = 1;
+      model.variables[hasMatinVar][fulldayConstraint1] = -1;
+      
+      // fullday <= has_pm
+      const fulldayConstraint2 = `fullday_pm_${flexSecId}_${date}`;
+      model.constraints[fulldayConstraint2] = { max: 0 };
+      model.variables[fulldayVar][fulldayConstraint2] = 1;
+      model.variables[hasPmVar][fulldayConstraint2] = -1;
+      
+      // fullday >= has_matin + has_pm - 1 (forces fullday=1 if both are 1)
+      const fulldayConstraint3 = `fullday_force_${flexSecId}_${date}`;
+      model.constraints[fulldayConstraint3] = { min: 0 };
+      model.variables[fulldayVar][fulldayConstraint3] = -1;
+      model.variables[hasMatinVar][fulldayConstraint3] = 1;
+      model.variables[hasPmVar][fulldayConstraint3] = 1;
+    }
+    
+    // Main constraint: sum(fullday_vars) = requiredDays
+    const fulldayVars = Object.keys(model.variables).filter(v => 
+      v.startsWith(`fullday_${flexSecId}_`)
+    );
+    
+    if (fulldayVars.length > 0) {
+      const dayLimitConstraint = `required_days_${flexSecId}`;
+      model.constraints[dayLimitConstraint] = { equal: requiredDays };
+      for (const fulldayVar of fulldayVars) {
+        model.variables[fulldayVar][dayLimitConstraint] = 1;
+      }
+      console.log(`      ✓ Must work exactly ${requiredDays} full days (${fulldayVars.length} possible)`);
+    }
+  }
+
+  // 2.4: Site change penalties (same day matin→pm)
+  console.log('  🚫 Adding site change penalties...');
+  let changeCount = 0;
+  
+  for (const sec of secretaires) {
+    for (const date of dates) {
+      const matinAssignments = new Map<string, string[]>(); // site_id -> [x_vars]
+      const pmAssignments = new Map<string, string[]>();
+      
+      for (const varName of Object.keys(model.variables)) {
+        if (!varName.startsWith(`x_${sec.id}_`)) continue;
+        
+        const rowId = varName.split('_')[2];
+        const row = personnelRows.find((r: any) => r.id === rowId);
+        if (!row || row.planning_genere_site_besoin.date !== date) continue;
+        
+        const site_id = row.planning_genere_site_besoin.site_id;
+        const periode = row.planning_genere_site_besoin.periode;
+        
+        if (periode === 'matin') {
+          if (!matinAssignments.has(site_id)) matinAssignments.set(site_id, []);
+          matinAssignments.get(site_id)!.push(varName);
+        } else {
+          if (!pmAssignments.has(site_id)) pmAssignments.set(site_id, []);
+          pmAssignments.get(site_id)!.push(varName);
+        }
+      }
+      
+      // Penalty if assigned to different sites
+      for (const [siteA, matinVars] of matinAssignments) {
+        for (const [siteB, pmVars] of pmAssignments) {
+          if (siteA === siteB) continue;
+          
+          const changeVar = `change_${sec.id}_${siteA.substring(0, 8)}_to_${siteB.substring(0, 8)}_${date}`;
+          model.variables[changeVar] = { cost: PENALTY_SITE_CHANGE };
+          model.ints[changeVar] = 1;
+          
+          const constraint = `detect_${changeVar}`;
+          model.constraints[constraint] = { max: 1 };
+          model.variables[changeVar][constraint] = -1;
+          
+          for (const mVar of matinVars) model.variables[mVar][constraint] = 1;
+          for (const pVar of pmVars) model.variables[pVar][constraint] = 1;
+          
+          changeCount++;
+        }
+      }
+    }
+  }
+  
+  console.log(`    ✅ ${changeCount} site change detection variables created`);
+
+  console.log(`  📊 Total Variables: ${Object.keys(model.variables).length}, Constraints: ${Object.keys(model.constraints).length}`);
+  
+  const solution = solver.Solve(model);
+  console.log(`  ✅ Week solution: feasible=${solution.feasible}, objective=${solution.result}`);
   
   return solution;
 }
