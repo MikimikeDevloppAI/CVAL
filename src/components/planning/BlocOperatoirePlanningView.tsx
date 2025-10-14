@@ -92,25 +92,38 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
 
       if (blocsError) throw blocsError;
 
-      // Fetch personnel for each operation
+      // Fetch personnel for each operation from unified planning_genere_personnel
       const operationsWithPersonnel: BlocOperation[] = [];
       
       for (const bloc of blocsData || []) {
         const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_bloc_personnel')
+          .from('planning_genere_personnel')
           .select(`
-            *,
-            secretaire:secretaires(first_name, name)
+            id,
+            ordre,
+            type_besoin_bloc,
+            secretaire:secretaires(first_name, name),
+            secretaire_id
           `)
           .eq('planning_genere_bloc_operatoire_id', bloc.id)
-          .order('type_besoin', { ascending: true })
+          .eq('type_assignation', 'bloc')
+          .order('type_besoin_bloc', { ascending: true })
           .order('ordre', { ascending: true });
 
         if (personnelError) throw personnelError;
 
+        // Transform to match expected PersonnelAssignment interface
+        const personnel = (personnelData || []).map((p: any) => ({
+          id: p.id,
+          ordre: p.ordre,
+          type_besoin: p.type_besoin_bloc,
+          secretaire_id: p.secretaire_id,
+          secretaire: p.secretaire
+        }));
+
         operationsWithPersonnel.push({
           ...bloc,
-          personnel: personnelData || []
+          personnel
         });
       }
 

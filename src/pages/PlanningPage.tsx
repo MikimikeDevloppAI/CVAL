@@ -506,13 +506,8 @@ export default function PlanningPage() {
         .lte('date', weekEndStr)
         .eq('statut', 'planifie');
 
-      // Update status for site besoins
-      await supabase
-        .from('planning_genere_site_besoin')
-        .update({ statut: 'confirme' })
-        .gte('date', weekStartStr)
-        .lte('date', weekEndStr)
-        .eq('statut', 'planifie');
+      // No need to update planning_genere_site_besoin as it no longer exists
+      // All assignments are now in planning_genere_personnel
 
       // Prepare secretary data for PDF
       const secretaryData = optimizationResult?.assignments.reduce((acc: any[], assignment) => {

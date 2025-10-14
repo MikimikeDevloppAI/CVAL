@@ -20,6 +20,7 @@ interface SiteBesoinsData {
   periode: 'matin' | 'apres_midi';
   site_id: string;
   site_nom: string;
+  site_fermeture?: boolean;
   nombre_secretaires_requis: number;
   medecins_ids: string[];
   medecins_noms: string[];
@@ -29,6 +30,7 @@ interface SiteBesoinsData {
     ordre: number;
     type_assignation?: 'site' | 'administratif';
   }[];
+  type_assignation?: 'site' | 'administratif';
 }
 
 export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) {
@@ -84,15 +86,14 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           site_id: besoin?.site_id || '',
           site_nom: site?.nom || 'Site inconnu',
           site_fermeture: site?.fermeture || false,
-          nombreRequis: 1, // We'll aggregate this below
-          nombreAssigne: assignment.secretaire_id ? 1 : 0,
+          nombre_secretaires_requis: 1,
           medecins_ids: besoin?.medecin_id ? [besoin.medecin_id] : [],
           medecins_noms: besoin?.medecins ? [`${besoin.medecins.first_name} ${besoin.medecins.name}`] : [],
-          secretaires: assignment.secretaire_id && assignment.secretaires ? [{
-            id: assignment.id,
+          personnel: assignment.secretaire_id && assignment.secretaires ? [{
             secretaire_id: assignment.secretaire_id,
-            nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
-            ordre: assignment.ordre
+            secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+            ordre: assignment.ordre,
+            type_assignation: 'site'
           }] : []
         };
       });
@@ -116,15 +117,14 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         site_id: '',
         site_nom: 'Administratif',
         site_fermeture: false,
-        nombreRequis: 0,
-        nombreAssigne: 1,
+        nombre_secretaires_requis: 0,
         medecins_ids: [],
         medecins_noms: [],
-        secretaires: assignment.secretaire_id && assignment.secretaires ? [{
-          id: assignment.id,
+        personnel: assignment.secretaire_id && assignment.secretaires ? [{
           secretaire_id: assignment.secretaire_id,
-          nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
-          ordre: assignment.ordre
+          secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+          ordre: assignment.ordre,
+          type_assignation: 'administratif'
         }] : [],
         type_assignation: 'administratif'
       }));
