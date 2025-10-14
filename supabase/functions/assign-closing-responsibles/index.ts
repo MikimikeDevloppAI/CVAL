@@ -41,7 +41,7 @@ serve(async (req) => {
     // Step 2: Calculate scores for each secretary based on past 4 weeks
     const { data: pastAssignments, error: pastError } = await supabase
       .from('planning_genere_personnel')
-      .select('secretaire_id, responsable_1r_id, responsable_2f_id, responsable_3f_id')
+      .select('secretaire_id, is_1r, is_2f, is_3f')
       .eq('type_assignation', 'site')
       .gte('date', fourWeeksAgoStr)
       .lt('date', week_start)
@@ -58,13 +58,13 @@ serve(async (req) => {
       if (!scores.has(secId)) scores.set(secId, 0);
       
       // Count if this secretary was 1R, 2F, or 3F
-      if (assignment.responsable_1r_id === secId) {
+      if (assignment.is_1r) {
         scores.set(secId, scores.get(secId)! + 1);
       }
-      if (assignment.responsable_2f_id === secId) {
+      if (assignment.is_2f) {
         scores.set(secId, scores.get(secId)! + 2);
       }
-      if (assignment.responsable_3f_id === secId) {
+      if (assignment.is_3f) {
         scores.set(secId, scores.get(secId)! + 2); // 3F also counts as 2 points
       }
     }
@@ -265,36 +265,64 @@ serve(async (req) => {
       
       console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${scores.get(responsable1R) || 0}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${scores.get(responsable2F3F) || 0})`);
 
-      // Update morning records
-      const updateDataMorning: any = {
-        responsable_1r_id: responsable1R,
-      };
-      if (needsThreeF) {
-        updateDataMorning.responsable_3f_id = responsable2F3F;
-      } else {
-        updateDataMorning.responsable_2f_id = responsable2F3F;
-      }
-
-      const { error: updateMorningError } = await supabase
+      // First, reset all responsable flags for this site/date
+      const { error: resetError } = await supabase
         .from('planning_genere_personnel')
-        .update(updateDataMorning)
+        .update({ is_1r: false, is_2f: false, is_3f: false })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('type_assignation', 'site');
+
+      if (resetError) throw resetError;
+
+      // Update morning records - set 1R flag
+      const { error: update1RMorningError } = await supabase
+        .from('planning_genere_personnel')
+        .update({ is_1r: true })
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('periode', 'matin')
+        .eq('secretaire_id', responsable1R)
         .eq('type_assignation', 'site');
 
-      if (updateMorningError) throw updateMorningError;
+      if (update1RMorningError) throw update1RMorningError;
 
-      // Update afternoon records
-      const { error: updateAfternoonError } = await supabase
+      // Update morning records - set 2F or 3F flag
+      const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
+      const { error: update2F3FMorningError } = await supabase
         .from('planning_genere_personnel')
-        .update(updateDataMorning) // Same responsibles for afternoon
+        .update(update2F3FData)
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('periode', 'matin')
+        .eq('secretaire_id', responsable2F3F)
+        .eq('type_assignation', 'site');
+
+      if (update2F3FMorningError) throw update2F3FMorningError;
+
+      // Update afternoon records - set 1R flag
+      const { error: update1RAfternoonError } = await supabase
+        .from('planning_genere_personnel')
+        .update({ is_1r: true })
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('periode', 'apres_midi')
+        .eq('secretaire_id', responsable1R)
         .eq('type_assignation', 'site');
 
-      if (updateAfternoonError) throw updateAfternoonError;
+      if (update1RAfternoonError) throw update1RAfternoonError;
+
+      // Update afternoon records - set 2F or 3F flag
+      const { error: update2F3FAfternoonError } = await supabase
+        .from('planning_genere_personnel')
+        .update(update2F3FData)
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('periode', 'apres_midi')
+        .eq('secretaire_id', responsable2F3F)
+        .eq('type_assignation', 'site');
+
+      if (update2F3FAfternoonError) throw update2F3FAfternoonError;
 
       assignmentCount++;
     }

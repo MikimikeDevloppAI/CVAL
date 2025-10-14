@@ -795,13 +795,13 @@ export type Database = {
           created_at: string | null
           date: string
           id: string
+          is_1r: boolean
+          is_2f: boolean
+          is_3f: boolean
           ordre: number
           periode: Database["public"]["Enums"]["periode"]
           planning_genere_bloc_operatoire_id: string | null
           planning_id: string | null
-          responsable_1r_id: string | null
-          responsable_2f_id: string | null
-          responsable_3f_id: string | null
           secretaire_id: string | null
           site_id: string | null
           type_assignation: string
@@ -814,13 +814,13 @@ export type Database = {
           created_at?: string | null
           date: string
           id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
           ordre?: number
           periode: Database["public"]["Enums"]["periode"]
           planning_genere_bloc_operatoire_id?: string | null
           planning_id?: string | null
-          responsable_1r_id?: string | null
-          responsable_2f_id?: string | null
-          responsable_3f_id?: string | null
           secretaire_id?: string | null
           site_id?: string | null
           type_assignation: string
@@ -833,13 +833,13 @@ export type Database = {
           created_at?: string | null
           date?: string
           id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
           ordre?: number
           periode?: Database["public"]["Enums"]["periode"]
           planning_genere_bloc_operatoire_id?: string | null
           planning_id?: string | null
-          responsable_1r_id?: string | null
-          responsable_2f_id?: string | null
-          responsable_3f_id?: string | null
           secretaire_id?: string | null
           site_id?: string | null
           type_assignation?: string
@@ -861,27 +861,6 @@ export type Database = {
             columns: ["planning_id"]
             isOneToOne: false
             referencedRelation: "planning"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_responsable_1r_id_fkey"
-            columns: ["responsable_1r_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_responsable_2f_id_fkey"
-            columns: ["responsable_2f_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_responsable_3f_id_fkey"
-            columns: ["responsable_3f_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
             referencedColumns: ["id"]
           },
           {
