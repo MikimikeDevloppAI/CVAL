@@ -375,12 +375,10 @@ function buildMILP(
           score += 30;
         }
         
-        // Decreasing bonus (penalize repeated admin assignments)
+        // Track admin vars for progressive balancing (constraints added below)
         if (!adminAssignments.has(sec.id)) {
           adminAssignments.set(sec.id, []);
         }
-        const currentCount = adminAssignments.get(sec.id)!.length;
-        score -= currentCount * 5; // -5 per previous admin assignment
         
         model.variables[adminVar] = {
           score,
@@ -567,6 +565,45 @@ function buildMILP(
   } else {
     console.log('    ⏭️  Skipping flexible constraints (single day mode)');
   }
+
+  // === 7. ADMIN BALANCE: PROGRESSIVE SOFT CONSTRAINTS ===
+  console.log('  ⚖️ Adding progressive admin balance constraints...');
+  
+  let adminBalanceCount = 0;
+  
+  for (const [secId, adminVars] of adminAssignments) {
+    if (adminVars.length <= 1) continue; // No need to balance if only 1 admin slot
+    
+    // For each secretary, create slack variables for exceeding thresholds
+    
+    // Threshold 1: More than 2 admin assignments (penalty -100)
+    const slack1Var = `slack_admin_${secId}_t1`;
+    model.variables[slack1Var] = { score: -100 }; // Penalty for exceeding 2
+    model.ints[slack1Var] = 1;
+    
+    const constraint1Key = `admin_balance_${secId}_t1`;
+    model.constraints[constraint1Key] = { min: -2 }; // sum(admin) - 2 <= slack1
+    model.variables[slack1Var][constraint1Key] = -1;
+    for (const adminVar of adminVars) {
+      model.variables[adminVar][constraint1Key] = 1;
+    }
+    adminBalanceCount++;
+    
+    // Threshold 2: More than 4 admin assignments (stronger penalty -500)
+    const slack2Var = `slack_admin_${secId}_t2`;
+    model.variables[slack2Var] = { score: -500 }; // Strong penalty for exceeding 4
+    model.ints[slack2Var] = 1;
+    
+    const constraint2Key = `admin_balance_${secId}_t2`;
+    model.constraints[constraint2Key] = { min: -4 }; // sum(admin) - 4 <= slack2
+    model.variables[slack2Var][constraint2Key] = -1;
+    for (const adminVar of adminVars) {
+      model.variables[adminVar][constraint2Key] = 1;
+    }
+    adminBalanceCount++;
+  }
+  
+  console.log(`    ✅ ${adminBalanceCount} progressive admin balance constraints added`);
 
   console.log(`  📊 Variables: ${Object.keys(model.variables).length}, Constraints: ${Object.keys(model.constraints).length}`);
   
