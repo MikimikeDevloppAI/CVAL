@@ -142,11 +142,12 @@ serve(async (req) => {
   if (optimize_sites) {
     console.log('🏢 Phase 2: Optimizing sites...');
     
-    // Delete existing sites assignments
+    // Delete existing sites assignments for the entire week
     await supabaseServiceRole
       .from('planning_genere_site_besoin')
       .delete()
-      .eq('date', single_day);
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr);
 
     const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
     const sitesResponse = await fetch(sitesUrl, {
