@@ -54,10 +54,15 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
 
       if (siteBesoinsError) throw siteBesoinsError;
 
+      // Filter out "Bloc opératoire" site to avoid false positives
+      const filteredSiteBesoins = (siteBesoinsData || []).filter((besoin: any) => 
+        besoin.site?.nom !== 'Clinique La Vallée - Bloc opératoire'
+      );
+
       // Group site needs by (date, site_id, periode) and sum besoin_secretaires BEFORE ceiling
       const siteNeedsSumMap = new Map<string, { site_nom: string; site_id: string; total: number }>();
       
-      for (const besoin of siteBesoinsData || []) {
+      for (const besoin of filteredSiteBesoins) {
         const periodes = besoin.demi_journee === 'toute_journee' 
           ? ['matin', 'apres_midi'] 
           : [besoin.demi_journee];
