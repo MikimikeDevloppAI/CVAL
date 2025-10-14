@@ -53,13 +53,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         .select(`
           *,
           secretaires(first_name, name),
-          besoin_effectif(
-            id,
-            medecin_id,
-            site_id,
-            sites(nom, fermeture),
-            medecins(first_name, name)
-          )
+          sites(nom, fermeture),
+          besoin_effectif!inner(medecins(first_name, name))
         `)
         .eq('type_assignation', 'site')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
@@ -75,28 +70,23 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
       }
 
       // Process data
-      const enrichedData: SiteBesoinsData[] = (planningSites || []).map((assignment: any) => {
-        const besoin = assignment.besoin_effectif;
-        const site = besoin?.sites;
-        
-        return {
-          id: assignment.id,
-          date: assignment.date,
-          periode: assignment.periode,
-          site_id: besoin?.site_id || '',
-          site_nom: site?.nom || 'Site inconnu',
-          site_fermeture: site?.fermeture || false,
-          nombre_secretaires_requis: 1,
-          medecins_ids: besoin?.medecin_id ? [besoin.medecin_id] : [],
-          medecins_noms: besoin?.medecins ? [`${besoin.medecins.first_name} ${besoin.medecins.name}`] : [],
-          personnel: assignment.secretaire_id && assignment.secretaires ? [{
-            secretaire_id: assignment.secretaire_id,
-            secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
-            ordre: assignment.ordre,
-            type_assignation: 'site'
-          }] : []
-        };
-      });
+      const enrichedData: SiteBesoinsData[] = (planningSites || []).map((assignment: any) => ({
+        id: assignment.id,
+        date: assignment.date,
+        periode: assignment.periode,
+        site_id: assignment.site_id || '',
+        site_nom: assignment.sites?.nom || 'Site inconnu',
+        site_fermeture: assignment.sites?.fermeture || false,
+        nombre_secretaires_requis: 1,
+        medecins_ids: assignment.besoin_effectif?.medecins?.id ? [assignment.besoin_effectif.medecins.id] : [],
+        medecins_noms: assignment.besoin_effectif?.medecins ? [`${assignment.besoin_effectif.medecins.first_name} ${assignment.besoin_effectif.medecins.name}`] : [],
+        personnel: assignment.secretaire_id && assignment.secretaires ? [{
+          secretaire_id: assignment.secretaire_id,
+          secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+          ordre: assignment.ordre,
+          type_assignation: 'site'
+        }] : []
+      }));
 
       // Fetch administrative assignments
       const { data: adminAssignments } = await supabase

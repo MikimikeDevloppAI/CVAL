@@ -541,9 +541,9 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
         date: besoin.date,
         periode: besoin.demi_journee,
         secretaire_id: secId,
+        site_id: besoin.site_id,
         type_assignation: 'site',
-        ordre,
-        besoin_effectif_id: besoin.id
+        ordre
       });
   }
 
