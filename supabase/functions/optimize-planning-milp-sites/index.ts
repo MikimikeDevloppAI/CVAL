@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 const SITE_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
-const PENALTY_SITE_CHANGE = 60; // Forte pénalité pour décourager les changements de site
+const PENALTY_SITE_CHANGE = 500; // Priorité absolue pour éviter les changements de site
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001;
 
 function isCliniqueLaValleeCompatible(siteName: string): boolean {
@@ -773,10 +773,10 @@ function buildSitesMILP(
     if (!hasPETOption) continue;
     
     // Increasing penalty for multiple Port-en-Truie assignments
-    // k=0:0, k=1:+15, k=2:+40, k=3:+75, k=4:+120
+    // k=0:0, k=1:+30, k=2:+120, k=3:+270, k=4:+480
     const getPETCoefficient = (k: number) => {
       if (k === 0) return 0;
-      return 15 * k * k; // Quadratic growth
+      return 30 * k * k; // Quadratic growth
     };
     
     // Create counters from historicPET to historicPET + 2
