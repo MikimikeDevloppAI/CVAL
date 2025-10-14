@@ -62,8 +62,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           )
         `)
         .eq('type_assignation', 'site')
-        .gte('date', startDate)
-        .lte('date', endDate)
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
         .order('date', { ascending: true })
         .order('periode', { ascending: true })
         .order('ordre', { ascending: true });
@@ -106,8 +106,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           secretaires(first_name, name)
         `)
         .eq('type_assignation', 'administratif')
-        .gte('date', startDate)
-        .lte('date', endDate);
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'));
 
       // Add admin assignments
       const adminData: SiteBesoinsData[] = (adminAssignments || []).map((assignment: any) => ({
