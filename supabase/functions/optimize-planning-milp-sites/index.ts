@@ -193,7 +193,7 @@ function extractBlocAssignments(blocOps: any[], dates: string[]): Map<string, Se
   return map;
 }
 
-// Build MILP - works directly with besoin_effectif
+// Build MILP - aggregate besoins by site/demi-journée
 function buildMILP(
   besoins: any[],
   secretaires: any[],
@@ -203,7 +203,7 @@ function buildMILP(
   dates: string[],
   flexibleSecs: Map<string, number>
 ): any {
-  console.log('\n🔍 Building MILP from besoin_effectif...');
+  console.log('\n🔍 Building MILP by aggregating site needs...');
   
   const model: any = {
     optimize: 'score',
@@ -225,19 +225,62 @@ function buildMILP(
 
   const sitesMap = new Map(sites.map((s: any) => [s.id, s]));
 
-  // === 1. ASSIGNMENT VARIABLES - One per besoin * required count ===
-  console.log('  📝 Creating assignment variables from besoins...');
+  // === 1. PRE-PROCESS: AGGREGATE BESOINS BY (date, site_id, periode) ===
+  console.log('  📊 Aggregating besoins by site/periode...');
+  
+  const siteNeedsMap = new Map<string, {
+    date: string;
+    site_id: string;
+    periode: string;
+    total_need: number;
+    medecin_ids: Set<string>;
+  }>();
   
   for (const besoin of besoins) {
-    const date = besoin.date;
-    const periode = besoin.demi_journee;
-    const site_id = besoin.site_id;
-    const nombreRequis = Math.ceil(besoin.medecins?.besoin_secretaires || 1.2);
+    const periodes = besoin.demi_journee === 'toute_journee' 
+      ? ['matin', 'apres_midi'] 
+      : [besoin.demi_journee];
+    
+    for (const periode of periodes) {
+      const key = `${besoin.date}|${besoin.site_id}|${periode}`;
+      
+      if (!siteNeedsMap.has(key)) {
+        siteNeedsMap.set(key, {
+          date: besoin.date,
+          site_id: besoin.site_id,
+          periode,
+          total_need: 0,
+          medecin_ids: new Set()
+        });
+      }
+      
+      const entry = siteNeedsMap.get(key)!;
+      entry.total_need += besoin.medecins?.besoin_secretaires || 1.2;
+      if (besoin.medecin_id) {
+        entry.medecin_ids.add(besoin.medecin_id);
+      }
+    }
+  }
+  
+  const siteNeeds = Array.from(siteNeedsMap.values());
+  const totalSlots = siteNeeds.reduce((sum, sn) => sum + Math.ceil(sn.total_need), 0);
+  
+  console.log(`  ✅ ${siteNeeds.length} site bins, ${totalSlots} total slots required`);
+
+  // === 2. ASSIGNMENT VARIABLES BY SITE SLOT ===
+  console.log('  📝 Creating assignment variables per site slot...');
+  
+  let varCount = 0;
+  
+  for (const siteNeed of siteNeeds) {
+    const { date, site_id, periode, total_need, medecin_ids } = siteNeed;
+    const slots = Math.ceil(total_need);
     const blocKey = `${date}_${periode}`;
     const blocSecs = blocAssignments.get(blocKey) || new Set();
 
-    // Create EXACTLY nombreRequis assignment slots for this besoin
-    for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+    for (let ordre = 1; ordre <= slots; ordre++) {
+      const constraintKey = `need|${date}|${site_id}|${periode}|${ordre}`;
+      
       for (const sec of secretaires) {
         // Skip if at bloc this period
         if (blocSecs.has(sec.id)) continue;
@@ -262,12 +305,13 @@ function buildMILP(
           if (!site || !isCliniqueLaValleeCompatible(site.nom)) continue;
         }
 
-        // Create variable for this specific besoin + ordre
-        const varName = `x_${sec.id}_${besoin.id}_${ordre}`;
+        // Create variable: x|secId|date|periode|siteId|ordre
+        const varName = `x|${sec.id}|${date}|${periode}|${site_id}|${ordre}`;
         let score = 100; // Base: fill a need
 
         // PRIORITY 1: Linked medecin (+10000)
-        if (besoin.medecin_id === sec.medecin_assigne_id) {
+        const medecinIdsArray = Array.from(medecin_ids);
+        if (sec.medecin_assigne_id && medecinIdsArray.includes(sec.medecin_assigne_id)) {
           score += 10000;
         }
 
@@ -283,20 +327,22 @@ function buildMILP(
 
         model.variables[varName] = {
           score,
-          [`besoin_${besoin.id}_${ordre}`]: 1,  // Each besoin/ordre slot gets exactly 1 sec
+          [constraintKey]: 1,  // Each site slot gets exactly 1 sec
           [`cap_${sec.id}_${date}_${periode}`]: 1
         };
         model.ints[varName] = 1;
+        varCount++;
       }
       
-      // Unsatisfied variable for this besoin/ordre slot
-      const uVar = `u_${besoin.id}_${ordre}`;
-      model.variables[uVar] = { score: -1000, [`besoin_${besoin.id}_${ordre}`]: 1 };
+      // Unsatisfied variable for this site slot
+      const uVar = `u|${date}|${site_id}|${periode}|${ordre}`;
+      model.variables[uVar] = { score: -1000, [constraintKey]: 1 };
       model.ints[uVar] = 1;
+      varCount++;
     }
   }
 
-  console.log(`  ✅ ${Object.keys(model.variables).length} assignment variables`);
+  console.log(`  ✅ ${varCount} site assignment variables created`);
 
   // === 1B. ADMIN ASSIGNMENT VARIABLES ===
   console.log('  📋 Creating admin assignment variables...');
@@ -349,17 +395,18 @@ function buildMILP(
   
   console.log(`  ✅ ${Array.from(adminAssignments.values()).flat().length} admin variables`);
 
-  // === 2. CONSTRAINTS ===
+  // === 3. CONSTRAINTS ===
   
-  // 2.1 Each besoin/ordre gets exactly 1 secretary (or unsatisfied)
-  for (const besoin of besoins) {
-    const nombreRequis = Math.ceil(besoin.medecins?.besoin_secretaires || 1.2);
-    for (let ordre = 1; ordre <= nombreRequis; ordre++) {
-      model.constraints[`besoin_${besoin.id}_${ordre}`] = { equal: 1 };
+  // 3.1 Each site slot gets exactly 1 secretary (or unsatisfied)
+  for (const siteNeed of siteNeeds) {
+    const { date, site_id, periode, total_need } = siteNeed;
+    const slots = Math.ceil(total_need);
+    for (let ordre = 1; ordre <= slots; ordre++) {
+      model.constraints[`need|${date}|${site_id}|${periode}|${ordre}`] = { equal: 1 };
     }
   }
 
-  // 2.2 Each secretary max 1 assignment per date/period
+  // 3.2 Each secretary max 1 assignment per date/period
   for (const sec of secretaires) {
     for (const date of dates) {
       for (const periode of ['matin', 'apres_midi']) {
@@ -368,7 +415,7 @@ function buildMILP(
     }
   }
 
-  // === 3. SITE CHANGE PENALTY ===
+  // === 4. SITE CHANGE PENALTY ===
   console.log('  🔄 Adding site change penalties...');
   let changeCount = 0;
   
@@ -378,19 +425,24 @@ function buildMILP(
       const pmBySite = new Map<string, string[]>();
 
       for (const varName of Object.keys(model.variables)) {
-        if (!varName.startsWith(`x_${sec.id}_`)) continue;
+        if (!varName.startsWith(`x|${sec.id}|`)) continue;
         
-        const parts = varName.split('_');
-        const besoinId = parts[2];
-        const besoin = besoins.find((b: any) => b.id === besoinId);
-        if (!besoin || besoin.date !== date) continue;
+        // Parse: x|secId|date|periode|siteId|ordre
+        const parts = varName.split('|');
+        if (parts.length < 6) continue;
+        
+        const vDate = parts[2];
+        const vPeriode = parts[3];
+        const vSiteId = parts[4];
+        
+        if (vDate !== date) continue;
 
-        if (besoin.demi_journee === 'matin') {
-          if (!matinBySite.has(besoin.site_id)) matinBySite.set(besoin.site_id, []);
-          matinBySite.get(besoin.site_id)!.push(varName);
-        } else {
-          if (!pmBySite.has(besoin.site_id)) pmBySite.set(besoin.site_id, []);
-          pmBySite.get(besoin.site_id)!.push(varName);
+        if (vPeriode === 'matin') {
+          if (!matinBySite.has(vSiteId)) matinBySite.set(vSiteId, []);
+          matinBySite.get(vSiteId)!.push(varName);
+        } else if (vPeriode === 'apres_midi') {
+          if (!pmBySite.has(vSiteId)) pmBySite.set(vSiteId, []);
+          pmBySite.get(vSiteId)!.push(varName);
         }
       }
 
@@ -418,17 +470,20 @@ function buildMILP(
   
   console.log(`    ✅ ${changeCount} change penalties`);
 
-  // === 4. SITE CLOSURE CONTINUITY (soft bonus, highly valued) ===
+  // === 5. SITE CLOSURE CONTINUITY (soft bonus, highly valued) ===
   console.log('  🔒 Adding closure site continuity bonuses (soft)...');
   let continuityBonusCount = 0;
   
+  // Get closure sites from siteNeeds
+  const closureSiteIds = new Set<string>();
+  for (const siteNeed of siteNeeds) {
+    const site = sitesMap.get(siteNeed.site_id);
+    if (site?.fermeture) {
+      closureSiteIds.add(siteNeed.site_id);
+    }
+  }
+  
   for (const date of dates) {
-    const closureBesoins = besoins.filter((b: any) => {
-      const site = sitesMap.get(b.site_id);
-      return b.date === date && site?.fermeture;
-    });
-    const closureSiteIds = [...new Set(closureBesoins.map((b: any) => b.site_id))];
-
     for (const site_id of closureSiteIds) {
       const site = sitesMap.get(site_id);
       if (!site) continue;
@@ -439,15 +494,20 @@ function buildMILP(
         const pmVars = [];
 
         for (const varName of Object.keys(model.variables)) {
-          if (!varName.startsWith(`x_${sec.id}_`)) continue;
+          if (!varName.startsWith(`x|${sec.id}|`)) continue;
           
-          const parts = varName.split('_');
-          const besoinId = parts[2];
-          const besoin = besoins.find((b: any) => b.id === besoinId);
-          if (!besoin || besoin.date !== date || besoin.site_id !== site_id) continue;
+          // Parse: x|secId|date|periode|siteId|ordre
+          const parts = varName.split('|');
+          if (parts.length < 6) continue;
+          
+          const vDate = parts[2];
+          const vPeriode = parts[3];
+          const vSiteId = parts[4];
+          
+          if (vDate !== date || vSiteId !== site_id) continue;
 
-          if (besoin.demi_journee === 'matin') matinVars.push(varName);
-          else pmVars.push(varName);
+          if (vPeriode === 'matin') matinVars.push(varName);
+          else if (vPeriode === 'apres_midi') pmVars.push(varName);
         }
 
         if (matinVars.length === 0 || pmVars.length === 0) continue;
@@ -475,7 +535,7 @@ function buildMILP(
 
   console.log(`    ✅ ${continuityBonusCount} continuity bonus variables (score +1000 each)`);
 
-  // === 5. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS (sites + admin) ===
+  // === 6. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS (sites + admin) ===
   console.log('  📅 Adding flexible constraints...');
   
   // ⚠️ ONLY apply this constraint in WEEK mode (multiple days)
@@ -490,9 +550,9 @@ function buildMILP(
       const constraintKey = `max_periods_${flexSecId}`;
       model.constraints[constraintKey] = { max: maxPeriods };
       
-      // Add all SITE assignment variables
+      // Add all SITE assignment variables (new format: x|secId|...)
       for (const varName of Object.keys(model.variables)) {
-        if (varName.startsWith(`x_${flexSecId}_`)) {
+        if (varName.startsWith(`x|${flexSecId}|`)) {
           model.variables[varName][constraintKey] = 1;
         }
       }
@@ -521,31 +581,36 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
   console.log('\n💾 Applying solution...');
   
   // 1. Apply site assignments - INSERT into planning_genere_personnel
+  let siteCount = 0;
   for (const [varName, value] of Object.entries(solution)) {
-    if (!varName.startsWith('x_') || (value as number) < 0.5) continue;
+    if (!varName.startsWith('x|') || (value as number) < 0.5) continue;
 
-    const parts = varName.split('_');
+    // Parse: x|secId|date|periode|siteId|ordre
+    const parts = varName.split('|');
+    if (parts.length < 6) continue;
+    
     const secId = parts[1];
-    const besoinId = parts[2];
-    const ordre = parseInt(parts[3]);
-
-    const besoin = besoins.find((b: any) => b.id === besoinId);
-    if (!besoin) continue;
+    const date = parts[2];
+    const periode = parts[3];
+    const siteId = parts[4];
+    const ordre = parseInt(parts[5]);
 
     await supabase
       .from('planning_genere_personnel')
       .insert({
         planning_id,
-        date: besoin.date,
-        periode: besoin.demi_journee,
+        date,
+        periode,
         secretaire_id: secId,
-        site_id: besoin.site_id,
+        site_id: siteId,
         type_assignation: 'site',
         ordre
       });
+    
+    siteCount++;
   }
 
-  console.log('  ✅ Site assignments applied');
+  console.log(`  ✅ ${siteCount} site assignments applied`);
   
   // 2. Apply admin assignments - INSERT into planning_genere_personnel
   let adminCount = 0;
