@@ -344,9 +344,9 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                           // Full day at the same place
                           return (
                             <div className="flex gap-2 items-center">
-                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0">
                                 <Clock className="h-3 w-3" />
-                                07:30-17:00
+                                Toute la journée
                               </div>
                               <div className="flex-1 min-w-0">
                                 {getAssignmentBadge(matin)}
@@ -368,9 +368,9 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                           <>
                             {/* Morning */}
                             <div className="flex gap-2 items-center">
-                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0">
                                 <Clock className="h-3 w-3" />
-                                07:30-12:00
+                                Matin
                               </div>
                               <div className="flex-1 min-w-0">
                                 {matin ? (
@@ -393,9 +393,9 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
 
                             {/* Afternoon */}
                             <div className="flex gap-2 items-center">
-                              <div className="flex items-center gap-1 w-24 text-xs font-medium text-muted-foreground flex-shrink-0">
+                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0">
                                 <Clock className="h-3 w-3" />
-                                13:00-17:00
+                                Après-midi
                               </div>
                               <div className="flex-1 min-w-0">
                                 {apresMidi ? (
