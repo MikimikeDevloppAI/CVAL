@@ -420,7 +420,8 @@ function buildSitesMILP(
       const linkedSec = secretaires.find(s => s.medecin_assigne_id === row.medecin_id);
       if (linkedSec) {
         const keyCapacite = `${linkedSec.id}_${periode}`;
-        if (capacitesMap.has(keyCapacite) && !blocAssignments.has(linkedSec.id)) {
+        const blocPeriods = blocAssignments.get(linkedSec.id) || [];
+        if (capacitesMap.has(keyCapacite) && !blocPeriods.includes(periode)) {
           const varName = `x_${linkedSec.id}_${row.id}`;
           model.variables[varName] = {
             cost: -10000,
@@ -435,7 +436,13 @@ function buildSitesMILP(
     // PRIORITY 2: Secretaries eligible for this site (-100)
     const eligibleSecs = secretaires.filter(s => {
       const keyCapacite = `${s.id}_${periode}`;
-      if (!capacitesMap.has(keyCapacite) || blocAssignments.has(s.id)) {
+      if (!capacitesMap.has(keyCapacite)) {
+        return false;
+      }
+      
+      // Check if secretary is assigned to bloc for THIS SPECIFIC period
+      const blocPeriods = blocAssignments.get(s.id) || [];
+      if (blocPeriods.includes(periode)) {
         return false;
       }
       
@@ -489,7 +496,8 @@ function buildSitesMILP(
   for (const sec of secretaires) {
     for (const periode of ['matin', 'apres_midi']) {
       const keyCapacite = `${sec.id}_${periode}`;
-      if (capacitesMap.has(keyCapacite) && !blocAssignments.has(sec.id)) {
+      const blocPeriods = blocAssignments.get(sec.id) || [];
+      if (capacitesMap.has(keyCapacite) && !blocPeriods.includes(periode)) {
         model.constraints[`capacity_${sec.id}_${periode}`] = { max: 1 };
       }
     }
