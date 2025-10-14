@@ -179,7 +179,7 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
 
                     <div className="flex flex-wrap gap-1">
                       {operation.medecin && (
-                        <div className="flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5 text-xs">
+                        <div className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs">
                           <span className="text-muted-foreground">Docteur</span>
                           <span className="font-medium">
                             {operation.medecin.first_name} {operation.medecin.name}
