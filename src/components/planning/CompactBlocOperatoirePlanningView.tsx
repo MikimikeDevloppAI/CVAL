@@ -99,7 +99,7 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
             id,
             ordre,
             type_besoin_bloc,
-            secretaire:secretaires(first_name, name),
+            secretaire:secretaires!secretaire_id(first_name, name),
             secretaire_id
           `)
           .eq('planning_genere_bloc_operatoire_id', bloc.id)
