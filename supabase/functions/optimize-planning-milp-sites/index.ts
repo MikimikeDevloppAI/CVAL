@@ -385,6 +385,64 @@ function buildMILP(
 
   console.log(`  ✅ ${Object.keys(model.variables).length} assignment variables`);
 
+  // === 1B. ADMIN ASSIGNMENT VARIABLES ===
+  console.log('  📋 Creating admin assignment variables...');
+  
+  const adminAssignments = new Map<string, string[]>(); // secId -> [varNames]
+  
+  for (const date of dates) {
+    for (const periode of ['matin', 'apres_midi']) {
+      const blocKey = `${date}_${periode}`;
+      const blocSecs = blocAssignments.get(blocKey) || new Set();
+      
+      for (const sec of secretaires) {
+        // Skip if at bloc
+        if (blocSecs.has(sec.id)) continue;
+        
+        // Check capacity or flexible
+        const isFlexible = flexibleSecs.has(sec.id);
+        const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
+        
+        if (!hasCapacity && !isFlexible) continue;
+        
+        // Skip if already has a site assignment variable for this period
+        const hasSiteVar = Object.keys(model.variables).some(v => 
+          v.startsWith(`x_${sec.id}_`) && model.variables[v][`cap_${sec.id}_${date}_${periode}`]
+        );
+        
+        if (hasSiteVar) continue; // Prefer site assignments over admin
+        
+        // Create admin variable
+        const adminVar = `admin_${sec.id}_${date}_${periode}`;
+        
+        // Base score (lower than site assignments to prioritize filling real needs)
+        let score = 50;
+        
+        // Higher bonus if has assignation_administrative preference
+        if (sec.assignation_administrative) {
+          score += 30;
+        }
+        
+        // Decreasing bonus (penalize repeated admin assignments)
+        if (!adminAssignments.has(sec.id)) {
+          adminAssignments.set(sec.id, []);
+        }
+        const currentCount = adminAssignments.get(sec.id)!.length;
+        score -= currentCount * 5; // -5 per previous admin assignment
+        
+        model.variables[adminVar] = {
+          score,
+          [`cap_${sec.id}_${date}_${periode}`]: 1 // Consumes capacity
+        };
+        model.ints[adminVar] = 1;
+        
+        adminAssignments.get(sec.id)!.push(adminVar);
+      }
+    }
+  }
+  
+  console.log(`  ✅ ${Array.from(adminAssignments.values()).flat().length} admin variables`);
+
   // === 2. CONSTRAINTS ===
   
   // 2.0 Unsatisfied need variable per row (allows feasibility)
@@ -622,6 +680,10 @@ function buildMILP(
 async function applySolution(supabase: any, rows: any[], solution: any) {
   console.log('\n💾 Applying solution...');
   
+  // Get planning_id from first row
+  const planning_id = rows.length > 0 ? rows[0].besoin_id : null;
+  
+  // 1. Apply site assignments
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('x_') || (value as number) < 0.5) continue;
 
@@ -635,5 +697,41 @@ async function applySolution(supabase: any, rows: any[], solution: any) {
       .eq('id', rowId);
   }
 
-  console.log('  ✅ All assignments applied');
+  console.log('  ✅ Site assignments applied');
+  
+  // 2. Apply admin assignments
+  let adminCount = 0;
+  for (const [varName, value] of Object.entries(solution)) {
+    if (!varName.startsWith('admin_') || (value as number) < 0.5) continue;
+
+    const parts = varName.split('_');
+    const secId = parts[1];
+    const date = parts[2];
+    const periode = parts[3];
+
+    // Get planning_id from first row with matching date
+    const row = rows.find((r: any) => r.date === date);
+    const planningId = row?.besoin_id ? 
+      (await supabase
+        .from('planning_genere_site_besoin')
+        .select('planning_id')
+        .eq('id', row.besoin_id)
+        .single()).data?.planning_id 
+      : planning_id;
+
+    await supabase
+      .from('planning_genere')
+      .insert({
+        planning_id: planningId,
+        date,
+        periode,
+        type: 'administratif',
+        secretaire_id: secId,
+        statut: 'planifie'
+      });
+    
+    adminCount++;
+  }
+
+  console.log(`  ✅ ${adminCount} admin assignments applied`);
 }

@@ -154,7 +154,8 @@ serve(async (req) => {
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
       body: JSON.stringify({ 
-        single_day,
+        week_start: weekStartStr,
+        week_end: weekEndStr,
         exclude_bloc_assigned: optimize_bloc
       })
     });
