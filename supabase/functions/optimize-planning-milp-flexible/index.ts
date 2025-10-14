@@ -327,6 +327,21 @@ serve(async (req) => {
             model.variables[amv][constraintDayAM] = -1;
           }
         }
+        
+        // NEW Constraint: day >= sum(matin) + sum(apres_midi) - 1
+        // Forces day=1 only if BOTH matin AND apres_midi are assigned
+        // Rewritten as: sum(matin) + sum(apres_midi) - day <= 1
+        if (matinPositionVars.length > 0 && apresMidiPositionVars.length > 0) {
+          const constraintDayBoth = `day_geq_both_${f_id}_${date}`;
+          model.constraints[constraintDayBoth] = { max: 1 };
+          model.variables[dayVarName][constraintDayBoth] = -1; // -day
+          for (const mv of matinPositionVars) {
+            model.variables[mv][constraintDayBoth] = 1; // +matin
+          }
+          for (const amv of apresMidiPositionVars) {
+            model.variables[amv][constraintDayBoth] = 1; // +apres_midi
+          }
+        }
       }
       
       // Constraint: sum(days) = jours_requis
