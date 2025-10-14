@@ -91,7 +91,7 @@ export default function PlanningPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [confirmRegenerateDialogOpen, setConfirmRegenerateDialogOpen] = useState(false);
-  const [planningView, setPlanningView] = useState<'site' | 'secretary' | 'bloc'>('site');
+  const [planningView, setPlanningView] = useState<'site' | 'secretary'>('site');
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null);
   const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
@@ -1209,15 +1209,6 @@ export default function PlanningPage() {
                 <Users className="h-4 w-4" />
                 Par secrétaire
               </Button>
-              <Button
-                variant={planningView === 'bloc' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setPlanningView('bloc')}
-                className="gap-2"
-              >
-                <Scissors className="h-4 w-4" />
-                Bloc opératoire
-              </Button>
             </div>
           </div>
 
@@ -1229,11 +1220,6 @@ export default function PlanningPage() {
                 <p className="text-muted-foreground">Chargement du planning optimisé...</p>
               </CardContent>
             </Card>
-          ) : planningView === 'bloc' ? (
-            <BlocOperatoirePlanningView
-              startDate={currentWeekStart}
-              endDate={weekEnd}
-            />
           ) : planningView === 'site' ? (
             <SitePlanningView
               startDate={currentWeekStart}

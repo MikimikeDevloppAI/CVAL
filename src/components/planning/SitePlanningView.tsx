@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, User, ChevronDown, Loader2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
+import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
 
 interface SitePlanningViewProps {
   startDate: Date;
@@ -254,6 +255,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
   return (
     <div className="space-y-4">
+      {/* Bloc Opératoire Planning - Compact Version */}
+      <CompactBlocOperatoirePlanningView startDate={startDate} endDate={endDate} />
+      
+      {/* Sites Planning */}
       {bySite.map(({ siteId, siteName, byDate, totalSecretaires, totalRequis }) => (
         <Card key={siteId}>
           <Collapsible open={expandedSites.has(siteId)} onOpenChange={() => toggleSite(siteId)}>
