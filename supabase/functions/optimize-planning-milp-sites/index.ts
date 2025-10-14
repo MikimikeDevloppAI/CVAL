@@ -502,7 +502,7 @@ function buildMILP(
     }
   }
 
-  // === 5. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS ===
+  // === 5. FLEXIBLE SECRETARIES: EXACTLY N FULL DAYS (sites + admin) ===
   console.log('  📅 Adding flexible constraints...');
   
   // ⚠️ ONLY apply this constraint in WEEK mode (multiple days)
@@ -511,90 +511,25 @@ function buildMILP(
       const sec = secretaires.find((s: any) => s.id === flexSecId);
       if (!sec) continue;
 
-      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days`);
+      const maxPeriods = requiredDays * 2; // 2 periods per day
+      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days (max ${maxPeriods} periods)`);
 
-      // Create day variables
-      for (const date of dates) {
-        const matinVars = [];
-        const pmVars = [];
-
-        for (const varName of Object.keys(model.variables)) {
-          if (!varName.startsWith(`x_${flexSecId}_`)) continue;
-          
-          const rowId = varName.split('_')[2];
-          const row = rows.find((r: any) => r.id === rowId);
-          if (!row || row.date !== date) continue;
-
-          if (row.periode === 'matin') matinVars.push(varName);
-          else pmVars.push(varName);
+      const constraintKey = `max_periods_${flexSecId}`;
+      model.constraints[constraintKey] = { max: maxPeriods };
+      
+      // Add all SITE assignment variables
+      for (const varName of Object.keys(model.variables)) {
+        if (varName.startsWith(`x_${flexSecId}_`)) {
+          model.variables[varName][constraintKey] = 1;
         }
-
-        // has_matin: 1 if works morning
-        const hasMatinVar = `has_matin_${flexSecId}_${date}`;
-        model.variables[hasMatinVar] = {};
-        model.ints[hasMatinVar] = 1;
-
-        if (matinVars.length > 0) {
-          // sum(x_matin) >= has_matin
-          const c1 = `link_${hasMatinVar}`;
-          model.constraints[c1] = { min: 0 };
-          model.variables[hasMatinVar][c1] = -1;
-          for (const v of matinVars) model.variables[v][c1] = 1;
-
-          // sum(x_matin) <= M * has_matin
-          const c2 = `limit_${hasMatinVar}`;
-          model.constraints[c2] = { max: 0 };
-          model.variables[hasMatinVar][c2] = -matinVars.length;
-          for (const v of matinVars) model.variables[v][c2] = 1;
-        }
-
-        // has_pm: 1 if works afternoon
-        const hasPmVar = `has_pm_${flexSecId}_${date}`;
-        model.variables[hasPmVar] = {};
-        model.ints[hasPmVar] = 1;
-
-        if (pmVars.length > 0) {
-          const c1 = `link_${hasPmVar}`;
-          model.constraints[c1] = { min: 0 };
-          model.variables[hasPmVar][c1] = -1;
-          for (const v of pmVars) model.variables[v][c1] = 1;
-
-          const c2 = `limit_${hasPmVar}`;
-          model.constraints[c2] = { max: 0 };
-          model.variables[hasPmVar][c2] = -pmVars.length;
-          for (const v of pmVars) model.variables[v][c2] = 1;
-        }
-
-        // fullday: 1 if both matin AND pm
-        const fulldayVar = `fullday_${flexSecId}_${date}`;
-        model.variables[fulldayVar] = {};
-        model.ints[fulldayVar] = 1;
-
-        // fullday <= has_matin
-        const cf1 = `fd_matin_${flexSecId}_${date}`;
-        model.constraints[cf1] = { max: 0 };
-        model.variables[fulldayVar][cf1] = 1;
-        model.variables[hasMatinVar][cf1] = -1;
-
-        // fullday <= has_pm
-        const cf2 = `fd_pm_${flexSecId}_${date}`;
-        model.constraints[cf2] = { max: 0 };
-        model.variables[fulldayVar][cf2] = 1;
-        model.variables[hasPmVar][cf2] = -1;
-
-        // fullday >= has_matin + has_pm - 1
-        const cf3 = `fd_force_${flexSecId}_${date}`;
-        model.constraints[cf3] = { min: 0 };
-        model.variables[fulldayVar][cf3] = -1;
-        model.variables[hasMatinVar][cf3] = 1;
-        model.variables[hasPmVar][cf3] = 1;
-
-        // Track for sum
-        model.variables[fulldayVar][`total_days_${flexSecId}`] = 1;
       }
-
-      // Main constraint: sum(fullday) = requiredDays
-      model.constraints[`total_days_${flexSecId}`] = { equal: requiredDays };
+      
+      // Add all ADMIN assignment variables
+      for (const varName of Object.keys(model.variables)) {
+        if (varName.startsWith(`admin_${flexSecId}_`)) {
+          model.variables[varName][constraintKey] = 1;
+        }
+      }
     }
   } else {
     console.log('    ⏭️  Skipping flexible constraints (single day mode)');

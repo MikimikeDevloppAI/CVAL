@@ -214,18 +214,29 @@ function getWeekEnd(date: Date): Date {
 
 function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxConfigs: any[]) {
   const assignments: any[] = [];
-  const roomSchedules: Record<string, Record<string, any[]>> = { 
-    rouge: { matin: [], apres_midi: [] }, 
-    verte: { matin: [], apres_midi: [] }, 
-    jaune: { matin: [], apres_midi: [] } 
+  
+  // Structure: roomSchedules[room][date][periode] = [operation_ids]
+  const roomSchedules: Record<string, Record<string, Record<string, any[]>>> = { 
+    rouge: {}, 
+    verte: {}, 
+    jaune: {} 
   };
   
+  // Initialize for all dates and periods
+  const dates = [...new Set(operations.map(op => op.date))];
+  for (const room of ['rouge', 'verte', 'jaune']) {
+    for (const date of dates) {
+      roomSchedules[room][date] = { matin: [], apres_midi: [] };
+    }
+  }
+  
+  // Sort by priority: operations with preferred room first
   const sorted = operations.sort((a, b) => {
     const typeA = typesMap.get(a.type_intervention_id);
     const typeB = typesMap.get(b.type_intervention_id);
     if (typeA?.salle_preferentielle && !typeB?.salle_preferentielle) return -1;
     if (!typeA?.salle_preferentielle && typeB?.salle_preferentielle) return 1;
-    return a.demi_journee.localeCompare(b.demi_journee);
+    return a.date.localeCompare(b.date) || a.demi_journee.localeCompare(b.demi_journee);
   });
   
   for (const operation of sorted) {
@@ -235,7 +246,7 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
     // Try preferred room first
     if (typeIntervention?.salle_preferentielle) {
       const preferred = typeIntervention.salle_preferentielle;
-      if (isRoomAvailable(preferred, operation.demi_journee, roomSchedules)) {
+      if (isRoomAvailable(preferred, operation.date, operation.demi_journee, roomSchedules)) {
         assignedRoom = preferred;
       }
     }
@@ -243,7 +254,7 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
     // Fallback: first available room
     if (!assignedRoom) {
       for (const room of ['rouge', 'verte', 'jaune']) {
-        if (isRoomAvailable(room, operation.demi_journee, roomSchedules)) {
+        if (isRoomAvailable(room, operation.date, operation.demi_journee, roomSchedules)) {
           assignedRoom = room;
           break;
         }
@@ -255,7 +266,7 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
       continue;
     }
     
-    roomSchedules[assignedRoom][operation.demi_journee].push(operation.id);
+    roomSchedules[assignedRoom][operation.date][operation.demi_journee].push(operation.id);
     
     assignments.push({
       operation_id: operation.id,
@@ -267,9 +278,9 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
   return assignments;
 }
 
-function isRoomAvailable(room: string, demi_journee: string, schedules: any): boolean {
-  const schedule = schedules[room]?.[demi_journee] || [];
-  return schedule.length === 0; // Une seule opération par salle par demi-journée
+function isRoomAvailable(room: string, date: string, demi_journee: string, schedules: any): boolean {
+  const schedule = schedules[room]?.[date]?.[demi_journee] || [];
+  return schedule.length === 0; // Une seule opération par salle par date+période
 }
 
 

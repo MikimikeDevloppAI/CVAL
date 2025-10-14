@@ -161,13 +161,23 @@ serve(async (req) => {
   };
   
   // Fetch all besoins (doctor needs) for the week
-  const { data: besoinsData } = await supabaseServiceRole
+  const { data: besoinsData, error: besoinsError } = await supabaseServiceRole
     .from('besoin_effectif')
     .select('*, medecins(besoin_secretaires)')
     .gte('date', weekStartStr)
     .lte('date', weekEndStr)
     .eq('type', 'medecin')
     .eq('actif', true);
+
+  console.log(`  📊 Fetched ${besoinsData?.length || 0} besoin_effectif records`);
+  if (besoinsError) console.error('  ❌ Error fetching besoins:', besoinsError);
+
+  // Log besoins by date
+  const besoinsByDate = new Map<string, number>();
+  for (const b of besoinsData || []) {
+    besoinsByDate.set(b.date, (besoinsByDate.get(b.date) || 0) + 1);
+  }
+  console.log('  📅 Besoins by date:', Object.fromEntries(besoinsByDate));
   
   // Fetch all sites (excluding bloc)
   const { data: sitesData } = await supabaseServiceRole
@@ -191,7 +201,13 @@ serve(async (req) => {
           return false;
         });
         
-        if (medecinsThisPeriod.length === 0) continue;
+        if (medecinsThisPeriod.length === 0) {
+          // Log pour déboguer
+          if (dayBesoins.some((b: any) => b.site_id === site.id)) {
+            console.log(`    ⚠️ Site ${site.nom} has besoins but none for ${periode} on ${date}`);
+          }
+          continue;
+        }
         
         // Calculate total need
         const totalBesoin = medecinsThisPeriod.reduce((sum: number, b: any) => {
