@@ -574,7 +574,7 @@ async function applySolution(supabase: any, rows: any[], solution: any) {
     const parts = varName.split('_');
     const secId = parts[1];
     const date = parts[2];
-    const periode = parts[3];
+    const periode = parts.slice(3).join('_'); // "apres_midi" ou "matin"
 
     // Get planning_id from first row with matching date
     const row = rows.find((r: any) => r.date === date);

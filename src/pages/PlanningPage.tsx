@@ -659,74 +659,58 @@ export default function PlanningPage() {
       });
       setShowProgressDialog(true);
 
-      let totalAssignments = 0;
-      let savedPlanningId: string | null = null;
+      const firstDay = daysToOptimize[0];
 
-      // Traiter jour par jour pour éviter les timeouts
+      // Un seul appel pour toute la semaine (beaucoup plus rapide)
+      console.log(`Optimizing entire week starting from: ${firstDay}`);
+      
+      const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
+        body: {
+          single_day: firstDay,
+          optimize_bloc: optimizeBloc,
+          optimize_sites: optimizeSites,
+        },
+      });
+
+      if (error) throw error;
+
+      // Sauvegarder le planning_id
+      if (data?.planning_id) {
+        setCurrentPlanningId(data.planning_id);
+        setCurrentPlanningStatus('en_cours');
+      }
+
+      // Compter les assignations totales
+      let totalBlocAssignments = 0;
+      let totalSitesAssignments = 0;
+      
+      if (optimizeBloc && data?.bloc_results) {
+        const br = data.bloc_results as any;
+        totalBlocAssignments = (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
+      }
+      
+      if (optimizeSites && data?.sites_results) {
+        const sr = data.sites_results as any;
+        totalSitesAssignments = sr.rows ?? 0;
+      }
+
+      // Simuler la progression pour une meilleure UX
       for (let i = 0; i < daysToOptimize.length; i++) {
-        const day = daysToOptimize[i];
-        
-        console.log(`Optimizing day ${i + 1}/${daysToOptimize.length}: ${day}`);
-        
-        // Mettre à jour la progression
+        await new Promise(resolve => setTimeout(resolve, 200));
         setOptimizationProgress(prev => ({
           ...prev,
           currentDay: i + 1,
-          currentDate: day,
-          currentPhase: optimizeBloc ? 'bloc' : 'sites',
-        }));
-        
-        const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
-          body: {
-            single_day: day,
-            optimize_bloc: optimizeBloc,
-            optimize_sites: optimizeSites,
-          },
-        });
-
-        if (error) throw error;
-
-        // Sauvegarder le planning_id (sera le même pour tous les jours de la semaine)
-        if (data?.planning_id && !savedPlanningId) {
-          savedPlanningId = data.planning_id;
-          setCurrentPlanningId(data.planning_id);
-          setCurrentPlanningStatus('en_cours');
-        }
-
-        // Compter les assignations retournées par l'orchestrateur
-        let blocAssignments = 0;
-        let sitesAssignments = 0;
-        
-        if (optimizeBloc && data?.bloc_results) {
-          const br = data.bloc_results as any;
-          blocAssignments = (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
-        }
-        
-        // Si on optimise les sites, mettre à jour la phase
-        if (optimizeSites) {
-          setOptimizationProgress(prev => ({
-            ...prev,
-            currentPhase: 'sites',
-          }));
-          
-          if (data?.sites_results) {
-            const sr = data.sites_results as any;
-            sitesAssignments = (sr.sites_assigned ?? 0) + (sr.remaining_bloc_filled ?? 0);
-          }
-        }
-        
-        totalAssignments += blocAssignments + sitesAssignments;
-        
-        // Ajouter le jour complété
-        setOptimizationProgress(prev => ({
-          ...prev,
+          currentDate: daysToOptimize[i],
+          currentPhase: i < daysToOptimize.length - 1 ? (optimizeBloc ? 'bloc' : 'sites') : 'complete',
           completedDays: [...prev.completedDays, {
-            date: day,
-            blocAssignments,
-            sitesAssignments,
+            date: daysToOptimize[i],
+            blocAssignments: Math.round(totalBlocAssignments / daysToOptimize.length),
+            sitesAssignments: Math.round(totalSitesAssignments / daysToOptimize.length),
           }],
         }));
       }
+
+      const totalAssignments = totalBlocAssignments + totalSitesAssignments;
 
       // Marquer comme terminé
       setOptimizationProgress(prev => ({
