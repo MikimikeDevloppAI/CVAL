@@ -47,7 +47,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     try {
       setLoading(true);
 
-      // Fetch from unified planning_genere_personnel table (site_id now stored directly)
+      // Fetch site assignments
       const { data: planningSites, error } = await supabase
         .from('planning_genere_personnel')
         .select(`
@@ -68,24 +68,61 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         return;
       }
 
-      // Process data
-      const enrichedData: SiteBesoinsData[] = (planningSites || []).map((assignment: any) => ({
-        id: assignment.id,
-        date: assignment.date,
-        periode: assignment.periode,
-        site_id: assignment.site_id || '',
-        site_nom: assignment.sites?.nom || 'Site inconnu',
-        site_fermeture: assignment.sites?.fermeture || false,
-        nombre_secretaires_requis: 1,
-        medecins_ids: [],
-        medecins_noms: [],
-        personnel: assignment.secretaire_id && assignment.secretaires ? [{
-          secretaire_id: assignment.secretaire_id,
-          secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
-          ordre: assignment.ordre,
-          type_assignation: 'site'
-        }] : []
-      }));
+      // Fetch besoins to get the required counts
+      const { data: besoins } = await supabase
+        .from('besoin_effectif')
+        .select('*, medecins(first_name, name, besoin_secretaires)')
+        .eq('type', 'medecin')
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'));
+
+      // Group site assignments by (site_id, date, periode)
+      const groupedSites = new Map<string, SiteBesoinsData>();
+      
+      for (const assignment of planningSites || []) {
+        const key = `${assignment.site_id}_${assignment.date}_${assignment.periode}`;
+        
+        if (!groupedSites.has(key)) {
+          // Calculate required secretaries from besoins
+          const periodBesoins = (besoins || []).filter((b: any) => 
+            b.site_id === assignment.site_id && 
+            b.date === assignment.date && 
+            (b.demi_journee === assignment.periode || b.demi_journee === 'toute_journee')
+          );
+          
+          const totalNeed = periodBesoins.reduce((sum: number, b: any) => 
+            sum + (b.medecins?.besoin_secretaires || 1.2), 0
+          );
+          
+          const medecins = periodBesoins.map((b: any) => ({
+            id: b.medecin_id,
+            nom: b.medecins ? `${b.medecins.first_name} ${b.medecins.name}` : ''
+          })).filter(m => m.nom);
+
+          groupedSites.set(key, {
+            id: key,
+            date: assignment.date,
+            periode: assignment.periode,
+            site_id: assignment.site_id || '',
+            site_nom: assignment.sites?.nom || 'Site inconnu',
+            site_fermeture: assignment.sites?.fermeture || false,
+            nombre_secretaires_requis: Math.ceil(totalNeed),
+            medecins_ids: medecins.map(m => m.id),
+            medecins_noms: medecins.map(m => m.nom),
+            personnel: []
+          });
+        }
+        
+        // Add personnel to the group
+        if (assignment.secretaire_id && assignment.secretaires) {
+          groupedSites.get(key)!.personnel.push({
+            secretaire_id: assignment.secretaire_id,
+            secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+            ordre: assignment.ordre,
+            type_assignation: 'site'
+          });
+        }
+      }
 
       // Fetch administrative assignments
       const { data: adminAssignments } = await supabase
@@ -96,29 +133,45 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         `)
         .eq('type_assignation', 'administratif')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'));
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .order('date', { ascending: true })
+        .order('periode', { ascending: true })
+        .order('ordre', { ascending: true });
 
-      // Add admin assignments
-      const adminData: SiteBesoinsData[] = (adminAssignments || []).map((assignment: any) => ({
-        id: assignment.id,
-        date: assignment.date,
-        periode: assignment.periode,
-        site_id: '',
-        site_nom: 'Administratif',
-        site_fermeture: false,
-        nombre_secretaires_requis: 0,
-        medecins_ids: [],
-        medecins_noms: [],
-        personnel: assignment.secretaire_id && assignment.secretaires ? [{
-          secretaire_id: assignment.secretaire_id,
-          secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
-          ordre: assignment.ordre,
-          type_assignation: 'administratif'
-        }] : [],
-        type_assignation: 'administratif'
-      }));
+      // Group admin assignments by (date, periode)
+      const groupedAdmin = new Map<string, SiteBesoinsData>();
+      
+      for (const assignment of adminAssignments || []) {
+        const key = `admin_${assignment.date}_${assignment.periode}`;
+        
+        if (!groupedAdmin.has(key)) {
+          groupedAdmin.set(key, {
+            id: key,
+            date: assignment.date,
+            periode: assignment.periode,
+            site_id: '',
+            site_nom: 'Administratif',
+            site_fermeture: false,
+            nombre_secretaires_requis: 0,
+            medecins_ids: [],
+            medecins_noms: [],
+            personnel: [],
+            type_assignation: 'administratif'
+          });
+        }
+        
+        // Add personnel to the group
+        if (assignment.secretaire_id && assignment.secretaires) {
+          groupedAdmin.get(key)!.personnel.push({
+            secretaire_id: assignment.secretaire_id,
+            secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+            ordre: assignment.ordre,
+            type_assignation: 'administratif'
+          });
+        }
+      }
 
-      setSiteBesoins([...enrichedData, ...adminData]);
+      setSiteBesoins([...Array.from(groupedSites.values()), ...Array.from(groupedAdmin.values())]);
 
     } catch (error) {
       console.error('Error in fetchSitePlanning:', error);
@@ -158,13 +211,13 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     );
   }
 
-  // Grouper par site
+  // Grouper par site (already grouped in fetch, just need to organize by site)
   const sites = [...new Set(siteBesoins.map(b => b.site_id))];
   const bySite = sites.map(siteId => {
     const siteData = siteBesoins.filter(b => b.site_id === siteId);
     const siteName = siteData[0]?.site_nom || 'Site inconnu';
     
-    // Grouper par date
+    // Group by date (data is already aggregated per site/date/periode)
     const dates = [...new Set(siteData.map(b => b.date))].sort();
     const byDate = dates.map(date => {
       const dateData = siteData.filter(b => b.date === date);
