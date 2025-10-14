@@ -255,17 +255,9 @@ serve(async (req) => {
         return totalScoreA - totalScoreB;
       });
 
-      // Assign 1R (lowest combined score)
-      const responsable1R = candidates[0];
-      
-      // Update current week score for 1R
-      currentWeekScores.set(responsable1R, (currentWeekScores.get(responsable1R) || 0) + 1);
-      
-      // Assign 2F or 3F (second lowest combined score, but not Florence Bron on Tuesday for 2F)
+      // Assign 2F or 3F first (lowest combined score, but not Florence Bron on Tuesday for 2F)
       let responsable2F3F = null;
       for (const candidate of candidates) {
-        if (candidate === responsable1R) continue;
-        
         // If Tuesday and Florence Bron and assigning 2F (not 3F), skip
         if (!needsThreeF && isTuesday && florenceBron && candidate === florenceBron.id) {
           console.log(`🚫 Skipping Florence Bron for 2F on Tuesday ${date}`);
@@ -276,14 +268,31 @@ serve(async (req) => {
         break;
       }
 
-      // If we can't find a 2F (e.g., only Florence Bron available on Tuesday), use 1R for both
+      // Fallback if no valid candidate found (e.g., only Florence Bron available on Tuesday)
       if (!responsable2F3F) {
-        responsable2F3F = responsable1R;
+        responsable2F3F = candidates[0];
       }
 
       // Update current week score for 2F/3F
       const pointsFor2F3F = needsThreeF ? 2 : 2; // Both 2F and 3F worth 2 points
       currentWeekScores.set(responsable2F3F, (currentWeekScores.get(responsable2F3F) || 0) + pointsFor2F3F);
+      
+      // Assign 1R (lowest combined score, excluding the 2F/3F)
+      let responsable1R = null;
+      for (const candidate of candidates) {
+        if (candidate === responsable2F3F) continue;
+        
+        responsable1R = candidate;
+        break;
+      }
+
+      // Fallback if no other candidate available (use same person for both roles)
+      if (!responsable1R) {
+        responsable1R = responsable2F3F;
+      }
+
+      // Update current week score for 1R
+      currentWeekScores.set(responsable1R, (currentWeekScores.get(responsable1R) || 0) + 1);
 
       const secName1R = secretaries?.find(s => s.id === responsable1R);
       const secName2F3F = secretaries?.find(s => s.id === responsable2F3F);
