@@ -53,7 +53,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         .from('planning_genere_personnel')
         .select(`
           *,
-          secretaires(first_name, name),
+          secretaires!secretaire_id(first_name, name),
           sites(nom, fermeture)
         `)
         .eq('type_assignation', 'site')
@@ -130,7 +130,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         .from('planning_genere_personnel')
         .select(`
           *,
-          secretaires(first_name, name)
+          secretaires!secretaire_id(first_name, name)
         `)
         .eq('type_assignation', 'administratif')
         .gte('date', format(startDate, 'yyyy-MM-dd'))

@@ -171,13 +171,39 @@ serve(async (req) => {
     console.log(`✅ Flexible phase complete: ${JSON.stringify(flexibleResults)}`);
   }
 
+  // PHASE 4: Assign closing responsibles (1R, 2F, 3F)
+  let closingResults = null;
+  console.log('🔒 Phase 4: Assigning closing responsibles...');
+  
+  const closingUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/assign-closing-responsibles`;
+  const closingResponse = await fetch(closingUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+    },
+    body: JSON.stringify({ 
+      week_start: weekStartStr,
+      week_end: weekEndStr
+    })
+  });
+
+  if (!closingResponse.ok) {
+    const errorText = await closingResponse.text();
+    console.error('⚠️ Closing responsibles assignment failed:', errorText);
+  } else {
+    closingResults = await closingResponse.json();
+    console.log(`✅ Closing responsibles phase complete: ${JSON.stringify(closingResults)}`);
+  }
+
     console.log('🎉 Orchestrator complete!');
 
     return new Response(JSON.stringify({
       success: true,
       bloc_results: blocResults,
       sites_results: sitesResults,
-      flexible_results: flexibleResults
+      flexible_results: flexibleResults,
+      closing_results: closingResults
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {

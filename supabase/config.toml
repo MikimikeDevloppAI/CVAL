@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.optimize-planning-milp-flexible]
 verify_jwt = false
+
+[functions.assign-closing-responsibles]
+verify_jwt = false
