@@ -387,7 +387,14 @@ function buildMILP(
 
   // === 2. CONSTRAINTS ===
   
-  // 2.1 Each row gets exactly 1 secretary
+  // 2.0 Unsatisfied need variable per row (allows feasibility)
+  for (const row of rows) {
+    const uVar = `u_${row.id}`;
+    model.variables[uVar] = { score: -1000, [`row_${row.id}`]: 1 };
+    model.ints[uVar] = 1;
+  }
+  
+  // 2.1 Each row gets exactly 1 secretary (or is marked unsatisfied via u_row)
   for (const row of rows) {
     model.constraints[`row_${row.id}`] = { equal: 1 };
   }
