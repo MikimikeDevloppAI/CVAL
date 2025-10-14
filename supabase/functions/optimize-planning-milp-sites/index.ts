@@ -566,7 +566,7 @@ async function applySolution(supabase: any, rows: any[], solution: any) {
 
   console.log('  ✅ Site assignments applied');
   
-  // 2. Apply admin assignments
+  // 2. Apply admin assignments directly to site_personnel
   let adminCount = 0;
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('admin_') || (value as number) < 0.5) continue;
@@ -576,25 +576,32 @@ async function applySolution(supabase: any, rows: any[], solution: any) {
     const date = parts[2];
     const periode = parts.slice(3).join('_'); // "apres_midi" ou "matin"
 
-    // Get planning_id from first row with matching date
-    const row = rows.find((r: any) => r.date === date);
-    const planningId = row?.besoin_id ? 
-      (await supabase
-        .from('planning_genere_site_besoin')
-        .select('planning_id')
-        .eq('id', row.besoin_id)
-        .single()).data?.planning_id 
-      : planning_id;
+    // Find the besoin for this date/period
+    const row = rows.find((r: any) => r.date === date && r.periode === periode);
+    
+    if (!row) {
+      console.warn(`⚠️ No besoin found for admin assignment: ${date} ${periode}`);
+      continue;
+    }
 
+    // Get next ordre number for this besoin
+    const { data: existingPersonnel } = await supabase
+      .from('planning_genere_site_personnel')
+      .select('ordre')
+      .eq('planning_genere_site_besoin_id', row.besoin_id)
+      .order('ordre', { ascending: false })
+      .limit(1);
+    
+    const nextOrdre = (existingPersonnel?.[0]?.ordre || 0) + 1;
+
+    // Insert admin assignment into site_personnel
     await supabase
-      .from('planning_genere')
+      .from('planning_genere_site_personnel')
       .insert({
-        planning_id: planningId,
-        date,
-        periode,
-        type: 'administratif',
+        planning_genere_site_besoin_id: row.besoin_id,
         secretaire_id: secId,
-        statut: 'planifie'
+        ordre: nextOrdre,
+        type_assignation: 'administratif'
       });
     
     adminCount++;

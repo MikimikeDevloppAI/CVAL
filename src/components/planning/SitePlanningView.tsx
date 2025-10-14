@@ -136,22 +136,24 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
       console.log('enrichedData after sites:', enrichedData);
 
-      // Récupérer aussi les assignations administratives
+      // Récupérer les assignations administratives depuis planning_genere_site_personnel
       const { data: adminData, error: adminError } = await supabase
-        .from('planning_genere')
+        .from('planning_genere_site_personnel')
         .select(`
           id,
-          date,
-          periode,
           secretaire_id,
-          secretaires(first_name, name)
+          ordre,
+          type_assignation,
+          planning_genere_site_besoin_id,
+          secretaire:secretaires(first_name, name),
+          besoin:planning_genere_site_besoin!planning_genere_site_besoin_id(
+            date,
+            periode,
+            site_id
+          )
         `)
-        .eq('type', 'administratif')
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'))
-        .not('secretaire_id', 'is', null)
-        .order('date')
-        .order('periode');
+        .eq('type_assignation', 'administratif')
+        .not('secretaire_id', 'is', null);
 
       console.log('adminData:', adminData, 'adminError:', adminError);
 
@@ -160,7 +162,14 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         const adminByDatePeriod = new Map<string, Map<string, any>>();
         
         for (const admin of adminData) {
-          const key = `${admin.date}-${admin.periode}`;
+          const besoin = admin.besoin as any;
+          if (!besoin) continue;
+          
+          // Filter by date range
+          const adminDate = new Date(besoin.date);
+          if (adminDate < startDate || adminDate > endDate) continue;
+          
+          const key = `${besoin.date}-${besoin.periode}`;
           if (!adminByDatePeriod.has(key)) {
             adminByDatePeriod.set(key, new Map());
           }
@@ -170,10 +179,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           if (admin.secretaire_id && !personnelMap.has(admin.secretaire_id)) {
             personnelMap.set(admin.secretaire_id, {
               secretaire_id: admin.secretaire_id,
-              secretaire_nom: admin.secretaires 
-                ? `${(admin.secretaires as any).first_name} ${(admin.secretaires as any).name}`
+              secretaire_nom: admin.secretaire 
+                ? `${(admin.secretaire as any).first_name} ${(admin.secretaire as any).name}`
                 : 'Non assigné',
-              ordre: 999,
+              ordre: admin.ordre,
               type_assignation: 'administratif' as const,
             });
           }

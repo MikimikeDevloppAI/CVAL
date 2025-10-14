@@ -494,18 +494,25 @@ export default function PlanningPage() {
     try {
       setIsGeneratingPDF(true);
 
-      // Update all planning status to 'confirme' for the current week
+      // Update planning status in the main planning table
       const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
       const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
 
-      const { error: updateError } = await supabase
-        .from('planning_genere')
+      // Update status for bloc operatoire
+      await supabase
+        .from('planning_genere_bloc_operatoire')
         .update({ statut: 'confirme' })
         .gte('date', weekStartStr)
         .lte('date', weekEndStr)
         .eq('statut', 'planifie');
 
-      if (updateError && !String(updateError.message || '').includes('statut_planning')) throw updateError;
+      // Update status for site besoins
+      await supabase
+        .from('planning_genere_site_besoin')
+        .update({ statut: 'confirme' })
+        .gte('date', weekStartStr)
+        .lte('date', weekEndStr)
+        .eq('statut', 'planifie');
 
       // Prepare secretary data for PDF
       const secretaryData = optimizationResult?.assignments.reduce((acc: any[], assignment) => {
@@ -588,8 +595,9 @@ export default function PlanningPage() {
     const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
     const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
     
+    // Check if any bloc operations are confirmed
     const { data, error } = await supabase
-      .from('planning_genere')
+      .from('planning_genere_bloc_operatoire')
       .select('statut')
       .gte('date', weekStartStr)
       .lte('date', weekEndStr)

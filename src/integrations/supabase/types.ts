@@ -783,77 +783,6 @@ export type Database = {
         }
         Relationships: []
       }
-      planning_genere: {
-        Row: {
-          created_at: string | null
-          date: string
-          id: string
-          periode: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id: string | null
-          planning_genere_site_besoin_id: string | null
-          planning_id: string | null
-          secretaire_id: string | null
-          statut: Database["public"]["Enums"]["statut_planning"] | null
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          date: string
-          id?: string
-          periode: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id?: string | null
-          planning_genere_site_besoin_id?: string | null
-          planning_id?: string | null
-          secretaire_id?: string | null
-          statut?: Database["public"]["Enums"]["statut_planning"] | null
-          type: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          date?: string
-          id?: string
-          periode?: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id?: string | null
-          planning_genere_site_besoin_id?: string | null
-          planning_id?: string | null
-          secretaire_id?: string | null
-          statut?: Database["public"]["Enums"]["statut_planning"] | null
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planning_genere_planning_genere_bloc_operatoire_id_fkey"
-            columns: ["planning_genere_bloc_operatoire_id"]
-            isOneToOne: false
-            referencedRelation: "planning_genere_bloc_operatoire"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_planning_genere_site_besoin_id_fkey"
-            columns: ["planning_genere_site_besoin_id"]
-            isOneToOne: false
-            referencedRelation: "planning_genere_site_besoin"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_planning_id_fkey"
-            columns: ["planning_id"]
-            isOneToOne: false
-            referencedRelation: "planning"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_secretaire_id_fkey"
-            columns: ["secretaire_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       planning_genere_bloc_operatoire: {
         Row: {
           created_at: string
@@ -1021,6 +950,7 @@ export type Database = {
           ordre: number
           planning_genere_site_besoin_id: string
           secretaire_id: string | null
+          type_assignation: string
           updated_at: string | null
         }
         Insert: {
@@ -1029,6 +959,7 @@ export type Database = {
           ordre?: number
           planning_genere_site_besoin_id: string
           secretaire_id?: string | null
+          type_assignation?: string
           updated_at?: string | null
         }
         Update: {
@@ -1037,6 +968,7 @@ export type Database = {
           ordre?: number
           planning_genere_site_besoin_id?: string
           secretaire_id?: string | null
+          type_assignation?: string
           updated_at?: string | null
         }
         Relationships: [
