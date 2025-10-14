@@ -12,6 +12,10 @@ const SITE_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
 const PENALTY_SITE_CHANGE = 0.001;
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001;
 
+function isCliniqueLaValleeCompatible(siteName: string): boolean {
+  return siteName.startsWith('Clinique La Vallée');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -132,7 +136,8 @@ serve(async (req) => {
       capacites,
       blocAssignments,
       portEnTruieCounts,
-      besoins
+      besoins,
+      sites
     );
 
     if (!solution.feasible) {
@@ -367,7 +372,8 @@ function buildSitesMILP(
   capacites: any[],
   blocAssignments: Map<string, string[]>,
   portEnTruieCounts: Map<string, number>,
-  besoins: any[]
+  besoins: any[],
+  sites: any[]
 ): any {
   console.log('\n🔍 Building MILP model...');
   
@@ -389,6 +395,12 @@ function buildSitesMILP(
       capacitesMap.set(`${secId}_matin`, c);
       capacitesMap.set(`${secId}_apres_midi`, c);
     }
+  });
+
+  // Create sites map for geographic constraints
+  const sitesMap = new Map();
+  sites.forEach(site => {
+    sitesMap.set(site.id, site);
   });
 
   // Create map of medecins by site/period for obliged secretaries
@@ -421,7 +433,23 @@ function buildSitesMILP(
       if (linkedSec) {
         const keyCapacite = `${linkedSec.id}_${periode}`;
         const blocPeriods = blocAssignments.get(linkedSec.id) || [];
-        if (capacitesMap.has(keyCapacite) && !blocPeriods.includes(periode)) {
+        const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
+        const isAtBlocOtherPeriod = blocPeriods.includes(otherPeriode);
+
+        // Check geographic compatibility if at bloc the other period
+        const site = sitesMap.get(site_id);
+        const isGeographicallyCompatible = !isAtBlocOtherPeriod || 
+          (site && isCliniqueLaValleeCompatible(site.nom));
+
+        // Check if site is in secretary's profile
+        const capacite = capacitesMap.get(keyCapacite);
+        const isSiteInProfile = capacite?.site_id === site_id || 
+          (capacite && !capacite.site_id && (linkedSec.sites_assignes || []).includes(site_id));
+
+        if (capacitesMap.has(keyCapacite) && 
+            !blocPeriods.includes(periode) && 
+            isGeographicallyCompatible &&
+            isSiteInProfile) {
           const varName = `x_${linkedSec.id}_${row.id}`;
           model.variables[varName] = {
             cost: -10000,
@@ -444,6 +472,16 @@ function buildSitesMILP(
       const blocPeriods = blocAssignments.get(s.id) || [];
       if (blocPeriods.includes(periode)) {
         return false;
+      }
+
+      // Check geographic compatibility if at bloc the other period
+      const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
+      const isAtBlocOtherPeriod = blocPeriods.includes(otherPeriode);
+      if (isAtBlocOtherPeriod) {
+        const site = sitesMap.get(site_id);
+        if (!site || !isCliniqueLaValleeCompatible(site.nom)) {
+          return false; // Cannot assign to non-Clinique sites if at bloc other period
+        }
       }
       
       const capacite = capacitesMap.get(keyCapacite);
