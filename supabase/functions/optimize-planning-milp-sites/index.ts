@@ -597,38 +597,34 @@ function buildMILP(
         }
       }
 
-      // 2. Create day variables and activation constraints (corrected)
+      // 2. Create day variables with compact activation (much fewer constraints)
       for (const date of dates) {
         const dayVar = `d_${flexSecId}_${date}`;
-        model.variables[dayVar] = { score: 0 }; // Neutral score
+        model.variables[dayVar] = { score: 0 };
         model.ints[dayVar] = 1;
 
-        // Upper bound: dayVar <= 1
-        const capConstraint = `cap_day_${flexSecId}_${date}`;
-        model.constraints[capConstraint] = { max: 1 };
-        model.variables[dayVar][capConstraint] = 1;
-
-        // Individual activation constraints: a - dayVar <= 0 for each assignment
-        let constraintCount = 0;
-        for (const varName of Object.keys(model.variables)) {
-          if (varName.startsWith(`x|${flexSecId}|${date}|`) || 
-              varName.startsWith(`admin_${flexSecId}_${date}_`)) {
-            const actConstraint = `act_${flexSecId}_${date}_${constraintCount}`;
-            model.constraints[actConstraint] = { max: 0 };
-            model.variables[varName][actConstraint] = 1;     // a
-            model.variables[dayVar][actConstraint] = -1;     // - dayVar
-            constraintCount++;
-          }
-        }
-
-        // Force dayVar = 1 if secretary is at bloc any period this date
+        // Check if at bloc this date
         const hasBloc = (blocAssignments.get(`${date}_matin`) || new Set()).has(flexSecId) ||
                         (blocAssignments.get(`${date}_apres_midi`) || new Set()).has(flexSecId);
+
         if (hasBloc) {
-          const blocAct = `act_bloc_${flexSecId}_${date}`;
-          // -dayVar <= -1  => dayVar >= 1
-          model.constraints[blocAct] = { max: -1 };
-          model.variables[dayVar][blocAct] = -1;
+          // Force dayVar = 1 (bloc day always counts)
+          const blocForce = `force_day_bloc_${flexSecId}_${date}`;
+          model.constraints[blocForce] = { min: 1 };
+          model.variables[dayVar][blocForce] = 1;
+        } else {
+          // Compact activation: sum(all assignments) - 10*dayVar <= 0
+          // If any assignment > 0, then dayVar must be 1
+          const actConstraint = `act_day_${flexSecId}_${date}`;
+          model.constraints[actConstraint] = { max: 0 };
+          model.variables[dayVar][actConstraint] = -10; // Big-M method
+          
+          for (const varName of Object.keys(model.variables)) {
+            if (varName.startsWith(`x|${flexSecId}|${date}|`) || 
+                varName.startsWith(`admin_${flexSecId}_${date}_`)) {
+              model.variables[varName][actConstraint] = 1;
+            }
+          }
         }
       }
 
