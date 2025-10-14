@@ -44,181 +44,96 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const fetchSitePlanning = async () => {
     try {
       setLoading(true);
-      
-      // Récupérer les besoins par site
-      const { data: besoinsData, error: besoinsError } = await supabase
-        .from('planning_genere_site_besoin')
+
+      // Fetch from unified planning_genere_personnel table
+      const { data: planningSites, error } = await supabase
+        .from('planning_genere_personnel')
         .select(`
-          id,
-          date,
-          periode,
-          site_id,
-          nombre_secretaires_requis,
-          medecins_ids,
-          sites!inner(nom)
-        `)
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'))
-        .order('date')
-        .order('periode');
-
-      if (besoinsError) throw besoinsError;
-
-      console.log('besoinsData:', besoinsData);
-
-      // Récupérer tous les médecins pour créer un mapping
-      const allMedecinIds = [...new Set(besoinsData?.flatMap(b => b.medecins_ids || []) || [])];
-      const medecinsMap = new Map<string, string>();
-      
-      if (allMedecinIds.length > 0) {
-        const { data: medecinsData, error: medecinsError } = await supabase
-          .from('medecins')
-          .select('id, first_name, name')
-          .in('id', allMedecinIds);
-        
-        if (!medecinsError && medecinsData) {
-          medecinsData.forEach(m => {
-            medecinsMap.set(m.id, `${m.first_name} ${m.name}`);
-          });
-        }
-      }
-
-      // Pour chaque besoin, récupérer le personnel assigné
-      const enrichedData: SiteBesoinsData[] = [];
-      
-      for (const besoin of besoinsData || []) {
-        const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_site_personnel')
-          .select(`
-            secretaire_id,
-            ordre,
-            secretaires!inner(first_name, name)
-          `)
-          .eq('planning_genere_site_besoin_id', besoin.id)
-          .order('ordre');
-
-        if (personnelError) {
-          console.error('Error fetching personnel:', personnelError);
-          continue;
-        }
-
-        // Dédupliquer le personnel par secretaire_id
-        const uniquePersonnel = new Map();
-        (personnelData || []).forEach(p => {
-          if (p.secretaire_id && !uniquePersonnel.has(p.secretaire_id)) {
-            uniquePersonnel.set(p.secretaire_id, {
-              secretaire_id: p.secretaire_id,
-              secretaire_nom: p.secretaires 
-                ? `${(p.secretaires as any).first_name} ${(p.secretaires as any).name}`
-                : 'Non assigné',
-              ordre: p.ordre,
-              type_assignation: 'site' as const,
-            });
-          }
-        });
-
-        const medecinsNoms = (besoin.medecins_ids || [])
-          .map(id => medecinsMap.get(id))
-          .filter(Boolean) as string[];
-
-        enrichedData.push({
-          id: besoin.id,
-          date: besoin.date,
-          periode: besoin.periode,
-          site_id: besoin.site_id,
-          site_nom: (besoin.sites as any)?.nom || 'Site inconnu',
-          nombre_secretaires_requis: besoin.nombre_secretaires_requis,
-          medecins_ids: besoin.medecins_ids,
-          medecins_noms: medecinsNoms,
-          personnel: Array.from(uniquePersonnel.values()),
-        });
-      }
-
-      console.log('enrichedData after sites:', enrichedData);
-
-      // Récupérer les assignations administratives depuis planning_genere_site_personnel
-      const { data: adminData, error: adminError } = await supabase
-        .from('planning_genere_site_personnel')
-        .select(`
-          id,
-          secretaire_id,
-          ordre,
-          type_assignation,
-          planning_genere_site_besoin_id,
-          secretaire:secretaires(first_name, name),
-          besoin:planning_genere_site_besoin!planning_genere_site_besoin_id(
-            date,
-            periode,
-            site_id
+          *,
+          secretaires(first_name, name),
+          besoin_effectif(
+            id,
+            medecin_id,
+            site_id,
+            sites(nom, fermeture),
+            medecins(first_name, name)
           )
         `)
-        .eq('type_assignation', 'administratif')
-        .not('secretaire_id', 'is', null);
+        .eq('type_assignation', 'site')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+        .order('periode', { ascending: true })
+        .order('ordre', { ascending: true });
 
-      console.log('adminData:', adminData, 'adminError:', adminError);
-
-      if (!adminError && adminData && adminData.length > 0) {
-        // Grouper les assignations administratives par date/période et dédupliquer
-        const adminByDatePeriod = new Map<string, Map<string, any>>();
-        
-        for (const admin of adminData) {
-          const besoin = admin.besoin as any;
-          if (!besoin) continue;
-          
-          // Filter by date range
-          const adminDate = new Date(besoin.date);
-          if (adminDate < startDate || adminDate > endDate) continue;
-          
-          const key = `${besoin.date}-${besoin.periode}`;
-          if (!adminByDatePeriod.has(key)) {
-            adminByDatePeriod.set(key, new Map());
-          }
-          const personnelMap = adminByDatePeriod.get(key)!;
-          
-          // Dédupliquer par secretaire_id
-          if (admin.secretaire_id && !personnelMap.has(admin.secretaire_id)) {
-            personnelMap.set(admin.secretaire_id, {
-              secretaire_id: admin.secretaire_id,
-              secretaire_nom: admin.secretaire 
-                ? `${(admin.secretaire as any).first_name} ${(admin.secretaire as any).name}`
-                : 'Non assigné',
-              ordre: admin.ordre,
-              type_assignation: 'administratif' as const,
-            });
-          }
-        }
-
-        console.log('adminByDatePeriod:', adminByDatePeriod);
-
-        // Ajouter une entrée "Administratif" pour chaque groupe
-        adminByDatePeriod.forEach((personnelMap, key) => {
-          const parts = key.split('-');
-          const periode = parts[parts.length - 1]; // dernier élément (matin ou apres_midi)
-          const date = parts.slice(0, -1).join('-'); // tous les éléments sauf le dernier, rejoints avec -
-          const personnel = Array.from(personnelMap.values());
-          enrichedData.push({
-            id: `admin-${key}`,
-            date,
-            periode: periode as 'matin' | 'apres_midi',
-            site_id: 'administratif',
-            site_nom: 'Administratif',
-            nombre_secretaires_requis: personnel.length,
-            medecins_ids: [],
-            medecins_noms: [],
-            personnel,
-          });
-        });
+      if (error) {
+        console.error('Error fetching site planning:', error);
+        toast({ title: "Erreur", description: "Impossible de charger le planning des sites", variant: "destructive" });
+        return;
       }
 
-      console.log('enrichedData final:', enrichedData);
-      setSiteBesoins(enrichedData);
-    } catch (error) {
-      console.error('Error fetching site planning:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger le planning par site",
-        variant: "destructive",
+      // Process data
+      const enrichedData: SiteBesoinsData[] = (planningSites || []).map((assignment: any) => {
+        const besoin = assignment.besoin_effectif;
+        const site = besoin?.sites;
+        
+        return {
+          id: assignment.id,
+          date: assignment.date,
+          periode: assignment.periode,
+          site_id: besoin?.site_id || '',
+          site_nom: site?.nom || 'Site inconnu',
+          site_fermeture: site?.fermeture || false,
+          nombreRequis: 1, // We'll aggregate this below
+          nombreAssigne: assignment.secretaire_id ? 1 : 0,
+          medecins_ids: besoin?.medecin_id ? [besoin.medecin_id] : [],
+          medecins_noms: besoin?.medecins ? [`${besoin.medecins.first_name} ${besoin.medecins.name}`] : [],
+          secretaires: assignment.secretaire_id && assignment.secretaires ? [{
+            id: assignment.id,
+            secretaire_id: assignment.secretaire_id,
+            nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+            ordre: assignment.ordre
+          }] : []
+        };
       });
+
+      // Fetch administrative assignments
+      const { data: adminAssignments } = await supabase
+        .from('planning_genere_personnel')
+        .select(`
+          *,
+          secretaires(first_name, name)
+        `)
+        .eq('type_assignation', 'administratif')
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+      // Add admin assignments
+      const adminData: SiteBesoinsData[] = (adminAssignments || []).map((assignment: any) => ({
+        id: assignment.id,
+        date: assignment.date,
+        periode: assignment.periode,
+        site_id: '',
+        site_nom: 'Administratif',
+        site_fermeture: false,
+        nombreRequis: 0,
+        nombreAssigne: 1,
+        medecins_ids: [],
+        medecins_noms: [],
+        secretaires: assignment.secretaire_id && assignment.secretaires ? [{
+          id: assignment.id,
+          secretaire_id: assignment.secretaire_id,
+          nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+          ordre: assignment.ordre
+        }] : [],
+        type_assignation: 'administratif'
+      }));
+
+      setSiteBesoins([...enrichedData, ...adminData]);
+
+    } catch (error) {
+      console.error('Error in fetchSitePlanning:', error);
+      toast({ title: "Erreur", description: "Une erreur est survenue", variant: "destructive" });
     } finally {
       setLoading(false);
     }

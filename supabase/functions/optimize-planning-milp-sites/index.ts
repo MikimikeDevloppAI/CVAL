@@ -85,11 +85,10 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
   console.log(`\n🗓️ Optimizing ${dates.length} day(s): ${dates.join(', ')}`);
   
   // 1. Fetch all data
-  const [secretaires, sites, medecins, besoins, capacites, blocOps] = await Promise.all([
+  const [secretaires, sites, besoins, capacites, blocOps] = await Promise.all([
     supabase.from('secretaires').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('sites').select('*').eq('actif', true).then((r: any) => r.data || []),
-    supabase.from('medecins').select('*').eq('actif', true).then((r: any) => r.data || []),
-    supabase.from('besoin_effectif').select('*')
+    supabase.from('besoin_effectif').select('*, medecins(first_name, name, besoin_secretaires)')
       .in('date', dates)
       .eq('actif', true)
       .eq('type', 'medecin')
@@ -98,7 +97,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
       .in('date', dates)
       .eq('actif', true)
       .then((r: any) => r.data || []),
-    supabase.from('planning_genere_bloc_operatoire').select(`*, planning_genere_bloc_personnel(*)`)
+    supabase.from('planning_genere_bloc_operatoire').select(`*, planning_genere_personnel!planning_genere_personnel_planning_genere_bloc_operatoire_id_fkey(*)`)
       .in('date', dates)
       .then((r: any) => r.data || [])
   ]);
@@ -128,36 +127,10 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
     planning_id = newPlanning.id;
   }
 
-  // 3. Fetch pre-generated personnel rows
-  const { data: besoinsData } = await supabase
-    .from('planning_genere_site_besoin')
-    .select(`
-      *,
-      planning_genere_site_personnel(*)
-    `)
-    .eq('planning_id', planning_id)
-    .in('date', dates);
-
-  // Flatten to personnel rows
-  const allRows = (besoinsData || []).flatMap((besoin: any) => 
-    (besoin.planning_genere_site_personnel || []).map((p: any) => ({
-      ...p,
-      date: besoin.date,
-      site_id: besoin.site_id,
-      site_nom: sites.find((s: any) => s.id === besoin.site_id)?.nom || '',
-      site_fermeture: sites.find((s: any) => s.id === besoin.site_id)?.fermeture || false,
-      periode: besoin.periode,
-      medecins_ids: besoin.medecins_ids,
-      besoin_id: besoin.id
-    }))
-  );
-
-  console.log(`✓ ${allRows.length} pre-generated personnel rows loaded`);
-
-  // 4. Identify bloc assignments (by date+period)
+  // 3. Identify bloc assignments (by date+period)
   const blocAssignments = extractBlocAssignments(blocOps, dates);
 
-  // 5. Identify flexible secretaries
+  // 4. Identify flexible secretaries
   const flexibleSecs = new Map<string, number>();
   for (const sec of secretaires) {
     if (sec.horaire_flexible && sec.pourcentage_temps) {
@@ -167,8 +140,8 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
     }
   }
 
-  // 6. Build and solve MILP
-  const solution = buildMILP(allRows, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs);
+  // 5. Build and solve MILP
+  const solution = buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs);
 
   if (!solution.feasible) {
     console.error('❌ MILP not feasible!');
@@ -180,13 +153,13 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
 
   console.log(`✅ MILP solved: objective = ${solution.result}`);
 
-  // 7. Apply solution
-  await applySolution(supabase, allRows, solution);
+  // 6. Apply solution - INSERT directly into planning_genere_personnel
+  await applySolution(supabase, besoins, sites, solution, planning_id, dates);
 
   return new Response(JSON.stringify({
     success: true,
     days: dates.length,
-    rows: allRows.length
+    besoins: besoins.length
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
@@ -208,8 +181,8 @@ function extractBlocAssignments(blocOps: any[], dates: string[]): Map<string, Se
     const key = `${op.date}_${op.periode}`;
     const set = map.get(key) || new Set();
     
-    for (const personnel of op.planning_genere_bloc_personnel || []) {
-      if (personnel.secretaire_id) {
+    for (const personnel of op.planning_genere_personnel || []) {
+      if (personnel.secretaire_id && personnel.type_assignation === 'bloc') {
         set.add(personnel.secretaire_id);
       }
     }
@@ -220,9 +193,9 @@ function extractBlocAssignments(blocOps: any[], dates: string[]): Map<string, Se
   return map;
 }
 
-// Build simplified MILP
+// Build MILP - works directly with besoin_effectif
 function buildMILP(
-  rows: any[],
+  besoins: any[],
   secretaires: any[],
   capacites: any[],
   blocAssignments: Map<string, Set<string>>,
@@ -230,7 +203,7 @@ function buildMILP(
   dates: string[],
   flexibleSecs: Map<string, number>
 ): any {
-  console.log('\n🔍 Building simplified MILP...');
+  console.log('\n🔍 Building MILP from besoin_effectif...');
   
   const model: any = {
     optimize: 'score',
@@ -244,79 +217,82 @@ function buildMILP(
   const capacitesMap = new Map();
   for (const cap of capacites) {
     const secId = cap.secretaire_id || cap.backup_id;
-    const periode = cap.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [cap.demi_journee];
-    for (const p of periode) {
+    const periodes = cap.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [cap.demi_journee];
+    for (const p of periodes) {
       capacitesMap.set(`${cap.date}_${secId}_${p}`, cap);
     }
   }
 
   const sitesMap = new Map(sites.map((s: any) => [s.id, s]));
 
-  // === 1. ASSIGNMENT VARIABLES x_secId_rowId ===
-  console.log('  📝 Creating assignment variables...');
+  // === 1. ASSIGNMENT VARIABLES - One per besoin * required count ===
+  console.log('  📝 Creating assignment variables from besoins...');
   
-  for (const row of rows) {
-    const date = row.date;
-    const periode = row.periode;
-    const site_id = row.site_id;
-    const medecinsIds = row.medecins_ids || [];
+  for (const besoin of besoins) {
+    const date = besoin.date;
+    const periode = besoin.demi_journee;
+    const site_id = besoin.site_id;
+    const nombreRequis = Math.ceil(besoin.medecins?.besoin_secretaires || 1.2);
     const blocKey = `${date}_${periode}`;
     const blocSecs = blocAssignments.get(blocKey) || new Set();
 
-    for (const sec of secretaires) {
-      // Skip if at bloc this period
-      if (blocSecs.has(sec.id)) continue;
+    // Create EXACTLY nombreRequis assignment slots for this besoin
+    for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+      for (const sec of secretaires) {
+        // Skip if at bloc this period
+        if (blocSecs.has(sec.id)) continue;
 
-      // Check capacity or flexible
-      const isFlexible = flexibleSecs.has(sec.id);
-      const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
+        // Check capacity or flexible
+        const isFlexible = flexibleSecs.has(sec.id);
+        const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
+        
+        if (!hasCapacity && !isFlexible) continue;
+        
+        // Check site compatibility
+        const isSiteInProfile = (sec.sites_assignes || []).includes(site_id);
+        if (!isSiteInProfile) continue;
+
+        // Check geographic compatibility if at bloc other period
+        const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
+        const otherBlocKey = `${date}_${otherPeriode}`;
+        const isAtBlocOther = (blocAssignments.get(otherBlocKey) || new Set()).has(sec.id);
+        
+        if (isAtBlocOther) {
+          const site = sitesMap.get(site_id);
+          if (!site || !isCliniqueLaValleeCompatible(site.nom)) continue;
+        }
+
+        // Create variable for this specific besoin + ordre
+        const varName = `x_${sec.id}_${besoin.id}_${ordre}`;
+        let score = 100; // Base: fill a need
+
+        // PRIORITY 1: Linked medecin (+10000)
+        if (besoin.medecin_id === sec.medecin_assigne_id) {
+          score += 10000;
+        }
+
+        // PRIORITY 2: Site preference
+        if (sec.site_preferentiel_id === site_id) {
+          score += 50;
+        }
+
+        // PENALTY: Port-en-Truie (unless preferred)
+        if (site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
+          score -= PENALTY_PORT_EN_TRUIE;
+        }
+
+        model.variables[varName] = {
+          score,
+          [`besoin_${besoin.id}_${ordre}`]: 1,  // Each besoin/ordre slot gets exactly 1 sec
+          [`cap_${sec.id}_${date}_${periode}`]: 1
+        };
+        model.ints[varName] = 1;
+      }
       
-      if (!hasCapacity && !isFlexible) continue;
-      
-      // Check site compatibility
-      const isSiteInProfile = (sec.sites_assignes || []).includes(site_id);
-      if (!isSiteInProfile) continue;
-
-      // Check geographic compatibility if at bloc other period
-      const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
-      const otherBlocKey = `${date}_${otherPeriode}`;
-      const isAtBlocOther = (blocAssignments.get(otherBlocKey) || new Set()).has(sec.id);
-      
-      if (isAtBlocOther) {
-        const site = sitesMap.get(site_id);
-        if (!site || !isCliniqueLaValleeCompatible(site.nom)) continue;
-      }
-
-      // Create variable
-      const varName = `x_${sec.id}_${row.id}`;
-      let score = 100; // Base: fill a need
-
-      // PRIORITY 1: Linked medecin (+10000)
-      if (medecinsIds.includes(sec.medecin_assigne_id)) {
-        score += 10000;
-      }
-
-      // PRIORITY 2: Site preference
-      if (sec.site_preferentiel_id === site_id) {
-        score += 50;
-      }
-
-      // PENALTY: Port-en-Truie (unless preferred)
-      if (site_id === SITE_PORT_EN_TRUIE && !sec.prefere_port_en_truie) {
-        score -= PENALTY_PORT_EN_TRUIE;
-        // Track for weekly penalty
-        const petKey = `pet_${sec.id}`;
-        model.variables[varName] = model.variables[varName] || {};
-        model.variables[varName][petKey] = 1;
-      }
-
-      model.variables[varName] = {
-        ...model.variables[varName],
-        score,
-        [`row_${row.id}`]: 1,
-        [`cap_${sec.id}_${date}_${periode}`]: 1
-      };
-      model.ints[varName] = 1;
+      // Unsatisfied variable for this besoin/ordre slot
+      const uVar = `u_${besoin.id}_${ordre}`;
+      model.variables[uVar] = { score: -1000, [`besoin_${besoin.id}_${ordre}`]: 1 };
+      model.ints[uVar] = 1;
     }
   }
 
@@ -341,8 +317,6 @@ function buildMILP(
         const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
         
         if (!hasCapacity && !isFlexible) continue;
-        
-        // Allow admin even if site assignment exists - MILP will decide based on scores
         
         // Create admin variable
         const adminVar = `admin_${sec.id}_${date}_${periode}`;
@@ -377,16 +351,12 @@ function buildMILP(
 
   // === 2. CONSTRAINTS ===
   
-  // 2.0 Unsatisfied need variable per row (allows feasibility)
-  for (const row of rows) {
-    const uVar = `u_${row.id}`;
-    model.variables[uVar] = { score: -1000, [`row_${row.id}`]: 1 };
-    model.ints[uVar] = 1;
-  }
-  
-  // 2.1 Each row gets exactly 1 secretary (or is marked unsatisfied via u_row)
-  for (const row of rows) {
-    model.constraints[`row_${row.id}`] = { equal: 1 };
+  // 2.1 Each besoin/ordre gets exactly 1 secretary (or unsatisfied)
+  for (const besoin of besoins) {
+    const nombreRequis = Math.ceil(besoin.medecins?.besoin_secretaires || 1.2);
+    for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+      model.constraints[`besoin_${besoin.id}_${ordre}`] = { equal: 1 };
+    }
   }
 
   // 2.2 Each secretary max 1 assignment per date/period
@@ -410,16 +380,17 @@ function buildMILP(
       for (const varName of Object.keys(model.variables)) {
         if (!varName.startsWith(`x_${sec.id}_`)) continue;
         
-        const rowId = varName.split('_')[2];
-        const row = rows.find((r: any) => r.id === rowId);
-        if (!row || row.date !== date) continue;
+        const parts = varName.split('_');
+        const besoinId = parts[2];
+        const besoin = besoins.find((b: any) => b.id === besoinId);
+        if (!besoin || besoin.date !== date) continue;
 
-        if (row.periode === 'matin') {
-          if (!matinBySite.has(row.site_id)) matinBySite.set(row.site_id, []);
-          matinBySite.get(row.site_id)!.push(varName);
+        if (besoin.demi_journee === 'matin') {
+          if (!matinBySite.has(besoin.site_id)) matinBySite.set(besoin.site_id, []);
+          matinBySite.get(besoin.site_id)!.push(varName);
         } else {
-          if (!pmBySite.has(row.site_id)) pmBySite.set(row.site_id, []);
-          pmBySite.get(row.site_id)!.push(varName);
+          if (!pmBySite.has(besoin.site_id)) pmBySite.set(besoin.site_id, []);
+          pmBySite.get(besoin.site_id)!.push(varName);
         }
       }
 
@@ -451,8 +422,11 @@ function buildMILP(
   console.log('  🔒 Adding closure site continuity...');
   
   for (const date of dates) {
-    const closureSites = rows.filter((r: any) => r.date === date && r.site_fermeture);
-    const closureSiteIds = [...new Set(closureSites.map((r: any) => r.site_id))];
+    const closureBesoins = besoins.filter((b: any) => {
+      const site = sitesMap.get(b.site_id);
+      return b.date === date && site?.fermeture;
+    });
+    const closureSiteIds = [...new Set(closureBesoins.map((b: any) => b.site_id))];
 
     for (const site_id of closureSiteIds) {
       const site = sitesMap.get(site_id);
@@ -466,11 +440,12 @@ function buildMILP(
         for (const varName of Object.keys(model.variables)) {
           if (!varName.startsWith(`x_${sec.id}_`)) continue;
           
-          const rowId = varName.split('_')[2];
-          const row = rows.find((r: any) => r.id === rowId);
-          if (!row || row.date !== date || row.site_id !== site_id) continue;
+          const parts = varName.split('_');
+          const besoinId = parts[2];
+          const besoin = besoins.find((b: any) => b.id === besoinId);
+          if (!besoin || besoin.date !== date || besoin.site_id !== site_id) continue;
 
-          if (row.periode === 'matin') matinVars.push(varName);
+          if (besoin.demi_journee === 'matin') matinVars.push(varName);
           else pmVars.push(varName);
         }
 
@@ -543,30 +518,38 @@ function buildMILP(
   return solution;
 }
 
-// Apply solution
-async function applySolution(supabase: any, rows: any[], solution: any) {
+// Apply solution - INSERT directly into planning_genere_personnel
+async function applySolution(supabase: any, besoins: any[], sites: any[], solution: any, planning_id: string, dates: string[]) {
   console.log('\n💾 Applying solution...');
   
-  // Get planning_id from first row
-  const planning_id = rows.length > 0 ? rows[0].besoin_id : null;
-  
-  // 1. Apply site assignments
+  // 1. Apply site assignments - INSERT into planning_genere_personnel
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('x_') || (value as number) < 0.5) continue;
 
     const parts = varName.split('_');
     const secId = parts[1];
-    const rowId = parts[2];
+    const besoinId = parts[2];
+    const ordre = parseInt(parts[3]);
+
+    const besoin = besoins.find((b: any) => b.id === besoinId);
+    if (!besoin) continue;
 
     await supabase
-      .from('planning_genere_site_personnel')
-      .update({ secretaire_id: secId })
-      .eq('id', rowId);
+      .from('planning_genere_personnel')
+      .insert({
+        planning_id,
+        date: besoin.date,
+        periode: besoin.demi_journee,
+        secretaire_id: secId,
+        type_assignation: 'site',
+        ordre,
+        besoin_effectif_id: besoin.id
+      });
   }
 
   console.log('  ✅ Site assignments applied');
   
-  // 2. Apply admin assignments directly to site_personnel
+  // 2. Apply admin assignments - INSERT into planning_genere_personnel
   let adminCount = 0;
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('admin_') || (value as number) < 0.5) continue;
@@ -576,32 +559,28 @@ async function applySolution(supabase: any, rows: any[], solution: any) {
     const date = parts[2];
     const periode = parts.slice(3).join('_'); // "apres_midi" ou "matin"
 
-    // Find the besoin for this date/period
-    const row = rows.find((r: any) => r.date === date && r.periode === periode);
-    
-    if (!row) {
-      console.warn(`⚠️ No besoin found for admin assignment: ${date} ${periode}`);
-      continue;
-    }
-
-    // Get next ordre number for this besoin
-    const { data: existingPersonnel } = await supabase
-      .from('planning_genere_site_personnel')
+    // Get next ordre for admin assignments for this date/period
+    const { data: existingAdmin } = await supabase
+      .from('planning_genere_personnel')
       .select('ordre')
-      .eq('planning_genere_site_besoin_id', row.besoin_id)
+      .eq('date', date)
+      .eq('periode', periode)
+      .eq('type_assignation', 'administratif')
       .order('ordre', { ascending: false })
       .limit(1);
     
-    const nextOrdre = (existingPersonnel?.[0]?.ordre || 0) + 1;
+    const nextOrdre = (existingAdmin?.[0]?.ordre || 0) + 1;
 
-    // Insert admin assignment into site_personnel
+    // Insert admin assignment
     await supabase
-      .from('planning_genere_site_personnel')
+      .from('planning_genere_personnel')
       .insert({
-        planning_genere_site_besoin_id: row.besoin_id,
+        planning_id,
+        date,
+        periode,
         secretaire_id: secId,
-        ordre: nextOrdre,
-        type_assignation: 'administratif'
+        type_assignation: 'administratif',
+        ordre: nextOrdre
       });
     
     adminCount++;
