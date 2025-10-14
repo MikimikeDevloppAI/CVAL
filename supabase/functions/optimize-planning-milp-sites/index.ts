@@ -245,11 +245,10 @@ async function generateSitesBesoins(
         return sum + (Number(medecin?.besoin_secretaires) || 1.2);
       }, 0);
       
-      // Toute journee needs: divide by 2 for each half-day
+      // Toute journee needs: full requirement for each half-day
       totalBesoin += medecinsTouteJournee.reduce((sum, b) => {
         const medecin = medecinMap.get(b.medecin_id);
-        const besoinComplet = Number(medecin?.besoin_secretaires) || 1.2;
-        return sum + (besoinComplet / 2);
+        return sum + (Number(medecin?.besoin_secretaires) || 1.2);
       }, 0);
 
       const nombreRequis = Math.ceil(totalBesoin);
