@@ -8,6 +8,7 @@ import { Building2, User, ChevronDown, Loader2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
+import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 
 interface SitePlanningViewProps {
   startDate: Date;
@@ -245,6 +246,9 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
   return (
     <div className="space-y-4">
+      {/* Unsatisfied Needs Report */}
+      <UnsatisfiedNeedsReport startDate={startDate} endDate={endDate} />
+      
       {/* Bloc Opératoire Planning - Compact Version */}
       <CompactBlocOperatoirePlanningView startDate={startDate} endDate={endDate} />
       

@@ -10,7 +10,6 @@ import { UserCog, Stethoscope, Edit, CheckCircle2, AlertCircle, X } from 'lucide
 import { useState, useEffect, useMemo } from 'react';
 import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
 import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
-import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 import { supabase } from '@/integrations/supabase/client';
 
 interface MILPOptimizationViewProps {
@@ -243,14 +242,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
 
   return (
     <div className="space-y-6">
-      {/* Rapport des besoins non satisfaits */}
-      <UnsatisfiedNeedsReport 
-        assignments={assignments}
-        weekDays={weekDays}
-        onRefresh={onRefresh}
-        closureStatuses={closureStatuses}
-      />
-      
       <div className="space-y-4">{groupedBySite.map(({ siteName, specialite, dayGroups }) => (
           <Card key={siteName} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">

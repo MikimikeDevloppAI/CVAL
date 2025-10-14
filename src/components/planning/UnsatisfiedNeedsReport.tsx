@@ -1,49 +1,287 @@
-import { AssignmentResult } from '@/types/planning';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, UserPlus, ArrowLeftRight } from 'lucide-react';
+import { AlertCircle, Building2, Scissors } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-interface SiteClosureStatus {
-  siteId: string;
-  siteName: string;
-  needsClosure: boolean;
-  isValid: boolean;
-  issues: { date: string; problems: string[] }[];
-}
+import { Separator } from '@/components/ui/separator';
 
 interface UnsatisfiedNeedsReportProps {
-  assignments: AssignmentResult[];
-  weekDays: Date[];
-  onRefresh?: () => void;
-  closureStatuses: Map<string, SiteClosureStatus>;
+  startDate: Date;
+  endDate: Date;
 }
 
-export function UnsatisfiedNeedsReport({ 
-  assignments, 
-  weekDays, 
-  onRefresh, 
-  closureStatuses 
-}: UnsatisfiedNeedsReportProps) {
-  // TODO: Component needs refactoring to use new planning architecture
-  // (needs to handle new table structure with planning_genere_site_besoin and planning_genere_site_personnel)
-  return null;
+interface MissingNeed {
+  date: string;
+  periode: 'matin' | 'apres_midi';
+  type: 'site' | 'bloc';
+  site_nom?: string;
+  site_id?: string;
+  type_intervention_nom?: string;
+  type_intervention_code?: string;
+  required: number;
+  assigned: number;
+  missing: number;
+}
+
+export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsReportProps) {
+  const [missingNeeds, setMissingNeeds] = useState<MissingNeed[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMissingNeeds();
+  }, [startDate, endDate]);
+
+  const fetchMissingNeeds = async () => {
+    setLoading(true);
+    try {
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      // Fetch site needs (besoin_effectif type=medecin)
+      const { data: siteBesoinsData, error: siteBesoinsError } = await supabase
+        .from('besoin_effectif')
+        .select(`
+          *,
+          site:sites(nom),
+          medecin:medecins(besoin_secretaires)
+        `)
+        .eq('type', 'medecin')
+        .eq('actif', true)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (siteBesoinsError) throw siteBesoinsError;
+
+      // Group site needs by (date, site_id, periode)
+      const siteNeedsMap = new Map<string, { site_nom: string; site_id: string; required: number }>();
+      
+      for (const besoin of siteBesoinsData || []) {
+        const periodes = besoin.demi_journee === 'toute_journee' 
+          ? ['matin', 'apres_midi'] 
+          : [besoin.demi_journee];
+
+        for (const periode of periodes) {
+          const key = `${besoin.date}|${besoin.site_id}|${periode}`;
+          const existing = siteNeedsMap.get(key) || { 
+            site_nom: besoin.site?.nom || 'Site inconnu', 
+            site_id: besoin.site_id,
+            required: 0 
+          };
+          existing.required += Math.ceil(besoin.medecin?.besoin_secretaires || 1.2);
+          siteNeedsMap.set(key, existing);
+        }
+      }
+
+      // Fetch site assignments
+      const { data: siteAssignmentsData, error: siteAssignmentsError } = await supabase
+        .from('planning_genere_personnel')
+        .select('date, periode, site_id')
+        .eq('type_assignation', 'site')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (siteAssignmentsError) throw siteAssignmentsError;
+
+      // Count assignments by (date, site_id, periode)
+      const siteAssignmentsMap = new Map<string, number>();
+      for (const assignment of siteAssignmentsData || []) {
+        const key = `${assignment.date}|${assignment.site_id}|${assignment.periode}`;
+        siteAssignmentsMap.set(key, (siteAssignmentsMap.get(key) || 0) + 1);
+      }
+
+      // Fetch bloc needs (bloc_operatoire_besoins)
+      const { data: blocBesoinsData, error: blocBesoinsError } = await supabase
+        .from('bloc_operatoire_besoins')
+        .select(`
+          *,
+          type_intervention:types_intervention(nom, code)
+        `)
+        .eq('actif', true)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (blocBesoinsError) throw blocBesoinsError;
+
+      // Fetch bloc operations
+      const { data: blocOperationsData, error: blocOperationsError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          *,
+          type_intervention:types_intervention(nom, code)
+        `)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (blocOperationsError) throw blocOperationsError;
+
+      // Map bloc operations with personnel counts
+      const blocAssignmentsMap = new Map<string, number>();
+      
+      for (const operation of blocOperationsData || []) {
+        const { data: personnelData, error: personnelError } = await supabase
+          .from('planning_genere_personnel')
+          .select('id')
+          .eq('planning_genere_bloc_operatoire_id', operation.id)
+          .eq('type_assignation', 'bloc');
+
+        if (!personnelError) {
+          const periodes = operation.periode === 'toute_journee' 
+            ? ['matin', 'apres_midi'] 
+            : [operation.periode];
+
+          for (const periode of periodes) {
+            const key = `${operation.date}|${operation.type_intervention_id}|${periode}`;
+            blocAssignmentsMap.set(key, (personnelData || []).length);
+          }
+        }
+      }
+
+      // Calculate missing needs
+      const missing: MissingNeed[] = [];
+
+      // Site missing needs
+      for (const [key, data] of siteNeedsMap.entries()) {
+        const [date, site_id, periode] = key.split('|');
+        const assigned = siteAssignmentsMap.get(key) || 0;
+        const missingCount = data.required - assigned;
+
+        if (missingCount > 0) {
+          missing.push({
+            date,
+            periode: periode as 'matin' | 'apres_midi',
+            type: 'site',
+            site_nom: data.site_nom,
+            site_id,
+            required: data.required,
+            assigned,
+            missing: missingCount,
+          });
+        }
+      }
+
+      // Bloc missing needs
+      for (const besoin of blocBesoinsData || []) {
+        const periodes = ['matin', 'apres_midi'];
+        
+        for (const periode of periodes) {
+          const key = `${besoin.date}|${besoin.type_intervention_id}|${periode}`;
+          const assigned = blocAssignmentsMap.get(key) || 0;
+          const missingCount = besoin.nombre_secretaires_requis - assigned;
+
+          if (missingCount > 0) {
+            missing.push({
+              date: besoin.date,
+              periode: periode as 'matin' | 'apres_midi',
+              type: 'bloc',
+              type_intervention_nom: besoin.type_intervention?.nom,
+              type_intervention_code: besoin.type_intervention?.code,
+              required: besoin.nombre_secretaires_requis,
+              assigned,
+              missing: missingCount,
+            });
+          }
+        }
+      }
+
+      // Sort by date then by type
+      missing.sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        if (a.periode !== b.periode) {
+          return a.periode === 'matin' ? -1 : 1;
+        }
+        return a.type === 'bloc' ? 1 : -1;
+      });
+
+      setMissingNeeds(missing);
+    } catch (error) {
+      console.error('Error fetching missing needs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return null;
+  }
+
+  if (missingNeeds.length === 0) {
+    return null;
+  }
+
+  // Group by date
+  const needsByDate = missingNeeds.reduce((acc, need) => {
+    if (!acc[need.date]) acc[need.date] = [];
+    acc[need.date].push(need);
+    return acc;
+  }, {} as Record<string, MissingNeed[]>);
+
+  return (
+    <Card className="border-destructive/50 bg-destructive/5">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="h-5 w-5" />
+          Besoins non satisfaits
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {Object.entries(needsByDate).map(([date, needs]) => (
+          <div key={date} className="space-y-2">
+            <div className="font-semibold text-sm">
+              {format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr })}
+            </div>
+            
+            <div className="space-y-2 pl-4">
+              {needs.map((need, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-background rounded border border-destructive/30">
+                  <div className="flex items-center gap-3">
+                    {need.type === 'site' ? (
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Scissors className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                        </Badge>
+                        
+                        {need.type === 'site' ? (
+                          <span className="text-sm font-medium">{need.site_nom}</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{need.type_intervention_nom}</span>
+                            {need.type_intervention_code && (
+                              <Badge variant="secondary" className="text-xs">
+                                {need.type_intervention_code}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground">
+                        Requis: {need.required} • Assigné: {need.assigned} • Manquant: {need.missing}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Badge variant="destructive">
+                    -{need.missing}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+
+            {Object.keys(needsByDate).indexOf(date) < Object.keys(needsByDate).length - 1 && (
+              <Separator className="my-4" />
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }
