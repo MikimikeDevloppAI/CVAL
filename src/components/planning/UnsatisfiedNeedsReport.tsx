@@ -54,8 +54,8 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
 
       if (siteBesoinsError) throw siteBesoinsError;
 
-      // Group site needs by (date, site_id, periode)
-      const siteNeedsMap = new Map<string, { site_nom: string; site_id: string; required: number }>();
+      // Group site needs by (date, site_id, periode) and sum besoin_secretaires BEFORE ceiling
+      const siteNeedsSumMap = new Map<string, { site_nom: string; site_id: string; total: number }>();
       
       for (const besoin of siteBesoinsData || []) {
         const periodes = besoin.demi_journee === 'toute_journee' 
@@ -64,14 +64,25 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
 
         for (const periode of periodes) {
           const key = `${besoin.date}|${besoin.site_id}|${periode}`;
-          const existing = siteNeedsMap.get(key) || { 
+          const existing = siteNeedsSumMap.get(key) || { 
             site_nom: besoin.site?.nom || 'Site inconnu', 
             site_id: besoin.site_id,
-            required: 0 
+            total: 0 
           };
-          existing.required += Math.ceil(besoin.medecin?.besoin_secretaires || 1.2);
-          siteNeedsMap.set(key, existing);
+          // Sum first, ceil later
+          existing.total += (besoin.medecin?.besoin_secretaires || 1.2);
+          siteNeedsSumMap.set(key, existing);
         }
+      }
+
+      // Now apply Math.ceil to the total sum for each site/period
+      const siteNeedsMap = new Map<string, { site_nom: string; site_id: string; required: number }>();
+      for (const [key, data] of siteNeedsSumMap.entries()) {
+        siteNeedsMap.set(key, {
+          site_nom: data.site_nom,
+          site_id: data.site_id,
+          required: Math.ceil(data.total)
+        });
       }
 
       // Fetch site assignments
