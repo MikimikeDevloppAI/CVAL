@@ -117,6 +117,11 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
         const missingCount = data.required - assigned;
 
         if (missingCount > 0) {
+          const name = data.site_nom || '';
+          const s = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          if (s.includes('bloc') && s.includes('operatoire')) {
+            continue;
+          }
           missing.push({
             date,
             periode: periode as 'matin' | 'apres_midi',
@@ -150,15 +155,21 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
       if (opIds.length > 0) {
         const { data: blocOpsMeta, error: blocOpsMetaError } = await supabase
           .from('planning_genere_bloc_operatoire')
-          .select('id, type_intervention:types_intervention(nom, code)')
+          .select('id, statut, type_intervention:types_intervention(nom, code)')
           .in('id', opIds);
         if (blocOpsMetaError) throw blocOpsMetaError;
         opLabelMap = new Map<string, { nom?: string; code?: string }>((blocOpsMeta || [])
           .map((op: any) => [op.id, { nom: op.type_intervention?.nom, code: op.type_intervention?.code }]));
+        var allowedOps = new Set<string>((blocOpsMeta || [])
+          .filter((op: any) => op.statut !== 'annule')
+          .map((op: any) => op.id));
       }
 
       // Each missing row corresponds to exactly one unassigned need
       for (const row of blocMissingRows || []) {
+        if (typeof allowedOps !== 'undefined' && row.planning_genere_bloc_operatoire_id && !allowedOps.has(row.planning_genere_bloc_operatoire_id)) {
+          continue;
+        }
         const labels = opLabelMap.get(row.planning_genere_bloc_operatoire_id) || {};
         missing.push({
           date: row.date,
