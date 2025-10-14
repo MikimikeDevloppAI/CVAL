@@ -322,7 +322,7 @@ async function generateSitesBesoins(
       ordre,
       created_at,
       updated_at,
-      planning_genere_site_besoin!inner(site_id, periode)
+      planning_genere_site_besoin!inner(site_id, periode, medecins_ids)
     `);
 
   if (personnelError) throw personnelError;
@@ -457,9 +457,12 @@ function buildSitesMILP(
     const key = `${site_id}_${periode}`;
     const medecinsOnSite = medecinsBySite.get(key) || new Set();
 
-    // PRIORITY 1: Secretary linked to the medecin of this row (-10000)
-    if (row.medecin_id) {
-      const linkedSec = secretaires.find(s => s.medecin_assigne_id === row.medecin_id);
+    // PRIORITY 1: Secretaries linked to ANY medecin working at this site/period (-10000)
+    const medecinsIds = besoin.medecins_ids || [];
+
+    for (const medecinId of medecinsIds) {
+      const linkedSec = secretaires.find(s => s.medecin_assigne_id === medecinId);
+      
       if (linkedSec) {
         const keyCapacite = `${linkedSec.id}_${periode}`;
         const blocPeriods = blocAssignments.get(linkedSec.id) || [];
@@ -481,12 +484,16 @@ function buildSitesMILP(
             isGeographicallyCompatible &&
             isSiteInProfile) {
           const varName = `x_${linkedSec.id}_${row.id}`;
-          model.variables[varName] = {
-            cost: -10000,
-            [`row_${row.id}`]: 1,
-            [`capacity_${linkedSec.id}_${periode}`]: 1
-          };
-          model.ints[varName] = 1;
+          
+          // Only create if not already created by another medecin
+          if (!model.variables[varName]) {
+            model.variables[varName] = {
+              cost: -10000, // Top priority
+              [`row_${row.id}`]: 1,
+              [`capacity_${linkedSec.id}_${periode}`]: 1
+            };
+            model.ints[varName] = 1;
+          }
         }
       }
     }
