@@ -86,11 +86,13 @@ serve(async (req) => {
   if (optimize_bloc) {
     console.log('🏥 Phase 1: Optimizing bloc operatoire...');
     
-    // Delete existing bloc assignments
+    // Delete existing bloc assignments for the entire week
     await supabaseServiceRole
       .from('planning_genere_bloc_operatoire')
       .delete()
-      .eq('date', single_day);
+      .eq('planning_id', planning_id)
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr);
 
     const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
     const blocResponse = await fetch(blocUrl, {
@@ -99,7 +101,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
-      body: JSON.stringify({ single_day })
+      body: JSON.stringify({ week_start: weekStartStr, week_end: weekEndStr })
     });
 
     if (!blocResponse.ok) {

@@ -20,12 +20,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { single_day } = await req.json().catch(() => ({}));
-    if (!single_day) {
-      throw new Error('single_day parameter is required');
+    const { week_start, week_end } = await req.json().catch(() => ({}));
+    if (!week_start || !week_end) {
+      throw new Error('week_start and week_end parameters are required');
     }
 
-    console.log(`📅 Optimizing bloc for day: ${single_day}`);
+    const dates = [];
+    let currentDate = new Date(week_start);
+    const endDate = new Date(week_end);
+    while (currentDate <= endDate) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    console.log(`📅 Optimizing bloc for week: ${week_start} to ${week_end} (${dates.length} days)`);
 
     // Get Bloc operatoire site ID
     const { data: blocSite, error: blocSiteError } = await supabaseServiceRole
@@ -50,14 +58,17 @@ serve(async (req) => {
         types_intervention_besoins_personnel(type_besoin, nombre_requis)
       `).eq('actif', true),
       supabaseServiceRole.from('besoin_effectif').select('*')
-        .eq('date', single_day)
+        .gte('date', week_start)
+        .lte('date', week_end)
         .eq('site_id', blocSiteId)
         .not('type_intervention_id', 'is', null)
         .eq('actif', true),
       supabaseServiceRole.from('secretaires').select('*')
         .eq('personnel_bloc_operatoire', true).eq('actif', true),
       supabaseServiceRole.from('capacite_effective').select('*')
-        .eq('date', single_day).eq('actif', true),
+        .gte('date', week_start)
+        .lte('date', week_end)
+        .eq('actif', true),
       supabaseServiceRole.from('configurations_multi_flux').select(`
         *,
         configurations_multi_flux_interventions(type_intervention_id, salle, ordre)
@@ -115,7 +126,7 @@ serve(async (req) => {
     const typesInterventionMap = new Map(typesIntervention.map(t => [t.id, t]));
     const capacitesMap = new Map();
     capacites.forEach(c => {
-      const key = `${c.secretaire_id || c.backup_id}_${c.demi_journee}`;
+      const key = `${c.date}_${c.secretaire_id || c.backup_id}_${c.demi_journee}`;
       if (!capacitesMap.has(key)) capacitesMap.set(key, []);
       capacitesMap.get(key).push(c);
     });
@@ -124,17 +135,12 @@ serve(async (req) => {
     const roomAssignments = assignRooms(operations, typesInterventionMap, configurationsMultiFlux);
 
     // 3. Get or create planning_id
-    const weekStart = getWeekStart(new Date(single_day));
-    const weekEnd = getWeekEnd(new Date(single_day));
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
-
     let planning_id;
     const { data: existingPlanning } = await supabaseServiceRole
       .from('planning')
       .select('*')
-      .eq('date_debut', weekStartStr)
-      .eq('date_fin', weekEndStr)
+      .eq('date_debut', week_start)
+      .eq('date_fin', week_end)
       .maybeSingle();
 
     if (existingPlanning) {
@@ -143,8 +149,8 @@ serve(async (req) => {
       const { data: newPlanning, error: planningError } = await supabaseServiceRole
         .from('planning')
         .insert({
-          date_debut: weekStartStr,
-          date_fin: weekEndStr,
+          date_debut: week_start,
+          date_fin: week_end,
           statut: 'en_cours'
         })
         .select()
@@ -157,7 +163,6 @@ serve(async (req) => {
     const { savedBlocs, personnelRows } = await createBlocAndPersonnelRows(
       roomAssignments,
       planning_id,
-      single_day,
       operations,
       typesInterventionMap,
       supabaseServiceRole
@@ -285,13 +290,14 @@ function buildAndSolveBlocPersonnelMILP(
   
   let totalVariables = 0;
   
-  // Group rows by demi_journee to enforce uniqueness
-  const rowsByDemiJournee = new Map<string, any[]>();
+  // Group rows by date + demi_journee to enforce uniqueness
+  const rowsByDateDemiJournee = new Map<string, any[]>();
   for (const row of personnelRows) {
-    if (!rowsByDemiJournee.has(row.demi_journee)) {
-      rowsByDemiJournee.set(row.demi_journee, []);
+    const key = `${row.date}_${row.demi_journee}`;
+    if (!rowsByDateDemiJournee.has(key)) {
+      rowsByDateDemiJournee.set(key, []);
     }
-    rowsByDemiJournee.get(row.demi_journee)!.push(row);
+    rowsByDateDemiJournee.get(key)!.push(row);
   }
   
   // Create variables: x_<secretaire_id>_<personnel_row_id>
@@ -319,7 +325,7 @@ function buildAndSolveBlocPersonnelMILP(
       model.variables[varName] = {
         score: score,
         [`row_${row.id}`]: 1,
-        [`sec_${sec.id}_${row.demi_journee}`]: 1
+        [`sec_${sec.id}_${row.date}_${row.demi_journee}`]: 1
       };
       model.ints[varName] = 1;
       totalVariables++;
@@ -333,10 +339,16 @@ function buildAndSolveBlocPersonnelMILP(
   
   console.log(`  📊 Total variables: ${totalVariables}`);
   
-  // Contrainte: chaque secrétaire peut être assignée au maximum 1 fois par demi-journée
+  // Contrainte: chaque secrétaire peut être assignée au maximum 1 fois par date + demi-journée
+  // On parcourt toutes les combinaisons date + demi_journee présentes dans personnelRows
+  const dateDemiJournees = new Set<string>();
+  for (const row of personnelRows) {
+    dateDemiJournees.add(`${row.date}_${row.demi_journee}`);
+  }
+  
   for (const sec of personnelBloc) {
-    for (const demiJournee of ['matin', 'apres_midi']) {
-      model.constraints[`sec_${sec.id}_${demiJournee}`] = {
+    for (const dateDemiJournee of dateDemiJournees) {
+      model.constraints[`sec_${sec.id}_${dateDemiJournee}`] = {
         max: 1
       };
     }
@@ -356,7 +368,7 @@ function getEligibleSecretaries(
   capacitesMap: Map<string, any>
 ): any[] {
   let eligible = personnelBloc.filter(s => 
-    isAvailableForOperation(s.id, operation.demi_journee, capacitesMap)
+    isAvailableForOperation(s.id, operation.date, operation.demi_journee, capacitesMap)
   );
   
   switch (type_besoin) {
@@ -384,16 +396,15 @@ function getEligibleSecretaries(
   return eligible;
 }
 
-function isAvailableForOperation(secId: string, demi_journee: string, capacitesMap: Map<string, any>): boolean {
-  const key = `${secId}_${demi_journee}`;
-  const keyTouteJournee = `${secId}_toute_journee`;
+function isAvailableForOperation(secId: string, date: string, demi_journee: string, capacitesMap: Map<string, any>): boolean {
+  const key = `${date}_${secId}_${demi_journee}`;
+  const keyTouteJournee = `${date}_${secId}_toute_journee`;
   return capacitesMap.has(key) || capacitesMap.has(keyTouteJournee);
 }
 
 async function createBlocAndPersonnelRows(
   roomAssignments: any[],
   planning_id: string,
-  single_day: string,
   operations: any[],
   typesMap: Map<string, any>,
   supabase: any
@@ -406,7 +417,7 @@ async function createBlocAndPersonnelRows(
     
     return {
       planning_id,
-      date: single_day,
+      date: operation.date,
       type_intervention_id: operation.type_intervention_id,
       medecin_id: operation.medecin_id,
       salle_assignee: ra.salle,
@@ -466,11 +477,12 @@ async function createBlocAndPersonnelRows(
   
   console.log(`  ✅ ${insertedPersonnel.length} personnel rows created`);
   
-  // Enrich rows with demi_journee for MILP
+  // Enrich rows with date + demi_journee for MILP
   const enrichedRows = insertedPersonnel.map((row: any) => {
     const bloc = savedBlocs.find((b: any) => b.id === row.planning_genere_bloc_operatoire_id);
     return {
       ...row,
+      date: bloc?.date,
       demi_journee: bloc?.periode || 'matin'
     };
   });
