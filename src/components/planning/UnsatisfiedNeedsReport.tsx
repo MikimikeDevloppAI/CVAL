@@ -102,53 +102,6 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
         siteAssignmentsMap.set(key, (siteAssignmentsMap.get(key) || 0) + 1);
       }
 
-      // Fetch bloc needs (bloc_operatoire_besoins)
-      const { data: blocBesoinsData, error: blocBesoinsError } = await supabase
-        .from('bloc_operatoire_besoins')
-        .select(`
-          *,
-          type_intervention:types_intervention(nom, code)
-        `)
-        .eq('actif', true)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr);
-
-      if (blocBesoinsError) throw blocBesoinsError;
-
-      // Fetch bloc operations
-      const { data: blocOperationsData, error: blocOperationsError } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select(`
-          *,
-          type_intervention:types_intervention(nom, code)
-        `)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr);
-
-      if (blocOperationsError) throw blocOperationsError;
-
-      // Map bloc operations with personnel counts
-      const blocAssignmentsMap = new Map<string, number>();
-      
-      for (const operation of blocOperationsData || []) {
-        const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_personnel')
-          .select('id')
-          .eq('planning_genere_bloc_operatoire_id', operation.id)
-          .eq('type_assignation', 'bloc');
-
-        if (!personnelError) {
-          const periodes = operation.periode === 'toute_journee' 
-            ? ['matin', 'apres_midi'] 
-            : [operation.periode];
-
-          for (const periode of periodes) {
-            const key = `${operation.date}|${operation.type_intervention_id}|${periode}`;
-            blocAssignmentsMap.set(key, (personnelData || []).length);
-          }
-        }
-      }
-
       // Calculate missing needs
       const missing: MissingNeed[] = [];
 
@@ -172,24 +125,58 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
         }
       }
 
-      // Bloc missing needs
-      for (const besoin of blocBesoinsData || []) {
-        const periodes = ['matin', 'apres_midi'];
-        
-        for (const periode of periodes) {
-          const key = `${besoin.date}|${besoin.type_intervention_id}|${periode}`;
-          const assigned = blocAssignmentsMap.get(key) || 0;
-          const missingCount = besoin.nombre_secretaires_requis - assigned;
+      // Fetch bloc operations with their required personnel needs
+      const { data: blocOperationsData, error: blocOperationsError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          *,
+          type_intervention:types_intervention(
+            nom,
+            code,
+            besoins:types_intervention_besoins_personnel(
+              type_besoin,
+              nombre_requis
+            )
+          )
+        `)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
 
-          if (missingCount > 0) {
+      if (blocOperationsError) throw blocOperationsError;
+
+      // Calculate missing needs for bloc operations
+      for (const operation of blocOperationsData || []) {
+        // Fetch assigned personnel for this operation
+        const { data: personnelData, error: personnelError } = await supabase
+          .from('planning_genere_personnel')
+          .select('id, type_besoin_bloc')
+          .eq('planning_genere_bloc_operatoire_id', operation.id)
+          .eq('type_assignation', 'bloc')
+          .not('secretaire_id', 'is', null); // Only count assigned personnel
+
+        if (personnelError) throw personnelError;
+
+        // Calculate total required personnel from type_intervention besoins
+        const totalRequired = (operation.type_intervention?.besoins || [])
+          .reduce((sum: number, b: any) => sum + (b.nombre_requis || 1), 0);
+        
+        const totalAssigned = (personnelData || []).length;
+        const missingCount = totalRequired - totalAssigned;
+
+        if (missingCount > 0) {
+          const periodes = operation.periode === 'toute_journee' 
+            ? ['matin', 'apres_midi'] 
+            : [operation.periode];
+
+          for (const periode of periodes) {
             missing.push({
-              date: besoin.date,
+              date: operation.date,
               periode: periode as 'matin' | 'apres_midi',
               type: 'bloc',
-              type_intervention_nom: besoin.type_intervention?.nom,
-              type_intervention_code: besoin.type_intervention?.code,
-              required: besoin.nombre_secretaires_requis,
-              assigned,
+              type_intervention_nom: operation.type_intervention?.nom,
+              type_intervention_code: operation.type_intervention?.code,
+              required: totalRequired,
+              assigned: totalAssigned,
               missing: missingCount,
             });
           }
