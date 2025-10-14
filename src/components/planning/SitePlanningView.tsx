@@ -47,14 +47,13 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     try {
       setLoading(true);
 
-      // Fetch from unified planning_genere_personnel table
+      // Fetch from unified planning_genere_personnel table (site_id now stored directly)
       const { data: planningSites, error } = await supabase
         .from('planning_genere_personnel')
         .select(`
           *,
           secretaires(first_name, name),
-          sites(nom, fermeture),
-          besoin_effectif!inner(medecins(first_name, name))
+          sites(nom, fermeture)
         `)
         .eq('type_assignation', 'site')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
@@ -78,8 +77,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         site_nom: assignment.sites?.nom || 'Site inconnu',
         site_fermeture: assignment.sites?.fermeture || false,
         nombre_secretaires_requis: 1,
-        medecins_ids: assignment.besoin_effectif?.medecins?.id ? [assignment.besoin_effectif.medecins.id] : [],
-        medecins_noms: assignment.besoin_effectif?.medecins ? [`${assignment.besoin_effectif.medecins.first_name} ${assignment.besoin_effectif.medecins.name}`] : [],
+        medecins_ids: [],
+        medecins_noms: [],
         personnel: assignment.secretaire_id && assignment.secretaires ? [{
           secretaire_id: assignment.secretaire_id,
           secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
