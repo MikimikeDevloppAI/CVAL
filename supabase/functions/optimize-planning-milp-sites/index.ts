@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SITE_PORT_EN_TRUIE = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 const SITE_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
-const PENALTY_SITE_CHANGE = 0.001;
+const PENALTY_SITE_CHANGE = 60; // Forte pénalité pour décourager les changements de site
 const PENALTY_PORT_EN_TRUIE_BASE = 0.0001;
 
 function isCliniqueLaValleeCompatible(siteName: string): boolean {
@@ -557,6 +557,85 @@ function buildSitesMILP(
       }
     }
   }
+
+  // === SITE CHANGE PENALTY ===
+  // Create variables to track site changes between morning and afternoon
+  console.log('  🔄 Adding site change penalties...');
+  
+  // Step 1: Group x variables by secretary, period, and site
+  const xVarsBySec = new Map<string, { 
+    matin: Map<string, string[]>, 
+    apres_midi: Map<string, string[]> 
+  }>();
+
+  for (const row of personnelRows) {
+    const periode = row.planning_genere_site_besoin.periode as 'matin' | 'apres_midi';
+    const site_id = row.planning_genere_site_besoin.site_id;
+    
+    for (const varName of Object.keys(model.variables)) {
+      if (!varName.startsWith('x_')) continue;
+      if (!model.variables[varName][`row_${row.id}`]) continue;
+      
+      const secId = varName.split('_')[1];
+      
+      if (!xVarsBySec.has(secId)) {
+        xVarsBySec.set(secId, { 
+          matin: new Map(), 
+          apres_midi: new Map() 
+        });
+      }
+      
+      const secMap = xVarsBySec.get(secId)!;
+      if (!secMap[periode].has(site_id)) {
+        secMap[periode].set(site_id, []);
+      }
+      secMap[periode].get(site_id)!.push(varName);
+    }
+  }
+
+  // Step 2: For each secretary, create site change detection variables
+  let siteChangePenaltiesCount = 0;
+  for (const [secId, periods] of xVarsBySec) {
+    const matinSites = Array.from(periods.matin.keys());
+    const pmSites = Array.from(periods.apres_midi.keys());
+    
+    if (matinSites.length === 0 || pmSites.length === 0) continue;
+    
+    // For each combination (siteA matin, siteB pm) where siteA !== siteB
+    for (const siteA of matinSites) {
+      for (const siteB of pmSites) {
+        if (siteA === siteB) continue; // Same site, no change
+        
+        const matinVars = periods.matin.get(siteA)!;
+        const pmVars = periods.apres_midi.get(siteB)!;
+        
+        // Create binary variable: change_siteA_to_siteB_secId
+        const changeVar = `change_${secId}_${siteA.substring(0, 8)}_to_${siteB.substring(0, 8)}`;
+        model.variables[changeVar] = {
+          cost: PENALTY_SITE_CHANGE
+        };
+        model.ints[changeVar] = 1;
+        
+        // Constraint: change_var >= x_matin + x_pm - 1
+        // Rewrite: x_matin + x_pm - change_var <= 1
+        // This forces change_var to 1 if BOTH matin and pm are assigned to different sites
+        const constraintName = `detect_change_${secId}_${siteA.substring(0, 8)}_${siteB.substring(0, 8)}`;
+        model.constraints[constraintName] = { max: 1 };
+        
+        for (const matinVar of matinVars) {
+          model.variables[matinVar][constraintName] = 1;
+        }
+        for (const pmVar of pmVars) {
+          model.variables[pmVar][constraintName] = 1;
+        }
+        model.variables[changeVar][constraintName] = -1;
+        
+        siteChangePenaltiesCount++;
+      }
+    }
+  }
+  
+  console.log(`  ✅ Added ${siteChangePenaltiesCount} site change penalty variables`);
 
   // Constraints: Exactly 1 assignment per row (required OR penalty for unsatisfied)
   for (const row of personnelRows) {
