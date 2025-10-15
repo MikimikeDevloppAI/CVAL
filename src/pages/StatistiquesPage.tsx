@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -286,10 +286,27 @@ export default function StatistiquesPage() {
         // Arrondir au-dessus pour une meilleure lisibilité
         dataPoint[`${site.site_nom}_matin`] = Math.ceil(matin);
         dataPoint[`${site.site_nom}_apres_midi`] = Math.ceil(apresMidi);
+        
+        // Séparer les données pour chaque graphique
+        dataPoint[site.site_nom] = Math.ceil(matin);
+        dataPoint[`${site.site_nom}_AM`] = Math.ceil(apresMidi);
       });
 
       return dataPoint;
     });
+  };
+
+  const getSiteColors = () => {
+    return [
+      { base: 'hsl(217 91% 60%)', light: 'hsl(217 91% 70%)', dark: 'hsl(217 91% 50%)' },
+      { base: 'hsl(142 76% 40%)', light: 'hsl(142 76% 50%)', dark: 'hsl(142 76% 30%)' },
+      { base: 'hsl(24 95% 53%)', light: 'hsl(24 95% 63%)', dark: 'hsl(24 95% 43%)' },
+      { base: 'hsl(262 83% 58%)', light: 'hsl(262 83% 68%)', dark: 'hsl(262 83% 48%)' },
+      { base: 'hsl(339 90% 51%)', light: 'hsl(339 90% 61%)', dark: 'hsl(339 90% 41%)' },
+      { base: 'hsl(198 93% 60%)', light: 'hsl(198 93% 70%)', dark: 'hsl(198 93% 50%)' },
+      { base: 'hsl(48 96% 53%)', light: 'hsl(48 96% 63%)', dark: 'hsl(48 96% 43%)' },
+      { base: 'hsl(280 87% 65%)', light: 'hsl(280 87% 75%)', dark: 'hsl(280 87% 55%)' },
+    ];
   };
 
   const getSummary = () => {
@@ -396,126 +413,220 @@ export default function StatistiquesPage() {
         </Card>
       </div>
 
-      <Card className="shadow-lg border-border/40">
-        <CardHeader className="border-b border-border/40 bg-gradient-to-br from-background to-muted/20">
-          <CardTitle className="text-xl">Besoins par jour et période</CardTitle>
-          <CardDescription>
-            Basé sur les horaires de base des médecins et les besoins du bloc opératoire (arrondis au-dessus)
+      <Card className="shadow-xl border-border/40 overflow-hidden">
+        <CardHeader className="border-b border-border/40 bg-gradient-to-br from-background via-muted/10 to-muted/20 pb-6">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Besoins en personnel
+          </CardTitle>
+          <CardDescription className="text-base">
+            Basé sur les horaires de base des médecins et les besoins du bloc opératoire
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
-          <ResponsiveContainer width="100%" height={550}>
-            <BarChart 
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
-              barGap={8}
-              barCategoryGap="15%"
-            >
-              <defs>
-                <linearGradient id="colorMatin" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(217 91% 60%)" stopOpacity={1}/>
-                  <stop offset="100%" stopColor="hsl(217 91% 50%)" stopOpacity={0.85}/>
-                </linearGradient>
-                <linearGradient id="colorApresMidi" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(142 76% 40%)" stopOpacity={1}/>
-                  <stop offset="100%" stopColor="hsl(142 76% 30%)" stopOpacity={0.85}/>
-                </linearGradient>
-              </defs>
-              
-              <CartesianGrid 
-                strokeDasharray="3 3" 
-                stroke="hsl(var(--border))" 
-                opacity={0.2}
-                vertical={false}
-              />
-              <XAxis 
-                dataKey="jour" 
-                stroke="hsl(var(--muted-foreground))"
-                tick={{ fontSize: 13, fontWeight: 500 }}
-                tickLine={false}
-                axisLine={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
-              />
-              <YAxis 
-                stroke="hsl(var(--muted-foreground))"
-                tick={{ fontSize: 12 }}
-                tickLine={false}
-                axisLine={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
-                label={{ 
-                  value: 'Besoins (personnel)', 
-                  angle: -90, 
-                  position: 'insideLeft',
-                  style: { 
-                    fill: 'hsl(var(--muted-foreground))',
-                    fontSize: 13,
-                    fontWeight: 500
-                  } 
-                }}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--popover))', 
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '12px',
-                  boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
-                  padding: '12px'
-                }}
-                labelStyle={{ 
-                  fontWeight: 600,
-                  marginBottom: '8px',
-                  color: 'hsl(var(--foreground))'
-                }}
-                itemStyle={{
-                  padding: '4px 0'
-                }}
-                formatter={(value: any, name: string) => {
-                  const parts = name.split('_');
-                  const periode = parts[parts.length - 1] === 'matin' ? '🌅 Matin' : '🌆 Après-midi';
-                  const site = parts.slice(0, -1).join(' ');
-                  return [`${value} personnes`, `${site} - ${periode}`];
-                }}
-              />
-              <Legend 
-                wrapperStyle={{ 
-                  paddingTop: '30px',
-                  paddingBottom: '10px'
-                }}
-                layout="horizontal"
-                verticalAlign="bottom"
-                align="center"
-                iconType="circle"
-                iconSize={12}
-                formatter={(value: string) => {
-                  if (value === '_legend_matin') return <span style={{ fontWeight: 600, color: 'hsl(217 91% 60%)' }}>🌅 Matin</span>;
-                  if (value === '_legend_apres_midi') return <span style={{ fontWeight: 600, color: 'hsl(142 76% 36%)' }}>🌆 Après-midi</span>;
-                  return null;
-                }}
-                payload={[
-                  { value: '_legend_matin', type: 'circle', color: 'hsl(217 91% 60%)' },
-                  { value: '_legend_apres_midi', type: 'circle', color: 'hsl(142 76% 36%)' }
-                ]}
-              />
-              {stats
-                .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
-                .flatMap((site, siteIndex) => {
-                  return [
-                    <Bar 
-                      key={`${site.site_nom}_matin`}
-                      dataKey={`${site.site_nom}_matin`}
-                      fill="url(#colorMatin)"
-                      radius={[8, 8, 0, 0]}
-                      legendType="none"
-                    />,
-                    <Bar 
-                      key={`${site.site_nom}_apres_midi`}
-                      dataKey={`${site.site_nom}_apres_midi`}
-                      fill="url(#colorApresMidi)"
-                      radius={[8, 8, 0, 0]}
-                      legendType="none"
+        <CardContent className="pt-8 space-y-8">
+          {/* Légende globale */}
+          <div className="flex flex-wrap gap-4 justify-center p-6 bg-muted/30 rounded-xl border border-border/40">
+            {stats
+              .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+              .map((site, index) => {
+                const colors = getSiteColors();
+                const color = colors[index % colors.length];
+                return (
+                  <div key={site.site_id} className="flex items-center gap-2">
+                    <div 
+                      className="w-4 h-4 rounded-full shadow-sm" 
+                      style={{ backgroundColor: color.base }}
                     />
-                  ];
-                })}
-            </BarChart>
-          </ResponsiveContainer>
+                    <span className="text-sm font-medium">{site.site_nom}</span>
+                  </div>
+                );
+              })}
+          </div>
+
+          {/* Graphique Matin */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full" />
+              <h3 className="text-lg font-semibold">🌅 Période Matin</h3>
+            </div>
+            <div className="bg-gradient-to-br from-blue-50/50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 rounded-2xl p-6 border border-blue-200/40 dark:border-blue-800/40">
+              <ResponsiveContainer width="100%" height={350}>
+                <AreaChart 
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                >
+                  <defs>
+                    {stats
+                      .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+                      .map((site, index) => {
+                        const colors = getSiteColors();
+                        const color = colors[index % colors.length];
+                        return (
+                          <linearGradient key={site.site_id} id={`gradient-matin-${index}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={color.light} stopOpacity={0.9}/>
+                            <stop offset="95%" stopColor={color.base} stopOpacity={0.6}/>
+                          </linearGradient>
+                        );
+                      })}
+                  </defs>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="hsl(var(--border))" 
+                    opacity={0.2}
+                    vertical={false}
+                  />
+                  <XAxis 
+                    dataKey="jour" 
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 13, fontWeight: 500 }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    label={{ 
+                      value: 'Personnel requis', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { 
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 13,
+                        fontWeight: 500
+                      } 
+                    }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--popover))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                      padding: '12px'
+                    }}
+                    labelStyle={{ 
+                      fontWeight: 600,
+                      marginBottom: '8px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                  />
+                  {stats
+                    .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+                    .map((site, index) => {
+                      const colors = getSiteColors();
+                      const color = colors[index % colors.length];
+                      return (
+                        <Area
+                          key={site.site_id}
+                          type="monotone"
+                          dataKey={site.site_nom}
+                          stackId="1"
+                          stroke={color.dark}
+                          strokeWidth={2.5}
+                          fill={`url(#gradient-matin-${index})`}
+                          animationDuration={1200}
+                          animationEasing="ease-in-out"
+                        />
+                      );
+                    })}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Graphique Après-midi */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-8 bg-gradient-to-b from-amber-500 to-amber-600 rounded-full" />
+              <h3 className="text-lg font-semibold">🌆 Période Après-midi</h3>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50/50 to-amber-100/30 dark:from-amber-950/20 dark:to-amber-900/10 rounded-2xl p-6 border border-amber-200/40 dark:border-amber-800/40">
+              <ResponsiveContainer width="100%" height={350}>
+                <AreaChart 
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                >
+                  <defs>
+                    {stats
+                      .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+                      .map((site, index) => {
+                        const colors = getSiteColors();
+                        const color = colors[index % colors.length];
+                        return (
+                          <linearGradient key={site.site_id} id={`gradient-am-${index}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={color.light} stopOpacity={0.9}/>
+                            <stop offset="95%" stopColor={color.base} stopOpacity={0.6}/>
+                          </linearGradient>
+                        );
+                      })}
+                  </defs>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="hsl(var(--border))" 
+                    opacity={0.2}
+                    vertical={false}
+                  />
+                  <XAxis 
+                    dataKey="jour" 
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 13, fontWeight: 500 }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    label={{ 
+                      value: 'Personnel requis', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { 
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 13,
+                        fontWeight: 500
+                      } 
+                    }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--popover))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                      padding: '12px'
+                    }}
+                    labelStyle={{ 
+                      fontWeight: 600,
+                      marginBottom: '8px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                  />
+                  {stats
+                    .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+                    .map((site, index) => {
+                      const colors = getSiteColors();
+                      const color = colors[index % colors.length];
+                      return (
+                        <Area
+                          key={site.site_id}
+                          type="monotone"
+                          dataKey={`${site.site_nom}_AM`}
+                          stackId="1"
+                          stroke={color.dark}
+                          strokeWidth={2.5}
+                          fill={`url(#gradient-am-${index})`}
+                          animationDuration={1200}
+                          animationEasing="ease-in-out"
+                        />
+                      );
+                    })}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
