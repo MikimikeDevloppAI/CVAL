@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2, CalendarDays } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, CalendarDays, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -10,6 +10,7 @@ import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle, Conta
 import { MedecinForm } from '@/components/medecins/MedecinForm';
 import { EditHoraireDialog } from '@/components/medecins/EditHoraireDialog';
 import { MedecinMonthCalendar } from '@/components/medecins/MedecinMonthCalendar';
+import { GlobalMedecinCalendarView } from '@/components/medecins/GlobalMedecinCalendarView';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -41,6 +42,7 @@ export default function MedecinsPage() {
   const [selectedHoraire, setSelectedHoraire] = useState<any>(null);
   const [editingMedecinId, setEditingMedecinId] = useState<string>('');
   const [calendarMedecin, setCalendarMedecin] = useState<{ id: string; nom: string } | null>(null);
+  const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -257,27 +259,38 @@ export default function MedecinsPage() {
           <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
           
           {canManage && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
-                  <Plus className="h-4 w-4" />
-                  Ajouter un médecin
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-4xl w-full max-h-[90vh] flex flex-col p-0">
-              <DialogHeader className="px-6 pt-6">
-                <DialogTitle>
-                  {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="overflow-y-auto px-6 flex-1">
-                <MedecinForm 
-                  medecin={selectedMedecin} 
-                  onSuccess={handleFormSuccess}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                className="gap-2" 
+                onClick={() => setGlobalCalendarOpen(true)}
+              >
+                <Calendar className="h-4 w-4" />
+                Calendrier global
+              </Button>
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => setSelectedMedecin(null)}>
+                    <Plus className="h-4 w-4" />
+                    Ajouter un médecin
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl w-full max-h-[90vh] flex flex-col p-0">
+                  <DialogHeader className="px-6 pt-6">
+                    <DialogTitle>
+                      {selectedMedecin ? 'Modifier le médecin' : 'Ajouter un médecin'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="overflow-y-auto px-6 flex-1">
+                    <MedecinForm 
+                      medecin={selectedMedecin} 
+                      onSuccess={handleFormSuccess}
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </div>
 
@@ -582,6 +595,11 @@ export default function MedecinsPage() {
           onOpenChange={(open) => !open && setCalendarMedecin(null)}
           medecinId={calendarMedecin?.id || ''}
           medecinNom={calendarMedecin?.nom || ''}
+        />
+
+        <GlobalMedecinCalendarView
+          open={globalCalendarOpen}
+          onOpenChange={setGlobalCalendarOpen}
         />
     </div>
   );
