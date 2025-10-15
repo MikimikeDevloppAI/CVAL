@@ -114,12 +114,16 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       days.push(null);
     }
     for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
+      const date = new Date(year, month, i);
+      const dayOfWeek = date.getDay();
+      const dayOfWeekAbbr = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][dayOfWeek];
+      days.push({ day: i, dayOfWeek: dayOfWeekAbbr });
     }
     return days;
   };
 
-  const getCapacitesForSecretaireAndDate = (secretaireId: string, day: number) => {
+  const getCapacitesForSecretaireAndDate = (secretaireId: string, day: number | null) => {
+    if (!day) return [];
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
     return capacites.filter(c => c.secretaire_id === secretaireId && c.date === dateStr);
@@ -246,19 +250,24 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
 
           <div className="flex-1 overflow-auto">
             <div className="min-w-max">
-              {/* Header with days */}
-              <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}>
+              {/* Header with days - STICKY */}
+              <div className="grid gap-1 mb-2 sticky top-0 bg-background z-20 pb-2" style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}>
                 <div className="font-bold text-sm py-2 px-2 sticky left-0 bg-background z-10">
                   Secrétaire
                 </div>
-                {days.map((day, index) => (
+                {days.map((dayInfo, index) => (
                   <div
                     key={index}
                     className={`text-center font-bold text-xs py-2 ${
                       isWeekend(index) ? 'bg-accent/30' : 'bg-primary/10'
                     } rounded`}
                   >
-                    {day || ''}
+                    {dayInfo ? (
+                      <>
+                        <div className="text-sm">{dayInfo.day}</div>
+                        <div className="text-[10px] text-muted-foreground">{dayInfo.dayOfWeek}</div>
+                      </>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -273,11 +282,12 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                   <div className="font-medium text-sm py-2 px-2 sticky left-0 bg-background z-10 truncate">
                     {secretaire.first_name} {secretaire.name}
                   </div>
-                  {days.map((day, index) => {
-                    if (!day) {
+                  {days.map((dayInfo, index) => {
+                    if (!dayInfo) {
                       return <div key={index} className="min-h-[60px]" />;
                     }
 
+                    const day = dayInfo.day;
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
