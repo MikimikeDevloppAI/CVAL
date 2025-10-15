@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User, ChevronDown, Loader2, Plus } from 'lucide-react';
+import { Building2, User, ChevronDown, Loader2, Plus, Edit2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
@@ -29,6 +29,7 @@ interface SiteBesoinsData {
   medecins_ids: string[];
   medecins_noms: string[];
   personnel: {
+    id: string; // ID de l'assignment dans planning_genere_personnel
     secretaire_id: string | null;
     secretaire_nom: string;
     ordre: number;
@@ -127,6 +128,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         // Add personnel to the group
         if (assignment.secretaire_id && assignment.secretaires) {
           groupedSites.get(key)!.personnel.push({
+            id: assignment.id, // ID de l'assignment
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
@@ -177,6 +179,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         // Add personnel to the group
         if (assignment.secretaire_id && assignment.secretaires) {
           groupedAdmin.get(key)!.personnel.push({
+            id: assignment.id, // ID de l'assignment
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
@@ -270,10 +273,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     setManageDialogOpen(true);
   };
 
-  const handleRespClick = (personnel: any, assignment: any, date: string, periode: 'matin' | 'apres_midi', siteName: string) => {
+  const handleRespClick = (personnel: any, date: string, periode: 'matin' | 'apres_midi', siteName: string) => {
     const current = personnel.is_1r ? '1R' : personnel.is_2f ? '2F' : personnel.is_3f ? '3F' : 'none';
     setRespAssignment({
-      id: assignment.id,
+      id: personnel.id, // ID de l'assignment
       secretaire_nom: personnel.secretaire_nom,
       date,
       periode,
@@ -368,12 +371,32 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               )}
                               {matin.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1">
-                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDialogContext({
+                                          date,
+                                          periode: 'matin',
+                                          site_id: siteId,
+                                          site_nom: siteName,
+                                          secretaire_id: p.secretaire_id || undefined,
+                                          secretaire_nom: p.secretaire_nom,
+                                        });
+                                        setManageDialogOpen(true);
+                                      }}
+                                      className="p-1 hover:bg-accent rounded transition-colors"
+                                      title="Gérer ce créneau"
+                                    >
+                                      <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                    </button>
                                   </div>
                                   <button
-                                    onClick={() => handleRespClick(p, matin, date, 'matin', siteName)}
+                                    onClick={() => handleRespClick(p, date, 'matin', siteName)}
                                     className="flex gap-1 mt-1 hover:opacity-80 transition-opacity"
                                   >
                                     {p.is_1r && (
@@ -393,7 +416,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     )}
                                     {!p.is_1r && !p.is_2f && !p.is_3f && (
                                       <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground cursor-pointer">
-                                        + Resp.
+                                        1
                                       </Badge>
                                     )}
                                   </button>
@@ -436,12 +459,32 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               )}
                               {apresMidi.personnel.map((p, idx) => (
                                 <div key={idx} className="border rounded-lg p-2 bg-card">
-                                  <div className="flex items-center gap-1">
-                                    <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                    <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <User className="h-3 w-3 text-primary flex-shrink-0" />
+                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDialogContext({
+                                          date,
+                                          periode: 'apres_midi',
+                                          site_id: siteId,
+                                          site_nom: siteName,
+                                          secretaire_id: p.secretaire_id || undefined,
+                                          secretaire_nom: p.secretaire_nom,
+                                        });
+                                        setManageDialogOpen(true);
+                                      }}
+                                      className="p-1 hover:bg-accent rounded transition-colors"
+                                      title="Gérer ce créneau"
+                                    >
+                                      <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                    </button>
                                   </div>
                                   <button
-                                    onClick={() => handleRespClick(p, apresMidi, date, 'apres_midi', siteName)}
+                                    onClick={() => handleRespClick(p, date, 'apres_midi', siteName)}
                                     className="flex gap-1 mt-1 hover:opacity-80 transition-opacity"
                                   >
                                     {p.is_1r && (
@@ -461,7 +504,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     )}
                                     {!p.is_1r && !p.is_2f && !p.is_3f && (
                                       <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground cursor-pointer">
-                                        + Resp.
+                                        1
                                       </Badge>
                                     )}
                                   </button>
@@ -494,6 +537,25 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           </Collapsible>
         </Card>
       ))}
+
+      {/* Dialogs */}
+      {dialogContext && (
+        <ManagePersonnelDialog
+          open={manageDialogOpen}
+          onOpenChange={setManageDialogOpen}
+          context={dialogContext}
+          onSuccess={fetchSitePlanning}
+        />
+      )}
+
+      {respAssignment && (
+        <EditResponsibilitesDialog
+          open={editRespDialogOpen}
+          onOpenChange={setEditRespDialogOpen}
+          assignment={respAssignment}
+          onSuccess={fetchSitePlanning}
+        />
+      )}
     </div>
   );
 }
