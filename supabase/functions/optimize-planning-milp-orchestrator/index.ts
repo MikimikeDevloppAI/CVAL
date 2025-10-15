@@ -68,56 +68,63 @@ serve(async (req) => {
   if (selected_dates.length < 7) {
     console.log(`\n🧹 Cleaning up ${selected_dates.length} specific dates...`);
     for (const date of selected_dates) {
+      // 1. Delete ALL personnel assignments (site, admin, bloc, flexible)
       await supabaseServiceRole
         .from('planning_genere_personnel')
         .delete()
         .eq('planning_id', planning_id)
-        .eq('date', date)
-        .in('type_assignation', ['site', 'administratif']);
+        .eq('date', date);
+      
+      // 2. Reset closing responsibles (1R, 2F) in planning_genere
+      await supabaseServiceRole
+        .from('planning_genere')
+        .update({ 
+          responsable_1r_id: null, 
+          responsable_2f_id: null 
+        })
+        .eq('planning_id', planning_id)
+        .eq('date', date);
+      
+      // 3. Delete bloc operations
+      await supabaseServiceRole
+        .from('planning_genere_bloc_operatoire')
+        .delete()
+        .eq('planning_id', planning_id)
+        .eq('date', date);
+      
+      console.log(`  ✅ Cleaned date ${date}`);
     }
     console.log('✅ Partial cleanup complete');
   } else {
     console.log('🧹 Cleaning up full week...');
+    
+    // 1. Delete ALL personnel assignments
     await supabaseServiceRole
       .from('planning_genere_personnel')
       .delete()
-      .eq('planning_id', planning_id)
-      .in('type_assignation', ['site', 'administratif']);
+      .eq('planning_id', planning_id);
+    
+    // 2. Reset closing responsibles (1R, 2F)
+    await supabaseServiceRole
+      .from('planning_genere')
+      .update({ 
+        responsable_1r_id: null, 
+        responsable_2f_id: null 
+      })
+      .eq('planning_id', planning_id);
+    
+    // 3. Delete bloc operations
+    await supabaseServiceRole
+      .from('planning_genere_bloc_operatoire')
+      .delete()
+      .eq('planning_id', planning_id);
+    
     console.log('✅ Full cleanup complete');
   }
 
   // PHASE 1: Bloc opératoire
   if (optimize_bloc) {
     console.log('🏥 Phase 1: Optimizing bloc operatoire...');
-    
-    // Delete existing bloc operations and bloc personnel for selected dates
-    if (selected_dates.length < 7) {
-      for (const date of selected_dates) {
-        await supabaseServiceRole
-          .from('planning_genere_bloc_operatoire')
-          .delete()
-          .eq('planning_id', planning_id)
-          .eq('date', date);
-
-        await supabaseServiceRole
-          .from('planning_genere_personnel')
-          .delete()
-          .eq('planning_id', planning_id)
-          .eq('date', date)
-          .eq('type_assignation', 'bloc');
-      }
-    } else {
-      await supabaseServiceRole
-        .from('planning_genere_bloc_operatoire')
-        .delete()
-        .eq('planning_id', planning_id);
-
-      await supabaseServiceRole
-        .from('planning_genere_personnel')
-        .delete()
-        .eq('planning_id', planning_id)
-        .eq('type_assignation', 'bloc');
-    }
 
     const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
     const blocResponse = await fetch(blocUrl, {
