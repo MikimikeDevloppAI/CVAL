@@ -355,15 +355,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                 <span className="text-muted-foreground font-normal">Assistant Médical</span>
               </div>
               <div className="flex items-center justify-between gap-4 w-full">
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setExportDialogOpen(true)}
-                  className="gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Exporter Excel
-                </Button>
+                <div className="w-[140px]" />
                 
                 <div className="flex items-center gap-3">
                   <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading} className="hover:bg-primary/10">
@@ -377,7 +369,15 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                   </Button>
                 </div>
                 
-                <div className="w-[140px]" />
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setExportDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Exporter Excel
+                </Button>
               </div>
             </DialogTitle>
           </DialogHeader>
