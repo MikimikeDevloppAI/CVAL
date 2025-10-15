@@ -164,11 +164,15 @@ export function ManagePersonnelDialog({
         fetchAvailableSecretaries();
       } else if (action === 'remove') {
         fetchAssignedSecretaries();
-      } else if (action === 'swap' && context.assignment_id) {
-        fetchCompatibleSecretaries();
       }
     }
   }, [action, context]);
+
+  useEffect(() => {
+    if (action === 'swap' && context.assignment_id) {
+      fetchCompatibleSecretaries();
+    }
+  }, [action, context.assignment_id, selectedPeriod]);
 
   const fetchAvailableSecretaries = async () => {
     if (!context.site_id || !context.periode) return;
@@ -215,13 +219,23 @@ export function ManagePersonnelDialog({
   };
 
   const fetchCompatibleSecretaries = async () => {
-    if (!context.assignment_id || !context.periode) return;
+    if (!context.assignment_id) return;
     setLoading(true);
     try {
+      // Determine which period to use for fetching compatible secretaries
+      let fetchPeriod: 'matin' | 'apres_midi' = 'matin';
+      
+      if (selectedPeriod === 'toute_journee') {
+        // For full day, we'll fetch for morning and user can swap the whole day
+        fetchPeriod = 'matin';
+      } else {
+        fetchPeriod = selectedPeriod as 'matin' | 'apres_midi';
+      }
+
       const secs = await getCompatibleSecretariesForSwap(
         context.assignment_id,
         context.date,
-        context.periode
+        fetchPeriod
       );
       setAvailableSecretaries(secs);
     } catch (error) {
@@ -625,26 +639,48 @@ export function ManagePersonnelDialog({
           )}
 
           {action === 'swap' && (
-            <div className="space-y-2">
-              <Label>Échanger avec (autre site uniquement)</Label>
-              <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSecretaries.map((sec) => (
-                    <SelectItem key={sec.assignment_id} value={sec.assignment_id}>
-                      {sec.first_name} {sec.name} - {sec.site_nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {availableSecretaries.length === 0 && !loading && (
-                <p className="text-sm text-muted-foreground">
-                  Aucune secrétaire compatible pour l'échange (sur un autre site)
-                </p>
+            <>
+              {isFullDayAssignment && (
+                <div className="space-y-2">
+                  <Label>Période à échanger</Label>
+                  <RadioGroup value={selectedPeriod} onValueChange={(value: any) => setSelectedPeriod(value)}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="matin" id="swap-matin" />
+                      <Label htmlFor="swap-matin">Matin uniquement</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="apres_midi" id="swap-apres-midi" />
+                      <Label htmlFor="swap-apres-midi">Après-midi uniquement</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="toute_journee" id="swap-toute-journee" />
+                      <Label htmlFor="swap-toute-journee">Toute la journée</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
               )}
-            </div>
+
+              <div className="space-y-2">
+                <Label>Échanger avec (autre site uniquement)</Label>
+                <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSecretaries.map((sec) => (
+                      <SelectItem key={sec.assignment_id} value={sec.assignment_id}>
+                        {sec.first_name} {sec.name} - {sec.site_nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {availableSecretaries.length === 0 && !loading && (
+                  <p className="text-sm text-muted-foreground">
+                    Aucune secrétaire compatible pour l'échange (sur un autre site)
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </div>
 
