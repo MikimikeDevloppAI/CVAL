@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Loader2, Scissors, Users, Clock, MapPin } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { ChangeSalleDialog } from './ChangeSalleDialog';
 
 interface BlocOperation {
   id: string;
@@ -66,10 +67,23 @@ const SALLE_COLORS: Record<string, string> = {
 export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoirePlanningViewProps) {
   const [operations, setOperations] = useState<BlocOperation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [changeSalleDialogOpen, setChangeSalleDialogOpen] = useState(false);
+  const [selectedOperation, setSelectedOperation] = useState<any>(null);
 
   useEffect(() => {
     fetchBlocOperations();
   }, [startDate, endDate]);
+
+  const handleChangeSalle = (operation: BlocOperation) => {
+    setSelectedOperation({
+      id: operation.id,
+      date: operation.date,
+      periode: operation.periode,
+      salle_assignee: operation.salle_assignee,
+      type_intervention_nom: operation.type_intervention?.nom || 'Type non défini',
+    });
+    setChangeSalleDialogOpen(true);
+  };
 
   const fetchBlocOperations = async () => {
     setLoading(true);
@@ -184,13 +198,15 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                           <Badge variant="outline" className="text-base px-3 py-1">
                             {PERIODE_LABELS[operation.periode]}
                           </Badge>
-                          <Badge 
-                            className={`text-base px-3 py-1 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
-                            variant="outline"
-                          >
-                            <MapPin className="h-4 w-4 mr-1" />
-                            Salle {operation.salle_assignee}
-                          </Badge>
+                          <button onClick={() => handleChangeSalle(operation)}>
+                            <Badge 
+                              className={`text-base px-3 py-1 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'} cursor-pointer hover:opacity-80 transition-opacity`}
+                              variant="outline"
+                            >
+                              <MapPin className="h-4 w-4 mr-1" />
+                              Salle {operation.salle_assignee}
+                            </Badge>
+                          </button>
                         </div>
                         
                         <div className="flex items-center gap-2">
@@ -263,6 +279,18 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
           </CardContent>
         </Card>
       ))}
+
+      {selectedOperation && (
+        <ChangeSalleDialog
+          open={changeSalleDialogOpen}
+          onOpenChange={setChangeSalleDialogOpen}
+          operation={selectedOperation}
+          onSuccess={() => {
+            fetchBlocOperations();
+            setSelectedOperation(null);
+          }}
+        />
+      )}
     </div>
   );
 }

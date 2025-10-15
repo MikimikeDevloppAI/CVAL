@@ -6,6 +6,7 @@ import { fr } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Separator } from '@/components/ui/separator';
+import { AssignToUnsatisfiedNeedDialog } from './AssignToUnsatisfiedNeedDialog';
 
 interface UnsatisfiedNeedsReportProps {
   startDate: Date;
@@ -28,10 +29,25 @@ interface MissingNeed {
 export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsReportProps) {
   const [missingNeeds, setMissingNeeds] = useState<MissingNeed[]>([]);
   const [loading, setLoading] = useState(true);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedNeed, setSelectedNeed] = useState<any>(null);
 
   useEffect(() => {
     fetchMissingNeeds();
   }, [startDate, endDate]);
+
+  const handleNeedClick = (need: MissingNeed, plannelPersonnelId?: string) => {
+    setSelectedNeed({
+      date: need.date,
+      periode: need.periode,
+      type: need.type,
+      site_id: need.site_id,
+      site_nom: need.site_nom,
+      type_besoin_bloc: need.type,
+      planning_genere_personnel_id: plannelPersonnelId,
+    });
+    setAssignDialogOpen(true);
+  };
 
   const fetchMissingNeeds = async () => {
     setLoading(true);
@@ -233,7 +249,11 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
             
             <div className="space-y-2 pl-4">
               {needs.map((need, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-background rounded border border-destructive/30">
+                <button
+                  key={idx}
+                  onClick={() => handleNeedClick(need)}
+                  className="w-full flex items-center justify-between p-3 bg-background rounded border border-destructive/30 hover:bg-destructive/5 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
                     {need.type === 'site' ? (
                       <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -270,7 +290,7 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
                   <Badge variant="destructive">
                     -{need.missing}
                   </Badge>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -280,6 +300,18 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
           </div>
         ))}
       </CardContent>
+
+      {selectedNeed && (
+        <AssignToUnsatisfiedNeedDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          need={selectedNeed}
+          onSuccess={() => {
+            fetchMissingNeeds();
+            setSelectedNeed(null);
+          }}
+        />
+      )}
     </Card>
   );
 }

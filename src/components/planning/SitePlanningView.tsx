@@ -4,11 +4,14 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User, ChevronDown, Loader2 } from 'lucide-react';
+import { Building2, User, ChevronDown, Loader2, Plus } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
 import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
+import { ManagePersonnelDialog } from './ManagePersonnelDialog';
+import { EditResponsibilitesDialog } from './EditResponsibilitesDialog';
+import { Button } from '@/components/ui/button';
 
 interface SitePlanningViewProps {
   startDate: Date;
@@ -41,6 +44,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const [loading, setLoading] = useState(true);
   const [siteBesoins, setSiteBesoins] = useState<SiteBesoinsData[]>([]);
   const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [editRespDialogOpen, setEditRespDialogOpen] = useState(false);
+  const [dialogContext, setDialogContext] = useState<any>(null);
+  const [respAssignment, setRespAssignment] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -221,7 +228,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     );
   }
 
-  // Grouper par site (already grouped in fetch, just need to organize by site)
+  // Grouper par site et trier alphabétiquement
   const sites = [...new Set(siteBesoins.map(b => b.site_id))];
   const bySite = sites.map(siteId => {
     const siteData = siteBesoins.filter(b => b.site_id === siteId);
@@ -251,7 +258,30 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
       totalSecretaires,
       totalRequis,
     };
-  });
+  }).sort((a, b) => a.siteName.localeCompare(b.siteName, 'fr'));
+
+  const handleDayClick = (date: string, periode: 'matin' | 'apres_midi', siteId: string, siteName: string) => {
+    setDialogContext({
+      date,
+      periode,
+      site_id: siteId,
+      site_nom: siteName,
+    });
+    setManageDialogOpen(true);
+  };
+
+  const handleRespClick = (personnel: any, assignment: any, date: string, periode: 'matin' | 'apres_midi', siteName: string) => {
+    const current = personnel.is_1r ? '1R' : personnel.is_2f ? '2F' : personnel.is_3f ? '3F' : 'none';
+    setRespAssignment({
+      id: assignment.id,
+      secretaire_nom: personnel.secretaire_nom,
+      date,
+      periode,
+      site_nom: siteName,
+      current,
+    });
+    setEditRespDialogOpen(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -312,6 +342,17 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                         
                         {/* Personnel du jour */}
                         <div className="space-y-3 p-3 flex-1">
+                          {/* Bouton Matin */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-xs font-medium text-muted-foreground hover:bg-muted/50"
+                            onClick={() => handleDayClick(date, 'matin', siteId, siteName)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Matin
+                          </Button>
+                          
                           {/* Matin */}
                           {matin && (matin.personnel.length > 0 || matin.medecins_noms.length > 0) && (
                             <div className="space-y-2">
@@ -331,23 +372,31 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
-                                  <div className="flex gap-1 mt-1">
+                                  <button
+                                    onClick={() => handleRespClick(p, matin, date, 'matin', siteName)}
+                                    className="flex gap-1 mt-1 hover:opacity-80 transition-opacity"
+                                  >
                                     {p.is_1r && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300 cursor-pointer">
                                         1R
                                       </Badge>
                                     )}
                                     {p.is_2f && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300 cursor-pointer">
                                         2F
                                       </Badge>
                                     )}
                                     {p.is_3f && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300 cursor-pointer">
                                         3F
                                       </Badge>
                                     )}
-                                  </div>
+                                    {!p.is_1r && !p.is_2f && !p.is_3f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground cursor-pointer">
+                                        + Resp.
+                                      </Badge>
+                                    )}
+                                  </button>
                                 </div>
                               ))}
                               {matin.personnel.length > 0 && (
@@ -360,6 +409,17 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                               )}
                             </div>
                           )}
+                          
+                          {/* Bouton Après-midi */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-xs font-medium text-muted-foreground hover:bg-muted/50"
+                            onClick={() => handleDayClick(date, 'apres_midi', siteId, siteName)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Après-midi
+                          </Button>
                           
                           {/* Après-midi */}
                           {apresMidi && (apresMidi.personnel.length > 0 || apresMidi.medecins_noms.length > 0) && (
@@ -380,23 +440,31 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                     <User className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                   </div>
-                                  <div className="flex gap-1 mt-1">
+                                  <button
+                                    onClick={() => handleRespClick(p, apresMidi, date, 'apres_midi', siteName)}
+                                    className="flex gap-1 mt-1 hover:opacity-80 transition-opacity"
+                                  >
                                     {p.is_1r && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-300 cursor-pointer">
                                         1R
                                       </Badge>
                                     )}
                                     {p.is_2f && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-300 cursor-pointer">
                                         2F
                                       </Badge>
                                     )}
                                     {p.is_3f && (
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-300 cursor-pointer">
                                         3F
                                       </Badge>
                                     )}
-                                  </div>
+                                    {!p.is_1r && !p.is_2f && !p.is_3f && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground cursor-pointer">
+                                        + Resp.
+                                      </Badge>
+                                    )}
+                                  </button>
                                 </div>
                               ))}
                               {apresMidi.personnel.length > 0 && (

@@ -199,9 +199,9 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
         }
       });
 
-      // Convert to array and sort by total assignments
+      // Convert to array and sort alphabetically
       const sortedSecretaries = Array.from(secretaryMap.values()).sort(
-        (a, b) => b.totalAssignments - a.totalAssignments
+        (a, b) => a.name.localeCompare(b.name, 'fr')
       );
 
       setSecretaries(sortedSecretaries);
