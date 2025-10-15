@@ -19,11 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
 import { 
   getAvailableSecretariesForSite, 
   getAssignedSecretariesForSite,
-  getCompatibleSecretariesForSwap 
+  getCompatibleSecretariesForSwap,
+  getFullDayAssignments,
 } from '@/lib/planningHelpers';
 
 interface ManagePersonnelDialogProps {
@@ -59,6 +61,10 @@ export function ManagePersonnelDialog({
   const [is1R, setIs1R] = useState(false);
   const [is2F, setIs2F] = useState(false);
   const [is3F, setIs3F] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('matin');
+  const [isFullDayAssignment, setIsFullDayAssignment] = useState(false);
+  const [morningAssignmentId, setMorningAssignmentId] = useState<string | null>(null);
+  const [afternoonAssignmentId, setAfternoonAssignmentId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,6 +81,10 @@ export function ManagePersonnelDialog({
         setIs1R(false);
         setIs2F(false);
         setIs3F(false);
+        setSelectedPeriod('matin');
+        setIsFullDayAssignment(false);
+        setMorningAssignmentId(null);
+        setAfternoonAssignmentId(null);
       }
       loadSites();
     }
@@ -93,7 +103,7 @@ export function ManagePersonnelDialog({
   };
 
   const loadCurrentAssignment = async () => {
-    if (!context.assignment_id) return;
+    if (!context.assignment_id || !context.secretaire_id) return;
     
     setLoading(true);
     try {
@@ -103,6 +113,7 @@ export function ManagePersonnelDialog({
           id,
           secretaire_id,
           site_id,
+          periode,
           is_1r,
           is_2f,
           is_3f,
@@ -123,6 +134,17 @@ export function ManagePersonnelDialog({
         setIs1R(data.is_1r || false);
         setIs2F(data.is_2f || false);
         setIs3F(data.is_3f || false);
+        setSelectedPeriod(data.periode);
+
+        // Check if this is part of a full day assignment
+        const fullDayInfo = await getFullDayAssignments(context.date, context.secretaire_id);
+        setIsFullDayAssignment(fullDayInfo.isFullDay);
+        setMorningAssignmentId(fullDayInfo.morningId);
+        setAfternoonAssignmentId(fullDayInfo.afternoonId);
+
+        if (fullDayInfo.isFullDay) {
+          setSelectedPeriod('toute_journee');
+        }
       }
     } catch (error) {
       console.error('Error loading assignment:', error);
@@ -293,23 +315,58 @@ export function ManagePersonnelDialog({
   };
 
   const handleEdit = async () => {
-    if (!context.assignment_id) return;
+    if (!context.assignment_id || !selectedSiteId) {
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez sélectionner un site',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('planning_genere_personnel')
-        .update({
-          site_id: selectedSiteId,
-          is_1r: is1R,
-          is_2f: is2F,
-          is_3f: is3F,
-        })
-        .eq('id', context.assignment_id);
+      const updateData = {
+        site_id: selectedSiteId,
+        is_1r: is1R,
+        is_2f: is2F,
+        is_3f: is3F,
+      };
 
-      if (error) throw error;
+      // If full day and user wants to modify both periods
+      if (selectedPeriod === 'toute_journee' && morningAssignmentId && afternoonAssignmentId) {
+        // Update both morning and afternoon
+        const { error: morningError } = await supabase
+          .from('planning_genere_personnel')
+          .update(updateData)
+          .eq('id', morningAssignmentId);
 
-      toast({ title: 'Succès', description: 'Assignation modifiée avec succès' });
+        if (morningError) throw morningError;
+
+        const { error: afternoonError } = await supabase
+          .from('planning_genere_personnel')
+          .update(updateData)
+          .eq('id', afternoonAssignmentId);
+
+        if (afternoonError) throw afternoonError;
+
+        toast({ title: 'Succès', description: 'Assignations de la journée modifiées avec succès' });
+      } else {
+        // Single period modification
+        const targetId = selectedPeriod === 'matin' ? morningAssignmentId : 
+                        selectedPeriod === 'apres_midi' ? afternoonAssignmentId : 
+                        context.assignment_id;
+
+        const { error } = await supabase
+          .from('planning_genere_personnel')
+          .update(updateData)
+          .eq('id', targetId);
+
+        if (error) throw error;
+
+        toast({ title: 'Succès', description: 'Assignation modifiée avec succès' });
+      }
+
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
@@ -398,6 +455,26 @@ export function ManagePersonnelDialog({
 
           {action === 'edit' && (
             <>
+              {isFullDayAssignment && (
+                <div className="space-y-2">
+                  <Label>Période à modifier</Label>
+                  <RadioGroup value={selectedPeriod} onValueChange={(value: any) => setSelectedPeriod(value)}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="matin" id="edit-matin" />
+                      <Label htmlFor="edit-matin">Matin uniquement</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="apres_midi" id="edit-apres-midi" />
+                      <Label htmlFor="edit-apres-midi">Après-midi uniquement</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="toute_journee" id="edit-toute-journee" />
+                      <Label htmlFor="edit-toute-journee">Toute la journée</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Site</Label>
                 <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>

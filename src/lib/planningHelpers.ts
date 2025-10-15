@@ -241,3 +241,41 @@ export async function getCompatibleSecretariesForSwap(
     return nameA.localeCompare(nameB);
   });
 }
+
+/**
+ * Get full day assignments for a secretary on a specific date
+ * Returns the IDs of morning and afternoon assignments if they exist as a full day
+ */
+export async function getFullDayAssignments(
+  date: string,
+  secretaryId: string
+): Promise<{ morningId: string | null; afternoonId: string | null; isFullDay: boolean }> {
+  const { data: assignments, error } = await supabase
+    .from('planning_genere_personnel')
+    .select('id, periode, site_id, type_assignation')
+    .eq('date', date)
+    .eq('secretaire_id', secretaryId)
+    .in('periode', ['matin', 'apres_midi']);
+
+  if (error) {
+    console.error('Error fetching full day assignments:', error);
+    return { morningId: null, afternoonId: null, isFullDay: false };
+  }
+
+  const matin = assignments?.find(a => a.periode === 'matin');
+  const apresMidi = assignments?.find(a => a.periode === 'apres_midi');
+
+  // It's a full day if both periods exist with the same site and type
+  const isFullDay = !!(
+    matin && 
+    apresMidi && 
+    matin.site_id === apresMidi.site_id &&
+    matin.type_assignation === apresMidi.type_assignation
+  );
+
+  return {
+    morningId: matin?.id || null,
+    afternoonId: apresMidi?.id || null,
+    isFullDay
+  };
+}

@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Clock, MapPin, Loader2, X } from 'lucide-react';
+import { User, Clock, MapPin, Loader2, X, Edit2 } from 'lucide-react';
 import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
+import { ManagePersonnelDialog } from './ManagePersonnelDialog';
 
 const SALLE_COLORS: Record<string, string> = {
   rouge: 'bg-red-100 text-red-700 border-red-300',
@@ -64,6 +65,8 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
     hasMatin: boolean;
     hasApresMidi: boolean;
   } | null>(null);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [dialogContext, setDialogContext] = useState<any>(null);
 
   useEffect(() => {
     fetchSecretaryPlanning();
@@ -223,6 +226,16 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
     setDeleteDialogOpen(true);
   };
 
+  const handleEditClick = (assignmentId: string, date: string, periode: 'matin' | 'apres_midi', secretaryId: string) => {
+    setDialogContext({
+      date,
+      periode,
+      assignment_id: assignmentId,
+      secretaire_id: secretaryId,
+    });
+    setManageDialogOpen(true);
+  };
+
   const getAssignmentBadge = (assignment: SecretaryAssignment) => {
     if (assignment.type_assignation === 'administratif') {
       return (
@@ -341,14 +354,24 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                               <div className="flex-1 min-w-0">
                                 {getAssignmentBadge(matin)}
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditClick(matin.id, dateStr, 'matin', secretary.id)}
+                                  className="h-8 w-8 p-0 text-primary hover:text-primary"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           );
                         }
@@ -370,14 +393,24 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                 )}
                               </div>
                               {matin && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, !!apresMidi)}
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditClick(matin.id, dateStr, 'matin', secretary.id)}
+                                    className="h-8 w-8 p-0 text-primary hover:text-primary"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, !!apresMidi)}
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               )}
                             </div>
 
@@ -395,14 +428,24 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                 )}
                               </div>
                               {apresMidi && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, !!matin, true)}
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditClick(apresMidi.id, dateStr, 'apres_midi', secretary.id)}
+                                    className="h-8 w-8 p-0 text-primary hover:text-primary"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, !!matin, true)}
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           </>
@@ -429,6 +472,18 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
           onSuccess={() => {
             fetchSecretaryPlanning();
             setSecretaryToDelete(null);
+          }}
+        />
+      )}
+
+      {dialogContext && (
+        <ManagePersonnelDialog
+          open={manageDialogOpen}
+          onOpenChange={setManageDialogOpen}
+          context={dialogContext}
+          onSuccess={() => {
+            fetchSecretaryPlanning();
+            setDialogContext(null);
           }}
         />
       )}
