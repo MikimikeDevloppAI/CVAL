@@ -376,24 +376,25 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDialogContext({
-                                          date,
-                                          periode: 'matin',
-                                          site_id: siteId,
-                                          site_nom: siteName,
-                                          secretaire_id: p.secretaire_id || undefined,
-                                          secretaire_nom: p.secretaire_nom,
-                                        });
-                                        setManageDialogOpen(true);
-                                      }}
-                                      className="p-1 hover:bg-accent rounded transition-colors"
-                                      title="Gérer ce créneau"
-                                    >
-                                      <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                    </button>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setDialogContext({
+                                           date,
+                                           periode: 'matin',
+                                           site_id: siteId,
+                                           site_nom: siteName,
+                                           secretaire_id: p.secretaire_id || undefined,
+                                           secretaire_nom: p.secretaire_nom,
+                                           assignment_id: p.id,
+                                         });
+                                         setManageDialogOpen(true);
+                                       }}
+                                       className="p-1 hover:bg-accent rounded transition-colors"
+                                       title="Gérer ce créneau"
+                                     >
+                                       <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                     </button>
                                   </div>
                                   <button
                                     onClick={() => handleRespClick(p, date, 'matin', siteName)}
@@ -464,24 +465,25 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDialogContext({
-                                          date,
-                                          periode: 'apres_midi',
-                                          site_id: siteId,
-                                          site_nom: siteName,
-                                          secretaire_id: p.secretaire_id || undefined,
-                                          secretaire_nom: p.secretaire_nom,
-                                        });
-                                        setManageDialogOpen(true);
-                                      }}
-                                      className="p-1 hover:bg-accent rounded transition-colors"
-                                      title="Gérer ce créneau"
-                                    >
-                                      <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                    </button>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setDialogContext({
+                                           date,
+                                           periode: 'apres_midi',
+                                           site_id: siteId,
+                                           site_nom: siteName,
+                                           secretaire_id: p.secretaire_id || undefined,
+                                           secretaire_nom: p.secretaire_nom,
+                                           assignment_id: p.id,
+                                         });
+                                         setManageDialogOpen(true);
+                                       }}
+                                       className="p-1 hover:bg-accent rounded transition-colors"
+                                       title="Gérer ce créneau"
+                                     >
+                                       <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                     </button>
                                   </div>
                                   <button
                                     onClick={() => handleRespClick(p, date, 'apres_midi', siteName)}

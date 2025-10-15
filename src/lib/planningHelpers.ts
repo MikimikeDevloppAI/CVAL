@@ -148,93 +148,96 @@ export async function getAssignedSecretariesForSite(
  * Both must be able to work at each other's sites
  */
 export async function getCompatibleSecretariesForSwap(
-  secretaryAId: string,
+  currentAssignmentId: string,
   date: string,
   periode: 'matin' | 'apres_midi'
-) {
-  // Get secretary A's profile
-  const { data: secA, error: secAError } = await supabase
-    .from('secretaires')
-    .select('sites_assignes')
-    .eq('id', secretaryAId)
-    .single();
-
-  if (secAError) throw secAError;
-
-  const sitesOfA = secA.sites_assignes || [];
-
-  // Get secretary A's assignments for this date
-  const { data: assignmentsA, error: assignmentsAError } = await supabase
-    .from('planning_genere_personnel')
-    .select('site_id')
-    .eq('secretaire_id', secretaryAId)
-    .eq('date', date)
-    .eq('type_assignation', 'site');
-
-  if (assignmentsAError) throw assignmentsAError;
-
-  const sitesWhereAWorks = assignmentsA.map(a => a.site_id);
-
-  // Get all other secretaries working this day
-  const { data: candidatesB, error: candidatesBError } = await supabase
+): Promise<any[]> {
+  // First, get the current assignment to know secretary and site
+  const { data: currentAssignment, error: errorCurrent } = await supabase
     .from('planning_genere_personnel')
     .select(`
+      id,
       secretaire_id,
       site_id,
-      secretaires!secretaire_id(id, first_name, name, sites_assignes)
+      secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey (
+        id,
+        first_name,
+        name,
+        sites_assignes
+      )
+    `)
+    .eq('id', currentAssignmentId)
+    .single();
+
+  if (errorCurrent || !currentAssignment) {
+    console.error('Error fetching current assignment:', errorCurrent);
+    return [];
+  }
+
+  const currentSiteId = currentAssignment.site_id;
+  const secretaryAId = currentAssignment.secretaire_id;
+  const sitesA = currentAssignment.secretaires?.sites_assignes || [];
+
+  // Get all secretaries assigned on the same date and periode, on DIFFERENT sites
+  const { data: assignments, error: errorAssignments } = await supabase
+    .from('planning_genere_personnel')
+    .select(`
+      id,
+      secretaire_id,
+      site_id,
+      is_1r,
+      is_2f,
+      is_3f,
+      sites:sites!planning_genere_personnel_site_id_fkey (
+        id,
+        nom
+      ),
+      secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey (
+        id,
+        first_name,
+        name,
+        sites_assignes
+      )
     `)
     .eq('date', date)
+    .eq('periode', periode)
     .eq('type_assignation', 'site')
     .neq('secretaire_id', secretaryAId)
-    .not('secretaire_id', 'is', null);
+    .neq('site_id', currentSiteId); // Only different sites
 
-  if (candidatesBError) throw candidatesBError;
-
-  // Build a map of secretary B -> sites where B works
-  const secBSitesMap = new Map<string, Set<string>>();
-  const secBInfoMap = new Map<string, any>();
-
-  for (const assignment of candidatesB || []) {
-    const secId = assignment.secretaire_id;
-    if (!secId) continue;
-
-    if (!secBSitesMap.has(secId)) {
-      secBSitesMap.set(secId, new Set());
-      secBInfoMap.set(secId, assignment.secretaires);
-    }
-    if (assignment.site_id) {
-      secBSitesMap.get(secId)!.add(assignment.site_id);
-    }
+  if (errorAssignments || !assignments) {
+    console.error('Error fetching assignments:', errorAssignments);
+    return [];
   }
 
-  // Filter compatible secretaries
-  const compatible = [];
-  for (const [secBId, sitesWhereWorks] of secBSitesMap.entries()) {
-    const secBInfo = secBInfoMap.get(secBId);
-    if (!secBInfo) continue;
+  // Filter compatible secretaries:
+  // - Secretary A can cover secretary B's site
+  // - Secretary B can cover the current site
+  const compatible = assignments
+    .filter((assignment: any) => {
+      if (!assignment.secretaires) return false;
+      
+      const sitesB = assignment.secretaires.sites_assignes || [];
+      const siteB = assignment.site_id;
 
-    const profileSitesB = secBInfo.sites_assignes || [];
-    const sitesWhereBWorks = Array.from(sitesWhereWorks);
+      // Check if A can cover B's site and B can cover current site
+      const aCanCoverB = sitesA.includes(siteB);
+      const bCanCoverCurrent = sitesB.includes(currentSiteId);
 
-    // B must have in profile all sites where A works
-    const bCanReplaceA = sitesWhereAWorks.every(siteA => profileSitesB.includes(siteA));
+      return aCanCoverB && bCanCoverCurrent;
+    })
+    .map((assignment: any) => ({
+      ...assignment.secretaires,
+      assignment_id: assignment.id,
+      site_nom: assignment.sites?.nom || '',
+      is_1r: assignment.is_1r,
+      is_2f: assignment.is_2f,
+      is_3f: assignment.is_3f,
+    }));
 
-    // A must have in profile all sites where B works
-    const aCanReplaceB = sitesWhereBWorks.every(siteB => sitesOfA.includes(siteB));
-
-    if (bCanReplaceA && aCanReplaceB) {
-      compatible.push({
-        id: secBId,
-        first_name: secBInfo.first_name,
-        name: secBInfo.name,
-      });
-    }
-  }
-
-  // Sort alphabetically
-  return compatible.sort((a, b) => {
+  return compatible.sort((a: any, b: any) => {
     const nameA = `${a.first_name} ${a.name}`.toLowerCase();
     const nameB = `${b.first_name} ${b.name}`.toLowerCase();
-    return nameA.localeCompare(nameB, 'fr');
+    return nameA.localeCompare(nameB);
   });
 }

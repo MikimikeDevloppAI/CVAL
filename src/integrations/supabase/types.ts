@@ -1250,6 +1250,10 @@ export type Database = {
         }
         Returns: Json
       }
+      swap_secretaries_personnel: {
+        Args: { p_assignment_id_1: string; p_assignment_id_2: string }
+        Returns: Json
+      }
       update_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]

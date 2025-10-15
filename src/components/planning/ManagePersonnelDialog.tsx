@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Toggle } from '@/components/ui/toggle';
 import { Loader2 } from 'lucide-react';
 import { 
   getAvailableSecretariesForSite, 
@@ -36,12 +36,12 @@ interface ManagePersonnelDialogProps {
     periode?: 'matin' | 'apres_midi';
     secretaire_id?: string;
     secretaire_nom?: string;
+    assignment_id?: string;
   };
   onSuccess: () => void;
 }
 
-type Action = 'add' | 'remove' | 'swap';
-type SwapScope = 'periode' | 'both';
+type Action = 'add' | 'remove' | 'swap' | 'edit';
 
 export function ManagePersonnelDialog({
   open,
@@ -53,17 +53,88 @@ export function ManagePersonnelDialog({
   const [action, setAction] = useState<Action | null>(null);
   const [availableSecretaries, setAvailableSecretaries] = useState<any[]>([]);
   const [assignedSecretaries, setAssignedSecretaries] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
   const [selectedSecretaryId, setSelectedSecretaryId] = useState('');
-  const [swapScope, setSwapScope] = useState<SwapScope>('periode');
+  const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [is1R, setIs1R] = useState(false);
+  const [is2F, setIs2F] = useState(false);
+  const [is3F, setIs3F] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      setAction(null);
-      setSelectedSecretaryId('');
-      setSwapScope('periode');
+      if (context.assignment_id) {
+        // Edit mode - load current assignment data
+        setAction('edit');
+        loadCurrentAssignment();
+      } else {
+        // New assignment mode
+        setAction(null);
+        setSelectedSecretaryId('');
+        setSelectedSiteId(context.site_id || '');
+        setIs1R(false);
+        setIs2F(false);
+        setIs3F(false);
+      }
+      loadSites();
     }
-  }, [open]);
+  }, [open, context.assignment_id]);
+
+  const loadSites = async () => {
+    const { data, error } = await supabase
+      .from('sites')
+      .select('id, nom')
+      .eq('actif', true)
+      .order('nom');
+
+    if (!error && data) {
+      setSites(data);
+    }
+  };
+
+  const loadCurrentAssignment = async () => {
+    if (!context.assignment_id) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('planning_genere_personnel')
+        .select(`
+          id,
+          secretaire_id,
+          site_id,
+          is_1r,
+          is_2f,
+          is_3f,
+          secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey (
+            id,
+            first_name,
+            name
+          )
+        `)
+        .eq('id', context.assignment_id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSelectedSecretaryId(data.secretaire_id || '');
+        setSelectedSiteId(data.site_id || '');
+        setIs1R(data.is_1r || false);
+        setIs2F(data.is_2f || false);
+        setIs3F(data.is_3f || false);
+      }
+    } catch (error) {
+      console.error('Error loading assignment:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les informations',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (action && context.site_id && context.periode) {
@@ -71,7 +142,7 @@ export function ManagePersonnelDialog({
         fetchAvailableSecretaries();
       } else if (action === 'remove') {
         fetchAssignedSecretaries();
-      } else if (action === 'swap' && context.secretaire_id) {
+      } else if (action === 'swap' && context.assignment_id) {
         fetchCompatibleSecretaries();
       }
     }
@@ -122,11 +193,11 @@ export function ManagePersonnelDialog({
   };
 
   const fetchCompatibleSecretaries = async () => {
-    if (!context.secretaire_id || !context.periode) return;
+    if (!context.assignment_id || !context.periode) return;
     setLoading(true);
     try {
       const secs = await getCompatibleSecretariesForSwap(
-        context.secretaire_id,
+        context.assignment_id,
         context.date,
         context.periode
       );
@@ -144,7 +215,7 @@ export function ManagePersonnelDialog({
   };
 
   const handleAdd = async () => {
-    if (!selectedSecretaryId || !context.site_id || !context.periode) return;
+    if (!selectedSecretaryId || !selectedSiteId || !context.periode) return;
 
     setLoading(true);
     try {
@@ -154,7 +225,7 @@ export function ManagePersonnelDialog({
         .select('ordre')
         .eq('date', context.date)
         .eq('periode', context.periode)
-        .eq('site_id', context.site_id)
+        .eq('site_id', selectedSiteId)
         .eq('type_assignation', 'site')
         .order('ordre', { ascending: false })
         .limit(1);
@@ -168,13 +239,13 @@ export function ManagePersonnelDialog({
         .insert({
           date: context.date,
           periode: context.periode,
-          site_id: context.site_id,
+          site_id: selectedSiteId,
           secretaire_id: selectedSecretaryId,
           type_assignation: 'site',
           ordre: maxOrdre + 1,
-          is_1r: false,
-          is_2f: false,
-          is_3f: false,
+          is_1r: is1R,
+          is_2f: is2F,
+          is_3f: is3F,
         });
 
       if (error) throw error;
@@ -221,18 +292,53 @@ export function ManagePersonnelDialog({
     }
   };
 
-  const handleSwap = async () => {
-    if (!selectedSecretaryId || !context.secretaire_id) return;
+  const handleEdit = async () => {
+    if (!context.assignment_id) return;
 
     setLoading(true);
     try {
-      const period = swapScope === 'both' ? 'both' : context.periode;
+      const { error } = await supabase
+        .from('planning_genere_personnel')
+        .update({
+          site_id: selectedSiteId,
+          is_1r: is1R,
+          is_2f: is2F,
+          is_3f: is3F,
+        })
+        .eq('id', context.assignment_id);
 
-      const { data, error } = await supabase.rpc('swap_secretaries', {
-        p_date: context.date,
-        p_period: period,
-        p_secretary_id_1: context.secretaire_id,
-        p_secretary_id_2: selectedSecretaryId,
+      if (error) throw error;
+
+      toast({ title: 'Succès', description: 'Assignation modifiée avec succès' });
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error updating assignment:', error);
+      toast({
+        title: 'Erreur',
+        description: error.message || 'Erreur lors de la modification',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwap = async () => {
+    if (!selectedSecretaryId || !context.assignment_id) return;
+
+    // selectedSecretaryId contains the assignment_id of the target secretary
+    const targetAssignment = availableSecretaries.find(
+      (s) => s.assignment_id === selectedSecretaryId
+    );
+
+    if (!targetAssignment) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('swap_secretaries_personnel', {
+        p_assignment_id_1: context.assignment_id,
+        p_assignment_id_2: targetAssignment.assignment_id,
       });
 
       if (error) throw error;
@@ -256,15 +362,19 @@ export function ManagePersonnelDialog({
     if (action === 'add') handleAdd();
     else if (action === 'remove') handleRemove();
     else if (action === 'swap') handleSwap();
+    else if (action === 'edit') handleEdit();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Gérer le personnel</DialogTitle>
+          <DialogTitle>
+            {action === 'edit' ? 'Modifier l\'assignation' : 'Gérer le personnel'}
+          </DialogTitle>
           <DialogDescription>
             {context.site_nom} - {context.periode === 'matin' ? 'Matin' : 'Après-midi'}
+            {context.secretaire_nom && ` - ${context.secretaire_nom}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -286,25 +396,121 @@ export function ManagePersonnelDialog({
             </div>
           )}
 
+          {action === 'edit' && (
+            <>
+              <div className="space-y-2">
+                <Label>Site</Label>
+                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Responsabilités</Label>
+                <div className="flex gap-2">
+                  <Toggle
+                    pressed={is1R}
+                    onPressedChange={setIs1R}
+                    variant="outline"
+                  >
+                    1R
+                  </Toggle>
+                  <Toggle
+                    pressed={is2F}
+                    onPressedChange={setIs2F}
+                    variant="outline"
+                  >
+                    2F
+                  </Toggle>
+                  <Toggle
+                    pressed={is3F}
+                    onPressedChange={setIs3F}
+                    variant="outline"
+                  >
+                    3F
+                  </Toggle>
+                </div>
+              </div>
+            </>
+          )}
+
           {action === 'add' && (
-            <div className="space-y-2">
-              <Label>Secrétaire à ajouter</Label>
-              <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSecretaries.map((sec) => (
-                    <SelectItem key={sec.id} value={sec.id}>
-                      {sec.first_name} {sec.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {availableSecretaries.length === 0 && !loading && (
-                <p className="text-sm text-muted-foreground">Aucune secrétaire disponible</p>
+            <>
+              <div className="space-y-2">
+                <Label>Secrétaire à ajouter</Label>
+                <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSecretaries.map((sec) => (
+                      <SelectItem key={sec.id} value={sec.id}>
+                        {sec.first_name} {sec.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {availableSecretaries.length === 0 && !loading && (
+                  <p className="text-sm text-muted-foreground">Aucune secrétaire disponible</p>
+                )}
+              </div>
+
+              {selectedSecretaryId && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Site</Label>
+                    <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un site" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sites.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Responsabilités</Label>
+                    <div className="flex gap-2">
+                      <Toggle
+                        pressed={is1R}
+                        onPressedChange={setIs1R}
+                        variant="outline"
+                      >
+                        1R
+                      </Toggle>
+                      <Toggle
+                        pressed={is2F}
+                        onPressedChange={setIs2F}
+                        variant="outline"
+                      >
+                        2F
+                      </Toggle>
+                      <Toggle
+                        pressed={is3F}
+                        onPressedChange={setIs3F}
+                        variant="outline"
+                      >
+                        3F
+                      </Toggle>
+                    </div>
+                  </div>
+                </>
               )}
-            </div>
+            </>
           )}
 
           {action === 'remove' && (
@@ -326,48 +532,26 @@ export function ManagePersonnelDialog({
           )}
 
           {action === 'swap' && (
-            <>
-              <div className="space-y-2">
-                <Label>Échanger avec</Label>
-                <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSecretaries.map((sec) => (
-                      <SelectItem key={sec.id} value={sec.id}>
-                        {sec.first_name} {sec.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {availableSecretaries.length === 0 && !loading && (
-                  <p className="text-sm text-muted-foreground">
-                    Aucune secrétaire compatible pour l'échange
-                  </p>
-                )}
-              </div>
-
-              {selectedSecretaryId && (
-                <div className="space-y-2">
-                  <Label>Portée de l'échange</Label>
-                  <RadioGroup value={swapScope} onValueChange={(v) => setSwapScope(v as SwapScope)}>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="periode" id="scope-periode" />
-                      <Label htmlFor="scope-periode" className="cursor-pointer font-normal">
-                        Uniquement {context.periode === 'matin' ? 'le matin' : 'l\'après-midi'}
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="both" id="scope-both" />
-                      <Label htmlFor="scope-both" className="cursor-pointer font-normal">
-                        Toute la journée (matin et après-midi)
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
+            <div className="space-y-2">
+              <Label>Échanger avec (autre site uniquement)</Label>
+              <Select value={selectedSecretaryId} onValueChange={setSelectedSecretaryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSecretaries.map((sec) => (
+                    <SelectItem key={sec.assignment_id} value={sec.assignment_id}>
+                      {sec.first_name} {sec.name} - {sec.site_nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {availableSecretaries.length === 0 && !loading && (
+                <p className="text-sm text-muted-foreground">
+                  Aucune secrétaire compatible pour l'échange (sur un autre site)
+                </p>
               )}
-            </>
+            </div>
           )}
         </div>
 
@@ -375,7 +559,7 @@ export function ManagePersonnelDialog({
           <Button
             variant="outline"
             onClick={() => {
-              if (action) {
+              if (action && action !== 'edit') {
                 setAction(null);
                 setSelectedSecretaryId('');
               } else {
@@ -384,14 +568,24 @@ export function ManagePersonnelDialog({
             }}
             disabled={loading}
           >
-            {action ? 'Retour' : 'Annuler'}
+            {action && action !== 'edit' ? 'Retour' : 'Annuler'}
           </Button>
           {action && (
-            <Button onClick={handleSubmit} disabled={loading || !selectedSecretaryId}>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={
+                loading || 
+                (action === 'add' && (!selectedSecretaryId || !selectedSiteId)) ||
+                (action === 'remove' && !selectedSecretaryId) ||
+                (action === 'swap' && !selectedSecretaryId) ||
+                (action === 'edit' && !selectedSiteId)
+              }
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {action === 'add' && 'Ajouter'}
               {action === 'remove' && 'Retirer'}
               {action === 'swap' && 'Échanger'}
+              {action === 'edit' && 'Enregistrer'}
             </Button>
           )}
         </DialogFooter>
