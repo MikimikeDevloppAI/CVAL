@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Calendar, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SelectDatesForOptimizationDialogProps {
   open: boolean;
@@ -27,16 +28,10 @@ export function SelectDatesForOptimizationDialog({
   const [selectAll, setSelectAll] = useState(true);
   const [optimizationType, setOptimizationType] = useState<'complete' | 'sites'>('complete');
 
-  // Filtrer uniquement les jours de semaine (lundi à vendredi)
-  const weekdaysOnly = weekDays.filter(d => {
-    const dayOfWeek = d.getDay();
-    return dayOfWeek !== 0 && dayOfWeek !== 6;
-  });
-
-  // Initialiser avec tous les jours sélectionnés quand le dialog s'ouvre
+  // Initialiser avec tous les jours (lundi à dimanche) sélectionnés quand le dialog s'ouvre
   useEffect(() => {
-    if (open && weekdaysOnly.length > 0) {
-      setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
+    if (open && weekDays.length > 0) {
+      setSelectedDates(weekDays.map(d => format(d, 'yyyy-MM-dd')));
       setSelectAll(true);
       setOptimizationType('complete');
     }
@@ -50,7 +45,7 @@ export function SelectDatesForOptimizationDialog({
     setSelectedDates(newDates);
     
     // Si tous les jours sont sélectionnés, cocher "Toute la semaine"
-    if (newDates.length === weekdaysOnly.length) {
+    if (newDates.length === weekDays.length) {
       setSelectAll(true);
     } else {
       setSelectAll(false);
@@ -60,8 +55,8 @@ export function SelectDatesForOptimizationDialog({
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
-      // Sélectionner tous les jours de semaine
-      setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
+      // Sélectionner tous les jours (lundi à dimanche)
+      setSelectedDates(weekDays.map(d => format(d, 'yyyy-MM-dd')));
     } else {
       setSelectedDates([]);
     }
@@ -128,19 +123,19 @@ export function SelectDatesForOptimizationDialog({
           </div>
 
           <div className="space-y-3">
-            {weekDays
-              .filter(day => {
-                const dayOfWeek = day.getDay();
-                return dayOfWeek !== 0 && dayOfWeek !== 6; // Exclure dimanche (0) et samedi (6)
-              })
-              .map((day) => {
+            {weekDays.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const isSelected = selectedDates.includes(dateStr);
+                const dayOfWeek = day.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                 
                 return (
                   <div
                     key={dateStr}
-                    className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent transition-colors"
+                    className={cn(
+                      "flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent transition-colors",
+                      isWeekend && "bg-muted/50 opacity-70"
+                    )}
                   >
                     <Checkbox
                       id={dateStr}
@@ -152,6 +147,7 @@ export function SelectDatesForOptimizationDialog({
                       className="flex-1 text-sm font-medium leading-none cursor-pointer"
                     >
                       {format(day, 'EEEE d MMMM', { locale: fr })}
+                      {isWeekend && <span className="ml-2 text-xs text-muted-foreground">(week-end)</span>}
                     </label>
                   </div>
                 );
