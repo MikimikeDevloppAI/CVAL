@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
+// ISO Week utilities
+function startOfISOWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getUTCDay();
+  const diff = (day === 0 ? -6 : 1) - day; // Monday = 1, Sunday = 0
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfISOWeek(date: Date): Date {
+  const start = startOfISOWeek(date);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  end.setUTCHours(23, 59, 59, 999);
+  return end;
+}
+
+function formatDateUTC(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -27,39 +49,69 @@ serve(async (req) => {
 
     console.log(`📅 Partial optimization for ${selected_dates.length} date(s):`, selected_dates);
 
-    // Calculate week bounds from selected dates
-    const dates = selected_dates.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
-    const weekStart = dates[0].toISOString().split('T')[0];
-    const weekEnd = dates[dates.length - 1].toISOString().split('T')[0];
+    // Normalize to ISO week bounds (Monday to Sunday)
+    const refDate = new Date(selected_dates[0]);
+    const weekStartDate = startOfISOWeek(refDate);
+    const weekEndDate = endOfISOWeek(refDate);
+    const weekStart = formatDateUTC(weekStartDate);
+    const weekEnd = formatDateUTC(weekEndDate);
     
-    console.log(`📊 Week range: ${weekStart} to ${weekEnd}`);
+    console.log(`📊 Using ISO week bounds: ${weekStart} (Monday) to ${weekEnd} (Sunday)`);
+
+    // Validate all selected dates are in the same week
+    for (const dateStr of selected_dates) {
+      const d = new Date(dateStr);
+      if (d < weekStartDate || d > weekEndDate) {
+        throw new Error(`All selected dates must be in the same ISO week. Date ${dateStr} is outside the week ${weekStart} to ${weekEnd}.`);
+      }
+    }
+    console.log('✅ All selected dates validated within the same ISO week');
 
     let blocResults = null;
     let sitesResults = null;
 
-  // Get or create planning_id for the week
+  // Get or create planning_id for the ISO week
   let planning_id;
-  const { data: existingPlanning } = await supabaseServiceRole
+  
+  // Search 1: Exact match by week bounds
+  const { data: existingPlanningExact } = await supabaseServiceRole
     .from('planning')
     .select('*')
     .eq('date_debut', weekStart)
     .eq('date_fin', weekEnd)
     .maybeSingle();
 
-  if (existingPlanning) {
-    planning_id = existingPlanning.id;
+  if (existingPlanningExact) {
+    planning_id = existingPlanningExact.id;
+    console.log(`📋 Found existing planning by exact match: ${planning_id}`);
   } else {
-    const { data: newPlanning, error: planningError } = await supabaseServiceRole
+    // Search 2: Fallback - find planning that contains the reference date
+    const refDateStr = formatDateUTC(refDate);
+    const { data: existingPlanningContains } = await supabaseServiceRole
       .from('planning')
-      .insert({
-        date_debut: weekStart,
-        date_fin: weekEnd,
-        statut: 'en_cours'
-      })
-      .select()
-      .single();
-    if (planningError) throw planningError;
-    planning_id = newPlanning.id;
+      .select('*')
+      .lte('date_debut', refDateStr)
+      .gte('date_fin', refDateStr)
+      .maybeSingle();
+    
+    if (existingPlanningContains) {
+      planning_id = existingPlanningContains.id;
+      console.log(`📋 Found existing planning by containment: ${planning_id} (covers ${existingPlanningContains.date_debut} to ${existingPlanningContains.date_fin})`);
+    } else {
+      // Create new planning with ISO week bounds
+      const { data: newPlanning, error: planningError } = await supabaseServiceRole
+        .from('planning')
+        .insert({
+          date_debut: weekStart,
+          date_fin: weekEnd,
+          statut: 'en_cours'
+        })
+        .select()
+        .single();
+      if (planningError) throw planningError;
+      planning_id = newPlanning.id;
+      console.log(`📋 Created new planning: ${planning_id} for ISO week ${weekStart} to ${weekEnd}`);
+    }
   }
 
   console.log(`📋 Using planning_id: ${planning_id} for week ${weekStart} to ${weekEnd}`);
@@ -67,42 +119,38 @@ serve(async (req) => {
   // Delete existing unified personnel rows (only selected dates or full week)
   // Conditional cleanup based on optimization type
   if (selected_dates.length < 7) {
-    console.log(`\n🧹 Cleaning up ${selected_dates.length} specific dates...`);
+    console.log(`\n🧹 Cleaning up ${selected_dates.length} specific dates (without planning_id filter to catch erroneous old entries)...`);
     for (const date of selected_dates) {
       // Clean sites/admin if optimizing sites
       if (optimize_sites) {
-        console.log(`  🏢 Deleting site/admin personnel for ${date}...`);
+        console.log(`  🏢 Deleting site/admin personnel for ${date} (all planning_id)...`);
         await supabaseServiceRole
           .from('planning_genere_personnel')
           .delete()
-          .eq('planning_id', planning_id)
           .eq('date', date)
           .in('type_assignation', ['site', 'administratif']);
         
-        console.log(`  🔒 Resetting closing responsibles for ${date}...`);
+        console.log(`  🔒 Resetting closing responsibles for ${date} (all planning_id)...`);
         await supabaseServiceRole
           .from('planning_genere')
           .update({ 
             responsable_1r_id: null, 
             responsable_2f_id: null 
           })
-          .eq('planning_id', planning_id)
           .eq('date', date);
       }
       
       // Clean bloc if optimizing bloc
       if (optimize_bloc) {
-        console.log(`  🏥 Deleting bloc operations/personnel for ${date}...`);
+        console.log(`  🏥 Deleting bloc operations/personnel for ${date} (all planning_id)...`);
         await supabaseServiceRole
           .from('planning_genere_bloc_operatoire')
           .delete()
-          .eq('planning_id', planning_id)
           .eq('date', date);
         
         await supabaseServiceRole
           .from('planning_genere_personnel')
           .delete()
-          .eq('planning_id', planning_id)
           .eq('date', date)
           .eq('type_assignation', 'bloc');
       } else {
@@ -111,7 +159,7 @@ serve(async (req) => {
       
       console.log(`  ✅ Cleaned date ${date}`);
     }
-    console.log('✅ Partial cleanup complete');
+    console.log('✅ Partial cleanup complete (all old entries removed regardless of planning_id)');
   } else {
     console.log('🧹 Cleaning up full week...');
     
