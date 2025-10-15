@@ -409,7 +409,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                   className={`grid gap-1 mb-0.5 hover:bg-accent/20 py-0.5 ${secIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}
                   style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
                 >
-                  <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 truncate border-r ${secIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
+                  <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 truncate border-r ${secIndex % 2 === 0 ? 'bg-muted' : 'bg-background'}`}>
                     {secretaire.first_name} {secretaire.name}
                   </div>
                   {days.map((dayInfo, index) => {
