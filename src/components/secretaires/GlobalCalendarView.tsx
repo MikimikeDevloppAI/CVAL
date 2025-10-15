@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface GlobalCalendarViewProps {
   open: boolean;
@@ -41,6 +45,9 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     date: string;
   } | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
+  const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -230,6 +237,113 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     return dayOfWeek === 5 || dayOfWeek === 6;
   };
 
+  const handleExportExcel = async () => {
+    if (!exportStartDate || !exportEndDate) {
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez sélectionner les dates de début et fin',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (exportStartDate > exportEndDate) {
+      toast({
+        title: 'Erreur',
+        description: 'La date de début doit être antérieure à la date de fin',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch all secretaries
+      const { data: secData } = await supabase
+        .from('secretaires')
+        .select('id, first_name, name')
+        .eq('actif', true)
+        .order('first_name');
+
+      // Fetch capacites for the selected date range
+      const { data: capData } = await supabase
+        .from('capacite_effective')
+        .select('*')
+        .gte('date', formatDate(exportStartDate))
+        .lte('date', formatDate(exportEndDate))
+        .order('date');
+
+      if (!secData || !capData) {
+        throw new Error('Impossible de récupérer les données');
+      }
+
+      // Generate all days in the range
+      const allDays = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
+
+      // Create header row with dates
+      const headerRow = ['Secrétaire', ...allDays.map(d => format(d, 'dd/MM/yyyy (EEE)', { locale: fr }))];
+
+      // Create data rows
+      const dataRows = secData.map(sec => {
+        const row = [`${sec.first_name} ${sec.name}`];
+        
+        allDays.forEach(day => {
+          const dateStr = formatDate(day);
+          const caps = capData.filter(c => c.secretaire_id === sec.id && c.date === dateStr);
+          
+          if (caps.length === 0) {
+            row.push('');
+          } else {
+            const periods = caps.map(c => {
+              switch (c.demi_journee) {
+                case 'toute_journee': return 'Journée';
+                case 'matin': return 'Matin';
+                case 'apres_midi': return 'AM';
+                default: return '';
+              }
+            }).join(', ');
+            row.push(periods);
+          }
+        });
+
+        return row;
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+
+      // Set column widths
+      const colWidths = [{ wch: 25 }, ...allDays.map(() => ({ wch: 15 }))];
+      ws['!cols'] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Planning');
+
+      // Generate filename
+      const filename = `planning_secretaires_${format(exportStartDate, 'yyyy-MM-dd')}_${format(exportEndDate, 'yyyy-MM-dd')}.xlsx`;
+
+      // Download
+      XLSX.writeFile(wb, filename);
+
+      toast({
+        title: 'Succès',
+        description: 'Le fichier Excel a été téléchargé',
+      });
+
+      setExportDialogOpen(false);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'exporter le calendrier',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,6 +358,15 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
               </span>
               <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading}>
                 <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setExportDialogOpen(true)}
+                className="gap-2 ml-4"
+              >
+                <Download className="h-4 w-4" />
+                Exporter Excel
               </Button>
             </DialogTitle>
           </DialogHeader>
@@ -381,6 +504,78 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Export Excel Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exporter en Excel</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Date de début</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !exportStartDate && "text-muted-foreground"
+                    )}
+                  >
+                    {exportStartDate ? format(exportStartDate, 'PPP', { locale: fr }) : 'Sélectionner une date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={exportStartDate}
+                    onSelect={setExportStartDate}
+                    locale={fr}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Date de fin</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !exportEndDate && "text-muted-foreground"
+                    )}
+                  >
+                    {exportEndDate ? format(exportEndDate, 'PPP', { locale: fr }) : 'Sélectionner une date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={exportEndDate}
+                    onSelect={setExportEndDate}
+                    locale={fr}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleExportExcel} disabled={loading || !exportStartDate || !exportEndDate}>
+                {loading ? 'Export en cours...' : 'Exporter'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
