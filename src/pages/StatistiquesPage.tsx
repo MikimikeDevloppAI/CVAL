@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -79,7 +79,7 @@ export default function StatistiquesPage() {
       setLoading(true);
 
       // Fetch tous les horaires de base des médecins
-      const { data: horairesMedecins, error } = await supabase
+      const { data: horairesMedecins, error: errorMedecins } = await supabase
         .from('horaires_base_medecins')
         .select(`
           *,
@@ -88,17 +88,38 @@ export default function StatistiquesPage() {
         `)
         .eq('actif', true);
 
-      if (error) throw error;
+      if (errorMedecins) throw errorMedecins;
+
+      // Fetch les besoins du bloc opératoire
+      const { data: horairesBloc, error: errorBloc } = await supabase
+        .from('horaires_base_medecins')
+        .select(`
+          *,
+          sites!inner(id, nom),
+          types_intervention!inner(
+            id,
+            nom,
+            types_intervention_besoins_personnel(
+              type_besoin,
+              nombre_requis
+            )
+          )
+        `)
+        .eq('actif', true)
+        .not('type_intervention_id', 'is', null);
+
+      if (errorBloc) throw errorBloc;
 
       // Grouper par site
       const sitesMap = new Map<string, SiteStats>();
 
+      // Traiter les horaires médecins normaux
       horairesMedecins?.forEach((horaire: any) => {
         const siteId = horaire.site_id;
         const siteNom = horaire.sites.nom;
         const jourSemaine = horaire.jour_semaine;
         const demiJournee = horaire.demi_journee;
-        const besoins = horaire.medecins.besoin_secretaires || 1.2;
+        const besoins = horaire.medecins?.besoin_secretaires || 1.2;
         const alternanceType = horaire.alternance_type || 'hebdomadaire';
         const alternanceModulo = horaire.alternance_semaine_modulo || 0;
 
@@ -127,7 +148,6 @@ export default function StatistiquesPage() {
         const jourKey = JOURS.find(j => j.jour_semaine === jourSemaine)?.key;
         if (!jourKey) return;
 
-        // Calculer pour semaine paire et impaire selon le type d'alternance
         let addPaire = false;
         let addImpaire = false;
 
@@ -141,7 +161,6 @@ export default function StatistiquesPage() {
             addImpaire = true;
           }
         } else if (alternanceType === 'une_sur_trois') {
-          // Pour 1/3, on considère qu'il travaille certaines semaines
           if (alternanceModulo === 0 || alternanceModulo === 2) {
             addPaire = true;
           }
@@ -149,7 +168,6 @@ export default function StatistiquesPage() {
             addImpaire = true;
           }
         } else if (alternanceType === 'une_sur_quatre') {
-          // Pour 1/4, on considère qu'il travaille certaines semaines
           if (alternanceModulo === 0 || alternanceModulo === 2) {
             addPaire = true;
           }
@@ -168,6 +186,74 @@ export default function StatistiquesPage() {
           const key = `${jourKey}_apres_midi` as keyof typeof siteStats.semaine_paire;
           if (addPaire) siteStats.semaine_paire[key] += besoins;
           if (addImpaire) siteStats.semaine_impaire[key] += besoins;
+        }
+      });
+
+      // Traiter les besoins du bloc opératoire
+      horairesBloc?.forEach((horaire: any) => {
+        if (!horaire.types_intervention) return;
+
+        const siteId = horaire.site_id;
+        const siteNom = horaire.sites.nom;
+        const jourSemaine = horaire.jour_semaine;
+        const demiJournee = horaire.demi_journee;
+        const alternanceType = horaire.alternance_type || 'hebdomadaire';
+        const alternanceModulo = horaire.alternance_semaine_modulo || 0;
+
+        const besoinsPersonnel = horaire.types_intervention.types_intervention_besoins_personnel || [];
+        const totalBesoins = besoinsPersonnel.reduce((sum: number, besoin: any) => sum + (besoin.nombre_requis || 0), 0);
+
+        if (totalBesoins === 0) return;
+
+        if (!sitesMap.has(siteId)) {
+          sitesMap.set(siteId, {
+            site_id: siteId,
+            site_nom: siteNom,
+            semaine_paire: {
+              lundi_matin: 0, lundi_apres_midi: 0,
+              mardi_matin: 0, mardi_apres_midi: 0,
+              mercredi_matin: 0, mercredi_apres_midi: 0,
+              jeudi_matin: 0, jeudi_apres_midi: 0,
+              vendredi_matin: 0, vendredi_apres_midi: 0,
+            },
+            semaine_impaire: {
+              lundi_matin: 0, lundi_apres_midi: 0,
+              mardi_matin: 0, mardi_apres_midi: 0,
+              mercredi_matin: 0, mercredi_apres_midi: 0,
+              jeudi_matin: 0, jeudi_apres_midi: 0,
+              vendredi_matin: 0, vendredi_apres_midi: 0,
+            },
+          });
+        }
+
+        const siteStats = sitesMap.get(siteId)!;
+        const jourKey = JOURS.find(j => j.jour_semaine === jourSemaine)?.key;
+        if (!jourKey) return;
+
+        let addPaire = false;
+        let addImpaire = false;
+
+        if (alternanceType === 'hebdomadaire') {
+          addPaire = true;
+          addImpaire = true;
+        } else if (alternanceType === 'une_sur_deux') {
+          if (alternanceModulo === 0) {
+            addPaire = true;
+          } else {
+            addImpaire = true;
+          }
+        }
+
+        if (demiJournee === 'matin' || demiJournee === 'toute_journee') {
+          const key = `${jourKey}_matin` as keyof typeof siteStats.semaine_paire;
+          if (addPaire) siteStats.semaine_paire[key] += totalBesoins;
+          if (addImpaire) siteStats.semaine_impaire[key] += totalBesoins;
+        }
+        
+        if (demiJournee === 'apres_midi' || demiJournee === 'toute_journee') {
+          const key = `${jourKey}_apres_midi` as keyof typeof siteStats.semaine_paire;
+          if (addPaire) siteStats.semaine_paire[key] += totalBesoins;
+          if (addImpaire) siteStats.semaine_impaire[key] += totalBesoins;
         }
       });
 
@@ -310,82 +396,121 @@ export default function StatistiquesPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Besoins par jour et période</CardTitle>
+      <Card className="shadow-lg border-border/40">
+        <CardHeader className="border-b border-border/40 bg-gradient-to-br from-background to-muted/20">
+          <CardTitle className="text-xl">Besoins par jour et période</CardTitle>
           <CardDescription>
-            Basé sur les horaires de base des médecins (arrondis au-dessus)
+            Basé sur les horaires de base des médecins et les besoins du bloc opératoire (arrondis au-dessus)
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={500}>
+        <CardContent className="pt-6">
+          <ResponsiveContainer width="100%" height={550}>
             <BarChart 
               data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+              margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+              barGap={8}
+              barCategoryGap="15%"
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+              <defs>
+                <linearGradient id="colorMatin" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(217 91% 60%)" stopOpacity={1}/>
+                  <stop offset="100%" stopColor="hsl(217 91% 50%)" stopOpacity={0.85}/>
+                </linearGradient>
+                <linearGradient id="colorApresMidi" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(142 76% 40%)" stopOpacity={1}/>
+                  <stop offset="100%" stopColor="hsl(142 76% 30%)" stopOpacity={0.85}/>
+                </linearGradient>
+              </defs>
+              
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                stroke="hsl(var(--border))" 
+                opacity={0.2}
+                vertical={false}
+              />
               <XAxis 
                 dataKey="jour" 
                 stroke="hsl(var(--muted-foreground))"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 13, fontWeight: 500 }}
+                tickLine={false}
+                axisLine={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
               />
               <YAxis 
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fontSize: 12 }}
-                label={{ value: 'Besoins (secrétaires)', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
+                tickLine={false}
+                axisLine={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
+                label={{ 
+                  value: 'Besoins (personnel)', 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  style: { 
+                    fill: 'hsl(var(--muted-foreground))',
+                    fontSize: 13,
+                    fontWeight: 500
+                  } 
+                }}
               />
               <Tooltip 
                 contentStyle={{ 
                   backgroundColor: 'hsl(var(--popover))', 
                   border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                  padding: '12px'
+                }}
+                labelStyle={{ 
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                  color: 'hsl(var(--foreground))'
+                }}
+                itemStyle={{
+                  padding: '4px 0'
                 }}
                 formatter={(value: any, name: string) => {
                   const parts = name.split('_');
-                  const periode = parts[parts.length - 1] === 'matin' ? 'Matin' : 'Après-midi';
+                  const periode = parts[parts.length - 1] === 'matin' ? '🌅 Matin' : '🌆 Après-midi';
                   const site = parts.slice(0, -1).join(' ');
-                  return [`${value} secrétaires`, `${site} - ${periode}`];
+                  return [`${value} personnes`, `${site} - ${periode}`];
                 }}
               />
               <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
+                wrapperStyle={{ 
+                  paddingTop: '30px',
+                  paddingBottom: '10px'
+                }}
                 layout="horizontal"
                 verticalAlign="bottom"
                 align="center"
-                iconType="square"
+                iconType="circle"
+                iconSize={12}
                 formatter={(value: string) => {
-                  const parts = value.split('_');
-                  const periode = parts[parts.length - 1] === 'matin' ? 'Matin' : 'Après-midi';
-                  const site = parts.slice(0, -1).join(' ');
-                  return `${site} - ${periode}`;
+                  if (value === '_legend_matin') return <span style={{ fontWeight: 600, color: 'hsl(217 91% 60%)' }}>🌅 Matin</span>;
+                  if (value === '_legend_apres_midi') return <span style={{ fontWeight: 600, color: 'hsl(142 76% 36%)' }}>🌆 Après-midi</span>;
+                  return null;
                 }}
+                payload={[
+                  { value: '_legend_matin', type: 'circle', color: 'hsl(217 91% 60%)' },
+                  { value: '_legend_apres_midi', type: 'circle', color: 'hsl(142 76% 36%)' }
+                ]}
               />
               {stats
                 .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
                 .flatMap((site, siteIndex) => {
-                  const colors = [
-                    { matin: 'hsl(217 91% 60%)', apres_midi: 'hsl(217 91% 45%)' },
-                    { matin: 'hsl(142 76% 36%)', apres_midi: 'hsl(142 76% 26%)' },
-                    { matin: 'hsl(24 95% 53%)', apres_midi: 'hsl(24 95% 43%)' },
-                    { matin: 'hsl(262 83% 58%)', apres_midi: 'hsl(262 83% 48%)' },
-                    { matin: 'hsl(339 90% 51%)', apres_midi: 'hsl(339 90% 41%)' },
-                  ];
-                  const color = colors[siteIndex % colors.length];
-                  
                   return [
                     <Bar 
                       key={`${site.site_nom}_matin`}
                       dataKey={`${site.site_nom}_matin`}
-                      fill={color.matin}
-                      radius={[4, 4, 0, 0]}
-                      stackId={`site_${siteIndex}`}
+                      fill="url(#colorMatin)"
+                      radius={[8, 8, 0, 0]}
+                      legendType="none"
                     />,
                     <Bar 
                       key={`${site.site_nom}_apres_midi`}
                       dataKey={`${site.site_nom}_apres_midi`}
-                      fill={color.apres_midi}
-                      radius={[4, 4, 0, 0]}
-                      stackId={`site_${siteIndex}`}
+                      fill="url(#colorApresMidi)"
+                      radius={[8, 8, 0, 0]}
+                      legendType="none"
                     />
                   ];
                 })}
