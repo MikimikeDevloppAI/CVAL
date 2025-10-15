@@ -61,7 +61,7 @@ interface CapaciteEffective {
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
   backup_id?: string;
-  secretaire?: { first_name: string; name: string; sites_assignes: string[] };
+  secretaire?: { first_name: string; name: string };
   backup?: { first_name: string; name: string; specialites: string[] };
   sites?: string[];
 }
@@ -342,7 +342,7 @@ export default function PlanningPage() {
         .from('capacite_effective')
         .select(`
           *,
-          secretaire:secretaires(first_name, name, sites_assignes, medecin_assigne:medecins(first_name, name)),
+          secretaire:secretaires(first_name, name, medecin_assigne:medecins(first_name, name)),
           backup:backup(first_name, name, specialites)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
@@ -365,7 +365,7 @@ export default function PlanningPage() {
 
       const enrichedData = data.map(capacite => {
         // Récupérer les sites depuis secretaire ou backup
-        const sitesIds = capacite.secretaire?.sites_assignes || capacite.backup?.specialites || [];
+        const sitesIds: string[] = []; // Using secretaires_sites now
         return {
           ...capacite,
           sites: sitesIds

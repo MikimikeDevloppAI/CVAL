@@ -933,7 +933,6 @@ export type Database = {
           prefere_port_en_truie: boolean
           profile_id: string | null
           site_preferentiel_id: string | null
-          sites_assignes: string[]
           updated_at: string
         }
         Insert: {
@@ -959,7 +958,6 @@ export type Database = {
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
-          sites_assignes?: string[]
           updated_at?: string
         }
         Update: {
@@ -985,7 +983,6 @@ export type Database = {
           prefere_port_en_truie?: boolean
           profile_id?: string | null
           site_preferentiel_id?: string | null
-          sites_assignes?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -1008,6 +1005,48 @@ export type Database = {
             columns: ["site_preferentiel_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      secretaires_medecins: {
+        Row: {
+          created_at: string
+          id: string
+          medecin_id: string
+          priorite: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          medecin_id: string
+          priorite?: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          medecin_id?: string
+          priorite?: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secretaires_medecins_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secretaires_medecins_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
             referencedColumns: ["id"]
           },
         ]

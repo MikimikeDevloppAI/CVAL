@@ -18,7 +18,7 @@ interface CapaciteEffective {
   secretaire?: {
     first_name: string;
     name: string;
-    sites_assignes: string[];
+    sites_assignes?: string[];
     medecin_assigne?: {
       first_name: string;
       name: string;
@@ -43,7 +43,7 @@ interface SecretaryGroup {
   name: string;
   isBackup: boolean;
   capacites: CapaciteEffective[];
-  sites_assignes: string[];
+  sites_assignes?: string[];
   medecin_assigne?: {
     first_name: string;
     name: string;
@@ -60,7 +60,7 @@ interface SecretaireFlexible {
   first_name: string;
   name: string;
   pourcentage_temps: number;
-  sites_assignes: string[];
+  sites_assignes?: string[];
   medecin_assigne?: {
     first_name: string;
     name: string;
@@ -128,7 +128,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
 
       const { data: flexibleSecretaries } = await supabase
         .from('secretaires')
-        .select('id, first_name, name, pourcentage_temps, sites_assignes, medecin_assigne:medecins(first_name, name)')
+        .select('id, first_name, name, pourcentage_temps, medecin_assigne:medecins(first_name, name)')
         .eq('horaire_flexible', true)
         .eq('actif', true)
         .not('pourcentage_temps', 'is', null);

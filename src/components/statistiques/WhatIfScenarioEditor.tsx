@@ -39,7 +39,7 @@ interface RealSecretary {
   id: string;
   name: string;
   first_name: string;
-  sites_assignes: string[];
+  sites_assignes?: string[];
   horaires: Array<{
     id: string;
     jour_semaine: number;
@@ -139,7 +139,7 @@ export function WhatIfScenarioEditor() {
   const fetchRealSecretaries = async () => {
     const { data: secretaires, error: secError } = await supabase
       .from('secretaires')
-      .select('id, name, first_name, sites_assignes, actif')
+      .select('id, name, first_name, actif')
       .eq('actif', true);
 
     if (secError || !secretaires) return;
@@ -161,7 +161,7 @@ export function WhatIfScenarioEditor() {
       id: s.id,
       name: s.name || '',
       first_name: s.first_name || '',
-      sites_assignes: (s.sites_assignes || []),
+      sites_assignes: [],
       horaires: horaires
         .filter(h => h.secretaire_id === s.id)
         .map(h => ({
@@ -394,7 +394,7 @@ export function WhatIfScenarioEditor() {
           modifiedScenario.fictionalSecretaries.push({
             id: `modified-${secretaryId}`,
             name: `${secretary.first_name} ${secretary.name} (modifié)`,
-            specialites: secretary.sites_assignes,
+            specialites: [],
             horaires,
           });
         }
@@ -758,7 +758,7 @@ export function WhatIfScenarioEditor() {
                         <div className="font-medium">{secretary.first_name} {secretary.name}</div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           <Badge variant="secondary" className="text-xs">
-                            {secretary.sites_assignes.length} sites assignés
+                            Configuration disponible
                           </Badge>
                         </div>
                         <div className="flex gap-1 mt-2">

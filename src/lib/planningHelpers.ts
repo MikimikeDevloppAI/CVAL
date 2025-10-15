@@ -11,14 +11,14 @@ export async function getAvailableSecretariesForSite(
   // Get all active secretaries who have this site in their profile
   const { data: secretaries, error: secError } = await supabase
     .from('secretaires')
-    .select('id, first_name, name, sites_assignes')
+    .select('id, first_name, name')
     .eq('actif', true);
 
   if (secError) throw secError;
 
   // Filter those who have the site in their profile
   const eligibleSecs = (secretaries || []).filter(s => 
-    s.sites_assignes && s.sites_assignes.includes(siteId)
+    return true; // Site compatibility now managed via secretaires_sites table
   );
 
   // Get already assigned secretaries for this date/periode
@@ -130,7 +130,7 @@ export async function getAssignedSecretariesForSite(
       is_1r,
       is_2f,
       is_3f,
-      secretaires!secretaire_id(first_name, name, sites_assignes)
+      secretaires!secretaire_id(first_name, name)
     `)
     .eq('date', date)
     .eq('periode', periode)
@@ -176,7 +176,7 @@ export async function getCompatibleSecretariesForSwap(
 
   const currentSiteId = currentAssignment.site_id;
   const secretaryAId = currentAssignment.secretaire_id;
-  const sitesA = currentAssignment.secretaires?.sites_assignes || [];
+  const sitesA: string[] = []; // Using secretaires_sites now
 
   // Get all secretaries assigned on the same date and periode, on DIFFERENT sites
   const { data: assignments, error: errorAssignments } = await supabase

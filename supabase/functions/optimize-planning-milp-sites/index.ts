@@ -96,7 +96,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   const weekEndStr = week_end || dates[dates.length - 1];
   
   // 1. Fetch all data
-  const [secretaires, sites, besoins, capacites, blocPersonnel, secretairesSites] = await Promise.all([
+  const [secretaires, sites, besoins, capacites, blocPersonnel, secretairesSites, secretairesMedecins] = await Promise.all([
     supabase.from('secretaires').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('sites').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('besoin_effectif').select('*, medecins(first_name, name, besoin_secretaires)')
@@ -116,6 +116,9 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
       .then((r: any) => r.data || []),
     supabase.from('secretaires_sites')
       .select('secretaire_id, site_id, priorite')
+      .then((r: any) => r.data || []),
+    supabase.from('secretaires_medecins')
+      .select('secretaire_id, medecin_id, priorite')
       .then((r: any) => r.data || [])
   ]);
 
@@ -123,6 +126,12 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   const secSitePriorityMap = new Map<string, string>();
   for (const ss of secretairesSites) {
     secSitePriorityMap.set(`${ss.secretaire_id}_${ss.site_id}`, ss.priorite);
+  }
+
+  // Create medecin priority map: `${secId}_${medecinId}` -> priorite
+  const secMedecinPriorityMap = new Map<string, string>();
+  for (const sm of secretairesMedecins) {
+    secMedecinPriorityMap.set(`${sm.secretaire_id}_${sm.medecin_id}`, sm.priorite);
   }
 
   console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
@@ -187,7 +196,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   }
 
   // 5. Build and solve MILP
-  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, secSitePriorityMap, selected_dates);
+  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, secSitePriorityMap, secMedecinPriorityMap, selected_dates);
 
   if (!solution.feasible) {
     console.error('❌ MILP not feasible!');
@@ -258,6 +267,7 @@ async function buildMILP(
   weekStartStr: string,
   weekEndStr: string,
   secSitePriorityMap: Map<string, string>,
+  secMedecinPriorityMap: Map<string, string>,
   selected_dates?: string[]
 ): Promise<any> {
   console.log('\n🔍 Building MILP by aggregating site needs...');
@@ -426,11 +436,20 @@ async function buildMILP(
         const varName = `x|${sec.id}|${date}|${periode}|${site_id}|${ordre}`;
         let score = 100; // Base: fill a need
 
-        // PRIORITY 1: Linked medecin (+10000)
+        // PRIORITY 1: Linked medecin with priorities (+10000 prio 1, +5000 prio 2)
         const medecinIdsArray = Array.from(medecin_ids);
-        if (sec.medecin_assigne_id && medecinIdsArray.includes(sec.medecin_assigne_id)) {
-          score += 10000;
+        let medecinBonus = 0;
+        for (const medecinId of medecinIdsArray) {
+          const medecinPrioriteKey = `${sec.id}_${medecinId}`;
+          const medecinPriorite = secMedecinPriorityMap.get(medecinPrioriteKey);
+          
+          if (medecinPriorite === '1') {
+            medecinBonus = Math.max(medecinBonus, 10000); // Médecin priorité 1
+          } else if (medecinPriorite === '2') {
+            medecinBonus = Math.max(medecinBonus, 5000); // Médecin priorité 2
+          }
         }
+        score += medecinBonus;
 
         // PRIORITY 2: Site priority level
         if (priorite === '1') {
