@@ -113,8 +113,11 @@ export default function StatistiquesPage() {
       // Grouper par site
       const sitesMap = new Map<string, SiteStats>();
 
-      // Traiter les horaires médecins normaux
+      // Traiter les horaires médecins normaux (hors bloc opératoire)
       horairesMedecins?.forEach((horaire: any) => {
+        // Ignorer les horaires du bloc opératoire (ils seront traités séparément)
+        if (horaire.type_intervention_id) return;
+
         const siteId = horaire.site_id;
         const siteNom = horaire.sites.nom;
         const jourSemaine = horaire.jour_semaine;
@@ -446,7 +449,7 @@ export default function StatistiquesPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-2 h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full" />
-              <h3 className="text-lg font-semibold">🌅 Période Matin</h3>
+              <h3 className="text-lg font-semibold">Période Matin</h3>
             </div>
             <div className="bg-gradient-to-br from-blue-50/50 to-blue-100/30 dark:from-blue-950/20 dark:to-blue-900/10 rounded-2xl p-6 border border-blue-200/40 dark:border-blue-800/40">
               <ResponsiveContainer width="100%" height={350}>
@@ -539,7 +542,7 @@ export default function StatistiquesPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-2 h-8 bg-gradient-to-b from-amber-500 to-amber-600 rounded-full" />
-              <h3 className="text-lg font-semibold">🌆 Période Après-midi</h3>
+              <h3 className="text-lg font-semibold">Période Après-midi</h3>
             </div>
             <div className="bg-gradient-to-br from-amber-50/50 to-amber-100/30 dark:from-amber-950/20 dark:to-amber-900/10 rounded-2xl p-6 border border-amber-200/40 dark:border-amber-800/40">
               <ResponsiveContainer width="100%" height={350}>
@@ -634,7 +637,7 @@ export default function StatistiquesPage() {
         <CardHeader>
           <CardTitle>Détail par site</CardTitle>
           <CardDescription>
-            Vue détaillée des besoins pour chaque site
+            Vue détaillée des besoins pour chaque site (arrondis au-dessus)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -653,33 +656,26 @@ export default function StatistiquesPage() {
                           <TableHead>Jour</TableHead>
                           <TableHead className="text-center">Matin</TableHead>
                           <TableHead className="text-center">Après-midi</TableHead>
-                          <TableHead className="text-center">Total</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {JOURS.map(jour => {
                           const keyMatin = `${jour.key}_matin` as keyof typeof site.semaine_paire;
                           const keyAM = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
-                          const matin = site[typeSemaine][keyMatin];
-                          const apresMidi = site[typeSemaine][keyAM];
-                          const total = matin + apresMidi;
+                          const matin = Math.ceil(site[typeSemaine][keyMatin]);
+                          const apresMidi = Math.ceil(site[typeSemaine][keyAM]);
 
                           return (
                             <TableRow key={jour.key}>
                               <TableCell className="font-medium">{jour.label}</TableCell>
                               <TableCell className="text-center">
                                 <Badge variant={matin > 0 ? "default" : "secondary"}>
-                                  {Math.round(matin * 10) / 10}
+                                  {matin}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-center">
                                 <Badge variant={apresMidi > 0 ? "default" : "secondary"}>
-                                  {Math.round(apresMidi * 10) / 10}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant={total > 0 ? "default" : "outline"}>
-                                  {Math.round(total * 10) / 10}
+                                  {apresMidi}
                                 </Badge>
                               </TableCell>
                             </TableRow>
