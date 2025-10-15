@@ -395,7 +395,7 @@ export default function StatistiquesPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Besoins Matin</CardDescription>
@@ -406,12 +406,6 @@ export default function StatistiquesPage() {
           <CardHeader className="pb-3">
             <CardDescription>Besoins Après-midi</CardDescription>
             <CardTitle className="text-3xl">{summary.totalApresMidi}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Hebdomadaire</CardDescription>
-            <CardTitle className="text-3xl">{summary.total}</CardTitle>
           </CardHeader>
         </Card>
       </div>
