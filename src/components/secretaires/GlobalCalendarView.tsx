@@ -225,9 +225,8 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const days = getDaysInMonth();
 
-  const isWeekend = (index: number) => {
-    const dayOfWeek = index % 7;
-    return dayOfWeek === 5 || dayOfWeek === 6;
+  const isWeekend = (dayInfo: { day: number; dayOfWeek: string }) => {
+    return dayInfo.dayOfWeek === 'Sam' || dayInfo.dayOfWeek === 'Dim';
   };
 
   const handleExportExcel = async () => {
@@ -380,7 +379,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                   <div
                     key={index}
                     className={`text-center font-bold text-xs py-2 ${
-                      isWeekend(index) ? 'bg-accent/30' : 'bg-primary/10'
+                      isWeekend(dayInfo) ? 'bg-accent/30' : 'bg-primary/10'
                     } rounded`}
                   >
                     <div className="text-sm">{dayInfo.day}</div>
@@ -404,7 +403,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
-                    const isWeekendDay = isWeekend(index);
+                    const isWeekendDay = isWeekend(dayInfo);
 
                     return (
                       <div
@@ -420,7 +419,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 key={cap.id}
                                 className={`text-[8px] px-0.5 py-0.5 rounded border ${getColorForPeriod(
                                   cap.demi_journee
-                                )} relative group/badge leading-none`}
+                                )} relative group/badge leading-none text-center`}
                                 title={cap.sites?.nom}
                               >
                                 <div className="truncate font-semibold">
