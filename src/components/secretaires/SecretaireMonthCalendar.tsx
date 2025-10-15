@@ -323,25 +323,14 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
       <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-4 pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
-                  Calendrier mensuel
-                </span>
-                <Separator orientation="vertical" className="h-6" />
-                <span className="text-muted-foreground font-normal">{secretaireNom}</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMultipleCreneauxDialogOpen(true)}
-                className="gap-2"
-              >
-                <CalendarPlus className="h-4 w-4" />
-                Ajouter plusieurs créneaux
-              </Button>
+            <div className="flex items-center gap-3">
+              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
+                Calendrier mensuel
+              </span>
+              <Separator orientation="vertical" className="h-6" />
+              <span className="text-muted-foreground font-normal">{secretaireNom}</span>
             </div>
-            <div className="flex items-center justify-center gap-3">
+            <div className="relative flex items-center justify-center gap-3">
               <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -350,6 +339,15 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
               </span>
               <Button variant="outline" size="sm" onClick={handleNextMonth} className="hover:bg-primary/10">
                 <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setMultipleCreneauxDialogOpen(true)}
+                className="gap-2 absolute right-0"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                Ajouter plusieurs créneaux
               </Button>
             </div>
           </DialogTitle>
