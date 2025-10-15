@@ -156,28 +156,19 @@ serve(async (req) => {
     const daysAlreadyWorked = new Map<string, number>();
     
     for (const secretary of unassignedFlexible) {
-      // Query existing site assignments
-      const { data: existingSiteAssignments } = await supabase
+      // Query ALL existing assignments (site, bloc, administratif)
+      const { data: existingAssignments } = await supabase
         .from('planning_genere_personnel')
-        .select('date, periode')
+        .select('date, periode, type_assignation')
         .eq('secretaire_id', secretary.id)
-        .eq('type_assignation', 'site')
-        .gte('date', week_start)
-        .lte('date', week_end);
-      
-      // Query existing bloc assignments
-      const { data: existingBlocAssignments } = await supabase
-        .from('planning_genere_personnel')
-        .select('date, periode')
-        .eq('secretaire_id', secretary.id)
-        .eq('type_assignation', 'bloc')
+        .in('type_assignation', ['site', 'bloc', 'administratif'])
         .gte('date', week_start)
         .lte('date', week_end);
       
       // Count unique FULL days (both matin + apres_midi), excluding selected_dates
       const periodsByDate = new Map<string, Set<string>>();
       
-      for (const assignment of [...(existingSiteAssignments || []), ...(existingBlocAssignments || [])]) {
+      for (const assignment of existingAssignments || []) {
         // Skip dates being re-optimized
         if (selected_dates && selected_dates.includes(assignment.date)) {
           continue;
