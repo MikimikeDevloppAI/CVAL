@@ -34,7 +34,6 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const [currentDate, setCurrentDate] = useState(new Date());
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
   const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
-  const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialog, setAddDialog] = useState<{
     open: boolean;
@@ -42,7 +41,6 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     date: string;
   } | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
-  const [selectedSiteId, setSelectedSiteId] = useState('');
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -69,15 +67,6 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .order('first_name');
 
       if (secData) setSecretaires(secData);
-
-      // Fetch sites
-      const { data: sitesData } = await supabase
-        .from('sites')
-        .select('id, nom')
-        .eq('actif', true)
-        .order('nom');
-
-      if (sitesData) setSites(sitesData);
 
       // Fetch capacites for current month
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -191,12 +180,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   };
 
   const handleAddCapacite = async () => {
-    if (!addDialog || !selectedSiteId) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner un site',
-        variant: 'destructive',
-      });
+    if (!addDialog) {
       return;
     }
 
@@ -207,7 +191,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .insert({
           date: addDialog.date,
           secretaire_id: addDialog.secretaireId,
-          site_id: selectedSiteId,
+          site_id: null,
           demi_journee: selectedPeriod,
           actif: true,
         });
@@ -221,7 +205,6 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
 
       setAddDialog(null);
       setSelectedPeriod('toute_journee');
-      setSelectedSiteId('');
       fetchData();
     } catch (error) {
       console.error('Erreur:', error);
@@ -376,27 +359,11 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                 </Select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Site</label>
-                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map((site) => (
-                      <SelectItem key={site.id} value={site.id}>
-                        {site.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setAddDialog(null)}>
                   Annuler
                 </Button>
-                <Button onClick={handleAddCapacite} disabled={loading || !selectedSiteId}>
+                <Button onClick={handleAddCapacite} disabled={loading}>
                   Ajouter
                 </Button>
               </div>
