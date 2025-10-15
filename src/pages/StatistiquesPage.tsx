@@ -1,103 +1,76 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { OptimizationScoreCards } from '@/components/statistiques/OptimizationScoreCards';
-import { WhatIfScenarioEditor } from '@/components/statistiques/WhatIfScenarioEditor';
-import type { OptimizationScoreParSpecialite, OptimizationDetailJour } from '@/types/baseSchedule';
-import { Loader2, Zap } from 'lucide-react';
-import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
+import { Loader2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
-interface SpecialiteStats {
-  specialite: string;
-  specialite_id: string;
-  besoins: number;
-  capacites: number;
+interface SiteStats {
+  site_id: string;
+  site_nom: string;
+  semaine_paire: {
+    lundi_matin: number;
+    lundi_apres_midi: number;
+    mardi_matin: number;
+    mardi_apres_midi: number;
+    mercredi_matin: number;
+    mercredi_apres_midi: number;
+    jeudi_matin: number;
+    jeudi_apres_midi: number;
+    vendredi_matin: number;
+    vendredi_apres_midi: number;
+  };
+  semaine_impaire: {
+    lundi_matin: number;
+    lundi_apres_midi: number;
+    mardi_matin: number;
+    mardi_apres_midi: number;
+    mercredi_matin: number;
+    mercredi_apres_midi: number;
+    jeudi_matin: number;
+    jeudi_apres_midi: number;
+    vendredi_matin: number;
+    vendredi_apres_midi: number;
+  };
 }
 
-interface JourStats {
-  jour: string;
-  besoins: number;
-  capacites: number;
-}
-
-const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const JOURS = [
+  { label: 'Lundi', key: 'lundi', jour_semaine: 1 },
+  { label: 'Mardi', key: 'mardi', jour_semaine: 2 },
+  { label: 'Mercredi', key: 'mercredi', jour_semaine: 3 },
+  { label: 'Jeudi', key: 'jeudi', jour_semaine: 4 },
+  { label: 'Vendredi', key: 'vendredi', jour_semaine: 5 },
+];
 
 export default function StatistiquesPage() {
-  const [stats, setStats] = useState<SpecialiteStats[]>([]);
-  const [selectedSpecialite, setSelectedSpecialite] = useState<string | null>(null);
-  const [detailJour, setDetailJour] = useState<JourStats[]>([]);
+  const [stats, setStats] = useState<SiteStats[]>([]);
+  const [selectedSite, setSelectedSite] = useState<string>('all');
+  const [selectedTypeSemaine, setSelectedTypeSemaine] = useState<'paire' | 'impaire'>('paire');
   const [loading, setLoading] = useState(true);
-  const [optimizationScores, setOptimizationScores] = useState<OptimizationScoreParSpecialite[]>([]);
-  const [viewMode, setViewMode] = useState<'optimization' | 'graphs' | 'whatif'>('optimization');
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const { canManage } = useCanManagePlanning();
+  const [sites, setSites] = useState<Array<{ id: string; nom: string }>>([]);
 
   useEffect(() => {
+    fetchSites();
     fetchStats();
-    fetchOptimization();
   }, []);
 
-  const fetchOptimization = async () => {
+  const fetchSites = async () => {
     try {
-      // Fetch optimization results from database
-      const { data: optimisationData, error } = await supabase
-        .from('optimisation_horaires_base')
-        .select(`
-          *,
-          specialites!inner(nom)
-        `)
-        .order('specialite_id');
+      const { data, error } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom');
 
       if (error) throw error;
-
-      // Group by specialty
-      const specialitesMap = new Map<string, OptimizationScoreParSpecialite>();
-      const JOURS_NOMS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
-
-      optimisationData?.forEach((row: any) => {
-        const specId = row.specialite_id;
-        
-        if (!specialitesMap.has(specId)) {
-          specialitesMap.set(specId, {
-            specialite_id: specId,
-            specialite_nom: row.specialites.nom,
-            score_global: 0,
-            pourcentage_global: 0,
-            details_jours: JOURS_NOMS.map((nom, idx) => ({
-              jour_semaine: idx + 1,
-              jour_nom: nom,
-              matin: { besoins: 0, capacites: 0, score: 0, pourcentage: 0 },
-              apres_midi: { besoins: 0, capacites: 0, score: 0, pourcentage: 0 },
-            })),
-          });
-        }
-
-        const spec = specialitesMap.get(specId)!;
-        const jourIndex = row.jour_semaine - 1;
-        
-        if (jourIndex >= 0 && jourIndex < 5) {
-          const detail = spec.details_jours[jourIndex];
-          
-          if (row.demi_journee === 'matin') {
-            detail.matin.besoins = row.besoins;
-            detail.matin.capacites = row.capacites_assignees;
-            detail.matin.pourcentage = row.besoins > 0 ? Math.round((row.capacites_assignees / row.besoins) * 100) : 100;
-          } else {
-            detail.apres_midi.besoins = row.besoins;
-            detail.apres_midi.capacites = row.capacites_assignees;
-            detail.apres_midi.pourcentage = row.besoins > 0 ? Math.round((row.capacites_assignees / row.besoins) * 100) : 100;
-          }
-        }
-      });
-
-      setOptimizationScores(Array.from(specialitesMap.values()));
+      setSites(data || []);
     } catch (error) {
-      console.error('Error fetching optimization:', error);
-      toast.error('Erreur lors du chargement de l\'optimisation');
+      console.error('Error fetching sites:', error);
+      toast.error('Erreur lors du chargement des sites');
     }
   };
 
@@ -105,72 +78,100 @@ export default function StatistiquesPage() {
     try {
       setLoading(true);
 
-      // Fetch all specialites
-      const { data: specialites } = await supabase
-        .from('specialites')
-        .select('*');
-
-      const specialitesMap = new Map(specialites?.map(s => [s.id, s]) || []);
-
-      // Fetch besoins (horaires base médecins)
-      const { data: horairesMedecins, error: errorMedecins } = await supabase
+      // Fetch tous les horaires de base des médecins
+      const { data: horairesMedecins, error } = await supabase
         .from('horaires_base_medecins')
         .select(`
           *,
-          medecins!inner(specialite_id)
+          sites!inner(id, nom),
+          medecins!inner(id, first_name, name, besoin_secretaires)
         `)
         .eq('actif', true);
 
-      if (errorMedecins) throw errorMedecins;
+      if (error) throw error;
 
-      // Process besoins par spécialité
-      const besoinsMap = new Map<string, number>();
+      // Grouper par site
+      const sitesMap = new Map<string, SiteStats>();
+
       horairesMedecins?.forEach((horaire: any) => {
-        const specialiteId = horaire.medecins?.specialite_id;
-        if (!specialiteId) return;
+        const siteId = horaire.site_id;
+        const siteNom = horaire.sites.nom;
+        const jourSemaine = horaire.jour_semaine;
+        const demiJournee = horaire.demi_journee;
+        const besoins = horaire.medecins.besoin_secretaires || 1.2;
+        const alternanceType = horaire.alternance_type || 'hebdomadaire';
+        const alternanceModulo = horaire.alternance_semaine_modulo || 0;
+
+        if (!sitesMap.has(siteId)) {
+          sitesMap.set(siteId, {
+            site_id: siteId,
+            site_nom: siteNom,
+            semaine_paire: {
+              lundi_matin: 0, lundi_apres_midi: 0,
+              mardi_matin: 0, mardi_apres_midi: 0,
+              mercredi_matin: 0, mercredi_apres_midi: 0,
+              jeudi_matin: 0, jeudi_apres_midi: 0,
+              vendredi_matin: 0, vendredi_apres_midi: 0,
+            },
+            semaine_impaire: {
+              lundi_matin: 0, lundi_apres_midi: 0,
+              mardi_matin: 0, mardi_apres_midi: 0,
+              mercredi_matin: 0, mercredi_apres_midi: 0,
+              jeudi_matin: 0, jeudi_apres_midi: 0,
+              vendredi_matin: 0, vendredi_apres_midi: 0,
+            },
+          });
+        }
+
+        const siteStats = sitesMap.get(siteId)!;
+        const jourKey = JOURS.find(j => j.jour_semaine === jourSemaine)?.key;
+        if (!jourKey) return;
+
+        // Calculer pour semaine paire et impaire selon le type d'alternance
+        let addPaire = false;
+        let addImpaire = false;
+
+        if (alternanceType === 'hebdomadaire') {
+          addPaire = true;
+          addImpaire = true;
+        } else if (alternanceType === 'une_sur_deux') {
+          if (alternanceModulo === 0) {
+            addPaire = true;
+          } else {
+            addImpaire = true;
+          }
+        } else if (alternanceType === 'une_sur_trois') {
+          // Pour 1/3, on considère qu'il travaille certaines semaines
+          if (alternanceModulo === 0 || alternanceModulo === 2) {
+            addPaire = true;
+          }
+          if (alternanceModulo === 1 || alternanceModulo === 2) {
+            addImpaire = true;
+          }
+        } else if (alternanceType === 'une_sur_quatre') {
+          // Pour 1/4, on considère qu'il travaille certaines semaines
+          if (alternanceModulo === 0 || alternanceModulo === 2) {
+            addPaire = true;
+          }
+          if (alternanceModulo === 1 || alternanceModulo === 3) {
+            addImpaire = true;
+          }
+        }
+
+        if (demiJournee === 'matin' || demiJournee === 'toute_journee') {
+          const key = `${jourKey}_matin` as keyof typeof siteStats.semaine_paire;
+          if (addPaire) siteStats.semaine_paire[key] += besoins;
+          if (addImpaire) siteStats.semaine_impaire[key] += besoins;
+        }
         
-        const debut = new Date(`2000-01-01T${horaire.heure_debut}`);
-        const fin = new Date(`2000-01-01T${horaire.heure_fin}`);
-        const heures = (fin.getTime() - debut.getTime()) / (1000 * 60 * 60);
-        
-        besoinsMap.set(specialiteId, (besoinsMap.get(specialiteId) || 0) + heures);
+        if (demiJournee === 'apres_midi' || demiJournee === 'toute_journee') {
+          const key = `${jourKey}_apres_midi` as keyof typeof siteStats.semaine_paire;
+          if (addPaire) siteStats.semaine_paire[key] += besoins;
+          if (addImpaire) siteStats.semaine_impaire[key] += besoins;
+        }
       });
 
-      // Fetch capacités (horaires base secrétaires)
-      const { data: horairesSecretaires, error: errorSecretaires } = await supabase
-        .from('horaires_base_secretaires')
-        .select(`
-          *,
-          secretaires!inner(specialites)
-        `)
-        .eq('actif', true);
-
-      if (errorSecretaires) throw errorSecretaires;
-
-      // Process capacités par spécialité
-      const capacitesMap = new Map<string, number>();
-      horairesSecretaires?.forEach((horaire: any) => {
-        const specialites = horaire.secretaires?.specialites || [];
-        
-        const debut = new Date(`2000-01-01T${horaire.heure_debut}`);
-        const fin = new Date(`2000-01-01T${horaire.heure_fin}`);
-        const heures = (fin.getTime() - debut.getTime()) / (1000 * 60 * 60);
-        
-        specialites.forEach((specId: string) => {
-          capacitesMap.set(specId, (capacitesMap.get(specId) || 0) + heures);
-        });
-      });
-
-      // Merge besoins and capacites
-      const allSpecialiteIds = new Set([...besoinsMap.keys(), ...capacitesMap.keys()]);
-      const mergedData: SpecialiteStats[] = Array.from(allSpecialiteIds).map(id => ({
-        specialite: specialitesMap.get(id)?.nom || 'Inconnu',
-        specialite_id: id,
-        besoins: Math.round((besoinsMap.get(id) || 0) * 10) / 10,
-        capacites: Math.round((capacitesMap.get(id) || 0) * 10) / 10,
-      })).sort((a, b) => a.specialite.localeCompare(b.specialite));
-
-      setStats(mergedData);
+      setStats(Array.from(sitesMap.values()).sort((a, b) => a.site_nom.localeCompare(b.site_nom)));
     } catch (error) {
       console.error('Error fetching stats:', error);
       toast.error('Erreur lors du chargement des statistiques');
@@ -179,326 +180,242 @@ export default function StatistiquesPage() {
     }
   };
 
-  const fetchDetailJour = async (specialiteId: string) => {
-    try {
-      // Fetch besoins detail
-      const { data: horairesMedecins, error: errorMedecins } = await supabase
-        .from('horaires_base_medecins')
-        .select(`
-          *,
-          medecins!inner(specialite_id)
-        `)
-        .eq('actif', true)
-        .eq('medecins.specialite_id', specialiteId);
+  const getChartData = () => {
+    const filteredStats = selectedSite === 'all' 
+      ? stats 
+      : stats.filter(s => s.site_id === selectedSite);
 
-      if (errorMedecins) throw errorMedecins;
+    const typeSemaine = selectedTypeSemaine === 'paire' ? 'semaine_paire' : 'semaine_impaire';
 
-      const besoinsJourMap = new Map<number, number>();
-      horairesMedecins?.forEach((horaire: any) => {
-        const debut = new Date(`2000-01-01T${horaire.heure_debut}`);
-        const fin = new Date(`2000-01-01T${horaire.heure_fin}`);
-        const heures = (fin.getTime() - debut.getTime()) / (1000 * 60 * 60);
-        
-        besoinsJourMap.set(horaire.jour_semaine, (besoinsJourMap.get(horaire.jour_semaine) || 0) + heures);
-      });
+    return JOURS.map(jour => {
+      const matin = filteredStats.reduce((sum, site) => {
+        const key = `${jour.key}_matin` as keyof typeof site.semaine_paire;
+        return sum + site[typeSemaine][key];
+      }, 0);
 
-      // Fetch capacites detail
-      const { data: horairesSecretaires, error: errorSecretaires } = await supabase
-        .from('horaires_base_secretaires')
-        .select(`
-          *,
-          secretaires!inner(specialites)
-        `)
-        .eq('actif', true);
+      const apresMidi = filteredStats.reduce((sum, site) => {
+        const key = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
+        return sum + site[typeSemaine][key];
+      }, 0);
 
-      if (errorSecretaires) throw errorSecretaires;
-
-      const capacitesJourMap = new Map<number, number>();
-      horairesSecretaires?.forEach((horaire: any) => {
-        const specialites = horaire.secretaires?.specialites || [];
-        if (!specialites.includes(specialiteId)) return;
-
-        const debut = new Date(`2000-01-01T${horaire.heure_debut}`);
-        const fin = new Date(`2000-01-01T${horaire.heure_fin}`);
-        const heures = (fin.getTime() - debut.getTime()) / (1000 * 60 * 60);
-        
-        capacitesJourMap.set(horaire.jour_semaine, (capacitesJourMap.get(horaire.jour_semaine) || 0) + heures);
-      });
-
-      const detailData: JourStats[] = JOURS_SEMAINE.map((jour, index) => ({
-        jour,
-        besoins: Math.round((besoinsJourMap.get(index + 1) || 0) * 10) / 10,
-        capacites: Math.round((capacitesJourMap.get(index + 1) || 0) * 10) / 10,
-      })).filter((_, index) => index < 5); // Garde uniquement Lundi à Vendredi
-
-      setDetailJour(detailData);
-    } catch (error) {
-      console.error('Error fetching detail:', error);
-      toast.error('Erreur lors du chargement du détail');
-    }
+      return {
+        jour: jour.label,
+        matin: Math.round(matin * 10) / 10,
+        apres_midi: Math.round(apresMidi * 10) / 10,
+      };
+    });
   };
 
-  const handleBarClick = (data: any) => {
-    if (data && data.specialite_id) {
-      setSelectedSpecialite(data.specialite_id);
-      fetchDetailJour(data.specialite_id);
-    }
-  };
+  const getSummary = () => {
+    const typeSemaine = selectedTypeSemaine === 'paire' ? 'semaine_paire' : 'semaine_impaire';
+    const filteredStats = selectedSite === 'all' 
+      ? stats 
+      : stats.filter(s => s.site_id === selectedSite);
 
-  const handleOptimizeMILP = async () => {
-    setIsOptimizing(true);
-    try {
-      toast.info('Optimisation MILP en cours...', {
-        description: 'Cela peut prendre quelques secondes',
+    let totalMatin = 0;
+    let totalApresMidi = 0;
+
+    filteredStats.forEach(site => {
+      JOURS.forEach(jour => {
+        const keyMatin = `${jour.key}_matin` as keyof typeof site.semaine_paire;
+        const keyAM = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
+        totalMatin += site[typeSemaine][keyMatin];
+        totalApresMidi += site[typeSemaine][keyAM];
       });
+    });
 
-      const { data, error } = await supabase.functions.invoke('optimize-base-schedule-milp');
-
-      if (error) throw error;
-
-      toast.success('Optimisation MILP terminée', {
-        description: `${data.stats.total_assignments} assignations créées (${data.stats.satisfaction_rate} de satisfaction)`,
-      });
-
-      // Refresh optimization data
-      await fetchOptimization();
-    } catch (error: any) {
-      console.error('MILP optimization error:', error);
-      toast.error('Erreur lors de l\'optimisation MILP', {
-        description: error.message,
-      });
-    } finally {
-      setIsOptimizing(false);
-    }
+    return {
+      totalMatin: Math.round(totalMatin * 10) / 10,
+      totalApresMidi: Math.round(totalApresMidi * 10) / 10,
+      total: Math.round((totalMatin + totalApresMidi) * 10) / 10,
+    };
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
         <p className="text-muted-foreground">Chargement des statistiques...</p>
       </div>
     );
   }
 
-  const renderCustomLabel = (props: any) => {
-    const { x, y, width, value } = props;
-    if (value === 0) return null;
-    return (
-      <text 
-        x={x + width + 5} 
-        y={y + 12} 
-        fill="hsl(var(--foreground))" 
-        fontSize={11}
-        fontWeight={500}
-      >
-        {value}h
-      </text>
-    );
-  };
+  const chartData = getChartData();
+  const summary = getSummary();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Statistiques</h1>
-          <p className="text-muted-foreground">
-          {viewMode === 'optimization' 
-              ? 'Optimisation des horaires de base' 
-              : viewMode === 'graphs'
-              ? 'Analyse des besoins et capacités par spécialité (heures hebdomadaires)'
-              : 'Scénarios What-if : simulez l\'ajout de médecins et secrétaires'
-            }
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'optimization' | 'graphs' | 'whatif')} className="w-auto">
-            <TabsList>
-              <TabsTrigger value="optimization">Optimisation</TabsTrigger>
-            <TabsTrigger value="graphs">Graphiques</TabsTrigger>
-            <TabsTrigger value="whatif">What-if</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Statistiques</h1>
+        <p className="text-muted-foreground">
+          Analyse des besoins en secrétaires par site et type de semaine
+        </p>
       </div>
 
-      {viewMode === 'optimization' && optimizationScores.length > 0 && (
-        <OptimizationScoreCards scores={optimizationScores} />
-      )}
-
-      {viewMode === 'whatif' && (
-        <WhatIfScenarioEditor />
-      )}
-
-      {viewMode === 'graphs' && (
-        <Card className="border-border/50 shadow-lg">
-          <Tabs defaultValue="global">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div>
-                <CardTitle>Besoins vs Capacités par Spécialité</CardTitle>
-                <CardDescription>
-                  Basé sur les horaires de base des médecins et secrétaires
-                </CardDescription>
-              </div>
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="global">Vue Globale</TabsTrigger>
-                <TabsTrigger value="detail">Détail par Jour</TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            <CardContent>
-              <TabsContent value="global" className="space-y-4">
-              <ResponsiveContainer width="100%" height={stats.length * 70 + 100}>
-                <BarChart 
-                  data={stats} 
-                  layout="vertical"
-                  onClick={handleBarClick}
-                  margin={{ left: 100, right: 80, top: 20, bottom: 20 }}
-                  barCategoryGap="20%"
-                >
-                  <XAxis 
-                    type="number"
-                    stroke="hsl(var(--muted-foreground))"
-                    tick={{ fontSize: 12 }}
-                    label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
-                  />
-                  <YAxis 
-                    type="category"
-                    dataKey="specialite" 
-                    stroke="hsl(var(--muted-foreground))"
-                    tick={{ fontSize: 12 }}
-                    width={90}
-                    axisLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--popover))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                    }}
-                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }}
-                  />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '20px' }}
-                    iconType="circle"
-                    formatter={(value) => <span style={{ color: '#000' }}>{value}</span>}
-                  />
-                  <Bar 
-                    dataKey="besoins" 
-                    fill="hsl(217 91% 60%)" 
-                    radius={[0, 8, 8, 0]}
-                    name="Besoins"
-                    cursor="pointer"
-                    label={renderCustomLabel}
-                    style={{
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                    }}
-                  />
-                  <Bar 
-                    dataKey="capacites" 
-                    fill="hsl(142 76% 36%)" 
-                    radius={[0, 8, 8, 0]}
-                    name="Capacités"
-                    cursor="pointer"
-                    label={renderCustomLabel}
-                    style={{
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                    }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </TabsContent>
-
-            <TabsContent value="detail">
-              <div className="space-y-6">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-4">Sélectionnez une spécialité pour voir le détail par jour</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {stats.map((stat) => (
-                      <button
-                        key={stat.specialite_id}
-                        onClick={() => {
-                          setSelectedSpecialite(stat.specialite_id);
-                          fetchDetailJour(stat.specialite_id);
-                        }}
-                        className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                          selectedSpecialite === stat.specialite_id
-                            ? 'bg-primary text-primary-foreground border-primary shadow-md'
-                            : 'bg-card hover:bg-accent border-border hover:border-primary/50'
-                        }`}
-                      >
-                        {stat.specialite}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedSpecialite && detailJour.length > 0 && (
-                  <div className="space-y-4">
-                    <ResponsiveContainer width="100%" height={450}>
-                      <BarChart 
-                        data={detailJour} 
-                        layout="vertical"
-                        margin={{ left: 80, right: 80, top: 20, bottom: 20 }}
-                        barCategoryGap="20%"
-                      >
-                        <XAxis 
-                          type="number"
-                          stroke="hsl(var(--muted-foreground))"
-                          tick={{ fontSize: 12 }}
-                          label={{ value: 'Heures', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
-                        />
-                        <YAxis 
-                          type="category"
-                          dataKey="jour" 
-                          stroke="hsl(var(--muted-foreground))"
-                          tick={{ fontSize: 12 }}
-                          width={70}
-                          axisLine={false}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--popover))', 
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                          }}
-                        />
-                        <Legend 
-                          wrapperStyle={{ paddingTop: '20px' }}
-                          iconType="circle"
-                          formatter={(value) => <span style={{ color: '#000' }}>{value}</span>}
-                        />
-                        <Bar 
-                          dataKey="besoins" 
-                          fill="hsl(217 91% 60%)" 
-                          radius={[0, 8, 8, 0]}
-                          name="Besoins"
-                          label={renderCustomLabel}
-                          style={{
-                            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                          }}
-                        />
-                        <Bar 
-                          dataKey="capacites" 
-                          fill="hsl(142 76% 36%)" 
-                          radius={[0, 8, 8, 0]}
-                          name="Capacités"
-                          label={renderCustomLabel}
-                          style={{
-                            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                          }}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            </CardContent>
-          </Tabs>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Card className="flex-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Site</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedSite} onValueChange={setSelectedSite}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les sites</SelectItem>
+                {sites.map(site => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
         </Card>
-      )}
+
+        <Card className="flex-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Type de semaine</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={selectedTypeSemaine} onValueChange={(v) => setSelectedTypeSemaine(v as 'paire' | 'impaire')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="paire">Semaine paire</TabsTrigger>
+                <TabsTrigger value="impaire">Semaine impaire</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Besoins Matin</CardDescription>
+            <CardTitle className="text-3xl">{summary.totalMatin}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Besoins Après-midi</CardDescription>
+            <CardTitle className="text-3xl">{summary.totalApresMidi}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Total Hebdomadaire</CardDescription>
+            <CardTitle className="text-3xl">{summary.total}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Besoins par jour et période</CardTitle>
+          <CardDescription>
+            Basé sur les horaires de base des médecins
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart 
+              data={chartData}
+              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+              <XAxis 
+                dataKey="jour" 
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis 
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fontSize: 12 }}
+                label={{ value: 'Besoins (secrétaires)', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--popover))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+                formatter={(value: any) => [`${value} secrétaires`, '']}
+              />
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+                formatter={(value) => value === 'matin' ? 'Matin' : 'Après-midi'}
+              />
+              <Bar dataKey="matin" fill="hsl(217 91% 60%)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="apres_midi" fill="hsl(142 76% 36%)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Détail par site</CardTitle>
+          <CardDescription>
+            Vue détaillée des besoins pour chaque site
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {stats
+              .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+              .map(site => {
+                const typeSemaine = selectedTypeSemaine === 'paire' ? 'semaine_paire' : 'semaine_impaire';
+                
+                return (
+                  <div key={site.site_id} className="space-y-3">
+                    <h3 className="font-semibold text-lg">{site.site_nom}</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Jour</TableHead>
+                          <TableHead className="text-center">Matin</TableHead>
+                          <TableHead className="text-center">Après-midi</TableHead>
+                          <TableHead className="text-center">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {JOURS.map(jour => {
+                          const keyMatin = `${jour.key}_matin` as keyof typeof site.semaine_paire;
+                          const keyAM = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
+                          const matin = site[typeSemaine][keyMatin];
+                          const apresMidi = site[typeSemaine][keyAM];
+                          const total = matin + apresMidi;
+
+                          return (
+                            <TableRow key={jour.key}>
+                              <TableCell className="font-medium">{jour.label}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={matin > 0 ? "default" : "secondary"}>
+                                  {Math.round(matin * 10) / 10}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={apresMidi > 0 ? "default" : "secondary"}>
+                                  {Math.round(apresMidi * 10) / 10}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={total > 0 ? "default" : "outline"}>
+                                  {Math.round(total * 10) / 10}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
