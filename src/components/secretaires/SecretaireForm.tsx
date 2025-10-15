@@ -227,7 +227,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           description: "Secrétaire modifié avec succès",
         });
       } else {
-        // Création - sites_assignes deprecated, using secretaires_sites
+        // Création - using secretaires_sites for site assignments
         const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
@@ -236,8 +236,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
             profile_id: null,
-            sites_assignes: [], // deprecated but kept for compatibility
-            medecin_assigne_id: null,
             prefere_port_en_truie: data.preferePortEnTruie,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,

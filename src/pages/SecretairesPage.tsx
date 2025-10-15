@@ -25,11 +25,6 @@ interface Secretaire {
   phone_number?: string;
   sites_assignes_details?: { nom: string; priorite?: string }[];
   medecins_assignes_details?: { first_name: string; name: string; priorite?: string }[];
-  medecin_assigne_id?: string;
-  medecins?: {
-    first_name: string;
-    name: string;
-  } | null;
   horaires_base_secretaires?: { 
     id: string;
     jour_semaine: number; 
@@ -44,16 +39,19 @@ interface Secretaire {
   }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
   profile_id?: string;
-  site_preferentiel_id?: string;
   prefere_port_en_truie?: boolean;
   flexible_jours_supplementaires?: boolean;
   nombre_jours_supplementaires?: number;
   horaire_flexible?: boolean;
   pourcentage_temps?: number;
   actif?: boolean;
-  sites?: {
-    nom: string;
-  } | null;
+  personnel_bloc_operatoire?: boolean;
+  assignation_administrative?: boolean;
+  anesthesiste?: boolean;
+  instrumentaliste?: boolean;
+  aide_de_salle?: boolean;
+  bloc_ophtalmo_accueil?: boolean;
+  bloc_dermato_accueil?: boolean;
 }
 
 export default function SecretairesPage() {
@@ -85,8 +83,6 @@ export default function SecretairesPage() {
           email,
           phone_number,
           profile_id,
-          site_preferentiel_id,
-          
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
@@ -100,9 +96,6 @@ export default function SecretairesPage() {
           bloc_ophtalmo_accueil,
           bloc_dermato_accueil,
           actif,
-          sites!secretaires_site_preferentiel_id_fkey (
-            nom
-          ),
           horaires_base_secretaires (
             id,
             jour_semaine,
@@ -725,18 +718,6 @@ export default function SecretairesPage() {
                       </div>
                     )}
                   </div>
-                  
-                  {/* Site préférentiel */}
-                  {secretaire.sites && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                        Site préférentiel
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {secretaire.sites.nom}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </ModernCardContent>
             </ModernCard>
