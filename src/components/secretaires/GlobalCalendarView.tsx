@@ -393,10 +393,10 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
               {secretaires.map((secretaire, secIndex) => (
                 <div
                   key={secretaire.id}
-                  className={`grid gap-1 mb-1 hover:bg-accent/10 py-1 ${secIndex % 2 === 0 ? 'bg-muted/20' : ''}`}
+                  className={`grid gap-1 mb-0.5 hover:bg-accent/20 py-0.5 ${secIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}
                   style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
                 >
-                  <div className="font-medium text-sm py-2 px-2 sticky left-0 bg-background z-10 truncate border-r">
+                  <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 truncate border-r ${secIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
                     {secretaire.first_name} {secretaire.name}
                   </div>
                   {days.map((dayInfo, index) => {
@@ -409,7 +409,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     return (
                       <div
                         key={index}
-                        className={`min-h-[40px] border rounded p-0.5 relative group ${
+                        className={`min-h-[28px] border rounded p-0.5 relative group ${
                           isWeekendDay ? 'bg-accent/5' : 'bg-card'
                         }`}
                       >
@@ -418,18 +418,18 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                             {capacitesDay.map((cap) => (
                               <div
                                 key={cap.id}
-                                className={`text-[9px] px-1 py-0.5 rounded border ${getColorForPeriod(
+                                className={`text-[8px] px-0.5 py-0.5 rounded border ${getColorForPeriod(
                                   cap.demi_journee
-                                )} relative group/badge`}
+                                )} relative group/badge leading-none`}
                                 title={cap.sites?.nom}
                               >
-                                <div className="truncate font-medium leading-tight">
+                                <div className="truncate font-semibold">
                                   {getPeriodLabel(cap.demi_journee)}
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="absolute -top-1 -right-1 h-3 w-3 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+                                  className="absolute -top-0.5 -right-0.5 h-3 w-3 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
                                   onClick={() => handleDeleteCapacite(cap.id)}
                                   disabled={loading}
                                 >
