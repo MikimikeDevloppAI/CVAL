@@ -421,6 +421,7 @@ export function ManagePersonnelDialog({
                     pressed={is1R}
                     onPressedChange={setIs1R}
                     variant="outline"
+                    className={is1R ? 'border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' : ''}
                   >
                     1R
                   </Toggle>
@@ -428,6 +429,7 @@ export function ManagePersonnelDialog({
                     pressed={is2F}
                     onPressedChange={setIs2F}
                     variant="outline"
+                    className={is2F ? 'border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100' : ''}
                   >
                     2F
                   </Toggle>
@@ -435,10 +437,21 @@ export function ManagePersonnelDialog({
                     pressed={is3F}
                     onPressedChange={setIs3F}
                     variant="outline"
+                    className={is3F ? 'border-2 border-purple-500 bg-purple-50 text-purple-700 hover:bg-purple-100' : ''}
                   >
                     3F
                   </Toggle>
                 </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setAction('swap')}
+                >
+                  Échanger avec une autre secrétaire
+                </Button>
               </div>
             </>
           )}
@@ -489,6 +502,7 @@ export function ManagePersonnelDialog({
                         pressed={is1R}
                         onPressedChange={setIs1R}
                         variant="outline"
+                        className={is1R ? 'border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' : ''}
                       >
                         1R
                       </Toggle>
@@ -496,6 +510,7 @@ export function ManagePersonnelDialog({
                         pressed={is2F}
                         onPressedChange={setIs2F}
                         variant="outline"
+                        className={is2F ? 'border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100' : ''}
                       >
                         2F
                       </Toggle>
@@ -503,6 +518,7 @@ export function ManagePersonnelDialog({
                         pressed={is3F}
                         onPressedChange={setIs3F}
                         variant="outline"
+                        className={is3F ? 'border-2 border-purple-500 bg-purple-50 text-purple-700 hover:bg-purple-100' : ''}
                       >
                         3F
                       </Toggle>
