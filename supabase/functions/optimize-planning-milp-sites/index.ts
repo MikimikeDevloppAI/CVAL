@@ -28,7 +28,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { single_day, week_start, week_end } = await req.json().catch(() => ({}));
+    const { single_day, week_start, week_end, exclude_bloc_assigned, selected_dates } = await req.json().catch(() => ({}));
     
     const isWeekMode = !single_day && week_start && week_end;
     
@@ -37,11 +37,15 @@ serve(async (req) => {
     }
 
     if (isWeekMode) {
-      console.log(`📅 Week mode: Optimizing ${week_start} to ${week_end}`);
-      return await optimizeWeek(supabaseServiceRole, week_start, week_end);
+      if (selected_dates && selected_dates.length > 0) {
+        console.log(`📅 Week mode (partial): Optimizing ${selected_dates.length} date(s):`, selected_dates);
+      } else {
+        console.log(`📅 Week mode: Optimizing ${week_start} to ${week_end}`);
+      }
+      return await optimizeWeek(supabaseServiceRole, week_start, week_end, exclude_bloc_assigned, selected_dates);
     } else {
       console.log(`📅 Day mode: Optimizing ${single_day}`);
-      return await optimizeDay(supabaseServiceRole, single_day);
+      return await optimizeDay(supabaseServiceRole, single_day, exclude_bloc_assigned);
     }
 
   } catch (error) {
@@ -69,20 +73,27 @@ function getDatesInRange(start: string, end: string): string[] {
 }
 
 // Single day optimization
-async function optimizeDay(supabase: any, date: string) {
+async function optimizeDay(supabase: any, date: string, exclude_bloc_assigned: boolean = false) {
   const dates = [date];
-  return await optimizeMultipleDays(supabase, dates);
+  return await optimizeMultipleDays(supabase, dates, exclude_bloc_assigned);
 }
 
 // Week optimization  
-async function optimizeWeek(supabase: any, weekStart: string, weekEnd: string) {
-  const dates = getDatesInRange(weekStart, weekEnd);
-  return await optimizeMultipleDays(supabase, dates);
+async function optimizeWeek(supabase: any, weekStart: string, weekEnd: string, exclude_bloc_assigned: boolean = false, selected_dates?: string[]) {
+  let dates = getDatesInRange(weekStart, weekEnd);
+  // If selected_dates provided, only process those
+  if (selected_dates && selected_dates.length > 0) {
+    dates = selected_dates;
+  }
+  return await optimizeMultipleDays(supabase, dates, exclude_bloc_assigned, weekStart, weekEnd, selected_dates);
 }
 
 // Main optimization function (works for 1 day or multiple days)
-async function optimizeMultipleDays(supabase: any, dates: string[]) {
+async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc_assigned: boolean = false, week_start?: string, week_end?: string, selected_dates?: string[]) {
   console.log(`\n🗓️ Optimizing ${dates.length} day(s): ${dates.join(', ')}`);
+  
+  const weekStartStr = week_start || dates[0];
+  const weekEndStr = week_end || dates[dates.length - 1];
   
   // 1. Fetch all data
   const [secretaires, sites, besoins, capacites, blocPersonnel] = await Promise.all([
@@ -151,7 +162,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[]) {
   }
 
   // 5. Build and solve MILP
-  const solution = buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs);
+  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, selected_dates);
 
   if (!solution.feasible) {
     console.error('❌ MILP not feasible!');
@@ -207,15 +218,19 @@ function extractBlocAssignments(blocPersonnel: any[], dates: string[]): Map<stri
 }
 
 // Build MILP - aggregate besoins by site/demi-journée
-function buildMILP(
+async function buildMILP(
   besoins: any[],
   secretaires: any[],
   capacites: any[],
   blocAssignments: Map<string, Set<string>>,
   sites: any[],
   dates: string[],
-  flexibleSecs: Map<string, number>
-): any {
+  flexibleSecs: Map<string, number>,
+  supabase: any,
+  weekStartStr: string,
+  weekEndStr: string,
+  selected_dates?: string[]
+): Promise<any> {
   console.log('\n🔍 Building MILP by aggregating site needs...');
   
   const model: any = {
@@ -550,11 +565,47 @@ function buildMILP(
   console.log('  📅 Adding flexible full-day constraints...');
   
   if (dates.length > 1) {
+    // Calculate days already worked for flexible secretaries (excluding selected_dates)
+    const daysAlreadyWorked = new Map<string, number>();
+    
+    for (const [flexSecId] of flexibleSecs) {
+      const { data: existingAssignments } = await supabase
+        .from('planning_genere_personnel')
+        .select('date, periode')
+        .eq('secretaire_id', flexSecId)
+        .gte('date', weekStartStr)
+        .lte('date', weekEndStr)
+        .in('type_assignation', ['site', 'bloc']);
+
+      const periodsByDate = new Map<string, Set<string>>();
+      
+      for (const a of existingAssignments || []) {
+        // Skip dates being re-optimized
+        if (selected_dates && selected_dates.includes(a.date)) continue;
+        
+        if (!periodsByDate.has(a.date)) periodsByDate.set(a.date, new Set());
+        periodsByDate.get(a.date)!.add(a.periode);
+      }
+
+      // Count only FULL days
+      const fullDays = new Set<string>();
+      for (const [date, periods] of periodsByDate) {
+        if (periods.has('matin') && periods.has('apres_midi')) {
+          fullDays.add(date);
+        }
+      }
+
+      daysAlreadyWorked.set(flexSecId, fullDays.size);
+    }
+    
     for (const [flexSecId, requiredDays] of flexibleSecs) {
       const sec = secretaires.find((s: any) => s.id === flexSecId);
       if (!sec) continue;
 
-      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} full days ONLY`);
+      const alreadyWorked = daysAlreadyWorked.get(flexSecId) || 0;
+      const remaining = Math.max(0, requiredDays - alreadyWorked);
+
+      console.log(`    🧮 ${sec.first_name} ${sec.name}: ${requiredDays} jours total, déjà ${alreadyWorked} jours, reste ${remaining} jours`);
 
       // 1. Force full-day equality (accounting for bloc assignments)
       for (const date of dates) {

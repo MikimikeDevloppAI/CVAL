@@ -20,20 +20,23 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end } = await req.json().catch(() => ({}));
+    const { week_start, week_end, selected_dates } = await req.json().catch(() => ({}));
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end parameters are required');
     }
 
-    const dates = [];
+    const allDates = [];
     let currentDate = new Date(week_start);
     const endDate = new Date(week_end);
     while (currentDate <= endDate) {
-      dates.push(currentDate.toISOString().split('T')[0]);
+      allDates.push(currentDate.toISOString().split('T')[0]);
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    console.log(`📅 Optimizing bloc for week: ${week_start} to ${week_end} (${dates.length} days)`);
+    // Filter dates if selected_dates provided
+    const dates = selected_dates && selected_dates.length > 0 ? selected_dates : allDates;
+    
+    console.log(`📅 Optimizing bloc for ${dates.length} date(s):`, dates);
 
     // Get Bloc operatoire site ID
     const { data: blocSite, error: blocSiteError } = await supabaseServiceRole

@@ -19,36 +19,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { single_day, optimize_bloc = true, optimize_sites = true } = await req.json().catch(() => ({}));
+    const { selected_dates, optimize_bloc = true, optimize_sites = true } = await req.json().catch(() => ({}));
     
-    if (!single_day) {
-      throw new Error('single_day parameter is required');
+    if (!selected_dates || !Array.isArray(selected_dates) || selected_dates.length === 0) {
+      throw new Error('selected_dates parameter is required and must be a non-empty array');
     }
 
-    console.log(`📅 Orchestrating optimization for: ${single_day}`);
-    console.log(`   Bloc: ${optimize_bloc ? 'YES' : 'NO'}, Sites: ${optimize_sites ? 'YES' : 'NO'}`);
+    console.log(`📅 Partial optimization for ${selected_dates.length} date(s):`, selected_dates);
+
+    // Calculate week bounds from selected dates
+    const dates = selected_dates.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
+    const weekStart = dates[0].toISOString().split('T')[0];
+    const weekEnd = dates[dates.length - 1].toISOString().split('T')[0];
+    
+    console.log(`📊 Week range: ${weekStart} to ${weekEnd}`);
 
     let blocResults = null;
     let sitesResults = null;
 
   // Get or create planning_id for the week
-  const targetDate = new Date(single_day);
-  const dayOfWeek = targetDate.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const weekStart = new Date(targetDate);
-  weekStart.setDate(targetDate.getDate() + diff);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  
-  const weekStartStr = weekStart.toISOString().split('T')[0];
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
-
   let planning_id;
   const { data: existingPlanning } = await supabaseServiceRole
     .from('planning')
     .select('*')
-    .eq('date_debut', weekStartStr)
-    .eq('date_fin', weekEndStr)
+    .eq('date_debut', weekStart)
+    .eq('date_fin', weekEnd)
     .maybeSingle();
 
   if (existingPlanning) {
@@ -57,8 +52,8 @@ serve(async (req) => {
     const { data: newPlanning, error: planningError } = await supabaseServiceRole
       .from('planning')
       .insert({
-        date_debut: weekStartStr,
-        date_fin: weekEndStr,
+        date_debut: weekStart,
+        date_fin: weekEnd,
         statut: 'en_cours'
       })
       .select()
@@ -67,35 +62,62 @@ serve(async (req) => {
     planning_id = newPlanning.id;
   }
 
-  console.log(`📋 Using planning_id: ${planning_id} for week ${weekStartStr} to ${weekEndStr}`);
+  console.log(`📋 Using planning_id: ${planning_id} for week ${weekStart} to ${weekEnd}`);
 
-  // Delete existing unified personnel rows for this week/day (idempotency)
-  console.log('🧹 Cleaning up existing unified personnel entries...');
-  await supabaseServiceRole
-    .from('planning_genere_personnel')
-    .delete()
-    .gte('date', weekStartStr)
-    .lte('date', weekEndStr)
-    .in('type_assignation', ['site', 'administratif']);
+  // Delete existing unified personnel rows (only selected dates or full week)
+  if (selected_dates.length < 7) {
+    console.log(`\n🧹 Cleaning up ${selected_dates.length} specific dates...`);
+    for (const date of selected_dates) {
+      await supabaseServiceRole
+        .from('planning_genere_personnel')
+        .delete()
+        .eq('planning_id', planning_id)
+        .eq('date', date)
+        .in('type_assignation', ['site', 'administratif']);
+    }
+    console.log('✅ Partial cleanup complete');
+  } else {
+    console.log('🧹 Cleaning up full week...');
+    await supabaseServiceRole
+      .from('planning_genere_personnel')
+      .delete()
+      .eq('planning_id', planning_id)
+      .in('type_assignation', ['site', 'administratif']);
+    console.log('✅ Full cleanup complete');
+  }
 
   // PHASE 1: Bloc opératoire
   if (optimize_bloc) {
     console.log('🏥 Phase 1: Optimizing bloc operatoire...');
     
-    // Delete existing bloc operations and bloc personnel for the week
-    await supabaseServiceRole
-      .from('planning_genere_bloc_operatoire')
-      .delete()
-      .eq('planning_id', planning_id)
-      .gte('date', weekStartStr)
-      .lte('date', weekEndStr);
+    // Delete existing bloc operations and bloc personnel for selected dates
+    if (selected_dates.length < 7) {
+      for (const date of selected_dates) {
+        await supabaseServiceRole
+          .from('planning_genere_bloc_operatoire')
+          .delete()
+          .eq('planning_id', planning_id)
+          .eq('date', date);
 
-    await supabaseServiceRole
-      .from('planning_genere_personnel')
-      .delete()
-      .gte('date', weekStartStr)
-      .lte('date', weekEndStr)
-      .eq('type_assignation', 'bloc');
+        await supabaseServiceRole
+          .from('planning_genere_personnel')
+          .delete()
+          .eq('planning_id', planning_id)
+          .eq('date', date)
+          .eq('type_assignation', 'bloc');
+      }
+    } else {
+      await supabaseServiceRole
+        .from('planning_genere_bloc_operatoire')
+        .delete()
+        .eq('planning_id', planning_id);
+
+      await supabaseServiceRole
+        .from('planning_genere_personnel')
+        .delete()
+        .eq('planning_id', planning_id)
+        .eq('type_assignation', 'bloc');
+    }
 
     const blocUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-bloc`;
     const blocResponse = await fetch(blocUrl, {
@@ -104,7 +126,11 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
-      body: JSON.stringify({ week_start: weekStartStr, week_end: weekEndStr })
+      body: JSON.stringify({ 
+        week_start: weekStart, 
+        week_end: weekEnd, 
+        selected_dates 
+      })
     });
 
     if (!blocResponse.ok) {
@@ -121,7 +147,7 @@ serve(async (req) => {
 
   // PHASE 2: Sites optimization (simplified)
   if (optimize_sites) {
-    console.log('🏢 Phase 2: Optimizing sites (filling pre-generated rows)...');
+    console.log('🏢 Phase 2: Optimizing sites...');
 
     const sitesUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-sites`;
     const sitesResponse = await fetch(sitesUrl, {
@@ -131,9 +157,10 @@ serve(async (req) => {
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
       body: JSON.stringify({ 
-        week_start: weekStartStr,
-        week_end: weekEndStr,
-        exclude_bloc_assigned: optimize_bloc
+        week_start: weekStart,
+        week_end: weekEnd,
+        exclude_bloc_assigned: optimize_bloc,
+        selected_dates
       })
     });
 
@@ -158,8 +185,10 @@ serve(async (req) => {
       'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
     },
     body: JSON.stringify({ 
-      week_start: weekStartStr,
-      week_end: weekEndStr
+      week_start: weekStart,
+      week_end: weekEnd,
+      planning_id,
+      selected_dates
     })
   });
 
@@ -183,8 +212,9 @@ serve(async (req) => {
       'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
     },
     body: JSON.stringify({ 
-      week_start: weekStartStr,
-      week_end: weekEndStr
+      week_start: weekStart,
+      week_end: weekEnd,
+      selected_dates
     })
   });
 

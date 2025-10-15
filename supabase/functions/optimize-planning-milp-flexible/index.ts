@@ -41,13 +41,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end, planning_id } = await req.json();
+    const { week_start, week_end, planning_id, selected_dates } = await req.json();
     
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end are required');
     }
 
-    console.log(`📅 Optimizing flexible secretaries for week ${week_start} to ${week_end}`);
+    if (selected_dates && selected_dates.length > 0) {
+      console.log(`📅 Optimizing flexible secretaries for ${selected_dates.length} date(s):`, selected_dates);
+    } else {
+      console.log(`📅 Optimizing flexible secretaries for week ${week_start} to ${week_end}`);
+    }
 
     // ==================== DATA COLLECTION ====================
     
@@ -148,15 +152,86 @@ serve(async (req) => {
 
     console.log(`${unassignedFlexible.length} flexible secretaries to assign`);
 
-    // Calculate required days for each
-    const secretariesWithDays = unassignedFlexible.map(sec => ({
-      ...sec,
-      jours_requis: Math.round((sec.pourcentage_temps / 100) * 5)
-    }));
+    // Calculate days already worked this week (excluding selected_dates)
+    const daysAlreadyWorked = new Map<string, number>();
+    
+    for (const secretary of unassignedFlexible) {
+      // Query existing site assignments
+      const { data: existingSiteAssignments } = await supabase
+        .from('planning_genere_personnel')
+        .select('date, periode')
+        .eq('secretaire_id', secretary.id)
+        .eq('type_assignation', 'site')
+        .gte('date', week_start)
+        .lte('date', week_end);
+      
+      // Query existing bloc assignments
+      const { data: existingBlocAssignments } = await supabase
+        .from('planning_genere_personnel')
+        .select('date, periode')
+        .eq('secretaire_id', secretary.id)
+        .eq('type_assignation', 'bloc')
+        .gte('date', week_start)
+        .lte('date', week_end);
+      
+      // Count unique FULL days (both matin + apres_midi), excluding selected_dates
+      const periodsByDate = new Map<string, Set<string>>();
+      
+      for (const assignment of [...(existingSiteAssignments || []), ...(existingBlocAssignments || [])]) {
+        // Skip dates being re-optimized
+        if (selected_dates && selected_dates.includes(assignment.date)) {
+          continue;
+        }
+        
+        if (!periodsByDate.has(assignment.date)) {
+          periodsByDate.set(assignment.date, new Set());
+        }
+        periodsByDate.get(assignment.date)!.add(assignment.periode);
+      }
+      
+      // Count only FULL days
+      const daysSet = new Set<string>();
+      for (const [date, periods] of periodsByDate.entries()) {
+        if (periods.has('matin') && periods.has('apres_midi')) {
+          daysSet.add(date);
+        }
+      }
+      
+      daysAlreadyWorked.set(secretary.id, daysSet.size);
+    }
+
+    // Calculate required days for each, considering days already worked
+    const secretariesWithDays = unassignedFlexible.map(sec => {
+      const totalRequired = Math.round((sec.pourcentage_temps / 100) * 5);
+      const alreadyWorked = daysAlreadyWorked.get(sec.id) || 0;
+      const remaining = Math.max(0, totalRequired - alreadyWorked);
+      
+      return {
+        ...sec,
+        jours_requis: remaining,
+        jours_deja_travailles: alreadyWorked,
+        jours_total: totalRequired
+      };
+    });
     
     for (const sec of secretariesWithDays) {
-      console.log(`  ${sec.first_name} ${sec.name}: ${sec.pourcentage_temps}% = ${sec.jours_requis} jours`);
+      console.log(`  ${sec.first_name} ${sec.name}: ${sec.pourcentage_temps}% = ${sec.jours_total} jours total, déjà ${sec.jours_deja_travailles} jours → reste ${sec.jours_requis} jours à assigner`);
     }
+    
+    // Filter out secretaries who already met their weekly requirement
+    const secretariesNeedingAssignment = secretariesWithDays.filter(s => s.jours_requis > 0);
+
+    if (secretariesNeedingAssignment.length === 0) {
+      console.log('ℹ️ All flexible secretaries already fulfilled their weekly requirement');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'All flexible secretaries already fulfilled requirements',
+        flexible_assigned: 0,
+        secretaries_processed: 0
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    console.log(`${secretariesNeedingAssignment.length} flexible secretaries need assignment`);
 
     // 3. Fetch ALL site besoins for the week
     const { data: allSiteBesoins, error: besoinsError } = await supabase
@@ -200,11 +275,17 @@ serve(async (req) => {
     const positions: Position[] = [];
 
     for (const besoin of allSiteBesoins || []) {
+      // Skip if not in selected_dates (when doing partial optimization)
+      if (selected_dates && !selected_dates.includes(besoin.date)) {
+        continue;
+      }
+      
       const personnelRows = allPersonnelRows?.filter(
         p => p.planning_genere_site_besoin_id === besoin.id
       ) || [];
       
       for (const row of personnelRows) {
+// ... keep existing code
         const currentSecretary = row.secretaire_id ? secretaryMap.get(row.secretaire_id) : null;
         
         positions.push({
@@ -262,7 +343,7 @@ serve(async (req) => {
     console.log(`  Processing ${allDates.length} dates for optimization`);
 
     // For each flexible secretary
-    for (const secretary of secretariesWithDays) {
+    for (const secretary of secretariesNeedingAssignment) {
       const f_id = secretary.id;
       const jours_requis = secretary.jours_requis;
       
@@ -425,7 +506,7 @@ serve(async (req) => {
     }
     
     // PENALTY: Site change between morning and afternoon (-500)
-    for (const secretary of secretariesWithDays) {
+    for (const secretary of secretariesNeedingAssignment) {
       for (const date of allDates) {
         const matinPositions = positions.filter(p => p.date === date && p.periode === 'matin');
         const amPositions = positions.filter(p => p.date === date && p.periode === 'apres_midi');
@@ -468,7 +549,7 @@ serve(async (req) => {
       model.variables[displaceVarName][constraintDisplace] = -1;
       
       // Link to position variables
-      for (const secretary of secretariesWithDays) {
+      for (const secretary of secretariesNeedingAssignment) {
         const periode_key = pos.periode === 'matin' ? 'matin' : 'apres_midi';
         const posVarName = `x_${secretary.id}_${pos.date}_${periode_key}_${pos.personnel_row_id}`;
         if (model.variables[posVarName]) {

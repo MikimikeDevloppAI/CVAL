@@ -667,13 +667,13 @@ export default function PlanningPage() {
       // Un seul appel pour toute la semaine (beaucoup plus rapide)
       console.log(`Optimizing entire week starting from: ${firstDay}`);
       
-      const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
-        body: {
-          single_day: firstDay,
-          optimize_bloc: optimizeBloc,
-          optimize_sites: optimizeSites,
-        },
-      });
+        const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
+          body: {
+            selected_dates: daysToOptimize,
+            optimize_bloc: optimizeBloc,
+            optimize_sites: optimizeSites,
+          },
+        });
 
       if (error) throw error;
 

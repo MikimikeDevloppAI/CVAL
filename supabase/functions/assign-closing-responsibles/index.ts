@@ -25,13 +25,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end } = await req.json();
+    const { week_start, week_end, selected_dates } = await req.json();
     
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end parameters are required');
     }
 
-    console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
+    if (selected_dates && selected_dates.length > 0) {
+      console.log(`📅 Assigning closing responsibles for ${selected_dates.length} date(s):`, selected_dates);
+    } else {
+      console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
+    }
 
     // Step 1: Get the 4 previous weeks to calculate scores
     const fourWeeksAgo = new Date(week_start);
@@ -71,8 +75,44 @@ serve(async (req) => {
 
     console.log(`📊 Calculated scores for ${scores.size} secretaries`);
 
-    // Also track scores for current week to balance within the week
+    // Also track scores for current week to balance within the week (excluding selected dates)
     const currentWeekScores = new Map<string, number>();
+    
+    // Get current week assignments to count scores (excluding selected dates being re-optimized)
+    const { data: currentWeekAssignments, error: cwError } = await supabase
+      .from('planning_genere_personnel')
+      .select('secretaire_id, is_1r, is_2f, is_3f, date')
+      .eq('type_assignation', 'site')
+      .gte('date', week_start)
+      .lte('date', week_end)
+      .not('secretaire_id', 'is', null);
+
+    if (cwError) throw cwError;
+
+    // Calculate current week scores (excluding selected dates)
+    for (const assignment of currentWeekAssignments || []) {
+      // Skip dates being re-optimized
+      if (selected_dates && selected_dates.includes(assignment.date)) {
+        continue;
+      }
+      
+      const secId = assignment.secretaire_id;
+      if (!secId) continue;
+      
+      if (!currentWeekScores.has(secId)) currentWeekScores.set(secId, 0);
+      
+      if (assignment.is_1r) {
+        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 1);
+      }
+      if (assignment.is_2f) {
+        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 2);
+      }
+      if (assignment.is_3f) {
+        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 2);
+      }
+    }
+    
+    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries (excluding re-optimized dates)`);
 
     // Step 3: Get all secretaries info
     const { data: secretaries, error: secError } = await supabase
