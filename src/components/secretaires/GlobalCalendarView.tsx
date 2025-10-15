@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { ChevronLeft, ChevronRight, Plus, X, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -345,34 +346,39 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold">Planning Assistant Médical</h2>
-              <p className="text-sm text-muted-foreground">Vue globale des disponibilités</p>
-            </div>
-            <DialogTitle className="flex items-center justify-between gap-4 w-full">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setExportDialogOpen(true)}
-                className="gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Exporter Excel
-              </Button>
-              
+            <DialogTitle className="flex flex-col gap-4 pb-4">
               <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-base font-semibold capitalize min-w-[200px] text-center">
-                  {monthName}
+                <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
+                  Calendrier mensuel
                 </span>
-                <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                <Separator orientation="vertical" className="h-6" />
+                <span className="text-muted-foreground font-normal">Assistant Médical</span>
               </div>
-              
-              <div className="w-[140px]" />
+              <div className="flex items-center justify-between gap-4 w-full">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setExportDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Exporter Excel
+                </Button>
+                
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading} className="hover:bg-primary/10">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-base font-semibold capitalize min-w-[200px] text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    {monthName}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading} className="hover:bg-primary/10">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="w-[140px]" />
+              </div>
             </DialogTitle>
           </DialogHeader>
 
