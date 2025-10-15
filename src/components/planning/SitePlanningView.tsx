@@ -12,6 +12,7 @@ import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 import { ManagePersonnelDialog } from './ManagePersonnelDialog';
 import { EditResponsibilitesDialog } from './EditResponsibilitesDialog';
 import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
+import { AssignToUnsatisfiedNeedDialog } from './AssignToUnsatisfiedNeedDialog';
 import { Button } from '@/components/ui/button';
 
 interface SitePlanningViewProps {
@@ -49,9 +50,11 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [editRespDialogOpen, setEditRespDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
   const [respAssignment, setRespAssignment] = useState<any>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
+  const [assignmentNeed, setAssignmentNeed] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -267,13 +270,14 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   }).sort((a, b) => a.siteName.localeCompare(b.siteName, 'fr'));
 
   const handleDayClick = (date: string, periode: 'matin' | 'apres_midi', siteId: string, siteName: string) => {
-    setDialogContext({
+    setAssignmentNeed({
       date,
       periode,
       site_id: siteId,
       site_nom: siteName,
+      type: 'site' as const,
     });
-    setManageDialogOpen(true);
+    setAssignDialogOpen(true);
   };
 
   const handleRespClick = (personnel: any, date: string, periode: 'matin' | 'apres_midi', siteName: string) => {
@@ -604,6 +608,15 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             fetchSitePlanning();
             setAssignmentToDelete(null);
           }}
+        />
+      )}
+
+      {assignmentNeed && (
+        <AssignToUnsatisfiedNeedDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          need={assignmentNeed}
+          onSuccess={fetchSitePlanning}
         />
       )}
     </div>
