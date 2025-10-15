@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { ChevronLeft, ChevronRight, Trash2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Plus, CalendarPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
 
 interface SecretaireMonthCalendarProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
     period: 'matin' | 'apres_midi';
     capaciteId?: string;
   } | null>(null);
+  const [multipleCreneauxDialogOpen, setMultipleCreneauxDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -321,12 +323,23 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
       <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-4 pb-4">
-            <div className="flex items-center gap-3">
-              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
-                Calendrier mensuel
-              </span>
-              <Separator orientation="vertical" className="h-6" />
-              <span className="text-muted-foreground font-normal">{secretaireNom}</span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
+                  Calendrier mensuel
+                </span>
+                <Separator orientation="vertical" className="h-6" />
+                <span className="text-muted-foreground font-normal">{secretaireNom}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMultipleCreneauxDialogOpen(true)}
+                className="gap-2"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                Ajouter plusieurs créneaux
+              </Button>
             </div>
             <div className="flex items-center justify-center gap-3">
               <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
@@ -466,6 +479,13 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
           </Dialog>
         )}
       </DialogContent>
+
+      <AddMultipleCreneauxDialog
+        open={multipleCreneauxDialogOpen}
+        onOpenChange={setMultipleCreneauxDialogOpen}
+        secretaireId={secretaireId}
+        onSuccess={fetchCapacites}
+      />
     </Dialog>
   );
 }
