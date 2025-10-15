@@ -403,12 +403,13 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
+                    const isSingleCap = capacitesDay.length === 1;
                     const isWeekendDay = isWeekend(dayInfo);
 
                     return (
                       <div
                         key={index}
-                        className={`min-h-[28px] border rounded p-0.5 relative group ${
+                        className={`h-7 border rounded p-0.5 relative group flex items-center justify-center ${
                           isWeekendDay ? 'bg-accent/5' : 'bg-card'
                         }`}
                       >
@@ -419,7 +420,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 key={cap.id}
                                 className={`text-[8px] px-0.5 py-0.5 rounded border ${getColorForPeriod(
                                   cap.demi_journee
-                                )} relative group/badge leading-none text-center flex items-center justify-center`}
+                                )} relative group/badge leading-none text-center flex items-center justify-center ${isSingleCap ? 'h-full w-full' : ''}`}
                                 title={cap.sites?.nom}
                               >
                                 <div className="truncate font-semibold">
