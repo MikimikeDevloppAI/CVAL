@@ -110,16 +110,10 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    let startingDayOfWeek = firstDay.getDay();
-    startingDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
 
     const days = [];
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month, i);
       const dayOfWeek = date.getDay();
@@ -129,8 +123,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     return days;
   };
 
-  const getCapacitesForSecretaireAndDate = (secretaireId: string, day: number | null) => {
-    if (!day) return [];
+  const getCapacitesForSecretaireAndDate = (secretaireId: string, day: number) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
     return capacites.filter(c => c.secretaire_id === secretaireId && c.date === dateStr);
@@ -379,8 +372,8 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
           <div className="flex-1 overflow-auto">
             <div className="min-w-max">
               {/* Header with days - STICKY */}
-              <div className="grid gap-1 mb-2 sticky top-0 bg-background z-20 pb-2" style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}>
-                <div className="font-bold text-sm py-2 px-2 sticky left-0 bg-background z-10">
+              <div className="grid gap-1 mb-2 sticky top-0 bg-background z-20 pb-2 border-b" style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}>
+                <div className="font-bold text-sm py-2 px-2 sticky left-0 bg-background z-10 border-r">
                   Secrétaire
                 </div>
                 {days.map((dayInfo, index) => (
@@ -390,31 +383,23 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                       isWeekend(index) ? 'bg-accent/30' : 'bg-primary/10'
                     } rounded`}
                   >
-                    {dayInfo ? (
-                      <>
-                        <div className="text-sm">{dayInfo.day}</div>
-                        <div className="text-[10px] text-muted-foreground">{dayInfo.dayOfWeek}</div>
-                      </>
-                    ) : null}
+                    <div className="text-sm">{dayInfo.day}</div>
+                    <div className="text-[10px] text-muted-foreground">{dayInfo.dayOfWeek}</div>
                   </div>
                 ))}
               </div>
 
               {/* Secretaires rows */}
-              {secretaires.map((secretaire) => (
+              {secretaires.map((secretaire, secIndex) => (
                 <div
                   key={secretaire.id}
-                  className="grid gap-1 mb-1 hover:bg-accent/5 py-1"
+                  className={`grid gap-1 mb-1 hover:bg-accent/10 py-1 ${secIndex % 2 === 0 ? 'bg-muted/20' : ''}`}
                   style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
                 >
-                  <div className="font-medium text-sm py-2 px-2 sticky left-0 bg-background z-10 truncate">
+                  <div className="font-medium text-sm py-2 px-2 sticky left-0 bg-background z-10 truncate border-r">
                     {secretaire.first_name} {secretaire.name}
                   </div>
                   {days.map((dayInfo, index) => {
-                    if (!dayInfo) {
-                      return <div key={index} className="min-h-[60px]" />;
-                    }
-
                     const day = dayInfo.day;
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
@@ -424,27 +409,27 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     return (
                       <div
                         key={index}
-                        className={`min-h-[60px] border rounded p-1 relative group ${
+                        className={`min-h-[40px] border rounded p-0.5 relative group ${
                           isWeekendDay ? 'bg-accent/5' : 'bg-card'
                         }`}
                       >
                         {capacitesDay.length > 0 ? (
-                          <div className="space-y-1">
+                          <div className="space-y-0.5">
                             {capacitesDay.map((cap) => (
                               <div
                                 key={cap.id}
-                                className={`text-[10px] px-1 py-0.5 rounded border ${getColorForPeriod(
+                                className={`text-[9px] px-1 py-0.5 rounded border ${getColorForPeriod(
                                   cap.demi_journee
                                 )} relative group/badge`}
                                 title={cap.sites?.nom}
                               >
-                                <div className="truncate font-medium">
+                                <div className="truncate font-medium leading-tight">
                                   {getPeriodLabel(cap.demi_journee)}
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="absolute -top-1 -right-1 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+                                  className="absolute -top-1 -right-1 h-3 w-3 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
                                   onClick={() => handleDeleteCapacite(cap.id)}
                                   disabled={loading}
                                 >
@@ -457,11 +442,11 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-full w-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-full w-full opacity-0 group-hover:opacity-100 transition-opacity p-0"
                             onClick={() => setAddDialog({ open: true, secretaireId: secretaire.id, date: dateStr })}
                             disabled={loading}
                           >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
