@@ -419,7 +419,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 key={cap.id}
                                 className={`text-[8px] px-0.5 py-0.5 rounded border ${getColorForPeriod(
                                   cap.demi_journee
-                                )} relative group/badge leading-none text-center`}
+                                )} relative group/badge leading-none text-center flex items-center justify-center`}
                                 title={cap.sites?.nom}
                               >
                                 <div className="truncate font-semibold">
