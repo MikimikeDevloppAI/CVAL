@@ -578,10 +578,11 @@ export default function SecretairesPage() {
                         secretaire.sites_assignes_details.map((site, index) => (
                           <Badge 
                             key={index} 
-                            variant={site.priorite === '1' ? 'secondary' : 'outline'} 
-                            className={`text-xs ${site.priorite === '3' ? 'opacity-70' : ''}`}
+                            variant="outline"
+                            className="text-xs"
                           >
                             {site.nom}
+                            {site.priorite === '1' && <span className="ml-1 text-muted-foreground">(P1)</span>}
                             {site.priorite === '2' && <span className="ml-1 text-muted-foreground">(P2)</span>}
                             {site.priorite === '3' && <span className="ml-1 text-muted-foreground">(P3)</span>}
                           </Badge>

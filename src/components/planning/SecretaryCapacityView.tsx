@@ -61,10 +61,6 @@ interface SecretaireFlexible {
   name: string;
   pourcentage_temps: number;
   sites_assignes?: string[];
-  medecin_assigne?: {
-    first_name: string;
-    name: string;
-  };
 }
 
 export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefresh }: SecretaryCapacityViewProps) {
@@ -128,7 +124,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
 
       const { data: flexibleSecretaries } = await supabase
         .from('secretaires')
-        .select('id, first_name, name, pourcentage_temps, medecin_assigne:medecins(first_name, name)')
+        .select('id, first_name, name, pourcentage_temps')
         .eq('horaire_flexible', true)
         .eq('actif', true)
         .not('pourcentage_temps', 'is', null);
@@ -190,7 +186,6 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
         isBackup: false,
         capacites: [],
         sites_assignes: sec.sites_assignes || [],
-        medecin_assigne: sec.medecin_assigne,
       });
     }
   });
