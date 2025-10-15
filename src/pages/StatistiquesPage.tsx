@@ -188,21 +188,21 @@ export default function StatistiquesPage() {
     const typeSemaine = selectedTypeSemaine === 'paire' ? 'semaine_paire' : 'semaine_impaire';
 
     return JOURS.map(jour => {
-      const matin = filteredStats.reduce((sum, site) => {
-        const key = `${jour.key}_matin` as keyof typeof site.semaine_paire;
-        return sum + site[typeSemaine][key];
-      }, 0);
+      const dataPoint: any = { jour: jour.label };
 
-      const apresMidi = filteredStats.reduce((sum, site) => {
-        const key = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
-        return sum + site[typeSemaine][key];
-      }, 0);
+      filteredStats.forEach(site => {
+        const keyMatin = `${jour.key}_matin` as keyof typeof site.semaine_paire;
+        const keyAM = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
+        
+        const matin = site[typeSemaine][keyMatin];
+        const apresMidi = site[typeSemaine][keyAM];
+        
+        // Arrondir au-dessus pour une meilleure lisibilité
+        dataPoint[`${site.site_nom}_matin`] = Math.ceil(matin);
+        dataPoint[`${site.site_nom}_apres_midi`] = Math.ceil(apresMidi);
+      });
 
-      return {
-        jour: jour.label,
-        matin: Math.round(matin * 10) / 10,
-        apres_midi: Math.round(apresMidi * 10) / 10,
-      };
+      return dataPoint;
     });
   };
 
@@ -314,14 +314,14 @@ export default function StatistiquesPage() {
         <CardHeader>
           <CardTitle>Besoins par jour et période</CardTitle>
           <CardDescription>
-            Basé sur les horaires de base des médecins
+            Basé sur les horaires de base des médecins (arrondis au-dessus)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={500}>
             <BarChart 
               data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis 
@@ -340,14 +340,55 @@ export default function StatistiquesPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={(value: any) => [`${value} secrétaires`, '']}
+                formatter={(value: any, name: string) => {
+                  const parts = name.split('_');
+                  const periode = parts[parts.length - 1] === 'matin' ? 'Matin' : 'Après-midi';
+                  const site = parts.slice(0, -1).join(' ');
+                  return [`${value} secrétaires`, `${site} - ${periode}`];
+                }}
               />
               <Legend 
                 wrapperStyle={{ paddingTop: '20px' }}
-                formatter={(value) => value === 'matin' ? 'Matin' : 'Après-midi'}
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                iconType="square"
+                formatter={(value: string) => {
+                  const parts = value.split('_');
+                  const periode = parts[parts.length - 1] === 'matin' ? 'Matin' : 'Après-midi';
+                  const site = parts.slice(0, -1).join(' ');
+                  return `${site} - ${periode}`;
+                }}
               />
-              <Bar dataKey="matin" fill="hsl(217 91% 60%)" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="apres_midi" fill="hsl(142 76% 36%)" radius={[8, 8, 0, 0]} />
+              {stats
+                .filter(s => selectedSite === 'all' || s.site_id === selectedSite)
+                .flatMap((site, siteIndex) => {
+                  const colors = [
+                    { matin: 'hsl(217 91% 60%)', apres_midi: 'hsl(217 91% 45%)' },
+                    { matin: 'hsl(142 76% 36%)', apres_midi: 'hsl(142 76% 26%)' },
+                    { matin: 'hsl(24 95% 53%)', apres_midi: 'hsl(24 95% 43%)' },
+                    { matin: 'hsl(262 83% 58%)', apres_midi: 'hsl(262 83% 48%)' },
+                    { matin: 'hsl(339 90% 51%)', apres_midi: 'hsl(339 90% 41%)' },
+                  ];
+                  const color = colors[siteIndex % colors.length];
+                  
+                  return [
+                    <Bar 
+                      key={`${site.site_nom}_matin`}
+                      dataKey={`${site.site_nom}_matin`}
+                      fill={color.matin}
+                      radius={[4, 4, 0, 0]}
+                      stackId={`site_${siteIndex}`}
+                    />,
+                    <Bar 
+                      key={`${site.site_nom}_apres_midi`}
+                      dataKey={`${site.site_nom}_apres_midi`}
+                      fill={color.apres_midi}
+                      radius={[4, 4, 0, 0]}
+                      stackId={`site_${siteIndex}`}
+                    />
+                  ];
+                })}
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
