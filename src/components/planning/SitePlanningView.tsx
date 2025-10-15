@@ -4,13 +4,14 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User, ChevronDown, Loader2, Plus, Edit2 } from 'lucide-react';
+import { Building2, User, ChevronDown, Loader2, Plus, Edit2, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
 import { UnsatisfiedNeedsReport } from './UnsatisfiedNeedsReport';
 import { ManagePersonnelDialog } from './ManagePersonnelDialog';
 import { EditResponsibilitesDialog } from './EditResponsibilitesDialog';
+import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { Button } from '@/components/ui/button';
 
 interface SitePlanningViewProps {
@@ -47,8 +48,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [editRespDialogOpen, setEditRespDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
   const [respAssignment, setRespAssignment] = useState<any>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -286,6 +289,14 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     setEditRespDialogOpen(true);
   };
 
+  const handleDeleteClick = (assignmentId: string, secretaryName: string) => {
+    setAssignmentToDelete({
+      id: assignmentId,
+      nom: secretaryName,
+    });
+    setDeleteDialogOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       {/* Unsatisfied Needs Report */}
@@ -370,31 +381,43 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                 </div>
                               )}
                               {matin.personnel.map((p, idx) => (
-                                <div key={idx} className="border rounded-lg p-2 bg-card">
+                                <div key={idx} className="border rounded-lg p-2 bg-card group">
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setDialogContext({
-                                           date,
-                                           periode: 'matin',
-                                           site_id: siteId,
-                                           site_nom: siteName,
-                                           secretaire_id: p.secretaire_id || undefined,
-                                           secretaire_nom: p.secretaire_nom,
-                                           assignment_id: p.id,
-                                         });
-                                         setManageDialogOpen(true);
-                                       }}
-                                       className="p-1 hover:bg-accent rounded transition-colors"
-                                       title="Gérer ce créneau"
-                                     >
-                                       <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                     </button>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDialogContext({
+                                            date,
+                                            periode: 'matin',
+                                            site_id: siteId,
+                                            site_nom: siteName,
+                                            secretaire_id: p.secretaire_id || undefined,
+                                            secretaire_nom: p.secretaire_nom,
+                                            assignment_id: p.id,
+                                          });
+                                          setManageDialogOpen(true);
+                                        }}
+                                        className="p-1 hover:bg-accent rounded transition-colors"
+                                        title="Modifier"
+                                      >
+                                        <Edit2 className="h-3 w-3 text-primary" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteClick(p.id, p.secretaire_nom);
+                                        }}
+                                        className="p-1 hover:bg-accent rounded transition-colors"
+                                        title="Supprimer"
+                                      >
+                                        <X className="h-3 w-3 text-destructive" />
+                                      </button>
+                                    </div>
                                   </div>
                                   <button
                                     onClick={() => handleRespClick(p, date, 'matin', siteName)}
@@ -459,31 +482,43 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                 </div>
                               )}
                               {apresMidi.personnel.map((p, idx) => (
-                                <div key={idx} className="border rounded-lg p-2 bg-card">
+                                <div key={idx} className="border rounded-lg p-2 bg-card group">
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setDialogContext({
-                                           date,
-                                           periode: 'apres_midi',
-                                           site_id: siteId,
-                                           site_nom: siteName,
-                                           secretaire_id: p.secretaire_id || undefined,
-                                           secretaire_nom: p.secretaire_nom,
-                                           assignment_id: p.id,
-                                         });
-                                         setManageDialogOpen(true);
-                                       }}
-                                       className="p-1 hover:bg-accent rounded transition-colors"
-                                       title="Gérer ce créneau"
-                                     >
-                                       <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                     </button>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDialogContext({
+                                            date,
+                                            periode: 'apres_midi',
+                                            site_id: siteId,
+                                            site_nom: siteName,
+                                            secretaire_id: p.secretaire_id || undefined,
+                                            secretaire_nom: p.secretaire_nom,
+                                            assignment_id: p.id,
+                                          });
+                                          setManageDialogOpen(true);
+                                        }}
+                                        className="p-1 hover:bg-accent rounded transition-colors"
+                                        title="Modifier"
+                                      >
+                                        <Edit2 className="h-3 w-3 text-primary" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteClick(p.id, p.secretaire_nom);
+                                        }}
+                                        className="p-1 hover:bg-accent rounded transition-colors"
+                                        title="Supprimer"
+                                      >
+                                        <X className="h-3 w-3 text-destructive" />
+                                      </button>
+                                    </div>
                                   </div>
                                   <button
                                     onClick={() => handleRespClick(p, date, 'apres_midi', siteName)}
@@ -556,6 +591,19 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           onOpenChange={setEditRespDialogOpen}
           assignment={respAssignment}
           onSuccess={fetchSitePlanning}
+        />
+      )}
+
+      {assignmentToDelete && (
+        <DeleteAssignmentDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          assignmentId={assignmentToDelete.id}
+          secretaryName={assignmentToDelete.nom}
+          onSuccess={() => {
+            fetchSitePlanning();
+            setAssignmentToDelete(null);
+          }}
         />
       )}
     </div>

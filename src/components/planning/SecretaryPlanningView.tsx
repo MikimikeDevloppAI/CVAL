@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { User, Clock, MapPin, Loader2, X, Edit2 } from 'lucide-react';
-import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
+import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { ManagePersonnelDialog } from './ManagePersonnelDialog';
 
 const SALLE_COLORS: Record<string, string> = {
@@ -58,13 +58,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
   const [loading, setLoading] = useState(true);
   const [secretaries, setSecretaries] = useState<SecretaryData[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [secretaryToDelete, setSecretaryToDelete] = useState<{
-    id: string;
-    nom: string;
-    date: string;
-    hasMatin: boolean;
-    hasApresMidi: boolean;
-  } | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
 
@@ -215,13 +209,10 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
     }
   };
 
-  const handleDeleteClick = (secretaryId: string, secretaryName: string, date: string, hasMatin: boolean, hasApresMidi: boolean) => {
-    setSecretaryToDelete({
-      id: secretaryId,
+  const handleDeleteClick = (assignmentId: string, secretaryName: string) => {
+    setAssignmentToDelete({
+      id: assignmentId,
       nom: secretaryName,
-      date,
-      hasMatin,
-      hasApresMidi,
     });
     setDeleteDialogOpen(true);
   };
@@ -329,7 +320,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                 {secretary.weekSchedule
                   .filter(({ matin, apresMidi }) => matin || apresMidi)
                   .map(({ date, dateStr, matin, apresMidi }) => (
-                  <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                  <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors group">
                     <div className="mb-2 pb-2 border-b">
                       <h4 className="font-medium text-sm">
                         {format(date, 'EEEE d MMM', { locale: fr })}
@@ -354,7 +345,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                               <div className="flex-1 min-w-0">
                                 {getAssignmentBadge(matin)}
                               </div>
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -366,7 +357,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, true)}
+                                  onClick={() => handleDeleteClick(matin.id, secretary.name)}
                                   className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                                 >
                                   <X className="h-3 w-3" />
@@ -393,7 +384,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                 )}
                               </div>
                               {matin && (
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -405,7 +396,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, true, !!apresMidi)}
+                                    onClick={() => handleDeleteClick(matin.id, secretary.name)}
                                     className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                                   >
                                     <X className="h-3 w-3" />
@@ -428,7 +419,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                 )}
                               </div>
                               {apresMidi && (
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -440,7 +431,7 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDeleteClick(secretary.id, secretary.name, dateStr, !!matin, true)}
+                                    onClick={() => handleDeleteClick(apresMidi.id, secretary.name)}
                                     className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                                   >
                                     <X className="h-3 w-3" />
@@ -460,18 +451,15 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
         ))}
       </div>
 
-      {secretaryToDelete && (
-        <DeleteSecretaryDialog
+      {assignmentToDelete && (
+        <DeleteAssignmentDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
-          secretaryId={secretaryToDelete.id}
-          secretaryName={secretaryToDelete.nom}
-          date={secretaryToDelete.date}
-          hasMatinAssignment={secretaryToDelete.hasMatin}
-          hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
+          assignmentId={assignmentToDelete.id}
+          secretaryName={assignmentToDelete.nom}
           onSuccess={() => {
             fetchSecretaryPlanning();
-            setSecretaryToDelete(null);
+            setAssignmentToDelete(null);
           }}
         />
       )}
