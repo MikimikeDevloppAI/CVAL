@@ -24,6 +24,7 @@ interface Secretaire {
   email?: string;
   phone_number?: string;
   sites_assignes_details?: { nom: string; priorite?: string }[];
+  medecins_assignes_details?: { first_name: string; name: string; priorite?: string }[];
   medecin_assigne_id?: string;
   medecins?: {
     first_name: string;
@@ -143,6 +144,21 @@ export default function SecretairesPage() {
               }));
             }
 
+            // Récupérer les médecins assignés depuis la nouvelle table secretaires_medecins
+            let medecins_assignes_details = [];
+            const { data: secretairesMedecinsData } = await supabase
+              .from('secretaires_medecins')
+              .select('medecin_id, priorite, medecins(first_name, name)')
+              .eq('secretaire_id', secretaire.id);
+            
+            if (secretairesMedecinsData && secretairesMedecinsData.length > 0) {
+              medecins_assignes_details = secretairesMedecinsData.map((sm: any) => ({
+                first_name: sm.medecins?.first_name || '',
+                name: sm.medecins?.name || '',
+                priorite: sm.priorite
+              }));
+            }
+
             // Enrichir les horaires avec les noms des sites
             const horairesEnrichis = await Promise.all(
               (secretaire.horaires_base_secretaires || []).map(async (horaire: any) => {
@@ -190,6 +206,7 @@ export default function SecretairesPage() {
               ...secretaire,
               horaires_base_secretaires: horairesEnrichis,
               sites_assignes_details,
+              medecins_assignes_details,
               horaires
             };
           })
@@ -503,26 +520,30 @@ export default function SecretairesPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Médecin assigné
+                        Médecins assignés
                       </p>
                       {canManage && (
                         <QuickEditMedecinDialog
                           secretaireId={secretaire.id}
-                          medecinActuelId={secretaire.medecin_assigne_id}
-                          medecinActuel={secretaire.medecins}
+                          medecinsActuelsDetails={secretaire.medecins_assignes_details || []}
                           onSuccess={fetchSecretaires}
                         />
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {secretaire.medecins ? (
-                        <Badge variant="secondary" className="text-xs">
-                          {secretaire.medecins.first_name} {secretaire.medecins.name}
-                        </Badge>
+                      {secretaire.medecins_assignes_details && secretaire.medecins_assignes_details.length > 0 ? (
+                        secretaire.medecins_assignes_details.map((medecin, idx) => (
+                          <Badge 
+                            key={idx} 
+                            variant={medecin.priorite === '1' ? 'secondary' : 'outline'} 
+                            className="text-xs"
+                          >
+                            {medecin.first_name} {medecin.name}
+                            {medecin.priorite === '2' && ' (P2)'}
+                          </Badge>
+                        ))
                       ) : (
-                        <Badge variant="outline" className="text-xs">
-                          Aucun médecin assigné
-                        </Badge>
+                        <p className="text-sm text-muted-foreground">Aucun médecin assigné</p>
                       )}
                     </div>
                   </div>
