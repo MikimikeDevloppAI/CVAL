@@ -103,10 +103,6 @@ export default function SecretairesPage() {
           sites (
             nom
           ),
-          medecins (
-            first_name,
-            name
-          ),
           horaires_base_secretaires (
             id,
             jour_semaine,
