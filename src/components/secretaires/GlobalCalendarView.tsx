@@ -349,25 +349,30 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-base font-semibold capitalize min-w-[200px] text-center">
-                {monthName}
-              </span>
-              <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <DialogTitle className="flex items-center justify-between gap-4 w-full">
               <Button
                 variant="default"
                 size="sm"
                 onClick={() => setExportDialogOpen(true)}
-                className="gap-2 ml-4"
+                className="gap-2"
               >
                 <Download className="h-4 w-4" />
                 Exporter Excel
               </Button>
+              
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-base font-semibold capitalize min-w-[200px] text-center">
+                  {monthName}
+                </span>
+                <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <div className="w-[140px]" />
             </DialogTitle>
           </DialogHeader>
 
