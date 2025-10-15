@@ -434,7 +434,7 @@ async function buildMILP(
 
         // Create variable: x|secId|date|periode|siteId|ordre
         const varName = `x|${sec.id}|${date}|${periode}|${site_id}|${ordre}`;
-        let score = 100; // Base: fill a need
+        let score = 0;
 
         // PRIORITY 1: Linked medecin with priorities (+10000 prio 1, +5000 prio 2)
         const medecinIdsArray = Array.from(medecin_ids);
@@ -453,14 +453,11 @@ async function buildMILP(
 
         // PRIORITY 2: Site priority level
         if (priorite === '1') {
-          score += 200; // Strong priority for priority 1 sites
+          score += 500; // Priority 1 sites (P1)
         } else if (priorite === '2') {
-          score += 50;  // Lower priority for priority 2 sites
-        }
-
-        // PRIORITY 3: Site preference (cumulative with priority)
-        if (sec.site_preferentiel_id === site_id) {
-          score += 300;
+          score += 250; // Priority 2 sites (P2)
+        } else if (priorite === '3') {
+          score += 100; // Priority 3 sites (P3)
         }
 
         // PENALTY: Port-en-Truie (unless preferred)
