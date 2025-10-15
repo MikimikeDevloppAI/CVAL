@@ -144,7 +144,7 @@ export default function SecretairesPage() {
             let medecins_assignes_details = [];
             const { data: secretairesMedecinsData, error: medecinsError } = await supabase
               .from('secretaires_medecins')
-              .select('medecin_id, priorite, medecins!secretaires_medecins_medecin_id_fkey(first_name, name)')
+              .select('medecin_id, priorite')
               .eq('secretaire_id', secretaire.id);
             
             if (medecinsError) {
@@ -152,9 +152,27 @@ export default function SecretairesPage() {
             }
             
             if (secretairesMedecinsData && secretairesMedecinsData.length > 0) {
+              const medecinIds = secretairesMedecinsData.map((sm: any) => sm.medecin_id).filter(Boolean);
+              let medecinsMap: Record<string, { first_name: string; name: string }> = {};
+
+              if (medecinIds.length > 0) {
+                const { data: medecinsData, error: medecinsNamesError } = await supabase
+                  .from('medecins')
+                  .select('id, first_name, name')
+                  .in('id', medecinIds);
+
+                if (medecinsNamesError) {
+                  console.error('Erreur lors du chargement des noms des médecins:', medecinsNamesError);
+                } else if (medecinsData) {
+                  medecinsMap = Object.fromEntries(
+                    medecinsData.map((m: any) => [m.id, { first_name: m.first_name || '', name: m.name || '' }])
+                  );
+                }
+              }
+
               medecins_assignes_details = secretairesMedecinsData.map((sm: any) => ({
-                first_name: sm.medecins?.first_name || '',
-                name: sm.medecins?.name || '',
+                first_name: medecinsMap[sm.medecin_id]?.first_name || '',
+                name: medecinsMap[sm.medecin_id]?.name || '',
                 priorite: sm.priorite
               }));
             }
