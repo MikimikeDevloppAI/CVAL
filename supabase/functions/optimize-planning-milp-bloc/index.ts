@@ -37,6 +37,7 @@ serve(async (req) => {
     const dates = selected_dates && selected_dates.length > 0 ? selected_dates : allDates;
     
     console.log(`📅 Optimizing bloc for ${dates.length} date(s):`, dates);
+    console.log(`📋 Filtering besoins to selected dates only: ${dates.join(', ')}`);
 
     // Get Bloc operatoire site ID
     const { data: blocSite, error: blocSiteError } = await supabaseServiceRole
@@ -48,7 +49,7 @@ serve(async (req) => {
     if (blocSiteError) throw blocSiteError;
     const blocSiteId = blocSite.id;
 
-    // 1. Fetch data
+    // 1. Fetch data - restrict to selected dates only
     const [
       { data: typesIntervention, error: tiError },
       { data: besoinsEffectifs, error: beError },
@@ -60,9 +61,9 @@ serve(async (req) => {
         *,
         types_intervention_besoins_personnel(type_besoin, nombre_requis)
       `).eq('actif', true),
+      // CRITICAL: Only fetch besoins for selected dates to avoid duplicates
       supabaseServiceRole.from('besoin_effectif').select('*')
-        .gte('date', week_start)
-        .lte('date', week_end)
+        .in('date', dates)  // Use dates (selected_dates or allDates)
         .eq('site_id', blocSiteId)
         .not('type_intervention_id', 'is', null)
         .eq('actif', true),

@@ -272,6 +272,55 @@ async function buildMILP(
 
   const sitesMap = new Map(sites.map((s: any) => [s.id, s]));
 
+  // === CALCULATE FLEXIBLE SECRETARIES REMAINING DAYS (ALWAYS, even in single-day mode) ===
+  console.log('  📅 Calculating flexible secretaries remaining days...');
+  
+  const flexibleRemaining = new Map<string, number>();
+  const daysAlreadyWorked = new Map<string, number>();
+  
+  for (const [flexSecId, requiredDays] of flexibleSecs) {
+    const sec = secretaires.find((s: any) => s.id === flexSecId);
+    if (!sec) continue;
+
+    // Query existing assignments excluding selected_dates
+    const { data: existingAssignments } = await supabase
+      .from('planning_genere_personnel')
+      .select('date, periode')
+      .eq('secretaire_id', flexSecId)
+      .in('type_assignation', ['site', 'bloc', 'administratif'])
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr);
+
+    const periodsByDate = new Map<string, Set<string>>();
+    for (const assignment of existingAssignments || []) {
+      // Skip dates being re-optimized
+      if (selected_dates && selected_dates.includes(assignment.date)) {
+        continue;
+      }
+      
+      if (!periodsByDate.has(assignment.date)) {
+        periodsByDate.set(assignment.date, new Set());
+      }
+      periodsByDate.get(assignment.date)!.add(assignment.periode);
+    }
+
+    // Count only FULL days (both matin + apres_midi)
+    const fullDays = new Set<string>();
+    for (const [date, periods] of periodsByDate.entries()) {
+      if (periods.has('matin') && periods.has('apres_midi')) {
+        fullDays.add(date);
+      }
+    }
+
+    const alreadyWorked = fullDays.size;
+    const remaining = Math.max(0, requiredDays - alreadyWorked);
+    
+    daysAlreadyWorked.set(flexSecId, alreadyWorked);
+    flexibleRemaining.set(flexSecId, remaining);
+    
+    console.log(`    ${sec.first_name} ${sec.name}: requis ${requiredDays}, déjà ${alreadyWorked}, restants ${remaining}`);
+  }
+
   // === 1. PRE-PROCESS: AGGREGATE BESOINS BY (date, site_id, periode) ===
   console.log('  📊 Aggregating besoins by site/periode...');
   
@@ -337,6 +386,14 @@ async function buildMILP(
         const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
         
         if (!hasCapacity && !isFlexible) continue;
+        
+        // CRITICAL: Skip flexible secretaries who have already met their weekly quota
+        if (isFlexible) {
+          const remaining = flexibleRemaining.get(sec.id) || 0;
+          if (remaining <= 0) {
+            continue; // Don't create any variable for this flexible (no days left)
+          }
+        }
         
         // Check site compatibility
         const isSiteInProfile = (sec.sites_assignes || []).includes(site_id);
@@ -410,6 +467,14 @@ async function buildMILP(
         const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
         
         if (!hasCapacity && !isFlexible) continue;
+        
+        // CRITICAL: Skip flexible secretaries who have already met their weekly quota
+        if (isFlexible) {
+          const remaining = flexibleRemaining.get(sec.id) || 0;
+          if (remaining <= 0) {
+            continue; // Don't create admin variable for this flexible (no days left)
+          }
+        }
         
         // Create admin variable
         const adminVar = `admin_${sec.id}_${date}_${periode}`;
@@ -580,43 +645,10 @@ async function buildMILP(
 
   console.log(`    ✅ ${continuityBonusCount} continuity bonus variables (score +1000 each)`);
 
-  // === 6. FLEXIBLE SECRETARIES: FORCE FULL DAYS ONLY ===
+  // === 7. FLEXIBLE SECRETARIES: FORCE FULL DAYS ONLY (when optimizing multiple days) ===
   console.log('  📅 Adding flexible full-day constraints...');
   
   if (dates.length > 1) {
-    // Calculate days already worked for flexible secretaries (excluding selected_dates)
-    const daysAlreadyWorked = new Map<string, number>();
-    
-    for (const [flexSecId] of flexibleSecs) {
-      const { data: existingAssignments } = await supabase
-        .from('planning_genere_personnel')
-        .select('date, periode')
-        .eq('secretaire_id', flexSecId)
-        .gte('date', weekStartStr)
-        .lte('date', weekEndStr)
-        .in('type_assignation', ['site', 'bloc']);
-
-      const periodsByDate = new Map<string, Set<string>>();
-      
-      for (const a of existingAssignments || []) {
-        // Skip dates being re-optimized
-        if (selected_dates && selected_dates.includes(a.date)) continue;
-        
-        if (!periodsByDate.has(a.date)) periodsByDate.set(a.date, new Set());
-        periodsByDate.get(a.date)!.add(a.periode);
-      }
-
-      // Count only FULL days
-      const fullDays = new Set<string>();
-      for (const [date, periods] of periodsByDate) {
-        if (periods.has('matin') && periods.has('apres_midi')) {
-          fullDays.add(date);
-        }
-      }
-
-      daysAlreadyWorked.set(flexSecId, fullDays.size);
-    }
-    
     for (const [flexSecId, requiredDays] of flexibleSecs) {
       const sec = secretaires.find((s: any) => s.id === flexSecId);
       if (!sec) continue;
