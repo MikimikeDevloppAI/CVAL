@@ -322,18 +322,25 @@ export default function StatistiquesPage() {
     let totalApresMidi = 0;
 
     filteredStats.forEach(site => {
+      let siteMatinTotal = 0;
+      let siteApresMidiTotal = 0;
+      
       JOURS.forEach(jour => {
         const keyMatin = `${jour.key}_matin` as keyof typeof site.semaine_paire;
         const keyAM = `${jour.key}_apres_midi` as keyof typeof site.semaine_paire;
-        totalMatin += site[typeSemaine][keyMatin];
-        totalApresMidi += site[typeSemaine][keyAM];
+        siteMatinTotal += site[typeSemaine][keyMatin];
+        siteApresMidiTotal += site[typeSemaine][keyAM];
       });
+      
+      // Arrondir au-dessus pour chaque site, puis additionner
+      totalMatin += Math.ceil(siteMatinTotal);
+      totalApresMidi += Math.ceil(siteApresMidiTotal);
     });
 
     return {
-      totalMatin: Math.round(totalMatin * 10) / 10,
-      totalApresMidi: Math.round(totalApresMidi * 10) / 10,
-      total: Math.round((totalMatin + totalApresMidi) * 10) / 10,
+      totalMatin,
+      totalApresMidi,
+      total: totalMatin + totalApresMidi,
     };
   };
 
