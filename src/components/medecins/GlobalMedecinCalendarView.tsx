@@ -205,11 +205,17 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
   const getBesoinsForMedecinAndDate = (medecinId: string, day: number, siteId: string) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
-    return besoins.filter(b => 
+    const filteredBesoins = besoins.filter(b => 
       b.medecin_id === medecinId && 
       b.date === dateStr && 
       b.site_id === siteId
     );
+    
+    // Trier pour que le matin soit toujours au-dessus de l'après-midi
+    return filteredBesoins.sort((a, b) => {
+      const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+      return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
+    });
   };
 
   const getColorForPeriod = (demiJournee: string) => {
@@ -232,10 +238,10 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
         label = 'J';
         break;
       case 'matin':
-        label = 'M';
+        label = 'AM';
         break;
       case 'apres_midi':
-        label = 'AM';
+        label = 'PM';
         break;
       default:
         label = '';
