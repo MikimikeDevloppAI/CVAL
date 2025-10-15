@@ -146,10 +146,14 @@ export default function SecretairesPage() {
 
             // Récupérer les médecins assignés depuis la nouvelle table secretaires_medecins
             let medecins_assignes_details = [];
-            const { data: secretairesMedecinsData } = await supabase
+            const { data: secretairesMedecinsData, error: medecinsError } = await supabase
               .from('secretaires_medecins')
-              .select('medecin_id, priorite, medecins(first_name, name)')
+              .select('medecin_id, priorite, medecins!secretaires_medecins_medecin_id_fkey(first_name, name)')
               .eq('secretaire_id', secretaire.id);
+            
+            if (medecinsError) {
+              console.error('Erreur lors du chargement des médecins assignés:', medecinsError);
+            }
             
             if (secretairesMedecinsData && secretairesMedecinsData.length > 0) {
               medecins_assignes_details = secretairesMedecinsData.map((sm: any) => ({
