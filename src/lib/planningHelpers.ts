@@ -17,9 +17,7 @@ export async function getAvailableSecretariesForSite(
   if (secError) throw secError;
 
   // Filter those who have the site in their profile
-  const eligibleSecs = (secretaries || []).filter(s => 
-    return true; // Site compatibility now managed via secretaires_sites table
-  );
+  const eligibleSecs = secretaries || [];
 
   // Get already assigned secretaries for this date/periode
   const { data: assignments, error: assignError } = await supabase
