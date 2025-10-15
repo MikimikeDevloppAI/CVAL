@@ -924,7 +924,6 @@ export type Database = {
           horaire_flexible: boolean
           id: string
           instrumentaliste: boolean
-          medecin_assigne_id: string | null
           name: string | null
           nombre_jours_supplementaires: number | null
           personnel_bloc_operatoire: boolean
@@ -932,7 +931,6 @@ export type Database = {
           pourcentage_temps: number | null
           prefere_port_en_truie: boolean
           profile_id: string | null
-          site_preferentiel_id: string | null
           updated_at: string
         }
         Insert: {
@@ -949,7 +947,6 @@ export type Database = {
           horaire_flexible?: boolean
           id?: string
           instrumentaliste?: boolean
-          medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
           personnel_bloc_operatoire?: boolean
@@ -957,7 +954,6 @@ export type Database = {
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
-          site_preferentiel_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -974,7 +970,6 @@ export type Database = {
           horaire_flexible?: boolean
           id?: string
           instrumentaliste?: boolean
-          medecin_assigne_id?: string | null
           name?: string | null
           nombre_jours_supplementaires?: number | null
           personnel_bloc_operatoire?: boolean
@@ -982,29 +977,14 @@ export type Database = {
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
           profile_id?: string | null
-          site_preferentiel_id?: string | null
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "secretaires_medecin_assigne_id_fkey"
-            columns: ["medecin_assigne_id"]
-            isOneToOne: false
-            referencedRelation: "medecins"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "secretaires_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "secretaires_site_preferentiel_id_fkey"
-            columns: ["site_preferentiel_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -1359,7 +1339,7 @@ export type Database = {
       demi_journee: "matin" | "apres_midi" | "toute_journee"
       periode: "matin" | "apres_midi"
       priorite_besoin: "haute" | "moyenne" | "basse"
-      priorite_site: "1" | "2"
+      priorite_site: "1" | "2" | "3"
       source_horaire: "horaire_base" | "bloc_operatoire" | "absence"
       statut_absence: "en_attente" | "approuve" | "refuse"
       statut_horaire: "disponible" | "absent" | "bloc_operatoire"
@@ -1514,7 +1494,7 @@ export const Constants = {
       demi_journee: ["matin", "apres_midi", "toute_journee"],
       periode: ["matin", "apres_midi"],
       priorite_besoin: ["haute", "moyenne", "basse"],
-      priorite_site: ["1", "2"],
+      priorite_site: ["1", "2", "3"],
       source_horaire: ["horaire_base", "bloc_operatoire", "absence"],
       statut_absence: ["en_attente", "approuve", "refuse"],
       statut_horaire: ["disponible", "absent", "bloc_operatoire"],

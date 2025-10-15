@@ -579,10 +579,11 @@ export default function SecretairesPage() {
                           <Badge 
                             key={index} 
                             variant={site.priorite === '1' ? 'secondary' : 'outline'} 
-                            className="text-xs"
+                            className={`text-xs ${site.priorite === '3' ? 'opacity-70' : ''}`}
                           >
                             {site.nom}
                             {site.priorite === '2' && <span className="ml-1 text-muted-foreground">(P2)</span>}
+                            {site.priorite === '3' && <span className="ml-1 text-muted-foreground">(P3)</span>}
                           </Badge>
                         ))
                       ) : (
