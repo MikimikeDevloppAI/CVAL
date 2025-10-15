@@ -1,0 +1,409 @@
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+interface GlobalCalendarViewProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+interface Secretaire {
+  id: string;
+  first_name: string;
+  name: string;
+}
+
+interface CapaciteEffective {
+  id: string;
+  date: string;
+  secretaire_id: string;
+  site_id: string;
+  demi_journee: 'toute_journee' | 'matin' | 'apres_midi';
+  sites?: {
+    nom: string;
+  };
+}
+
+export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewProps) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
+  const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [addDialog, setAddDialog] = useState<{
+    open: boolean;
+    secretaireId: string;
+    date: string;
+  } | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
+  const [selectedSiteId, setSelectedSiteId] = useState('');
+  const { toast } = useToast();
+
+  const formatDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  useEffect(() => {
+    if (open) {
+      fetchData();
+    }
+  }, [open, currentDate]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch secretaires actives
+      const { data: secData } = await supabase
+        .from('secretaires')
+        .select('id, first_name, name')
+        .eq('actif', true)
+        .order('first_name');
+
+      if (secData) setSecretaires(secData);
+
+      // Fetch sites
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom');
+
+      if (sitesData) setSites(sitesData);
+
+      // Fetch capacites for current month
+      const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+      const { data: capData } = await supabase
+        .from('capacite_effective')
+        .select('*, sites(nom)')
+        .gte('date', formatDate(startDate))
+        .lte('date', formatDate(endDate))
+        .order('date');
+
+      if (capData) setCapacites(capData);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les données',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  };
+
+  const getDaysInMonth = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    let startingDayOfWeek = firstDay.getDay();
+    startingDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
+
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    return days;
+  };
+
+  const getCapacitesForSecretaireAndDate = (secretaireId: string, day: number) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = formatDate(date);
+    return capacites.filter(c => c.secretaire_id === secretaireId && c.date === dateStr);
+  };
+
+  const getColorForPeriod = (demiJournee: string) => {
+    switch (demiJournee) {
+      case 'toute_journee':
+        return 'bg-green-100 border-green-300 text-green-800';
+      case 'matin':
+        return 'bg-blue-100 border-blue-300 text-blue-800';
+      case 'apres_midi':
+        return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+      default:
+        return 'bg-gray-100 border-gray-300 text-gray-800';
+    }
+  };
+
+  const getPeriodLabel = (demiJournee: string) => {
+    switch (demiJournee) {
+      case 'toute_journee':
+        return 'Journée';
+      case 'matin':
+        return 'Matin';
+      case 'apres_midi':
+        return 'AM';
+      default:
+        return '';
+    }
+  };
+
+  const handleDeleteCapacite = async (capaciteId: string) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('capacite_effective')
+        .delete()
+        .eq('id', capaciteId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Succès',
+        description: 'Capacité supprimée',
+      });
+
+      fetchData();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer la capacité',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddCapacite = async () => {
+    if (!addDialog || !selectedSiteId) {
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez sélectionner un site',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('capacite_effective')
+        .insert({
+          date: addDialog.date,
+          secretaire_id: addDialog.secretaireId,
+          site_id: selectedSiteId,
+          demi_journee: selectedPeriod,
+          actif: true,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Succès',
+        description: 'Capacité ajoutée',
+      });
+
+      setAddDialog(null);
+      setSelectedPeriod('toute_journee');
+      setSelectedSiteId('');
+      fetchData();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'ajouter la capacité',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const days = getDaysInMonth();
+
+  const isWeekend = (index: number) => {
+    const dayOfWeek = index % 7;
+    return dayOfWeek === 5 || dayOfWeek === 6;
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-center gap-3">
+              <Button variant="outline" size="sm" onClick={handlePrevMonth} disabled={loading}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-base font-semibold capitalize min-w-[200px] text-center">
+                {monthName}
+              </span>
+              <Button variant="outline" size="sm" onClick={handleNextMonth} disabled={loading}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto">
+            <div className="min-w-max">
+              {/* Header with days */}
+              <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}>
+                <div className="font-bold text-sm py-2 px-2 sticky left-0 bg-background z-10">
+                  Secrétaire
+                </div>
+                {days.map((day, index) => (
+                  <div
+                    key={index}
+                    className={`text-center font-bold text-xs py-2 ${
+                      isWeekend(index) ? 'bg-accent/30' : 'bg-primary/10'
+                    } rounded`}
+                  >
+                    {day || ''}
+                  </div>
+                ))}
+              </div>
+
+              {/* Secretaires rows */}
+              {secretaires.map((secretaire) => (
+                <div
+                  key={secretaire.id}
+                  className="grid gap-1 mb-1 hover:bg-accent/5 py-1"
+                  style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
+                >
+                  <div className="font-medium text-sm py-2 px-2 sticky left-0 bg-background z-10 truncate">
+                    {secretaire.first_name} {secretaire.name}
+                  </div>
+                  {days.map((day, index) => {
+                    if (!day) {
+                      return <div key={index} className="min-h-[60px]" />;
+                    }
+
+                    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                    const dateStr = formatDate(date);
+                    const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
+                    const isWeekendDay = isWeekend(index);
+
+                    return (
+                      <div
+                        key={index}
+                        className={`min-h-[60px] border rounded p-1 relative group ${
+                          isWeekendDay ? 'bg-accent/5' : 'bg-card'
+                        }`}
+                      >
+                        {capacitesDay.length > 0 ? (
+                          <div className="space-y-1">
+                            {capacitesDay.map((cap) => (
+                              <div
+                                key={cap.id}
+                                className={`text-[10px] px-1 py-0.5 rounded border ${getColorForPeriod(
+                                  cap.demi_journee
+                                )} relative group/badge`}
+                                title={cap.sites?.nom}
+                              >
+                                <div className="truncate font-medium">
+                                  {getPeriodLabel(cap.demi_journee)}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute -top-1 -right-1 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+                                  onClick={() => handleDeleteCapacite(cap.id)}
+                                  disabled={loading}
+                                >
+                                  <X className="h-2 w-2" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-full w-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setAddDialog({ open: true, secretaireId: secretaire.id, date: dateStr })}
+                            disabled={loading}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Capacite Dialog */}
+      {addDialog && (
+        <Dialog open={addDialog.open} onOpenChange={(open) => !open && setAddDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajouter une période</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Période</label>
+                <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="toute_journee">Toute la journée</SelectItem>
+                    <SelectItem value="matin">Matin</SelectItem>
+                    <SelectItem value="apres_midi">Après-midi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Site</label>
+                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setAddDialog(null)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleAddCapacite} disabled={loading || !selectedSiteId}>
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}

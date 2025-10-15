@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2, Calendar } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, Calendar, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -12,6 +12,7 @@ import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDia
 import { QuickEditMedecinDialog } from '@/components/secretaires/QuickEditMedecinDialog';
 import { EditHoraireSecretaireDialog } from '@/components/secretaires/EditHoraireSecretaireDialog';
 import { SecretaireMonthCalendar } from '@/components/secretaires/SecretaireMonthCalendar';
+import { GlobalCalendarView } from '@/components/secretaires/GlobalCalendarView';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -68,6 +69,7 @@ export default function SecretairesPage() {
   const [editingSecretaireId, setEditingSecretaireId] = useState<string>('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedSecretaireForCalendar, setSelectedSecretaireForCalendar] = useState<{ id: string; nom: string } | null>(null);
+  const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
   const { toast } = useToast();
   const { canManage } = useCanManagePlanning();
 
@@ -331,25 +333,31 @@ export default function SecretairesPage() {
           <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
           
           {canManage && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
-                  <Plus className="h-4 w-4" />
-                  Ajouter une secrétaire
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedSecretaire ? 'Modifier la secrétaire' : 'Ajouter une secrétaire'}
-                </DialogTitle>
-              </DialogHeader>
-              <SecretaireForm 
-                secretaire={selectedSecretaire} 
-                onSuccess={handleFormSuccess}
-              />
-            </DialogContent>
-          </Dialog>
+            <div className="flex gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setGlobalCalendarOpen(true)}>
+                <CalendarDays className="h-4 w-4" />
+                Voir Calendrier
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
+                    <Plus className="h-4 w-4" />
+                    Ajouter une secrétaire
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {selectedSecretaire ? 'Modifier la secrétaire' : 'Ajouter une secrétaire'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <SecretaireForm 
+                    secretaire={selectedSecretaire} 
+                    onSuccess={handleFormSuccess}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </div>
 
@@ -718,6 +726,12 @@ export default function SecretairesPage() {
             secretaireNom={selectedSecretaireForCalendar.nom}
           />
         )}
+
+        {/* Calendrier global */}
+        <GlobalCalendarView
+          open={globalCalendarOpen}
+          onOpenChange={setGlobalCalendarOpen}
+        />
     </div>
   );
 }
