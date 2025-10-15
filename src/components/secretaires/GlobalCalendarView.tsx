@@ -48,6 +48,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ open: boolean; capaciteId: string } | null>(null);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -155,13 +156,15 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     }
   };
 
-  const handleDeleteCapacite = async (capaciteId: string) => {
+  const handleDeleteCapacite = async () => {
+    if (!deleteConfirmation) return;
+
     setLoading(true);
     try {
       const { error } = await supabase
         .from('capacite_effective')
         .delete()
-        .eq('id', capaciteId);
+        .eq('id', deleteConfirmation.capaciteId);
 
       if (error) throw error;
 
@@ -170,6 +173,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         description: 'Capacité supprimée',
       });
 
+      setDeleteConfirmation(null);
       fetchData();
     } catch (error) {
       console.error('Erreur:', error);
@@ -341,6 +345,10 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold">Planning Assistant Médical</h2>
+              <p className="text-sm text-muted-foreground">Vue globale des disponibilités</p>
+            </div>
             <DialogTitle className="flex items-center justify-between gap-4 w-full">
               <Button
                 variant="default"
@@ -429,11 +437,11 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="absolute -top-0.5 -right-0.5 h-3 w-3 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
-                                  onClick={() => handleDeleteCapacite(cap.id)}
+                                  className="absolute top-0 right-0 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
+                                  onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.id })}
                                   disabled={loading}
                                 >
-                                  <X className="h-2 w-2" />
+                                  <X className="h-3 w-3" />
                                 </Button>
                               </div>
                             ))}
@@ -490,6 +498,30 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                   Ajouter
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmation && (
+        <Dialog open={deleteConfirmation.open} onOpenChange={(open) => !open && setDeleteConfirmation(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmer la suppression</DialogTitle>
+            </DialogHeader>
+
+            <p className="text-sm text-muted-foreground">
+              Êtes-vous sûr de vouloir supprimer cette capacité ?
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteConfirmation(null)}>
+                Annuler
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteCapacite} disabled={loading}>
+                Supprimer
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
