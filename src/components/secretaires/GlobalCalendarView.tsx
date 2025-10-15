@@ -409,18 +409,18 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     return (
                       <div
                         key={index}
-                        className={`h-7 border rounded p-0.5 relative group flex items-center justify-center ${
+                        className={`h-7 border rounded relative group overflow-hidden ${
                           isWeekendDay ? 'bg-accent/5' : 'bg-card'
                         }`}
                       >
                         {capacitesDay.length > 0 ? (
-                          <div className="space-y-0.5">
+                          <div className="flex flex-col h-full">
                             {capacitesDay.map((cap) => (
                               <div
                                 key={cap.id}
-                                className={`text-[8px] px-0.5 py-0.5 rounded border ${getColorForPeriod(
+                                className={`text-[8px] flex-1 w-full relative group/badge leading-none text-center flex items-center justify-center ${getColorForPeriod(
                                   cap.demi_journee
-                                )} relative group/badge leading-none text-center flex items-center justify-center ${isSingleCap ? 'h-full w-full' : ''}`}
+                                )}`}
                                 title={cap.sites?.nom}
                               >
                                 <div className="truncate font-semibold">
