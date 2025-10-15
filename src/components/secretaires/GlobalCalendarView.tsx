@@ -50,6 +50,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ open: boolean; capaciteId: string } | null>(null);
+  const [joursFeries, setJoursFeries] = useState<string[]>([]);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -89,6 +90,18 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .order('date');
 
       if (capData) setCapacites(capData);
+
+      // Fetch jours fériés
+      const { data: feriesData } = await supabase
+        .from('jours_feries')
+        .select('date')
+        .eq('actif', true)
+        .gte('date', formatDate(startDate))
+        .lte('date', formatDate(endDate));
+
+      if (feriesData) {
+        setJoursFeries(feriesData.map(f => f.date));
+      }
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -232,6 +245,12 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
 
   const isWeekend = (dayInfo: { day: number; dayOfWeek: string }) => {
     return dayInfo.dayOfWeek === 'Sam' || dayInfo.dayOfWeek === 'Dim';
+  };
+
+  const isHoliday = (day: number) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = formatDate(date);
+    return joursFeries.includes(dateStr);
   };
 
   const handleExportExcel = async () => {
@@ -392,9 +411,13 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                 {days.map((dayInfo, index) => (
                   <div
                     key={index}
-                    className={`text-center font-bold text-xs py-2 ${
-                      isWeekend(dayInfo) ? 'bg-accent/30' : 'bg-primary/10'
-                    } rounded`}
+                    className={`text-center font-bold text-xs py-2 rounded ${
+                      isHoliday(dayInfo.day)
+                        ? 'bg-red-100'
+                        : isWeekend(dayInfo)
+                        ? 'bg-accent/30'
+                        : 'bg-primary/10'
+                    }`}
                   >
                     <div className="text-sm">{dayInfo.day}</div>
                     <div className="text-[10px] text-muted-foreground">{dayInfo.dayOfWeek}</div>
@@ -419,12 +442,17 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
                     const isSingleCap = capacitesDay.length === 1;
                     const isWeekendDay = isWeekend(dayInfo);
+                    const isHolidayDay = isHoliday(day);
 
                     return (
                       <div
                         key={index}
                         className={`h-7 border rounded relative group overflow-hidden ${
-                          isWeekendDay ? 'bg-accent/5' : 'bg-card'
+                          isHolidayDay
+                            ? 'bg-red-50'
+                            : isWeekendDay
+                            ? 'bg-accent/5'
+                            : 'bg-card'
                         }`}
                       >
                         {capacitesDay.length > 0 ? (
