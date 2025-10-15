@@ -1012,6 +1012,48 @@ export type Database = {
           },
         ]
       }
+      secretaires_sites: {
+        Row: {
+          created_at: string
+          id: string
+          priorite: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id: string
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          priorite?: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id: string
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          priorite?: Database["public"]["Enums"]["priorite_site"]
+          secretaire_id?: string
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secretaires_sites_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secretaires_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sites: {
         Row: {
           actif: boolean
@@ -1278,6 +1320,7 @@ export type Database = {
       demi_journee: "matin" | "apres_midi" | "toute_journee"
       periode: "matin" | "apres_midi"
       priorite_besoin: "haute" | "moyenne" | "basse"
+      priorite_site: "1" | "2"
       source_horaire: "horaire_base" | "bloc_operatoire" | "absence"
       statut_absence: "en_attente" | "approuve" | "refuse"
       statut_horaire: "disponible" | "absent" | "bloc_operatoire"
@@ -1432,6 +1475,7 @@ export const Constants = {
       demi_journee: ["matin", "apres_midi", "toute_journee"],
       periode: ["matin", "apres_midi"],
       priorite_besoin: ["haute", "moyenne", "basse"],
+      priorite_site: ["1", "2"],
       source_horaire: ["horaire_base", "bloc_operatoire", "absence"],
       statut_absence: ["en_attente", "approuve", "refuse"],
       statut_horaire: ["disponible", "absent", "bloc_operatoire"],

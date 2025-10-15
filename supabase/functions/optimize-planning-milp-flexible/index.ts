@@ -19,7 +19,6 @@ interface Position {
   current_secretaire_info: {
     is_flexible: boolean;
     prefere_port_en_truie: boolean;
-    sites_assignes: string[];
     name: string;
     first_name: string;
     admin_count: number;
@@ -58,13 +57,23 @@ serve(async (req) => {
     // 1. Fetch ALL secretaries (for preferences)
     const { data: allSecretaires, error: allSecError } = await supabase
       .from('secretaires')
-      .select('id, name, first_name, prefere_port_en_truie, sites_assignes, horaire_flexible, pourcentage_temps, medecin_assigne_id')
+      .select('id, name, first_name, prefere_port_en_truie, horaire_flexible, pourcentage_temps, medecin_assigne_id')
       .eq('actif', true);
 
     if (allSecError) throw allSecError;
 
     // Build secretary map for quick lookup
     const secretaryMap = new Map(allSecretaires?.map(s => [s.id, s]) || []);
+
+    // 1.4. Fetch secretaires_sites associations for site priority
+    const { data: secretairesSites } = await supabase
+      .from('secretaires_sites')
+      .select('secretaire_id, site_id, priorite');
+
+    const secSitePriorityMap = new Map<string, string>();
+    for (const ss of secretairesSites || []) {
+      secSitePriorityMap.set(`${ss.secretaire_id}_${ss.site_id}`, ss.priorite);
+    }
 
     // 1.5. Fetch admin history for the week
     const { data: adminHistory } = await supabase
@@ -291,7 +300,6 @@ serve(async (req) => {
           current_secretaire_info: currentSecretary ? {
             is_flexible: currentSecretary.horaire_flexible || false,
             prefere_port_en_truie: currentSecretary.prefere_port_en_truie || false,
-            sites_assignes: currentSecretary.sites_assignes || [],
             name: currentSecretary.name || '',
             first_name: currentSecretary.first_name || '',
             admin_count: adminCountMap.get(currentSecretary.id) || 0,
@@ -357,8 +365,12 @@ serve(async (req) => {
         const datePositions = positions.filter(p => p.date === date);
         
         for (const pos of datePositions) {
-          // Check site compatibility
-          if (!secretary.sites_assignes.includes(pos.site_id)) continue;
+          // Check site compatibility via new secretaires_sites table
+          const prioriteKey = `${secretary.id}_${pos.site_id}`;
+          const priorite = secSitePriorityMap.get(prioriteKey);
+          
+          // Skip if site not assigned to this secretary
+          if (!priorite) continue;
           
           // Check geographic constraint (bloc + CLV compatibility)
           const blocKey = `${secretary.id}_${pos.date}`;

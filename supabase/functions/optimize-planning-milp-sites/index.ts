@@ -96,7 +96,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   const weekEndStr = week_end || dates[dates.length - 1];
   
   // 1. Fetch all data
-  const [secretaires, sites, besoins, capacites, blocPersonnel] = await Promise.all([
+  const [secretaires, sites, besoins, capacites, blocPersonnel, secretairesSites] = await Promise.all([
     supabase.from('secretaires').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('sites').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('besoin_effectif').select('*, medecins(first_name, name, besoin_secretaires)')
@@ -113,8 +113,17 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
       .in('date', dates)
       .eq('type_assignation', 'bloc')
       .not('secretaire_id', 'is', null)
+      .then((r: any) => r.data || []),
+    supabase.from('secretaires_sites')
+      .select('secretaire_id, site_id, priorite')
       .then((r: any) => r.data || [])
   ]);
+
+  // Create priority map for quick lookup: `${secId}_${siteId}` -> priorite
+  const secSitePriorityMap = new Map<string, string>();
+  for (const ss of secretairesSites) {
+    secSitePriorityMap.set(`${ss.secretaire_id}_${ss.site_id}`, ss.priorite);
+  }
 
   console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
 
@@ -178,7 +187,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   }
 
   // 5. Build and solve MILP
-  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, selected_dates);
+  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, secSitePriorityMap, selected_dates);
 
   if (!solution.feasible) {
     console.error('❌ MILP not feasible!');
@@ -248,6 +257,7 @@ async function buildMILP(
   supabase: any,
   weekStartStr: string,
   weekEndStr: string,
+  secSitePriorityMap: Map<string, string>,
   selected_dates?: string[]
 ): Promise<any> {
   console.log('\n🔍 Building MILP by aggregating site needs...');
@@ -395,9 +405,12 @@ async function buildMILP(
           }
         }
         
-        // Check site compatibility
-        const isSiteInProfile = (sec.sites_assignes || []).includes(site_id);
-        if (!isSiteInProfile) continue;
+        // Check site compatibility via new secretaires_sites table
+        const prioriteKey = `${sec.id}_${site_id}`;
+        const priorite = secSitePriorityMap.get(prioriteKey);
+        
+        // Skip if site not assigned to this secretary
+        if (!priorite) continue;
 
         // Check geographic compatibility if at bloc other period
         const otherPeriode = periode === 'matin' ? 'apres_midi' : 'matin';
@@ -419,9 +432,16 @@ async function buildMILP(
           score += 10000;
         }
 
-        // PRIORITY 2: Site preference
+        // PRIORITY 2: Site priority level
+        if (priorite === '1') {
+          score += 200; // Strong priority for priority 1 sites
+        } else if (priorite === '2') {
+          score += 50;  // Lower priority for priority 2 sites
+        }
+
+        // PRIORITY 3: Site preference (cumulative with priority)
         if (sec.site_preferentiel_id === site_id) {
-          score += 50;
+          score += 300;
         }
 
         // PENALTY: Port-en-Truie (unless preferred)
