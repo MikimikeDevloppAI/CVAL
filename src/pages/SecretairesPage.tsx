@@ -86,7 +86,7 @@ export default function SecretairesPage() {
           phone_number,
           profile_id,
           site_preferentiel_id,
-          medecin_assigne_id,
+          
           prefere_port_en_truie,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
@@ -100,7 +100,7 @@ export default function SecretairesPage() {
           bloc_ophtalmo_accueil,
           bloc_dermato_accueil,
           actif,
-          sites (
+          sites!secretaires_site_preferentiel_id_fkey (
             nom
           ),
           horaires_base_secretaires (
