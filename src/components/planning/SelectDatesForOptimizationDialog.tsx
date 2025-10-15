@@ -134,7 +134,7 @@ export function SelectDatesForOptimizationDialog({
                     key={dateStr}
                     className={cn(
                       "flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent transition-colors",
-                      isWeekend && "bg-muted/50 opacity-70"
+                      isWeekend && "bg-muted/50"
                     )}
                   >
                     <Checkbox
