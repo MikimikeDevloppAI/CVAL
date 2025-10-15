@@ -607,15 +607,9 @@ export default function PlanningPage() {
     return (data && data.length > 0);
   };
 
-  const handleOptimizeMILP = async (optimizeBloc = true, optimizeSites = true) => {
-    // Si le planning est validé, ouvrir le dialog de sélection de dates
-    if (currentPlanningStatus === 'valide') {
-      setSelectDatesDialogOpen(true);
-      return;
-    }
-    
-    // Sinon optimiser toute la semaine
-    executeOptimizeMILP(undefined, optimizeBloc, optimizeSites);
+  const handleOptimizeMILP = async () => {
+    // Toujours ouvrir le dialogue de sélection
+    setSelectDatesDialogOpen(true);
   };
 
   const executeOptimizeMILP = async (selectedDates?: string[], optimizeBloc = true, optimizeSites = true) => {
@@ -1099,7 +1093,7 @@ export default function PlanningPage() {
               {/* Action Buttons */}
               <div className="flex justify-center gap-3 flex-wrap px-4">
                 <Button 
-                  onClick={() => handleOptimizeMILP(true, true)} 
+                  onClick={handleOptimizeMILP} 
                   disabled={isOptimizingMILP}
                   size="default"
                   className="gap-2"
@@ -1112,31 +1106,9 @@ export default function PlanningPage() {
                   ) : (
                     <>
                       <Zap className="h-4 w-4" />
-                      Optimiser Tout
+                      Optimiser
                     </>
                   )}
-                </Button>
-
-                <Button 
-                  onClick={() => handleOptimizeMILP(true, false)} 
-                  disabled={isOptimizingMILP}
-                  size="default"
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Building2 className="h-4 w-4" />
-                  Bloc Uniquement
-                </Button>
-
-                <Button 
-                  onClick={() => handleOptimizeMILP(false, true)} 
-                  disabled={isOptimizingMILP}
-                  size="default"
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Users className="h-4 w-4" />
-                  Sites Uniquement
                 </Button>
                 
                 {currentPlanningId && currentPlanningStatus === 'en_cours' && optimizationResult && (
@@ -1325,7 +1297,9 @@ export default function PlanningPage() {
         open={selectDatesDialogOpen}
         onOpenChange={setSelectDatesDialogOpen}
         weekDays={weekDays}
-        onOptimize={executeOptimizeMILP}
+        onOptimize={async (dates, optimizeBloc, optimizeSites) => {
+          await executeOptimizeMILP(dates, optimizeBloc, optimizeSites);
+        }}
         isOptimizing={isOptimizingMILP}
       />
 

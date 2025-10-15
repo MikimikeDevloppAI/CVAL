@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Calendar, Loader2 } from 'lucide-react';
@@ -10,7 +12,7 @@ interface SelectDatesForOptimizationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   weekDays: Date[];
-  onOptimize: (selectedDates: string[]) => Promise<void>;
+  onOptimize: (selectedDates: string[], optimizeBloc: boolean, optimizeSites: boolean) => Promise<void>;
   isOptimizing: boolean;
 }
 
@@ -23,6 +25,7 @@ export function SelectDatesForOptimizationDialog({
 }: SelectDatesForOptimizationDialogProps) {
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(true);
+  const [optimizationType, setOptimizationType] = useState<'complete' | 'sites'>('complete');
 
   // Filtrer uniquement les jours de semaine (lundi à vendredi)
   const weekdaysOnly = weekDays.filter(d => {
@@ -35,6 +38,7 @@ export function SelectDatesForOptimizationDialog({
     if (open && weekdaysOnly.length > 0) {
       setSelectedDates(weekdaysOnly.map(d => format(d, 'yyyy-MM-dd')));
       setSelectAll(true);
+      setOptimizationType('complete');
     }
   }, [open, weekDays]);
 
@@ -65,10 +69,13 @@ export function SelectDatesForOptimizationDialog({
 
   const handleOptimize = async () => {
     if (selectedDates.length === 0) return;
-    await onOptimize(selectedDates);
+    const optimizeBloc = optimizationType === 'complete';
+    const optimizeSites = true; // Toujours optimiser les sites
+    await onOptimize(selectedDates, optimizeBloc, optimizeSites);
     onOpenChange(false);
     setSelectedDates([]);
     setSelectAll(true);
+    setOptimizationType('complete');
   };
 
   return (
@@ -86,6 +93,26 @@ export function SelectDatesForOptimizationDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Type d'optimisation */}
+          <div className="space-y-3 pb-4 border-b">
+            <Label className="text-sm font-medium">Type d'optimisation</Label>
+            <RadioGroup value={optimizationType} onValueChange={(value: 'complete' | 'sites') => setOptimizationType(value)}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="complete" id="opt-complete" />
+                <Label htmlFor="opt-complete" className="text-sm cursor-pointer font-normal">
+                  Optimisation complète (Bloc + Sites)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="sites" id="opt-sites" />
+                <Label htmlFor="opt-sites" className="text-sm cursor-pointer font-normal">
+                  Sites uniquement
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Sélection des jours */}
           <div className="flex items-center space-x-2 pb-4 border-b">
             <Checkbox
               id="select-all"
