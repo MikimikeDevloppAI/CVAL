@@ -28,7 +28,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { single_day, week_start, week_end, exclude_bloc_assigned, selected_dates } = await req.json().catch(() => ({}));
+    const { single_day, week_start, week_end, exclude_bloc_assigned, selected_dates, planning_id } = await req.json().catch(() => ({}));
     
     const isWeekMode = !single_day && week_start && week_end;
     
@@ -42,7 +42,7 @@ serve(async (req) => {
       } else {
         console.log(`📅 Week mode: Optimizing ${week_start} to ${week_end}`);
       }
-      return await optimizeWeek(supabaseServiceRole, week_start, week_end, exclude_bloc_assigned, selected_dates);
+      return await optimizeWeek(supabaseServiceRole, week_start, week_end, exclude_bloc_assigned, selected_dates, planning_id);
     } else {
       console.log(`📅 Day mode: Optimizing ${single_day}`);
       return await optimizeDay(supabaseServiceRole, single_day, exclude_bloc_assigned);
@@ -79,17 +79,17 @@ async function optimizeDay(supabase: any, date: string, exclude_bloc_assigned: b
 }
 
 // Week optimization  
-async function optimizeWeek(supabase: any, weekStart: string, weekEnd: string, exclude_bloc_assigned: boolean = false, selected_dates?: string[]) {
+async function optimizeWeek(supabase: any, weekStart: string, weekEnd: string, exclude_bloc_assigned: boolean = false, selected_dates?: string[], planning_id?: string) {
   let dates = getDatesInRange(weekStart, weekEnd);
   // If selected_dates provided, only process those
   if (selected_dates && selected_dates.length > 0) {
     dates = selected_dates;
   }
-  return await optimizeMultipleDays(supabase, dates, exclude_bloc_assigned, weekStart, weekEnd, selected_dates);
+  return await optimizeMultipleDays(supabase, dates, exclude_bloc_assigned, weekStart, weekEnd, selected_dates, planning_id);
 }
 
 // Main optimization function (works for 1 day or multiple days)
-async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc_assigned: boolean = false, week_start?: string, week_end?: string, selected_dates?: string[]) {
+async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc_assigned: boolean = false, week_start?: string, week_end?: string, selected_dates?: string[], provided_planning_id?: string) {
   console.log(`\n🗓️ Optimizing ${dates.length} day(s): ${dates.join(', ')}`);
   
   const weekStartStr = week_start || dates[0];
@@ -118,27 +118,43 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
 
   console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
 
-  // 2. Create or get planning
-  const weekStart = dates[0];
-  const weekEnd = dates[dates.length - 1];
+  // 2. Use provided planning_id or fallback to create/find one
+  let planning_id = provided_planning_id;
   
-  let planning_id;
-  const { data: existingPlanning } = await supabase
-    .from('planning')
-    .select('*')
-    .eq('date_debut', weekStart)
-    .eq('date_fin', weekEnd)
-    .maybeSingle();
-
-  if (existingPlanning) {
-    planning_id = existingPlanning.id;
-  } else {
-    const { data: newPlanning } = await supabase
+  if (!planning_id) {
+    // Fallback: normalize to ISO week and search/create
+    const firstDate = new Date(dates[0] + 'T00:00:00Z');
+    const dayOfWeek = firstDate.getUTCDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const isoWeekStart = new Date(firstDate);
+    isoWeekStart.setUTCDate(firstDate.getUTCDate() - daysFromMonday);
+    const isoWeekEnd = new Date(isoWeekStart);
+    isoWeekEnd.setUTCDate(isoWeekStart.getUTCDate() + 6);
+    
+    const weekStart = isoWeekStart.toISOString().split('T')[0];
+    const weekEnd = isoWeekEnd.toISOString().split('T')[0];
+    
+    const { data: existingPlanning } = await supabase
       .from('planning')
-      .insert({ date_debut: weekStart, date_fin: weekEnd, statut: 'en_cours' })
-      .select()
-      .single();
-    planning_id = newPlanning.id;
+      .select('*')
+      .eq('date_debut', weekStart)
+      .eq('date_fin', weekEnd)
+      .maybeSingle();
+
+    if (existingPlanning) {
+      planning_id = existingPlanning.id;
+      console.log(`📋 Found existing planning: ${planning_id}`);
+    } else {
+      const { data: newPlanning } = await supabase
+        .from('planning')
+        .insert({ date_debut: weekStart, date_fin: weekEnd, statut: 'en_cours' })
+        .select()
+        .single();
+      planning_id = newPlanning.id;
+      console.log(`📋 Created new planning: ${planning_id}`);
+    }
+  } else {
+    console.log(`📋 Using provided planning_id: ${planning_id}`);
   }
 
   // 3. Identify bloc assignments (by date+period)
@@ -175,6 +191,9 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   console.log(`✅ MILP solved: objective = ${solution.result}`);
 
   // 6. Apply solution - INSERT directly into planning_genere_personnel
+  if (!planning_id) {
+    throw new Error('planning_id must be defined before applying solution');
+  }
   await applySolution(supabase, besoins, sites, solution, planning_id, dates);
 
   return new Response(JSON.stringify({

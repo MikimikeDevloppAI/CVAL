@@ -233,7 +233,8 @@ serve(async (req) => {
       body: JSON.stringify({ 
         week_start: weekStart, 
         week_end: weekEnd, 
-        selected_dates 
+        selected_dates,
+        planning_id  // Pass planning_id to avoid duplicate creation
       })
     });
 
@@ -264,7 +265,8 @@ serve(async (req) => {
         week_start: weekStart,
         week_end: weekEnd,
         exclude_bloc_assigned: true, // Always exclude to avoid conflicts
-        selected_dates
+        selected_dates,
+        planning_id  // Pass planning_id to avoid duplicate creation
       })
     });
 

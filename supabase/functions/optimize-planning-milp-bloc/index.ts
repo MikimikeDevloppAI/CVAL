@@ -20,7 +20,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end, selected_dates } = await req.json().catch(() => ({}));
+    const { week_start, week_end, selected_dates, planning_id: provided_planning_id } = await req.json().catch(() => ({}));
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end parameters are required');
     }
@@ -137,29 +137,48 @@ serve(async (req) => {
     // 2. Assign rooms
     const roomAssignments = assignRooms(operations, typesInterventionMap, configurationsMultiFlux);
 
-    // 3. Get or create planning_id
-    let planning_id;
-    const { data: existingPlanning } = await supabaseServiceRole
-      .from('planning')
-      .select('*')
-      .eq('date_debut', week_start)
-      .eq('date_fin', week_end)
-      .maybeSingle();
-
-    if (existingPlanning) {
-      planning_id = existingPlanning.id;
-    } else {
-      const { data: newPlanning, error: planningError } = await supabaseServiceRole
+    // 3. Use provided planning_id or fallback to create/find one
+    let planning_id = provided_planning_id;
+    
+    if (!planning_id) {
+      // Fallback: normalize to ISO week and search/create
+      const firstDate = new Date(week_start + 'T00:00:00Z');
+      const dayOfWeek = firstDate.getUTCDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const isoWeekStart = new Date(firstDate);
+      isoWeekStart.setUTCDate(firstDate.getUTCDate() - daysFromMonday);
+      const isoWeekEnd = new Date(isoWeekStart);
+      isoWeekEnd.setUTCDate(isoWeekStart.getUTCDate() + 6);
+      
+      const weekStartNorm = isoWeekStart.toISOString().split('T')[0];
+      const weekEndNorm = isoWeekEnd.toISOString().split('T')[0];
+      
+      const { data: existingPlanning } = await supabaseServiceRole
         .from('planning')
-        .insert({
-          date_debut: week_start,
-          date_fin: week_end,
-          statut: 'en_cours'
-        })
-        .select()
-        .single();
-      if (planningError) throw planningError;
-      planning_id = newPlanning.id;
+        .select('*')
+        .eq('date_debut', weekStartNorm)
+        .eq('date_fin', weekEndNorm)
+        .maybeSingle();
+
+      if (existingPlanning) {
+        planning_id = existingPlanning.id;
+        console.log(`📋 Found existing planning: ${planning_id}`);
+      } else {
+        const { data: newPlanning, error: planningError } = await supabaseServiceRole
+          .from('planning')
+          .insert({
+            date_debut: weekStartNorm,
+            date_fin: weekEndNorm,
+            statut: 'en_cours'
+          })
+          .select()
+          .single();
+        if (planningError) throw planningError;
+        planning_id = newPlanning.id;
+        console.log(`📋 Created new planning: ${planning_id}`);
+      }
+    } else {
+      console.log(`📋 Using provided planning_id: ${planning_id}`);
     }
 
     // 4. Save bloc operations and create personnel rows
