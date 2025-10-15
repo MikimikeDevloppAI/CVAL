@@ -95,8 +95,25 @@ serve(async (req) => {
       .maybeSingle();
     
     if (existingPlanningContains) {
+      console.log(`📋 Found existing planning by containment: ${existingPlanningContains.id} (original bounds: ${existingPlanningContains.date_debut} to ${existingPlanningContains.date_fin})`);
+      
+      // Update to ISO week bounds if different
+      if (existingPlanningContains.date_debut !== weekStart || 
+          existingPlanningContains.date_fin !== weekEnd) {
+        const { error: updateError } = await supabaseServiceRole
+          .from('planning')
+          .update({
+            date_debut: weekStart,
+            date_fin: weekEnd
+          })
+          .eq('id', existingPlanningContains.id);
+        
+        if (updateError) throw updateError;
+        console.log(`📋 Updated existing planning ${existingPlanningContains.id} to ISO week bounds: ${weekStart} to ${weekEnd}`);
+      }
+      
       planning_id = existingPlanningContains.id;
-      console.log(`📋 Found existing planning by containment: ${planning_id} (covers ${existingPlanningContains.date_debut} to ${existingPlanningContains.date_fin})`);
+      console.log(`📋 Using planning: ${planning_id} (now covers ${weekStart} to ${weekEnd})`);
     } else {
       // Create new planning with ISO week bounds
       const { data: newPlanning, error: planningError } = await supabaseServiceRole
