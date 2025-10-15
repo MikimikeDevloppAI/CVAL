@@ -23,8 +23,7 @@ interface Secretaire {
   name?: string;
   email?: string;
   phone_number?: string;
-  sites_assignes: string[];
-  sites_assignes_details?: { nom: string }[];
+  sites_assignes_details?: { nom: string; priorite?: string }[];
   medecin_assigne_id?: string;
   medecins?: {
     first_name: string;
@@ -85,7 +84,6 @@ export default function SecretairesPage() {
           email,
           phone_number,
           profile_id,
-          sites_assignes,
           site_preferentiel_id,
           medecin_assigne_id,
           prefere_port_en_truie,
@@ -132,14 +130,17 @@ export default function SecretairesPage() {
           secretairesData.map(async (secretaire: any) => {
             let sites_assignes_details = [];
             
-            // Récupérer les noms des sites assignés
-            if (secretaire.sites_assignes && secretaire.sites_assignes.length > 0) {
-              const { data: sitesData } = await supabase
-                .from('sites')
-                .select('nom')
-                .in('id', secretaire.sites_assignes);
-              
-              sites_assignes_details = sitesData || [];
+            // Récupérer les sites assignés depuis la nouvelle table secretaires_sites
+            const { data: secretairesSitesData } = await supabase
+              .from('secretaires_sites')
+              .select('site_id, priorite, sites(nom)')
+              .eq('secretaire_id', secretaire.id);
+            
+            if (secretairesSitesData && secretairesSitesData.length > 0) {
+              sites_assignes_details = secretairesSitesData.map((ss: any) => ({
+                nom: ss.sites?.nom || '',
+                priorite: ss.priorite
+              }));
             }
 
             // Enrichir les horaires avec les noms des sites
@@ -535,7 +536,6 @@ export default function SecretairesPage() {
                       {canManage && (
                         <QuickEditSitesDialog
                           secretaireId={secretaire.id}
-                          sitesActuels={secretaire.sites_assignes}
                           sitesActuelsDetails={secretaire.sites_assignes_details || []}
                           onSuccess={fetchSecretaires}
                         />
@@ -544,8 +544,13 @@ export default function SecretairesPage() {
                     <div className="flex flex-wrap gap-2">
                       {secretaire.sites_assignes_details && secretaire.sites_assignes_details.length > 0 ? (
                         secretaire.sites_assignes_details.map((site, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
+                          <Badge 
+                            key={index} 
+                            variant={site.priorite === '1' ? 'secondary' : 'outline'} 
+                            className="text-xs"
+                          >
                             {site.nom}
+                            {site.priorite === '2' && <span className="ml-1 text-muted-foreground">(P2)</span>}
                           </Badge>
                         ))
                       ) : (
