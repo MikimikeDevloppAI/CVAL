@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Clock, MapPin, Loader2, X, Edit2 } from 'lucide-react';
+import { User, Clock, MapPin, Loader2, X, Edit2, Plus } from 'lucide-react';
 import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { ManagePersonnelDialog } from './ManagePersonnelDialog';
+import { AddSecretaryAssignmentsDialog } from './AddSecretaryAssignmentsDialog';
 
 const SALLE_COLORS: Record<string, string> = {
   rouge: 'bg-red-100 text-red-700 border-red-300',
@@ -60,7 +61,9 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
+  const [selectedSecretary, setSelectedSecretary] = useState<{ id: string; name: string; weekSchedule: any[] } | null>(null);
 
   useEffect(() => {
     fetchSecretaryPlanning();
@@ -227,6 +230,11 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
     setManageDialogOpen(true);
   };
 
+  const handleAddClick = (secretary: SecretaryData) => {
+    setSelectedSecretary(secretary);
+    setAddDialogOpen(true);
+  };
+
   const getAssignmentBadge = (assignment: SecretaryAssignment) => {
     if (assignment.type_assignation === 'administratif') {
       return (
@@ -308,9 +316,19 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
           <Card key={secretary.id} className="overflow-hidden">
             <CardHeader className="bg-white">
               <div className="space-y-3">
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-primary" />
-                  <span className="truncate">{secretary.name}</span>
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-primary" />
+                    <span className="truncate">{secretary.name}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddClick(secretary)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </CardTitle>
               </div>
             </CardHeader>
@@ -472,6 +490,27 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
           onSuccess={() => {
             fetchSecretaryPlanning();
             setDialogContext(null);
+          }}
+        />
+      )}
+
+      {selectedSecretary && (
+        <AddSecretaryAssignmentsDialog
+          open={addDialogOpen}
+          onOpenChange={setAddDialogOpen}
+          secretaryId={selectedSecretary.id}
+          secretaryName={selectedSecretary.name}
+          startDate={startDate}
+          endDate={endDate}
+          existingAssignments={selectedSecretary.weekSchedule.flatMap(day => {
+            const assignments = [];
+            if (day.matin) assignments.push({ dateStr: day.dateStr, periode: 'matin' as const });
+            if (day.apresMidi) assignments.push({ dateStr: day.dateStr, periode: 'apres_midi' as const });
+            return assignments;
+          })}
+          onSuccess={() => {
+            fetchSecretaryPlanning();
+            setSelectedSecretary(null);
           }}
         />
       )}
