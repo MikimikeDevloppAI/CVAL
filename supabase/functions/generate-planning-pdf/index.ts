@@ -62,10 +62,10 @@ Deno.serve(async (req) => {
       Parameters: [
         { Name: 'File', FileValue: { Name: `${safeBaseName}.html`, Data: base64Html } },
         { Name: 'FileName', Value: `${safeBaseName}.pdf` },
-        { Name: 'MarginTop', Value: '0' },
-        { Name: 'MarginBottom', Value: '0' },
-        { Name: 'MarginLeft', Value: '0' },
-        { Name: 'MarginRight', Value: '0' },
+        { Name: 'MarginTop', Value: '15' },
+        { Name: 'MarginBottom', Value: '12' },
+        { Name: 'MarginLeft', Value: '10' },
+        { Name: 'MarginRight', Value: '10' },
         { Name: 'PageSize', Value: 'a4' },
       ],
     };
@@ -119,17 +119,26 @@ Deno.serve(async (req) => {
   }
 });
 
-// Mapping des couleurs par salle
-const SALLE_COLORS: Record<string, { bg: string; text: string }> = {
-  'Salle Rouge': { bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', text: '#991b1b' },
-  'Salle Verte': { bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', text: '#065f46' },
-  'Salle Jaune': { bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', text: '#92400e' },
-  'Salle Bleue': { bg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', text: '#1e40af' },
-  'Rouge': { bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', text: '#991b1b' },
-  'Verte': { bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', text: '#065f46' },
-  'Jaune': { bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', text: '#92400e' },
-  'Bleue': { bg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', text: '#1e40af' }
-};
+// Helper function to get room colors based on actual database values
+function getSalleColors(salle?: string): { bg: string; text: string } {
+  const defaultColors = { bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', text: '#6b21a8' };
+  if (!salle) return defaultColors;
+  
+  const normalized = salle.trim().toLowerCase().replace(/^salle\s+/, '');
+  
+  switch (normalized) {
+    case 'rouge':
+      return { bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', text: '#991b1b' };
+    case 'verte':
+      return { bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', text: '#065f46' };
+    case 'jaune':
+      return { bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', text: '#92400e' };
+    case 'bleue':
+      return { bg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', text: '#1e40af' };
+    default:
+      return defaultColors;
+  }
+}
 
 function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekEnd: string): string {
   // Fonction pour obtenir le nom du jour en français
@@ -253,11 +262,21 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  padding-bottom: 14px; 
+  position: relative;
   margin-bottom: 18px; 
-  border-bottom: 3px solid;
-  border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;
+  padding-bottom: 10px;
   letter-spacing: -0.5px;
+}
+
+.secretary-name::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 2px;
 }
 
 .day-block { 
@@ -423,10 +442,8 @@ function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: bo
   } else if (assignment.type === 'bloc') {
     const parts = ['<span class="site">Bloc opératoire</span>'];
     
-    // Get color for the room (used for both salle and type badges)
-    const colors = assignment.salle && SALLE_COLORS[assignment.salle] 
-      ? SALLE_COLORS[assignment.salle]
-      : { bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', text: '#6b21a8' };
+    // Get color for the room using the helper function
+    const colors = getSalleColors(assignment.salle);
     
     // Badge pour la salle avec couleur spécifique
     if (assignment.salle) {
