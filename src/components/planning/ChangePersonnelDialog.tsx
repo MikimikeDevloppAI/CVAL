@@ -51,6 +51,15 @@ interface SwapOption extends PersonnelOption {
   is_same_operation?: boolean;
 }
 
+interface ReassignOption {
+  id: string;
+  type: 'bloc' | 'site' | 'administratif';
+  label: string;
+  assignment_id?: string;
+  site_id?: string;
+  type_besoin?: string | null;
+}
+
 export default function ChangePersonnelDialog({
   open,
   onOpenChange,
@@ -61,12 +70,15 @@ export default function ChangePersonnelDialog({
   const [loading, setLoading] = useState(false);
   const [availablePersonnel, setAvailablePersonnel] = useState<PersonnelOption[]>([]);
   const [swapPersonnel, setSwapPersonnel] = useState<SwapOption[]>([]);
+  const [reassignOptions, setReassignOptions] = useState<ReassignOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
+  const [selectedReassignOption, setSelectedReassignOption] = useState<string>('none');
   const [action, setAction] = useState<'reassign' | 'swap' | 'remove'>('reassign');
 
   useEffect(() => {
     if (open) {
       setSelectedPersonId('');
+      setSelectedReassignOption('none');
       setAction('reassign');
       fetchPersonnel();
     }
@@ -202,6 +214,9 @@ export default function ChangePersonnelDialog({
 
         // Combiner les deux listes
         setSwapPersonnel([...validSameOp, ...validOtherOps]);
+
+        // 5. Récupérer les options de réassignation si l'utilisateur veut retirer
+        await fetchReassignOptions();
       }
     } catch (error) {
       console.error('Erreur lors du chargement du personnel:', error);
@@ -212,6 +227,113 @@ export default function ChangePersonnelDialog({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReassignOptions = async () => {
+    if (!assignment.secretaire_id) return;
+
+    const options: ReassignOption[] = [];
+
+    try {
+      // Récupérer les compétences de la personne
+      const { data: currentSecretaire } = await supabase
+        .from('secretaires')
+        .select('instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil')
+        .eq('id', assignment.secretaire_id)
+        .single();
+
+      if (!currentSecretaire) return;
+
+      // 1. Postes libres dans d'autres opérations bloc
+      const { data: emptyBlocPosts } = await supabase
+        .from('planning_genere_personnel')
+        .select(`
+          id,
+          type_besoin_bloc,
+          planning_genere_bloc_operatoire_id,
+          operation:planning_genere_bloc_operatoire_id(
+            type_intervention:type_intervention_id(nom)
+          )
+        `)
+        .eq('date', assignment.date)
+        .eq('periode', assignment.periode)
+        .eq('type_assignation', 'bloc')
+        .neq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
+        .is('secretaire_id', null);
+
+      const validBlocPosts = (emptyBlocPosts || []).filter(post => 
+        post.type_besoin_bloc && canPerformBlocRole(currentSecretaire, post.type_besoin_bloc)
+      );
+
+      validBlocPosts.forEach(post => {
+        options.push({
+          id: post.id,
+          type: 'bloc',
+          label: `${post.operation?.type_intervention?.nom || 'Opération'} - ${getTypeBesoinLabel(post.type_besoin_bloc)}`,
+          assignment_id: post.id,
+          type_besoin: post.type_besoin_bloc,
+        });
+      });
+
+      // 2. Récupérer les sites disponibles (qui ont au moins un médecin ce jour)
+      const { data: sitesWithNeeds } = await supabase
+        .from('besoin_effectif')
+        .select('site_id, sites:sites(id, nom)')
+        .eq('date', assignment.date)
+        .eq('type', 'medecin')
+        .not('site_id', 'is', null);
+
+      const uniqueSites = Array.from(
+        new Set((sitesWithNeeds || []).map(s => s.site_id))
+      ).map(siteId => {
+        const siteData = sitesWithNeeds?.find(s => s.site_id === siteId)?.sites;
+        return siteData;
+      }).filter(Boolean);
+
+      // Vérifier si la personne n'est pas déjà assignée à ces sites
+      const { data: existingSiteAssignments } = await supabase
+        .from('planning_genere_personnel')
+        .select('site_id')
+        .eq('date', assignment.date)
+        .eq('periode', assignment.periode)
+        .eq('secretaire_id', assignment.secretaire_id)
+        .eq('type_assignation', 'site');
+
+      const assignedSiteIds = new Set((existingSiteAssignments || []).map(a => a.site_id));
+
+      uniqueSites.forEach(site => {
+        if (site && !assignedSiteIds.has(site.id)) {
+          options.push({
+            id: `site-${site.id}`,
+            type: 'site',
+            label: `Site: ${site.nom}`,
+            site_id: site.id,
+          });
+        }
+      });
+
+      // 3. Option administrative (si pas déjà assignée)
+      const { data: existingAdmin } = await supabase
+        .from('planning_genere_personnel')
+        .select('id')
+        .eq('date', assignment.date)
+        .eq('periode', assignment.periode)
+        .eq('secretaire_id', assignment.secretaire_id)
+        .eq('type_assignation', 'administratif')
+        .maybeSingle();
+
+      if (!existingAdmin) {
+        options.push({
+          id: 'admin',
+          type: 'administratif',
+          label: 'Assignation administrative',
+        });
+      }
+
+      setReassignOptions(options);
+    } catch (error) {
+      console.error('Erreur lors du chargement des options de réassignation:', error);
     }
   };
 
@@ -267,17 +389,60 @@ export default function ChangePersonnelDialog({
             : 'Échange effectué avec une autre opération',
         });
       } else if (action === 'remove') {
-        // Retirer le personnel
-        const { error } = await supabase
+        // Retirer le personnel du poste actuel
+        const { error: removeError } = await supabase
           .from('planning_genere_personnel')
           .update({ secretaire_id: null })
           .eq('id', assignment.id);
 
-        if (error) throw error;
+        if (removeError) throw removeError;
+
+        // Si une option de réassignation est sélectionnée, créer/assigner
+        if (selectedReassignOption && selectedReassignOption !== 'none') {
+          const option = reassignOptions.find(o => o.id === selectedReassignOption);
+          if (option) {
+            if (option.type === 'bloc') {
+              // Assigner à un poste bloc vide
+              const { error: assignError } = await supabase
+                .from('planning_genere_personnel')
+                .update({ secretaire_id: assignment.secretaire_id })
+                .eq('id', option.assignment_id);
+
+              if (assignError) throw assignError;
+            } else if (option.type === 'site') {
+              // Créer une nouvelle assignation site
+              const { error: createError } = await supabase
+                .from('planning_genere_personnel')
+                .insert({
+                  date: assignment.date,
+                  periode: assignment.periode,
+                  secretaire_id: assignment.secretaire_id,
+                  type_assignation: 'site',
+                  site_id: option.site_id,
+                });
+
+              if (createError) throw createError;
+            } else if (option.type === 'administratif') {
+              // Créer une nouvelle assignation administrative
+              const { error: createError } = await supabase
+                .from('planning_genere_personnel')
+                .insert({
+                  date: assignment.date,
+                  periode: assignment.periode,
+                  secretaire_id: assignment.secretaire_id,
+                  type_assignation: 'administratif',
+                });
+
+              if (createError) throw createError;
+            }
+          }
+        }
 
         toast({
           title: 'Succès',
-          description: 'Personnel retiré du poste',
+          description: selectedReassignOption && selectedReassignOption !== 'none'
+            ? 'Personnel retiré et réassigné ailleurs'
+            : 'Personnel retiré du poste',
         });
       }
 
@@ -451,12 +616,42 @@ export default function ChangePersonnelDialog({
                 )}
 
                 {action === 'remove' && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Le poste sera libéré et aucun personnel ne sera assigné.
-                    </AlertDescription>
-                  </Alert>
+                  <>
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Le poste sera libéré. Vous pouvez optionnellement réassigner {assignment.secretaire_nom?.split(' ')[0]} ailleurs.
+                      </AlertDescription>
+                    </Alert>
+
+                    {reassignOptions.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Réassigner ailleurs (optionnel)</Label>
+                        <RadioGroup value={selectedReassignOption} onValueChange={setSelectedReassignOption}>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="none" id="none" />
+                            <Label htmlFor="none" className="cursor-pointer flex-1">
+                              Ne pas réassigner
+                            </Label>
+                          </div>
+                          
+                          {reassignOptions.map(option => (
+                            <div key={option.id} className="flex items-center space-x-2">
+                              <RadioGroupItem value={option.id} id={option.id} />
+                              <Label htmlFor={option.id} className="cursor-pointer flex-1">
+                                <div className="flex items-center gap-2">
+                                  {option.type === 'bloc' && <Badge variant="outline" className="text-xs">Bloc</Badge>}
+                                  {option.type === 'site' && <Badge variant="outline" className="text-xs bg-blue-50">Site</Badge>}
+                                  {option.type === 'administratif' && <Badge variant="outline" className="text-xs bg-gray-100">Admin</Badge>}
+                                  <span>{option.label}</span>
+                                </div>
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
