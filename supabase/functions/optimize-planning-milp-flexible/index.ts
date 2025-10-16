@@ -161,6 +161,69 @@ serve(async (req) => {
 
     console.log(`${unassignedFlexible.length} flexible secretaries to assign`);
 
+    // Fetch absences for flexible secretaries in the optimization period
+    const { data: absencesData, error: absencesError } = await supabase
+      .from('absences')
+      .select('secretaire_id, date_debut, date_fin, heure_debut, heure_fin')
+      .in('secretaire_id', unassignedFlexible.map(s => s.id))
+      .eq('type_personne', 'secretaire')
+      .in('statut', ['approuve', 'en_attente'])
+      .gte('date_fin', week_start)
+      .lte('date_debut', week_end);
+
+    if (absencesError) {
+      console.error('Error fetching absences:', absencesError);
+      throw absencesError;
+    }
+
+    // Build absence map: Map<secretaire_id, Set<date_periode>>
+    // Format: "YYYY-MM-DD" for full-day, "YYYY-MM-DD_matin" or "YYYY-MM-DD_apres_midi" for partial
+    const absenceMap = new Map<string, Set<string>>();
+    
+    for (const absence of absencesData || []) {
+      if (!absenceMap.has(absence.secretaire_id)) {
+        absenceMap.set(absence.secretaire_id, new Set());
+      }
+      
+      const absenceSet = absenceMap.get(absence.secretaire_id)!;
+      const startDate = new Date(absence.date_debut);
+      const endDate = new Date(absence.date_fin);
+      
+      // Iterate through all dates in the absence period
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        
+        if (absence.heure_debut && absence.heure_fin) {
+          // Partial-day absence: determine which period(s) it affects
+          const heureDebut = absence.heure_debut;
+          const heureFin = absence.heure_fin;
+          
+          // Morning period: 07:30 - 12:30
+          // Afternoon period: 13:00 - 18:00
+          const affectsMatin = heureDebut < '12:30:00' && heureFin > '07:30:00';
+          const affectsApresMidi = heureDebut < '18:00:00' && heureFin > '13:00:00';
+          
+          if (affectsMatin) {
+            absenceSet.add(`${dateStr}_matin`);
+          }
+          if (affectsApresMidi) {
+            absenceSet.add(`${dateStr}_apres_midi`);
+          }
+        } else {
+          // Full-day absence
+          absenceSet.add(dateStr);
+        }
+      }
+    }
+
+    console.log(`📅 Absence data loaded for ${absenceMap.size} secretaries`);
+    for (const [secId, absences] of absenceMap.entries()) {
+      const sec = unassignedFlexible.find(s => s.id === secId);
+      if (sec) {
+        console.log(`  ${sec.first_name} ${sec.name}: ${absences.size} période(s) d'absence`);
+      }
+    }
+
     // Calculate days already worked this week (excluding selected_dates)
     const daysAlreadyWorked = new Map<string, number>();
     
@@ -200,22 +263,51 @@ serve(async (req) => {
       daysAlreadyWorked.set(secretary.id, daysSet.size);
     }
 
-    // Calculate required days for each, considering days already worked
+    // Calculate required days for each, considering days already worked AND absences
     const secretariesWithDays = unassignedFlexible.map(sec => {
+      // Count available days (5 days - full-day absences in the week)
+      const absencesForSec = absenceMap.get(sec.id) || new Set();
+      const fullDayAbsences = new Set<string>();
+      
+      // Get unique dates from selected_dates or generate week dates
+      const weekDates: string[] = [];
+      if (selected_dates && selected_dates.length > 0) {
+        weekDates.push(...selected_dates);
+      } else {
+        const start = new Date(week_start);
+        const end = new Date(week_end);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          weekDates.push(d.toISOString().split('T')[0]);
+        }
+      }
+      
+      for (const date of weekDates) {
+        // If full-day absence OR both periods absent, count as full day
+        if (absencesForSec.has(date) || 
+            (absencesForSec.has(`${date}_matin`) && absencesForSec.has(`${date}_apres_midi`))) {
+          fullDayAbsences.add(date);
+        }
+      }
+      
+      const joursDisponibles = weekDates.length - fullDayAbsences.size;
       const totalRequired = Math.round((sec.pourcentage_temps / 100) * 5);
       const alreadyWorked = daysAlreadyWorked.get(sec.id) || 0;
-      const remaining = Math.max(0, totalRequired - alreadyWorked);
+      
+      // Required days = min(total required, available days) - already worked
+      const remaining = Math.max(0, Math.min(totalRequired, joursDisponibles) - alreadyWorked);
       
       return {
         ...sec,
         jours_requis: remaining,
         jours_deja_travailles: alreadyWorked,
-        jours_total: totalRequired
+        jours_total: totalRequired,
+        jours_disponibles: joursDisponibles,
+        jours_absence: fullDayAbsences.size
       };
     });
     
     for (const sec of secretariesWithDays) {
-      console.log(`  ${sec.first_name} ${sec.name}: ${sec.pourcentage_temps}% = ${sec.jours_total} jours total, déjà ${sec.jours_deja_travailles} jours → reste ${sec.jours_requis} jours à assigner`);
+      console.log(`  ${sec.first_name} ${sec.name}: ${sec.pourcentage_temps}% = ${sec.jours_total} jours total, ${sec.jours_absence} jour(s) d'absence, ${sec.jours_disponibles} jour(s) disponible(s), déjà ${sec.jours_deja_travailles} jours → reste ${sec.jours_requis} jours à assigner`);
     }
     
     // Filter out secretaries who already met their weekly requirement
@@ -365,6 +457,18 @@ serve(async (req) => {
         const datePositions = positions.filter(p => p.date === date);
         
         for (const pos of datePositions) {
+          // Check if secretary has absence on this date/period
+          const absencesForSec = absenceMap.get(secretary.id);
+          if (absencesForSec) {
+            const dateStr = pos.date;
+            const periodKey = `${dateStr}_${pos.periode}`;
+            
+            // Skip if full-day absence OR specific period absence
+            if (absencesForSec.has(dateStr) || absencesForSec.has(periodKey)) {
+              continue; // Secretary is absent, skip this position
+            }
+          }
+          
           // Check site compatibility via new secretaires_sites table
           const prioriteKey = `${secretary.id}_${pos.site_id}`;
           const priorite = secSitePriorityMap.get(prioriteKey);
