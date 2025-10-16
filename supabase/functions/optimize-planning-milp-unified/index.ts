@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-// @ts-ignore
-import Solver from "https://cdn.jsdelivr.net/npm/javascript-lp-solver@0.4.24/prod/solver.js";
+import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -675,7 +674,7 @@ serve(async (req) => {
     console.log(`Total de variables: ${variableCount}`);
     console.log(`Total de contraintes: ${Object.keys(model.constraints).length}`);
 
-    const solution = Solver.Solve(model);
+    const solution = solver.Solve(model);
     console.log(`Statut: ${solution.feasible ? "FAISABLE" : "INFAISABLE"}`);
     console.log(`Score optimal: ${solution.result || 0}`);
 
