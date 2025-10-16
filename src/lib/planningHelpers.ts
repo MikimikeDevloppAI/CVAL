@@ -87,17 +87,32 @@ export async function getAvailableSecretariesForBloc(
 
   const { data: secretaries, error: secError } = await supabase
     .from('secretaires')
-    .select('id, first_name, name, instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil, personnel_bloc_operatoire')
-    .match(filter);
+    .select(`
+      id, 
+      first_name, 
+      name,
+      secretaires_besoins_operations(
+        besoins_operations(code)
+      )
+    `)
+    .eq('actif', true);
 
   if (secError) throw secError;
 
-  let eligibleSecs = secretaries || [];
-
-  // For instrumentiste_aide_salle, manually filter
-  if (typeBesoinBloc === 'instrumentiste_aide_salle') {
-    eligibleSecs = eligibleSecs.filter(s => s.instrumentaliste || s.aide_de_salle);
-  }
+  let eligibleSecs = (secretaries || []).filter(s => {
+    const besoins = s.secretaires_besoins_operations?.map(sb => sb.besoins_operations?.code) || [];
+    
+    switch (typeBesoinBloc) {
+      case 'instrumentiste': return besoins.includes('instrumentiste');
+      case 'aide_salle': return besoins.includes('aide_salle');
+      case 'instrumentiste_aide_salle': 
+        return besoins.includes('instrumentiste') || besoins.includes('aide_salle') || besoins.includes('instrumentiste_aide_salle');
+      case 'anesthesiste': return besoins.includes('anesthesiste');
+      case 'accueil_dermato': return besoins.includes('accueil_dermato');
+      case 'accueil_ophtalmo': return besoins.includes('accueil_ophtalmo');
+      default: return false;
+    }
+  });
 
   // Get already assigned secretaries for this date/periode
   const { data: assignments, error: assignError } = await supabase

@@ -47,13 +47,13 @@ interface Secretaire {
   horaire_flexible?: boolean;
   pourcentage_temps?: number;
   actif?: boolean;
-  personnel_bloc_operatoire?: boolean;
-  assignation_administrative?: boolean;
-  anesthesiste?: boolean;
-  instrumentaliste?: boolean;
-  aide_de_salle?: boolean;
-  bloc_ophtalmo_accueil?: boolean;
-  bloc_dermato_accueil?: boolean;
+  besoins_operations?: Array<{
+    besoins_operations: {
+      nom: string;
+      code: string;
+      categorie?: string;
+    };
+  }>;
 }
 
 export default function SecretairesPage() {
@@ -90,13 +90,6 @@ export default function SecretairesPage() {
           nombre_jours_supplementaires,
           horaire_flexible,
           pourcentage_temps,
-          personnel_bloc_operatoire,
-          assignation_administrative,
-          anesthesiste,
-          instrumentaliste,
-          aide_de_salle,
-          bloc_ophtalmo_accueil,
-          bloc_dermato_accueil,
           actif,
           horaires_base_secretaires (
             id,

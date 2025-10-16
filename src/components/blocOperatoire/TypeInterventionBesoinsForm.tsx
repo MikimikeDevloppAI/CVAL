@@ -13,19 +13,17 @@ interface TypeInterventionBesoinsFormProps {
   typeInterventionNom: string;
 }
 
-interface BesoinPersonnel {
-  type_besoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato';
-  nombre_requis: number;
+interface BesoinOperation {
+  id: string;
+  code: string;
+  nom: string;
+  categorie?: string;
 }
 
-const TYPES_BESOINS: Array<{ value: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato'; label: string }> = [
-  { value: 'anesthesiste', label: 'Anesthésiste' },
-  { value: 'instrumentiste', label: 'Instrumentiste' },
-  { value: 'instrumentiste_aide_salle', label: 'Instrumentiste / Aide de salle' },
-  { value: 'aide_salle', label: 'Aide de salle' },
-  { value: 'accueil_ophtalmo', label: 'Accueil Ophtalmologie' },
-  { value: 'accueil_dermato', label: 'Accueil Dermatologie' },
-];
+interface BesoinPersonnel {
+  besoin_operation_id: string;
+  nombre_requis: number;
+}
 
 export function TypeInterventionBesoinsForm({
   open,
@@ -35,19 +33,47 @@ export function TypeInterventionBesoinsForm({
 }: TypeInterventionBesoinsFormProps) {
   const [besoins, setBesoins] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
+  const [besoinsOperations, setBesoinsOperations] = useState<BesoinOperation[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open && typeInterventionId) {
+    if (open) {
+      fetchBesoinsOperations();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && typeInterventionId && besoinsOperations.length > 0) {
       fetchBesoins();
     }
-  }, [open, typeInterventionId]);
+  }, [open, typeInterventionId, besoinsOperations]);
+
+  const fetchBesoinsOperations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('besoins_operations')
+        .select('*')
+        .eq('actif', true)
+        .order('categorie', { ascending: true })
+        .order('nom', { ascending: true });
+
+      if (error) throw error;
+      setBesoinsOperations(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des types de besoins:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les types de besoins',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const fetchBesoins = async () => {
     try {
       const { data, error } = await supabase
         .from('types_intervention_besoins_personnel')
-        .select('type_besoin, nombre_requis')
+        .select('besoin_operation_id, nombre_requis')
         .eq('type_intervention_id', typeInterventionId)
         .eq('actif', true);
 
@@ -55,7 +81,7 @@ export function TypeInterventionBesoinsForm({
 
       const besoinsMap: Record<string, number> = {};
       data?.forEach((besoin) => {
-        besoinsMap[besoin.type_besoin] = besoin.nombre_requis;
+        besoinsMap[besoin.besoin_operation_id] = besoin.nombre_requis;
       });
       setBesoins(besoinsMap);
     } catch (error) {
@@ -68,11 +94,11 @@ export function TypeInterventionBesoinsForm({
     }
   };
 
-  const handleChange = (typeBesoin: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato', value: string) => {
+  const handleChange = (besoinId: string, value: string) => {
     const nombre = parseInt(value) || 0;
     setBesoins((prev) => ({
       ...prev,
-      [typeBesoin]: nombre,
+      [besoinId]: nombre,
     }));
   };
 
@@ -88,9 +114,9 @@ export function TypeInterventionBesoinsForm({
       // Insérer les nouveaux besoins (seulement ceux avec nombre > 0)
       const besoinsToInsert = Object.entries(besoins)
         .filter(([_, nombre]) => nombre > 0)
-        .map(([type_besoin, nombre_requis]) => ({
+        .map(([besoin_operation_id, nombre_requis]) => ({
           type_intervention_id: typeInterventionId,
-          type_besoin: type_besoin as 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil_ophtalmo' | 'accueil_dermato',
+          besoin_operation_id,
           nombre_requis,
           actif: true,
         }));
@@ -135,18 +161,23 @@ export function TypeInterventionBesoinsForm({
           </p>
 
           <div className="grid gap-4">
-            {TYPES_BESOINS.map((type) => (
-              <div key={type.value} className="flex items-center gap-4">
-                <Label htmlFor={type.value} className="flex-1 font-medium">
-                  {type.label}
+            {besoinsOperations.map((besoin) => (
+              <div key={besoin.id} className="flex items-center gap-4">
+                <Label htmlFor={besoin.id} className="flex-1 font-medium">
+                  {besoin.nom}
+                  {besoin.categorie && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({besoin.categorie})
+                    </span>
+                  )}
                 </Label>
                 <Input
-                  id={type.value}
+                  id={besoin.id}
                   type="number"
                   min="0"
                   max="10"
-                  value={besoins[type.value] || 0}
-                  onChange={(e) => handleChange(type.value, e.target.value)}
+                  value={besoins[besoin.id] || 0}
+                  onChange={(e) => handleChange(besoin.id, e.target.value)}
                   className="w-24"
                 />
               </div>

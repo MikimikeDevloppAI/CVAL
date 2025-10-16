@@ -77,42 +77,6 @@ export type Database = {
           },
         ]
       }
-      backup: {
-        Row: {
-          actif: boolean
-          created_at: string
-          email: string | null
-          first_name: string | null
-          id: string
-          name: string | null
-          phone_number: string | null
-          specialites: string[]
-          updated_at: string
-        }
-        Insert: {
-          actif?: boolean
-          created_at?: string
-          email?: string | null
-          first_name?: string | null
-          id?: string
-          name?: string | null
-          phone_number?: string | null
-          specialites?: string[]
-          updated_at?: string
-        }
-        Update: {
-          actif?: boolean
-          created_at?: string
-          email?: string | null
-          first_name?: string | null
-          id?: string
-          name?: string | null
-          phone_number?: string | null
-          specialites?: string[]
-          updated_at?: string
-        }
-        Relationships: []
-      }
       besoin_effectif: {
         Row: {
           actif: boolean
@@ -174,6 +138,39 @@ export type Database = {
           },
         ]
       }
+      besoins_operations: {
+        Row: {
+          actif: boolean | null
+          categorie: string | null
+          code: string
+          created_at: string | null
+          description: string | null
+          id: string
+          nom: string
+          updated_at: string | null
+        }
+        Insert: {
+          actif?: boolean | null
+          categorie?: string | null
+          code: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          nom: string
+          updated_at?: string | null
+        }
+        Update: {
+          actif?: boolean | null
+          categorie?: string | null
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          nom?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       besoins_sites: {
         Row: {
           actif: boolean
@@ -225,7 +222,6 @@ export type Database = {
       capacite_effective: {
         Row: {
           actif: boolean
-          backup_id: string | null
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -236,7 +232,6 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          backup_id?: string | null
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -247,7 +242,6 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          backup_id?: string | null
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
@@ -257,13 +251,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "capacite_effective_backup_id_fkey"
-            columns: ["backup_id"]
-            isOneToOne: false
-            referencedRelation: "backup"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "capacite_effective_secretaire_id_fkey"
             columns: ["secretaire_id"]
@@ -489,75 +476,6 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      horaires_effectifs: {
-        Row: {
-          actif: boolean
-          created_at: string
-          date: string
-          heure_debut: string
-          heure_fin: string
-          id: string
-          personne_id: string
-          reference_id: string | null
-          site_id: string
-          source: Database["public"]["Enums"]["source_horaire"]
-          specialite_id: string | null
-          specialites: string[] | null
-          statut: Database["public"]["Enums"]["statut_horaire"]
-          type_personne: Database["public"]["Enums"]["type_personne"]
-          updated_at: string
-        }
-        Insert: {
-          actif?: boolean
-          created_at?: string
-          date: string
-          heure_debut: string
-          heure_fin: string
-          id?: string
-          personne_id: string
-          reference_id?: string | null
-          site_id: string
-          source?: Database["public"]["Enums"]["source_horaire"]
-          specialite_id?: string | null
-          specialites?: string[] | null
-          statut?: Database["public"]["Enums"]["statut_horaire"]
-          type_personne: Database["public"]["Enums"]["type_personne"]
-          updated_at?: string
-        }
-        Update: {
-          actif?: boolean
-          created_at?: string
-          date?: string
-          heure_debut?: string
-          heure_fin?: string
-          id?: string
-          personne_id?: string
-          reference_id?: string | null
-          site_id?: string
-          source?: Database["public"]["Enums"]["source_horaire"]
-          specialite_id?: string | null
-          specialites?: string[] | null
-          statut?: Database["public"]["Enums"]["statut_horaire"]
-          type_personne?: Database["public"]["Enums"]["type_personne"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "horaires_effectifs_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "horaires_effectifs_specialite_id_fkey"
-            columns: ["specialite_id"]
-            isOneToOne: false
-            referencedRelation: "specialites"
             referencedColumns: ["id"]
           },
         ]
@@ -912,21 +830,14 @@ export type Database = {
       secretaires: {
         Row: {
           actif: boolean
-          aide_de_salle: boolean
-          anesthesiste: boolean
-          assignation_administrative: boolean
-          bloc_dermato_accueil: boolean
-          bloc_ophtalmo_accueil: boolean
           created_at: string
           email: string | null
           first_name: string | null
           flexible_jours_supplementaires: boolean
           horaire_flexible: boolean
           id: string
-          instrumentaliste: boolean
           name: string | null
           nombre_jours_supplementaires: number | null
-          personnel_bloc_operatoire: boolean
           phone_number: string | null
           pourcentage_temps: number | null
           prefere_port_en_truie: boolean
@@ -935,21 +846,14 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          aide_de_salle?: boolean
-          anesthesiste?: boolean
-          assignation_administrative?: boolean
-          bloc_dermato_accueil?: boolean
-          bloc_ophtalmo_accueil?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           horaire_flexible?: boolean
           id?: string
-          instrumentaliste?: boolean
           name?: string | null
           nombre_jours_supplementaires?: number | null
-          personnel_bloc_operatoire?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
@@ -958,21 +862,14 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          aide_de_salle?: boolean
-          anesthesiste?: boolean
-          assignation_administrative?: boolean
-          bloc_dermato_accueil?: boolean
-          bloc_ophtalmo_accueil?: boolean
           created_at?: string
           email?: string | null
           first_name?: string | null
           flexible_jours_supplementaires?: boolean
           horaire_flexible?: boolean
           id?: string
-          instrumentaliste?: boolean
           name?: string | null
           nombre_jours_supplementaires?: number | null
-          personnel_bloc_operatoire?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
@@ -985,6 +882,48 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      secretaires_besoins_operations: {
+        Row: {
+          besoin_operation_id: string
+          created_at: string | null
+          id: string
+          niveau_competence: string | null
+          secretaire_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          besoin_operation_id: string
+          created_at?: string | null
+          id?: string
+          niveau_competence?: string | null
+          secretaire_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          besoin_operation_id?: string
+          created_at?: string | null
+          id?: string
+          niveau_competence?: string | null
+          secretaire_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secretaires_besoins_operations_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secretaires_besoins_operations_secretaire_id_fkey"
+            columns: ["secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "secretaires"
             referencedColumns: ["id"]
           },
         ]
@@ -1160,32 +1099,39 @@ export type Database = {
       types_intervention_besoins_personnel: {
         Row: {
           actif: boolean
+          besoin_operation_id: string
           created_at: string
           id: string
           nombre_requis: number
-          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
           type_intervention_id: string
           updated_at: string
         }
         Insert: {
           actif?: boolean
+          besoin_operation_id: string
           created_at?: string
           id?: string
           nombre_requis?: number
-          type_besoin: Database["public"]["Enums"]["type_besoin_personnel"]
           type_intervention_id: string
           updated_at?: string
         }
         Update: {
           actif?: boolean
+          besoin_operation_id?: string
           created_at?: string
           id?: string
           nombre_requis?: number
-          type_besoin?: Database["public"]["Enums"]["type_besoin_personnel"]
           type_intervention_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "types_intervention_besoins_personnel_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "types_intervention_besoins_personnel_type_intervention_id_fkey"
             columns: ["type_intervention_id"]

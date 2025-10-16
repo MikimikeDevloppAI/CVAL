@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Check, ChevronsUpDown, X } from 'lucide-react';
 
 const horaireSchema = z.object({
   jour: z.number().min(1).max(7),
@@ -26,6 +30,13 @@ const horaireSchema = z.object({
   path: ["dateDebut"],
 });
 
+interface BesoinOperation {
+  id: string;
+  code: string;
+  nom: string;
+  categorie?: string;
+}
+
 const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
@@ -42,13 +53,7 @@ const secretaireSchema = z.object({
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
   horaireFlexible: z.boolean().default(false),
   pourcentageTemps: z.number().min(0.01).max(100).optional(),
-  personnelBlocOperatoire: z.boolean().default(false),
-  assignationAdministrative: z.boolean().default(false),
-  anesthesiste: z.boolean().default(false),
-  instrumentaliste: z.boolean().default(false),
-  aideDeSalle: z.boolean().default(false),
-  blocOphtalmoAccueil: z.boolean().default(false),
-  blocDermatoAccueil: z.boolean().default(false),
+  besoinsOperations: z.array(z.string()),
   horaires: z.array(horaireSchema),
 }).refine((data) => {
   if (data.horaireFlexible && !data.pourcentageTemps) {
@@ -69,7 +74,50 @@ interface SecretaireFormProps {
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const [loading, setLoading] = useState(false);
+  const [besoinsOperations, setBesoinsOperations] = useState<BesoinOperation[]>([]);
+  const [besoinsPopoverOpen, setBesoinsPopoverOpen] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchBesoinsOperations();
+    if (secretaire) {
+      fetchSecretaireBesoins();
+    }
+  }, [secretaire]);
+
+  const fetchBesoinsOperations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('besoins_operations')
+        .select('*')
+        .eq('actif', true)
+        .order('categorie', { ascending: true })
+        .order('nom', { ascending: true });
+
+      if (error) throw error;
+      setBesoinsOperations(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des besoins:', error);
+    }
+  };
+
+  const fetchSecretaireBesoins = async () => {
+    if (!secretaire?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('secretaires_besoins_operations')
+        .select('besoin_operation_id')
+        .eq('secretaire_id', secretaire.id);
+
+      if (error) throw error;
+      
+      const besoinsIds = data?.map(b => b.besoin_operation_id) || [];
+      form.setValue('besoinsOperations', besoinsIds);
+    } catch (error) {
+      console.error('Erreur lors du chargement des besoins de la secrétaire:', error);
+    }
+  };
 
   const form = useForm<SecretaireFormData>({
     resolver: zodResolver(secretaireSchema),
@@ -83,13 +131,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaireFlexible: secretaire?.horaire_flexible || false,
       pourcentageTemps: secretaire?.pourcentage_temps || undefined,
-      personnelBlocOperatoire: secretaire?.personnel_bloc_operatoire || false,
-      assignationAdministrative: secretaire?.assignation_administrative || false,
-      anesthesiste: secretaire?.anesthesiste || false,
-      instrumentaliste: secretaire?.instrumentaliste || false,
-      aideDeSalle: secretaire?.aide_de_salle || false,
-      blocOphtalmoAccueil: secretaire?.bloc_ophtalmo_accueil || false,
-      blocDermatoAccueil: secretaire?.bloc_dermato_accueil || false,
+      besoinsOperations: [],
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
         { jour: 2, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
@@ -122,17 +164,29 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
-            personnel_bloc_operatoire: data.personnelBlocOperatoire,
-            assignation_administrative: data.assignationAdministrative,
-            anesthesiste: data.anesthesiste,
-            instrumentaliste: data.instrumentaliste,
-            aide_de_salle: data.aideDeSalle,
-            bloc_ophtalmo_accueil: data.blocOphtalmoAccueil,
-            bloc_dermato_accueil: data.blocDermatoAccueil,
           })
           .eq('id', secretaire.id);
 
         if (secretaireError) throw secretaireError;
+
+        // Mettre à jour les besoins opérationnels
+        await supabase
+          .from('secretaires_besoins_operations')
+          .delete()
+          .eq('secretaire_id', secretaire.id);
+
+        if (data.besoinsOperations.length > 0) {
+          const besoinsData = data.besoinsOperations.map(besoinId => ({
+            secretaire_id: secretaire.id,
+            besoin_operation_id: besoinId,
+          }));
+
+          const { error: besoinsError } = await supabase
+            .from('secretaires_besoins_operations')
+            .insert(besoinsData);
+
+          if (besoinsError) throw besoinsError;
+        }
 
         // Mettre à jour les horaires
         await supabase
@@ -166,7 +220,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           description: "Secrétaire modifié avec succès",
         });
       } else {
-        // Création - using secretaires_sites for site assignments
+        // Création
         const { data: secretaireData, error: secretaireError } = await supabase
           .from('secretaires')
           .insert({
@@ -180,13 +234,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
-            personnel_bloc_operatoire: data.personnelBlocOperatoire,
-            assignation_administrative: data.assignationAdministrative,
-            anesthesiste: data.anesthesiste,
-            instrumentaliste: data.instrumentaliste,
-            aide_de_salle: data.aideDeSalle,
-            bloc_ophtalmo_accueil: data.blocOphtalmoAccueil,
-            bloc_dermato_accueil: data.blocDermatoAccueil,
           })
           .select()
           .single();
@@ -194,6 +241,20 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         if (secretaireError) throw secretaireError;
 
         if (secretaireData) {
+          // Créer les besoins opérationnels
+          if (data.besoinsOperations.length > 0) {
+            const besoinsData = data.besoinsOperations.map(besoinId => ({
+              secretaire_id: secretaireData.id,
+              besoin_operation_id: besoinId,
+            }));
+
+            const { error: besoinsError } = await supabase
+              .from('secretaires_besoins_operations')
+              .insert(besoinsData);
+
+            if (besoinsError) throw besoinsError;
+          }
+
           // Créer les horaires
           const horairesActifs = data.horaires.filter(horaire => 
             horaire.jourTravaille && horaire.demiJournee
@@ -366,153 +427,105 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         {/* Caractéristiques professionnelles */}
         <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-medium">Caractéristiques professionnelles</h3>
+          <h3 className="text-sm font-medium">Compétences et rôles</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="preferePortEnTruie"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Préfère travailler à Port-en-Truie</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name="preferePortEnTruie"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Préfère travailler à Port-en-Truie</FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
 
-            <FormField
-              control={form.control}
-              name="personnelBlocOperatoire"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Personnel bloc opératoire</FormLabel>
+          <FormField
+            control={form.control}
+            name="besoinsOperations"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Rôles et compétences</FormLabel>
+                <FormControl>
+                  <Popover open={besoinsPopoverOpen} onOpenChange={setBesoinsPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {field.value.length > 0
+                          ? `${field.value.length} rôle(s) sélectionné(s)`
+                          : "Sélectionner des rôles"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Rechercher un rôle..." />
+                        <CommandEmpty>Aucun rôle trouvé.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {besoinsOperations.map((besoin) => (
+                            <CommandItem
+                              key={besoin.id}
+                              onSelect={() => {
+                                const newValue = field.value.includes(besoin.id)
+                                  ? field.value.filter((id) => id !== besoin.id)
+                                  : [...field.value, besoin.id];
+                                field.onChange(newValue);
+                              }}
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  field.value.includes(besoin.id) ? "opacity-100" : "opacity-0"
+                                }`}
+                              />
+                              {besoin.nom}
+                              {besoin.categorie && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  ({besoin.categorie})
+                                </span>
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </FormControl>
+                <FormDescription>
+                  Sélectionnez les rôles et compétences de cette secrétaire
+                </FormDescription>
+                {field.value.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {field.value.map((besoinId) => {
+                      const besoin = besoinsOperations.find(b => b.id === besoinId);
+                      if (!besoin) return null;
+                      return (
+                        <Badge key={besoinId} variant="secondary" className="gap-1">
+                          {besoin.nom}
+                          <X
+                            className="h-3 w-3 cursor-pointer"
+                            onClick={() => {
+                              field.onChange(field.value.filter((id) => id !== besoinId));
+                            }}
+                          />
+                        </Badge>
+                      );
+                    })}
                   </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="assignationAdministrative"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Assignation administrative prioritaire</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="anesthesiste"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Anesthésiste</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="instrumentaliste"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Instrumentaliste</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="aideDeSalle"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Aide de salle</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="blocOphtalmoAccueil"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Bloc ophtalmo accueil</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="blocDermatoAccueil"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Bloc dermato accueil</FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-          </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <Button type="submit" disabled={loading} className="w-full">

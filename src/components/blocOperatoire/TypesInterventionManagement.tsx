@@ -19,8 +19,13 @@ interface TypeIntervention {
   actif: boolean;
   salle_preferentielle?: string | null;
   types_intervention_besoins_personnel?: Array<{
-    type_besoin: string;
+    besoin_operation_id: string;
     nombre_requis: number;
+    besoins_operations?: {
+      nom: string;
+      code: string;
+      categorie?: string;
+    };
   }>;
 }
 
@@ -52,8 +57,13 @@ export const TypesInterventionManagement = forwardRef<TypesInterventionManagemen
         .select(`
           *,
           types_intervention_besoins_personnel (
-            type_besoin,
-            nombre_requis
+            besoin_operation_id,
+            nombre_requis,
+            besoins_operations (
+              nom,
+              code,
+              categorie
+            )
           )
         `)
         .eq('actif', true)

@@ -1,34 +1,35 @@
 /**
  * Vérifie si une secrétaire peut effectuer un rôle spécifique dans le bloc opératoire
- * basé sur ses compétences déclarées dans la table secretaires
+ * basé sur ses compétences via la table secretaires_besoins_operations
  */
 export function canPerformBlocRole(
   secretaire: {
-    instrumentaliste?: boolean;
-    aide_de_salle?: boolean;
-    anesthesiste?: boolean;
-    bloc_dermato_accueil?: boolean;
-    bloc_ophtalmo_accueil?: boolean;
+    id: string;
+    besoins_operations?: Array<{
+      besoins_operations: { code: string };
+    }>;
   },
   typeBesoin: string | null
 ): boolean {
-  if (!typeBesoin) return false;
+  if (!typeBesoin || !secretaire.besoins_operations) return false;
+
+  const besoinsCodes = secretaire.besoins_operations.map(b => b.besoins_operations.code);
 
   switch (typeBesoin) {
     case 'instrumentiste':
-      return secretaire.instrumentaliste === true;
+      return besoinsCodes.includes('instrumentiste');
     case 'aide_salle':
-      return secretaire.aide_de_salle === true;
+      return besoinsCodes.includes('aide_salle');
     case 'instrumentiste_aide_salle':
-      return secretaire.instrumentaliste === true || secretaire.aide_de_salle === true;
+      return besoinsCodes.includes('instrumentiste') || besoinsCodes.includes('aide_salle') || besoinsCodes.includes('instrumentiste_aide_salle');
     case 'anesthesiste':
-      return secretaire.anesthesiste === true;
+      return besoinsCodes.includes('anesthesiste');
     case 'accueil_dermato':
-      return secretaire.bloc_dermato_accueil === true;
+      return besoinsCodes.includes('accueil_dermato');
     case 'accueil_ophtalmo':
-      return secretaire.bloc_ophtalmo_accueil === true;
+      return besoinsCodes.includes('accueil_ophtalmo');
     case 'accueil':
-      return secretaire.bloc_dermato_accueil === true || secretaire.bloc_ophtalmo_accueil === true;
+      return besoinsCodes.includes('accueil') || besoinsCodes.includes('accueil_dermato') || besoinsCodes.includes('accueil_ophtalmo');
     default:
       return false;
   }

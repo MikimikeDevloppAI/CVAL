@@ -39,11 +39,9 @@ interface PersonnelOption {
   id: string;
   first_name: string;
   name: string;
-  instrumentaliste?: boolean;
-  aide_de_salle?: boolean;
-  anesthesiste?: boolean;
-  bloc_dermato_accueil?: boolean;
-  bloc_ophtalmo_accueil?: boolean;
+  secretaires_besoins_operations?: Array<{
+    besoins_operations: { code: string };
+  }>;
 }
 
 interface SwapOption extends PersonnelOption {
@@ -98,9 +96,11 @@ export default function ChangePersonnelDialog({
         // 1. Récupérer tous les secrétaires avec leurs compétences bloc
         const { data: allSecretaires, error: secError } = await supabase
           .from('secretaires')
-          .select('id, first_name, name, instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil, personnel_bloc_operatoire')
-          .eq('actif', true)
-          .eq('personnel_bloc_operatoire', true);
+          .select(`
+            id, first_name, name,
+            secretaires_besoins_operations(besoins_operations(code))
+          `)
+          .eq('actif', true);
 
         if (secError) throw secError;
 
@@ -165,8 +165,7 @@ export default function ChangePersonnelDialog({
               type_besoin_bloc,
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                instrumentaliste, aide_de_salle, anesthesiste,
-                bloc_dermato_accueil, bloc_ophtalmo_accueil
+                secretaires_besoins_operations(besoins_operations(code))
               )
             `)
             .eq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
@@ -180,7 +179,7 @@ export default function ChangePersonnelDialog({
           // Récupérer les compétences de la personne actuelle
           const { data: currentSecretaire } = await supabase
             .from('secretaires')
-            .select('instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil')
+            .select('id, secretaires_besoins_operations(besoins_operations(code))')
             .eq('id', assignment.secretaire_id)
             .single();
 
@@ -272,7 +271,6 @@ export default function ChangePersonnelDialog({
               if (!s.secretaires || !currentSecretaire) return false;
               // Le personnel admin doit pouvoir faire le rôle actuel
               const targetCanDoCurrentRole = assignment.type_besoin && 
-                s.secretaires.personnel_bloc_operatoire &&
                 canPerformBlocRole(s.secretaires, assignment.type_besoin);
               
               return targetCanDoCurrentRole;
