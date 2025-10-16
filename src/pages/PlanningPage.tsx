@@ -607,7 +607,7 @@ export default function PlanningPage() {
     setSelectDatesDialogOpen(true);
   };
 
-  const executeOptimizeMILP = async (selectedDates?: string[], optimizeBloc = true, optimizeSites = true) => {
+  const executeOptimizeMILP = async (selectedDates?: string[]) => {
     setIsOptimizingMILP(true);
     setIsLoadingOptimizationResults(true);
     setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
