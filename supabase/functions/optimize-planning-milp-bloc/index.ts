@@ -410,8 +410,7 @@ function getEligibleSecretaries(
       eligible = eligible.filter(s => s.instrumentaliste);
       break;
     case 'aide_salle':
-      // Aide de salle uniquement si la personne est aussi instrumentiste
-      eligible = eligible.filter(s => s.aide_de_salle && s.instrumentaliste);
+      eligible = eligible.filter(s => s.aide_de_salle);
       break;
     case 'instrumentiste_aide_salle':
       eligible = eligible.filter(s => s.instrumentaliste);
