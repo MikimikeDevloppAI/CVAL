@@ -48,10 +48,15 @@ export function SecretaryOptimizationHelpDialog() {
                   </p>
                 </div>
                 <div>
-                  <p className="font-medium text-primary">Priorité 3 (P3 - par défaut)</p>
+                  <p className="font-medium text-primary">Sans priorité définie (P3)</p>
                   <p className="text-muted-foreground">
-                    Si aucune priorité n'est définie, la secrétaire peut être assignée à n'importe quel site selon les besoins.
-                    L'algorithme optimisera en fonction de la disponibilité globale.
+                    Si aucune priorité n'est définie, l'algorithme attribue un poids moins important pour l'assignation à ces sites.
+                  </p>
+                </div>
+                <div className="mt-2 p-2 bg-primary/10 rounded">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Exemple :</strong> Si deux secrétaires sont disponibles pour un même site, l'une avec P2 et l'autre avec P1, 
+                    l'algorithme choisira en priorité la secrétaire avec P1.
                   </p>
                 </div>
               </div>
@@ -62,6 +67,11 @@ export function SecretaryOptimizationHelpDialog() {
             {/* Médecins assignés */}
             <div className="space-y-2">
               <h3 className="font-semibold text-base">Médecins assignés avec priorités</h3>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-primary">Phase 1 de l'optimisation :</span> L'assignation aux médecins 
+                se fait dès le début du processus. Si un médecin travaille un jour donné, l'algorithme assignera automatiquement 
+                une secrétaire de sa liste en fonction des priorités définies.
+              </p>
               <div className="space-y-2 text-sm">
                 <div>
                   <p className="font-medium text-primary">Priorité 1</p>
@@ -87,11 +97,14 @@ export function SecretaryOptimizationHelpDialog() {
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-primary">Rôle dans l'optimisation :</span> Les secrétaires marquées comme 
                 personnel de bloc opératoire sont assignées en <strong>première phase</strong> lors de l'optimisation. 
-                Elles seront prioritairement affectées aux interventions chirurgicales avant l'affectation aux sites administratifs.
+                Elles seront prioritairement affectées aux interventions chirurgicales avant l'affectation aux sites.
               </p>
               <p className="text-sm text-muted-foreground">
                 Les rôles disponibles incluent : instrumentiste, aide de salle, anesthésiste, 
                 accueil dermatologie, et accueil ophtalmologie.
+              </p>
+              <p className="text-sm text-muted-foreground italic">
+                Note : Il n'est pas nécessaire de cocher également "Assignation administrative" pour ces secrétaires.
               </p>
             </div>
 
@@ -101,9 +114,9 @@ export function SecretaryOptimizationHelpDialog() {
             <div className="space-y-2">
               <h3 className="font-semibold text-base">Assignation administrative</h3>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-primary">Impact :</span> Les secrétaires avec cette option peuvent être 
-                assignées à des tâches administratives générales dans les sites. Elles seront considérées dans la 
-                <strong> deuxième phase</strong> d'optimisation après l'affectation du personnel de bloc.
+                <span className="font-medium text-primary">Impact :</span> Lorsque plusieurs secrétaires sont disponibles 
+                pour une assignation administrative, l'algorithme choisira en priorité celles qui ont cette option cochée.
+                Cela permet de réserver certaines secrétaires pour des tâches administratives spécifiques.
               </p>
             </div>
 
@@ -136,18 +149,6 @@ export function SecretaryOptimizationHelpDialog() {
 
             <Separator />
 
-            {/* Jours supplémentaires flexibles */}
-            <div className="space-y-2">
-              <h3 className="font-semibold text-base">Jours supplémentaires flexibles</h3>
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-primary">Optimisation :</span> Lorsque activé, l'algorithme peut 
-                ajouter jusqu'au nombre spécifié de jours supplémentaires pour cette secrétaire si cela améliore 
-                significativement la couverture des besoins. Cela offre plus de flexibilité dans la planification.
-              </p>
-            </div>
-
-            <Separator />
-
             {/* Résumé du processus d'optimisation */}
             <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
               <h3 className="font-semibold text-base">Résumé du processus d'optimisation</h3>
@@ -156,13 +157,13 @@ export function SecretaryOptimizationHelpDialog() {
                   <strong>Phase 1 :</strong> Affectation du personnel bloc opératoire aux interventions chirurgicales
                 </li>
                 <li>
-                  <strong>Phase 2 :</strong> Affectation des secrétaires aux sites selon les priorités (P1 {'>'} P2 {'>'} P3)
+                  <strong>Phase 2 :</strong> Assignation des secrétaires aux médecins en fonction des priorités définies
                 </li>
                 <li>
-                  <strong>Phase 3 :</strong> Optimisation fine en tenant compte des préférences (Port-en-Truie, médecins)
+                  <strong>Phase 3 :</strong> Affectation des secrétaires aux sites selon les priorités (P1 {'>'} P2 {'>'} P3) et préférences (Port-en-Truie)
                 </li>
                 <li>
-                  <strong>Phase 4 :</strong> Ajustement avec les horaires flexibles et jours supplémentaires si nécessaire
+                  <strong>Phase 4 :</strong> Ajustement avec les horaires flexibles et attribution des indicateurs 1R, 2F, 3F en fonction de l'historique d'assignation pour répartir au mieux
                 </li>
               </ol>
             </div>
