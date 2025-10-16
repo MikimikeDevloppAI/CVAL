@@ -177,43 +177,39 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+  background: white; 
   min-height: 100vh;
 }
 
 @page {
-  margin: 100px 30px 30px 30px;
+  margin: 40px 30px 30px 30px;
 }
 
-.fixed-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 30px 40px;
+.page-header {
   text-align: center;
-  z-index: 1000;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  padding: 40px 0 30px 0;
+  margin-bottom: 20px;
 }
 
-.fixed-header h1 { 
+.page-header h1 { 
   font-size: 32px; 
-  color: white; 
-  margin-bottom: 8px; 
-  font-weight: 700; 
-  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-weight: 800; 
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
   letter-spacing: -0.5px;
 }
 
-.fixed-header .period { 
+.page-header .period { 
   font-size: 18px; 
-  color: rgba(255,255,255,0.95); 
+  color: #64748b;
   font-weight: 500; 
 }
 
 .content-wrapper { 
-  padding-top: 130px; 
+  padding-top: 20px; 
   padding-bottom: 40px;
   padding-left: 30px;
   padding-right: 30px;
@@ -358,16 +354,12 @@ body {
 }
 
 @media print {
-  .fixed-header {
-    position: relative;
-  }
-  
-  .content-wrapper {
-    padding-top: 20px;
+  .page-header {
+    page-break-after: avoid;
   }
 }
 </style></head><body>
-<div class="fixed-header">
+<div class="page-header">
   <h1>Planning - Assistant médical</h1>
   <p class="period">Semaine du ${weekStart} au ${weekEnd}</p>
 </div>
