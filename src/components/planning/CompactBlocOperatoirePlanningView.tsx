@@ -191,15 +191,15 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger className="w-full">
           <CardHeader className="bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <div className="flex items-center gap-3">
               <ChevronDown 
-                className={`h-4 w-4 text-primary transition-transform ${
+                className={`h-5 w-5 text-primary transition-transform ${
                   isExpanded ? 'rotate-180' : ''
                 }`}
               />
-              <Scissors className="h-4 w-4 text-primary" />
-              Bloc Opératoire
-            </CardTitle>
+              <Scissors className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Bloc Opératoire</CardTitle>
+            </div>
           </CardHeader>
         </CollapsibleTrigger>
         
