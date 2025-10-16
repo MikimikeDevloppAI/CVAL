@@ -180,13 +180,24 @@ serve(async (req) => {
     console.log(`  - ${besoinsMedecins.length} besoins médecins`);
 
     // 11. Capacités effectives (disponibilités secrétaires)
-    const { data: capacites, error: capError } = await supabase
+    const { data: capacitesRaw, error: capError } = await supabase
       .from("capacite_effective")
       .select("*")
       .in("date", selected_dates)
       .eq("actif", true);
     if (capError) throw capError;
-    console.log(`✓ ${capacites.length} capacités effectives chargées`);
+    
+    // Splitter toute_journee en matin + apres_midi
+    const capacites: any[] = [];
+    for (const cap of capacitesRaw || []) {
+      if (cap.demi_journee === 'toute_journee') {
+        capacites.push({ ...cap, demi_journee: 'matin' });
+        capacites.push({ ...cap, demi_journee: 'apres_midi' });
+      } else {
+        capacites.push(cap);
+      }
+    }
+    console.log(`✓ ${capacites.length} capacités effectives chargées (après split toute_journee)`);
 
     // 12. Absences (pour calcul jours flexibles)
     const { data: absences, error: absError } = await supabase
@@ -594,7 +605,7 @@ serve(async (req) => {
       const percentage = sec.pourcentage_temps || 60;
       const baseRequiredDays = Math.round((percentage / 100) * 5);
 
-      // Compter les jours de congé dans la semaine
+      // Compter les jours de congé dans la semaine (lundi-vendredi uniquement)
       const absencesForSec = absences.filter(
         (a) =>
           a.secretaire_id === sec.id &&
@@ -611,21 +622,34 @@ serve(async (req) => {
         
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dayOfWeek = d.getDay();
-          if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Lundi à vendredi
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Lundi à vendredi seulement
             vacationDays++;
           }
         }
       }
 
-      const requiredDays = Math.max(0, baseRequiredDays - vacationDays);
+      // Calculer les jours disponibles (jours ouvrés - congés)
+      const workingDaysInWeek = selected_dates.filter(d => {
+        const dow = new Date(d).getDay();
+        return dow >= 1 && dow <= 5;
+      }).length;
       
-      console.log(`  ${sec.name}: ${requiredDays} jours requis (base: ${baseRequiredDays}, congés: ${vacationDays})`);
+      const availableDays = workingDaysInWeek - vacationDays;
+      
+      // Si en congé toute la semaine, ne rien assigner (skip)
+      if (availableDays === 0) {
+        console.log(`  ${sec.name}: 0 jours (en congé toute la semaine)`);
+        continue;
+      }
 
-      if (requiredDays === 0) continue;
+      // Le solver choisira les meilleurs jours parmi ceux disponibles
+      const requiredDays = Math.min(baseRequiredDays, availableDays);
+      
+      console.log(`  ${sec.name}: ${requiredDays} jours min requis (base: ${baseRequiredDays}, congés: ${vacationDays}, disponibles: ${availableDays})`);
 
-      // Créer une contrainte pour cette secrétaire
+      // Créer une contrainte FLEXIBLE (min) pour cette secrétaire
       const flexConstraint = `flex_days_${sec.id}`;
-      model.constraints[flexConstraint] = { equal: requiredDays };
+      model.constraints[flexConstraint] = { min: requiredDays };
 
       // Ajouter toutes les variables de cette secrétaire pour les jours où elle peut travailler
       for (const date of selected_dates) {
