@@ -168,7 +168,7 @@ export default function ChangePersonnelDialog({
             is_same_operation: true
           }));
 
-        // 3b. Personnel d'autres opérations
+        // 3b. Personnel d'autres opérations bloc
         const { data: otherOps, error: otherOpsError } = await supabase
           .from('planning_genere_personnel')
           .select(`
@@ -194,7 +194,27 @@ export default function ChangePersonnelDialog({
 
         if (otherOpsError) throw otherOpsError;
 
-        // Vérification pour autres opérations
+        // 3c. Personnel en administratif avec compétences bloc
+        const { data: adminPersonnel, error: adminError } = await supabase
+          .from('planning_genere_personnel')
+          .select(`
+            id,
+            secretaire_id,
+            secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+              id, first_name, name,
+              instrumentaliste, aide_de_salle, anesthesiste,
+              bloc_dermato_accueil, bloc_ophtalmo_accueil,
+              personnel_bloc_operatoire
+            )
+          `)
+          .eq('date', assignment.date)
+          .eq('periode', assignment.periode)
+          .eq('type_assignation', 'administratif')
+          .not('secretaire_id', 'is', null);
+
+        if (adminError) throw adminError;
+
+        // Vérification pour autres opérations bloc
         const validOtherOps = (otherOps || [])
           .filter(s => {
             if (!s.secretaires || !currentSecretaire || !s.type_besoin_bloc) return false;
@@ -212,8 +232,27 @@ export default function ChangePersonnelDialog({
             is_same_operation: false
           }));
 
-        // Combiner les deux listes
-        setSwapPersonnel([...validSameOp, ...validOtherOps]);
+        // Vérification pour personnel administratif avec compétences bloc
+        const validAdminPersonnel = (adminPersonnel || [])
+          .filter(s => {
+            if (!s.secretaires || !currentSecretaire) return false;
+            // Le personnel admin doit pouvoir faire le rôle actuel
+            const targetCanDoCurrentRole = assignment.type_besoin && 
+              s.secretaires.personnel_bloc_operatoire &&
+              canPerformBlocRole(s.secretaires, assignment.type_besoin);
+            
+            return targetCanDoCurrentRole;
+          })
+          .map(s => ({
+            ...s.secretaires!,
+            assignment_id: s.id,
+            type_besoin: null,
+            operation_nom: 'Administratif',
+            is_same_operation: false
+          }));
+
+        // Combiner les trois listes
+        setSwapPersonnel([...validSameOp, ...validOtherOps, ...validAdminPersonnel]);
 
         // 5. Récupérer les options de réassignation si l'utilisateur veut retirer
         await fetchReassignOptions();
@@ -363,31 +402,75 @@ export default function ChangePersonnelDialog({
           description: assignment.secretaire_id ? 'Personnel réassigné avec succès' : 'Personnel assigné avec succès',
         });
       } else if (action === 'swap') {
-        // Échange (même opération ou autre opération)
+        // Échange (même opération, autre opération, ou avec administratif)
         const targetPerson = swapPersonnel.find(p => p.id === selectedPersonId);
         if (!targetPerson) throw new Error('Personnel cible introuvable');
 
-        // Échanger les deux assignations
-        const { error: error1 } = await supabase
-          .from('planning_genere_personnel')
-          .update({ secretaire_id: targetPerson.id })
-          .eq('id', assignment.id);
+        if (targetPerson.type_besoin === null) {
+          // Échange avec personnel administratif
+          // 1. Retirer la personne actuelle du bloc
+          const { error: error1 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: null })
+            .eq('id', assignment.id);
 
-        if (error1) throw error1;
+          if (error1) throw error1;
 
-        const { error: error2 } = await supabase
-          .from('planning_genere_personnel')
-          .update({ secretaire_id: assignment.secretaire_id })
-          .eq('id', targetPerson.assignment_id);
+          // 2. Assigner la personne actuelle en administratif (créer nouvelle ligne)
+          const { error: error2 } = await supabase
+            .from('planning_genere_personnel')
+            .insert({
+              date: assignment.date,
+              periode: assignment.periode,
+              secretaire_id: assignment.secretaire_id,
+              type_assignation: 'administratif',
+            });
 
-        if (error2) throw error2;
+          if (error2) throw error2;
 
-        toast({
-          title: 'Succès',
-          description: targetPerson.is_same_operation 
-            ? 'Échange effectué dans la même opération' 
-            : 'Échange effectué avec une autre opération',
-        });
+          // 3. Supprimer l'assignation administrative de la cible
+          const { error: error3 } = await supabase
+            .from('planning_genere_personnel')
+            .delete()
+            .eq('id', targetPerson.assignment_id);
+
+          if (error3) throw error3;
+
+          // 4. Assigner la cible au bloc
+          const { error: error4 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: targetPerson.id })
+            .eq('id', assignment.id);
+
+          if (error4) throw error4;
+
+          toast({
+            title: 'Succès',
+            description: 'Échange effectué avec le personnel administratif',
+          });
+        } else {
+          // Échange classique entre postes bloc
+          const { error: error1 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: targetPerson.id })
+            .eq('id', assignment.id);
+
+          if (error1) throw error1;
+
+          const { error: error2 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: assignment.secretaire_id })
+            .eq('id', targetPerson.assignment_id);
+
+          if (error2) throw error2;
+
+          toast({
+            title: 'Succès',
+            description: targetPerson.is_same_operation 
+              ? 'Échange effectué dans la même opération' 
+              : 'Échange effectué avec une autre opération',
+          });
+        }
       } else if (action === 'remove') {
         // Retirer le personnel du poste actuel
         const { error: removeError } = await supabase
