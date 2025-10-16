@@ -484,7 +484,10 @@ serve(async (req) => {
 
     for (const besoin of besoinsMedecins) {
       const date = besoin.date;
-      const periodes = besoin.demi_journee === "toute_journee" ? ["matin", "apres_midi"] : [besoin.demi_journee];
+      // Split explicite pour toute_journee
+      const periodes: Array<"matin" | "apres_midi"> = besoin.demi_journee === "toute_journee" 
+        ? ["matin", "apres_midi"] 
+        : [besoin.demi_journee as "matin" | "apres_midi"];
 
       for (const per of periodes) {
         const key = `${date}_${besoin.site_id}_${per}`;
@@ -499,7 +502,7 @@ serve(async (req) => {
         }
 
         const medecin = medecins.find((m) => m.id === besoin.medecin_id);
-        const besoinSecretaires = medecin?.besoin_secretaires || 1.0;
+        const besoinSecretaires = medecin?.besoin_secretaires || 1.2;
         
         besoinsParSite.get(key)!.medecins.push({
           medecin_id: besoin.medecin_id,
@@ -510,6 +513,15 @@ serve(async (req) => {
     }
 
     console.log(`${besoinsParSite.size} besoins sites agrégés`);
+    
+    // Log détaillé des besoins par site
+    for (const [key, besoinSite] of besoinsParSite.entries()) {
+      const site = sites.find((s) => s.id === besoinSite.site_id);
+      console.log(
+        `  ${site?.nom} - ${besoinSite.date} ${besoinSite.periode}: ` +
+        `${besoinSite.medecins.length} médecin(s), besoin total: ${besoinSite.besoin_total.toFixed(2)}`
+      );
+    }
 
     let siteVariableCount = 0;
     for (const [key, besoinSite] of besoinsParSite.entries()) {
@@ -695,6 +707,41 @@ serve(async (req) => {
     }
 
     console.log(`✓ ${adminVariableCount} variables administratives créées`);
+
+    // ============================================================
+    // PHASE 1D-BIS: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
+    // ============================================================
+    console.log("\n--- PHASE 1D-BIS: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
+    
+    let mandatoryAssignmentCount = 0;
+    for (const sec of secretaires) {
+      for (const date of selected_dates) {
+        for (const periode of ["matin", "apres_midi"]) {
+          const capKey = `${sec.id}_${date}_${periode}`;
+          if (!capacitesMap.has(capKey)) continue;
+
+          // Cette secrétaire a une capacité pour cette date/période
+          // Elle DOIT être assignée à au moins quelque chose (bloc, site ou admin)
+          const mandatoryConstraint = `mandatory_${sec.id}_${date}_${periode}`;
+          model.constraints[mandatoryConstraint] = { min: 1 };
+
+          // Trouver toutes les variables d'assignation pour cette secrétaire à cette date/période
+          for (const assign of assignments) {
+            if (
+              assign.secretaire_id === sec.id &&
+              assign.date === date &&
+              assign.periode === periode
+            ) {
+              model.variables[assign.varName][mandatoryConstraint] = 1;
+            }
+          }
+          
+          mandatoryAssignmentCount++;
+        }
+      }
+    }
+
+    console.log(`✓ ${mandatoryAssignmentCount} contraintes d'assignation obligatoire ajoutées`);
 
     // ============================================================
     // PHASE 1E: HORAIRES FLEXIBLES
