@@ -212,7 +212,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   if (!planning_id) {
     throw new Error('planning_id must be defined before applying solution');
   }
-  await applySolution(supabase, besoins, sites, solution, planning_id, dates);
+  await applySolution(supabase, besoins, sites, solution, planning_id, dates, secretaires, capacites);
 
   return new Response(JSON.stringify({
     success: true,
@@ -414,6 +414,15 @@ async function buildMILP(
         
         if (!hasCapacity && !isFlexible) continue;
         
+        // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
+        if (isFlexible && !hasCapacity) {
+          const dateObj = new Date(date + 'T00:00:00Z');
+          const isSaturday = dateObj.getUTCDay() === 6;
+          if (isSaturday) {
+            continue; // Don't create variable for flexible on Saturday without capacity
+          }
+        }
+        
         // CRITICAL: Skip flexible secretaries who have already met their weekly quota
         if (isFlexible) {
           const remaining = flexibleRemaining.get(sec.id) || 0;
@@ -510,6 +519,15 @@ async function buildMILP(
         const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
         
         if (!hasCapacity && !isFlexible) continue;
+        
+        // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
+        if (isFlexible && !hasCapacity) {
+          const dateObj = new Date(date + 'T00:00:00Z');
+          const isSaturday = dateObj.getUTCDay() === 6;
+          if (isSaturday) {
+            continue; // Don't create admin variable for flexible on Saturday without capacity
+          }
+        }
         
         // CRITICAL: Skip flexible secretaries who have already met their weekly quota
         if (isFlexible) {
@@ -882,8 +900,18 @@ async function buildMILP(
 }
 
 // Apply solution - INSERT directly into planning_genere_personnel
-async function applySolution(supabase: any, besoins: any[], sites: any[], solution: any, planning_id: string, dates: string[]) {
+async function applySolution(supabase: any, besoins: any[], sites: any[], solution: any, planning_id: string, dates: string[], secretaires: any[], capacites: any[]) {
   console.log('\n💾 Applying solution...');
+  
+  // Build capacites lookup for safeguard
+  const capacitesMap = new Map();
+  for (const cap of capacites) {
+    const secId = cap.secretaire_id || cap.backup_id;
+    const periodes = cap.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [cap.demi_journee];
+    for (const p of periodes) {
+      capacitesMap.set(`${cap.date}_${secId}_${p}`, cap);
+    }
+  }
   
   // 1. Apply site assignments - INSERT into planning_genere_personnel
   let siteCount = 0;
@@ -899,6 +927,20 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
     const periode = parts[3];
     const siteId = parts[4];
     const ordre = parseInt(parts[5]);
+
+    // Safety check: for flexible secretaries on Saturday, verify they have capacity
+    const sec = secretaires.find((s: any) => s.id === secId);
+    if (sec?.horaire_flexible) {
+      const dateObj = new Date(date + 'T00:00:00Z');
+      const isSaturday = dateObj.getUTCDay() === 6;
+      if (isSaturday) {
+        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+        if (!hasCapacity) {
+          console.log(`  ⚠️  Skip Saturday fallback flexible (safeguard): ${sec.first_name} ${sec.name} has no capacity for ${date} ${periode}`);
+          continue;
+        }
+      }
+    }
 
     await supabase
       .from('planning_genere_personnel')
@@ -926,6 +968,20 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
     const secId = parts[1];
     const date = parts[2];
     const periode = parts.slice(3).join('_'); // "apres_midi" ou "matin"
+
+    // Safety check: for flexible secretaries on Saturday, verify they have capacity
+    const sec = secretaires.find((s: any) => s.id === secId);
+    if (sec?.horaire_flexible) {
+      const dateObj = new Date(date + 'T00:00:00Z');
+      const isSaturday = dateObj.getUTCDay() === 6;
+      if (isSaturday) {
+        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+        if (!hasCapacity) {
+          console.log(`  ⚠️  Skip Saturday admin fallback flexible (safeguard): ${sec.first_name} ${sec.name} has no capacity for ${date} ${periode}`);
+          continue;
+        }
+      }
+    }
 
     // Get next ordre for admin assignments for this date/period
     const { data: existingAdmin } = await supabase
