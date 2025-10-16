@@ -631,9 +631,9 @@ serve(async (req) => {
 
             // Calculer le score (x10 pour priorité maximale)
             let score = 100000; // Base priorité bloc
-            if (preference === 1) score += 50000;
-            else if (preference === 2) score += 25000;
-            else if (preference === 3) score += 10000;
+            if (preference === 1) score += 3000;
+            else if (preference === 2) score += 2500;
+            else if (preference === 3) score += 2000;
 
             const varName = `x_${sec.id}_${besoinOpId}_${date}_${periode}_${ordre}_${bloc.id}`;
             model.variables[varName] = { score };
@@ -796,17 +796,16 @@ serve(async (req) => {
         for (const medData of medecinsData) {
           const medRelation = secretairesMedecinsMap.get(`${sec.id}_${medData.medecin_id}`)?.[0];
           if (medRelation) {
-            if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 100000;
-            else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 60000;
-            else if (medRelation.priorite === 3 || medRelation.priorite === '3') score += 30000;
+            if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 1500;
+            else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 1200;
           }
         }
         
         localVariableCount++;
 
         // Score site (scores différenciés 1/2/3)
-        if (prio === 1) score += 8000;
-        else if (prio === 2) score += 4000;
+        if (prio === 1) score += 1200;
+        else if (prio === 2) score += 1100;
         else if (prio === 3) score += 1000;
 
         // Bonus pour journée complète sur le même site (tie-breaker doux)
