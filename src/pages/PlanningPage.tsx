@@ -95,6 +95,10 @@ export default function PlanningPage() {
   const [addPlanningDialogOpen, setAddPlanningDialogOpen] = useState(false);
   const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null);
   const [currentPlanningStatus, setCurrentPlanningStatus] = useState<'en_cours' | 'valide'>('en_cours');
+  const [planningUpdatedAt, setPlanningUpdatedAt] = useState<string | null>(null);
+  const [lastPersonnelUpdate, setLastPersonnelUpdate] = useState<string | null>(null);
+  const [validatedBy, setValidatedBy] = useState<string | null>(null);
+  const [validatedAt, setValidatedAt] = useState<string | null>(null);
   const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
   const [selectDatesDialogOpen, setSelectDatesDialogOpen] = useState(false);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
@@ -266,10 +270,48 @@ export default function PlanningPage() {
         setCurrentPlanningId(data.id);
         setCurrentPlanningStatus(data.statut as 'en_cours' | 'valide');
         setGeneratedPdfUrl(data.pdf_url);
+        setPlanningUpdatedAt(data.updated_at);
+        setValidatedAt(data.validated_at);
+        
+        // Fetch validator profile if exists
+        if (data.validated_by) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('prenom, nom')
+            .eq('id', data.validated_by)
+            .maybeSingle();
+          
+          if (!profileError && profileData) {
+            setValidatedBy(`${profileData.prenom} ${profileData.nom}`);
+          } else {
+            setValidatedBy(null);
+          }
+        } else {
+          setValidatedBy(null);
+        }
+
+        // Fetch max updated_at from planning_genere_personnel
+        const { data: personnelData, error: personnelError } = await supabase
+          .from('planning_genere_personnel')
+          .select('updated_at, created_at')
+          .eq('planning_id', data.id)
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!personnelError && personnelData) {
+          setLastPersonnelUpdate(personnelData.updated_at || personnelData.created_at);
+        } else {
+          setLastPersonnelUpdate(null);
+        }
       } else {
         setCurrentPlanningId(null);
         setCurrentPlanningStatus('en_cours');
         setGeneratedPdfUrl(null);
+        setPlanningUpdatedAt(null);
+        setLastPersonnelUpdate(null);
+        setValidatedBy(null);
+        setValidatedAt(null);
       }
     } catch (error) {
       console.error('Error fetching current planning:', error);
@@ -1075,18 +1117,45 @@ export default function PlanningPage() {
             <div className="flex flex-col gap-4 py-4 bg-card rounded-lg border">
               {/* Status Header */}
               {currentPlanningId && (
-                <div className="flex items-center justify-center gap-2 text-sm border-b pb-4">
-                  {currentPlanningStatus === 'valide' ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 text-success" />
-                      <span className="font-medium">Planning validé</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-muted-foreground">Planning en cours</span>
-                    </>
-                  )}
+                <div className="flex flex-col gap-2 border-b pb-4 px-4">
+                  <div className="flex items-center justify-center gap-2 text-sm">
+                    {currentPlanningStatus === 'valide' ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-success" />
+                        <span className="font-medium">Planning validé</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium text-muted-foreground">Planning en cours</span>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Planning timestamps */}
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                    {planningUpdatedAt && (
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-medium">Optimisation lancée :</span>
+                        <span>{format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
+                      </div>
+                    )}
+                    {lastPersonnelUpdate && (
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-medium">Dernière modification :</span>
+                        <span>{format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
+                      </div>
+                    )}
+                    {currentPlanningStatus === 'valide' && validatedBy && (
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-medium">Validé par :</span>
+                        <span>{validatedBy}</span>
+                        {validatedAt && (
+                          <span>le {format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1111,7 +1180,7 @@ export default function PlanningPage() {
                   )}
                 </Button>
                 
-                {currentPlanningId && currentPlanningStatus === 'en_cours' && optimizationResult && (
+                {currentPlanningId && currentPlanningStatus === 'en_cours' && (
                   <Button 
                     onClick={validatePlanning} 
                     disabled={isValidatingPlanning || isGeneratingPDF}
