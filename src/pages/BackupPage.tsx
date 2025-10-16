@@ -18,7 +18,6 @@ interface Backup {
   name: string;
   email: string;
   phone_number: string;
-  specialites: string[];
   actif: boolean;
   created_at: string;
 }
@@ -36,7 +35,7 @@ const BackupPage = () => {
   const fetchBackups = async () => {
     try {
       const { data, error } = await supabase
-        .from('backup')
+        .from('secretaires')
         .select('*')
         .order('created_at', { ascending: false });
 

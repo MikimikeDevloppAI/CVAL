@@ -15,7 +15,6 @@ const backupSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   email: z.string().email('Email invalide').optional().or(z.literal('')),
   phone_number: z.string().optional().or(z.literal('')),
-  specialites: z.array(z.string()).default([]),
   actif: z.boolean().default(true),
 });
 
@@ -45,7 +44,6 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
       name: backup?.name || '',
       email: backup?.email || '',
       phone_number: backup?.phone_number || '',
-      specialites: backup?.specialites || [],
       actif: backup?.actif ?? true,
     },
   });
@@ -79,7 +77,7 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
       if (backup) {
         // Mise à jour
         const { error } = await supabase
-          .from('backup')
+          .from('secretaires')
           .update(data)
           .eq('id', backup.id);
 
@@ -91,7 +89,7 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
       } else {
         // Création
         const { error } = await supabase
-          .from('backup')
+          .from('secretaires')
           .insert([data]);
 
         if (error) throw error;
@@ -111,15 +109,6 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSpecialiteToggle = (specialiteId: string, checked: boolean) => {
-    const currentSpecialites = form.getValues('specialites');
-    if (checked) {
-      form.setValue('specialites', [...currentSpecialites, specialiteId]);
-    } else {
-      form.setValue('specialites', currentSpecialites.filter(id => id !== specialiteId));
     }
   };
 
@@ -201,26 +190,6 @@ export const BackupForm = ({ backup, onSubmit, onCancel }: BackupFormProps) => {
             </FormItem>
           )}
         />
-
-        <div>
-          <Label className="text-base font-medium">Spécialités</Label>
-          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {specialites.map((specialite) => (
-              <div key={specialite.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={specialite.id}
-                  checked={form.watch('specialites').includes(specialite.id)}
-                  onCheckedChange={(checked) => 
-                    handleSpecialiteToggle(specialite.id, checked as boolean)
-                  }
-                />
-                <Label htmlFor={specialite.id} className="text-sm font-normal">
-                  {specialite.nom}
-                </Label>
-              </div>
-            ))}
-          </div>
-        </div>
 
         <div className="flex justify-end space-x-4">
           <Button type="button" variant="outline" onClick={onCancel}>

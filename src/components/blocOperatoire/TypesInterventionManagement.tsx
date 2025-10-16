@@ -222,7 +222,7 @@ export const TypesInterventionManagement = forwardRef<TypesInterventionManagemen
                   <div className="flex flex-wrap gap-2 mt-2">
                     {type.types_intervention_besoins_personnel.map((besoin, idx) => (
                       <Badge key={idx} variant="secondary" className="text-xs">
-                        {besoin.type_besoin.replace('_', ' ')}: {besoin.nombre_requis}
+                        {besoin.besoins_operations?.nom || 'N/A'}: {besoin.nombre_requis}
                       </Badge>
                     ))}
                   </div>

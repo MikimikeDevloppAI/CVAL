@@ -211,8 +211,7 @@ export default function ChangePersonnelDialog({
               planning_genere_bloc_operatoire_id,
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                instrumentaliste, aide_de_salle, anesthesiste,
-                bloc_dermato_accueil, bloc_ophtalmo_accueil
+                secretaires_besoins_operations(besoins_operations(code))
               ),
               operation:planning_genere_bloc_operatoire_id(
                 type_intervention:type_intervention_id(nom)
@@ -235,9 +234,7 @@ export default function ChangePersonnelDialog({
               secretaire_id,
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                instrumentaliste, aide_de_salle, anesthesiste,
-                bloc_dermato_accueil, bloc_ophtalmo_accueil,
-                personnel_bloc_operatoire
+                secretaires_besoins_operations(besoins_operations(code))
               )
             `)
             .eq('date', assignment.date)
@@ -373,7 +370,7 @@ export default function ChangePersonnelDialog({
       // Récupérer les compétences de la personne
       const { data: currentSecretaire } = await supabase
         .from('secretaires')
-        .select('instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil')
+        .select('id, secretaires_besoins_operations(besoins_operations(code))')
         .eq('id', assignment.secretaire_id)
         .single();
 
