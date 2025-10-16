@@ -784,14 +784,8 @@ serve(async (req) => {
     console.log(`Score optimal: ${solution.result || 0}`);
 
     if (!solution.feasible) {
-      console.error("❌ Solution MILP infaisable");
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Solution MILP infaisable. Impossible de satisfaire toutes les contraintes.",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
+      console.warn("⚠️ Solution MILP infaisable - retour partiel (blocs déjà créés, pas d'assignation personnel)");
+      // On continue quand même pour retourner un succès partiel
     }
 
     // ============================================================
@@ -938,7 +932,7 @@ serve(async (req) => {
     const { data: closingData, error: closingError } = await supabase.functions.invoke(
       "assign-closing-responsibles",
       {
-        body: { planning_id, selected_dates },
+        body: { planning_id, week_start, week_end, selected_dates },
       }
     );
 
