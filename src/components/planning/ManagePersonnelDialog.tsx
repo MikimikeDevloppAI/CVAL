@@ -460,13 +460,27 @@ export function ManagePersonnelDialog({
           if (error2c) throw error2c;
         }
 
-        // 5. Delete admin assignment
-        const { error: error3 } = await supabase
-          .from('planning_genere_personnel')
-          .delete()
-          .eq('id', targetAssignment.assignment_id);
+        // 5. Delete admin assignment(s)
+        if (selectedPeriod === 'toute_journee') {
+          // For full day swap, delete both morning and afternoon admin assignments
+          const { error: error3 } = await supabase
+            .from('planning_genere_personnel')
+            .delete()
+            .eq('date', context.date)
+            .eq('secretaire_id', targetAssignment.id)
+            .eq('type_assignation', 'administratif')
+            .in('periode', ['matin', 'apres_midi']);
 
-        if (error3) throw error3;
+          if (error3) throw error3;
+        } else {
+          // For single period swap, delete only the matching period admin assignment
+          const { error: error3 } = await supabase
+            .from('planning_genere_personnel')
+            .delete()
+            .eq('id', targetAssignment.assignment_id);
+
+          if (error3) throw error3;
+        }
 
         // 6. Assign target to site
         const { error: error4 } = await supabase
