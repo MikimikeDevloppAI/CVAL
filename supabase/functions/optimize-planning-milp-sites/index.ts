@@ -703,6 +703,22 @@ async function buildMILP(
         
         if (!hasCapacity && !isFlexible) continue;
         
+        // CRITICAL: Skip flexible secretaries on dates they are absent (full-day or partial for the period)
+        if (isFlexible) {
+          // Full-day absence
+          const fullDayAbs = absencesFullDay.get(sec.id);
+          if (fullDayAbs && fullDayAbs.has(date)) {
+            continue; // Don't create admin variable on absence day
+          }
+          // Partial absence for this period
+          const partialAbs = periode === 'matin'
+            ? absencesPartialMatin.get(sec.id)
+            : absencesPartialApresMidi.get(sec.id);
+          if (partialAbs && partialAbs.has(date)) {
+            continue; // Don't create admin variable for this period due to partial absence
+          }
+        }
+        
         // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
         if (isFlexible && !hasCapacity) {
           const dateObj = new Date(date + 'T00:00:00Z');
