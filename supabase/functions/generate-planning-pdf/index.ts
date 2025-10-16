@@ -423,16 +423,17 @@ function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: bo
   } else if (assignment.type === 'bloc') {
     const parts = ['<span class="site">Bloc opératoire</span>'];
     
+    // Get color for the room (used for both salle and type badges)
+    const colors = assignment.salle && SALLE_COLORS[assignment.salle] 
+      ? SALLE_COLORS[assignment.salle]
+      : { bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', text: '#6b21a8' };
+    
     // Badge pour la salle avec couleur spécifique
     if (assignment.salle) {
-      const colors = SALLE_COLORS[assignment.salle] || { 
-        bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', 
-        text: '#6b21a8' 
-      };
-      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important;">${assignment.salle}</span>`);
+      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${assignment.salle}</span>`);
     }
     
-    // Badge pour le type de besoin
+    // Badge pour le type de besoin avec la même couleur que la salle
     if (assignment.typeBesoinBloc) {
       const labels: Record<string, string> = {
         'instrumentaliste': 'Instrumentaliste',
@@ -450,7 +451,7 @@ function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: bo
       };
       
       const label = labels[assignment.typeBesoinBloc] || formatLabel(assignment.typeBesoinBloc);
-      parts.push(`<span class="badge badge-bloc">${label}</span>`);
+      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${label}</span>`);
     }
     
     return parts.join('');
