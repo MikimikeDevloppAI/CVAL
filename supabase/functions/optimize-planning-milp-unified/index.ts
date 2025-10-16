@@ -881,6 +881,7 @@ serve(async (req) => {
           secretaire_id: assign.secretaire_id,
           site_id: assign.site_id,
           type_assignation: "site",
+          ordre: 1,
         });
 
         // Mettre à jour compteur Port-en-Truie
@@ -899,6 +900,7 @@ serve(async (req) => {
           periode: assign.periode,
           secretaire_id: assign.secretaire_id,
           type_assignation: "administratif",
+          ordre: 1,
         });
 
         // Mettre à jour compteur admin
@@ -952,16 +954,21 @@ serve(async (req) => {
 
     // Insérer tout le personnel
     if (personnelToInsert.length > 0) {
+      const cleaned = personnelToInsert.map((r) => ({
+        ...r,
+        ordre: typeof r.ordre === 'number' && r.ordre > 0 ? r.ordre : 1,
+      }));
+
       const { error: persError } = await supabase
         .from("planning_genere_personnel")
-        .insert(personnelToInsert);
+        .insert(cleaned);
 
       if (persError) {
-        console.error("Erreur insertion personnel:", persError);
+        console.error("Erreur insertion personnel:", persError, cleaned[0]);
         throw persError;
       }
 
-      console.log(`✓ ${personnelToInsert.length} assignations personnel insérées`);
+      console.log(`✓ ${cleaned.length} assignations personnel insérées`);
     }
 
     // ============================================================
