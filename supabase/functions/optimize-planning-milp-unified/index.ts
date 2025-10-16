@@ -346,9 +346,13 @@ serve(async (req) => {
     // Maps pour lookup rapide
     const capacitesMap = new Map<string, any[]>();
     capacites.forEach((cap) => {
-      const key = `${cap.secretaire_id}_${cap.date}_${cap.demi_journee}`;
-      if (!capacitesMap.has(key)) capacitesMap.set(key, []);
-      capacitesMap.get(key)!.push(cap);
+      // Supporter 'toute_journee' en le déclinant sur matin et après-midi
+      const periods = cap.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [cap.demi_journee];
+      for (const p of periods) {
+        const key = `${cap.secretaire_id}_${cap.date}_${p}`;
+        if (!capacitesMap.has(key)) capacitesMap.set(key, []);
+        capacitesMap.get(key)!.push({ ...cap, demi_journee: p });
+      }
     });
 
     const secretairesBesoinsMap = new Map<string, any[]>();
@@ -541,10 +545,6 @@ serve(async (req) => {
       // Contrainte: maximum de secrétaires par site (contrainte dure)
       const maxConstraint = `max_site_${site_id}_${date}_${periode}`;
       model.constraints[maxConstraint] = { max: maxSecretaires };
-      
-      // Contrainte: besoin minimum de secrétaires (contrainte souple via score négatif)
-      const minConstraint = `min_site_${site_id}_${date}_${periode}`;
-      model.constraints[minConstraint] = { min: maxSecretaires };
 
       for (const sec of secretaires) {
         // Vérifier si secrétaire déjà assignée au bloc
@@ -612,9 +612,6 @@ serve(async (req) => {
 
         // Contrainte max secrétaires
         model.variables[varName][maxConstraint] = 1;
-        
-        // Contrainte min secrétaires (besoin)
-        model.variables[varName][minConstraint] = 1;
 
         // Contrainte unique
         const uniqueConstraint = `unique_${sec.id}_${date}_${periode}`;
