@@ -1116,42 +1116,9 @@ export default function PlanningPage() {
           {canManage && (
             <Card className="mb-4">
               <CardContent className="pt-6">
-                {/* Planning Information */}
-                {currentPlanningId && (
-                  <div className="space-y-2 mb-4">
-                    <h3 className="text-lg font-semibold mb-3">📊 Informations d'optimisation</h3>
-                    
-                    {planningUpdatedAt && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Optimisation lancée :</span>
-                        <span>{format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
-                      </div>
-                    )}
-                    
-                    {lastPersonnelUpdate && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Dernière modification :</span>
-                        <span>{format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
-                      </div>
-                    )}
-                    
-                    {currentPlanningStatus === 'valide' && validatedBy && (
-                      <div className="flex items-center gap-2 text-sm text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="font-medium">Validé par :</span>
-                        <span>{validatedBy}</span>
-                        {validatedAt && (
-                          <span>le {format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Action Buttons - Aligned Right */}
-                <div className="flex justify-end gap-3">
+                {/* Planning Information in a single horizontal line */}
+                <div className="flex items-center gap-6">
+                  {/* Optimize Button */}
                   <Button 
                     onClick={handleOptimizeMILP} 
                     disabled={isOptimizingMILP}
@@ -1170,7 +1137,69 @@ export default function PlanningPage() {
                       </>
                     )}
                   </Button>
-                  
+
+                  {/* Vertical separator */}
+                  <div className="h-12 w-px bg-border" />
+
+                  {/* Optimization launched */}
+                  {currentPlanningId && (
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Optimisation lancée</span>
+                      <span className="text-sm font-semibold">
+                        {planningUpdatedAt 
+                          ? format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                          : '-'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Vertical separator */}
+                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
+
+                  {/* Last modification */}
+                  {currentPlanningId && (
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dernière modification</span>
+                      <span className="text-sm font-semibold">
+                        {lastPersonnelUpdate 
+                          ? format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                          : '-'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Vertical separator */}
+                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
+
+                  {/* Validated by */}
+                  {currentPlanningId && (
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé par</span>
+                      <span className="text-sm font-semibold">
+                        {currentPlanningStatus === 'valide' && validatedBy ? validatedBy : 'Beat'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Vertical separator */}
+                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
+
+                  {/* Validated at */}
+                  {currentPlanningId && (
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé à</span>
+                      <span className="text-sm font-semibold">
+                        {currentPlanningStatus === 'valide' && validatedAt 
+                          ? format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                          : 'Beat'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Spacer to push validate button to the right */}
+                  <div className="flex-1" />
+
+                  {/* Validate Button */}
                   {currentPlanningId && currentPlanningStatus === 'en_cours' && (
                     <Button 
                       onClick={validatePlanning} 
@@ -1192,6 +1221,7 @@ export default function PlanningPage() {
                     </Button>
                   )}
                   
+                  {/* PDF Download Button */}
                   {generatedPdfUrl && (
                     <Button 
                       onClick={() => window.open(generatedPdfUrl, '_blank')} 
