@@ -13,7 +13,6 @@ interface CapaciteEffective {
   date: string;
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
-  backup_id?: string;
   site_id?: string;
   secretaire?: {
     first_name: string;
@@ -23,11 +22,6 @@ interface CapaciteEffective {
       first_name: string;
       name: string;
     };
-  };
-  backup?: {
-    first_name: string;
-    name: string;
-    specialites: string[];
   };
 }
 
@@ -157,17 +151,17 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
   const secretariesMap = new Map<string, SecretaryGroup>();
 
   capacites.forEach(cap => {
-    const id = cap.secretaire_id || cap.backup_id;
+    const id = cap.secretaire_id;
     if (!id) return;
 
     if (!secretariesMap.has(id)) {
-      const person = cap.secretaire || cap.backup;
+      const person = cap.secretaire;
       if (!person) return;
 
       secretariesMap.set(id, {
         id,
         name: `${person.first_name} ${person.name}`,
-        isBackup: !!cap.backup_id,
+        isBackup: false,
         capacites: [],
         sites_assignes: ('sites_assignes' in person) ? (person.sites_assignes || []) : [],
         medecin_assigne: ('medecin_assigne' in person) ? person.medecin_assigne : undefined,

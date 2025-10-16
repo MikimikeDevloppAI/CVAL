@@ -25,16 +25,10 @@ interface CapaciteEffective {
   date: string;
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
-  backup_id?: string;
   secretaire?: {
     first_name: string;
     name: string;
     sites_assignes?: string[];
-  };
-  backup?: {
-    first_name: string;
-    name: string;
-    specialites: string[];
   };
 }
 
@@ -120,8 +114,6 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
 
       if (premiereCapacite.secretaire_id) {
         insertData.secretaire_id = premiereCapacite.secretaire_id;
-      } else if (premiereCapacite.backup_id) {
-        insertData.backup_id = premiereCapacite.backup_id;
       }
 
       const { data, error } = await supabase
@@ -129,8 +121,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
         .insert(insertData)
         .select(`
           *,
-          secretaire:secretaires(first_name, name),
-          backup:backup(first_name, name, specialites)
+          secretaire:secretaires(first_name, name)
         `)
         .single();
 
@@ -201,7 +192,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
 
   if (!capacites || capacites.length === 0) return null;
 
-  const person = capacites[0].secretaire || capacites[0].backup;
+  const person = capacites[0].secretaire;
   const personName = person ? `${person.first_name} ${person.name}` : '';
 
   return (

@@ -60,9 +60,7 @@ interface CapaciteEffective {
   date: string;
   demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
   secretaire_id?: string;
-  backup_id?: string;
   secretaire?: { first_name: string; name: string };
-  backup?: { first_name: string; name: string; specialites: string[] };
   sites?: string[];
 }
 
@@ -384,8 +382,7 @@ export default function PlanningPage() {
         .from('capacite_effective')
         .select(`
           *,
-          secretaire:secretaires(first_name, name),
-          backup:backup(first_name, name, specialites)
+          secretaire:secretaires(first_name, name)
         `)
         .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
         .lte('date', format(weekEnd, 'yyyy-MM-dd'))
