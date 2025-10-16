@@ -1116,8 +1116,8 @@ export default function PlanningPage() {
           {canManage && (
             <Card className="mb-4">
               <CardContent className="pt-6">
-                {/* Planning Information in a single horizontal line */}
-                <div className="flex items-center gap-6">
+                {/* Planning Information in a single horizontal line with equal spacing */}
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto_auto] items-center gap-6">
                   {/* Optimize Button */}
                   <Button 
                     onClick={handleOptimizeMILP} 
@@ -1138,9 +1138,6 @@ export default function PlanningPage() {
                     )}
                   </Button>
 
-                  {/* Vertical separator */}
-                  <div className="h-12 w-px bg-border" />
-
                   {/* Optimization launched */}
                   {currentPlanningId && (
                     <div className="flex flex-col">
@@ -1152,9 +1149,6 @@ export default function PlanningPage() {
                       </span>
                     </div>
                   )}
-
-                  {/* Vertical separator */}
-                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
 
                   {/* Last modification */}
                   {currentPlanningId && (
@@ -1168,36 +1162,30 @@ export default function PlanningPage() {
                     </div>
                   )}
 
-                  {/* Vertical separator */}
-                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
-
                   {/* Validated by */}
                   {currentPlanningId && (
                     <div className="flex flex-col">
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé par</span>
-                      <span className="text-sm font-semibold">
-                        {currentPlanningStatus === 'valide' && validatedBy ? validatedBy : 'Beat'}
+                      <span className="text-sm font-semibold min-h-[1.25rem]">
+                        {currentPlanningStatus === 'valide' && validatedBy ? validatedBy : ''}
                       </span>
                     </div>
                   )}
-
-                  {/* Vertical separator */}
-                  {currentPlanningId && <div className="h-12 w-px bg-border" />}
 
                   {/* Validated at */}
                   {currentPlanningId && (
                     <div className="flex flex-col">
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé à</span>
-                      <span className="text-sm font-semibold">
+                      <span className="text-sm font-semibold min-h-[1.25rem]">
                         {currentPlanningStatus === 'valide' && validatedAt 
                           ? format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
-                          : 'Beat'}
+                          : ''}
                       </span>
                     </div>
                   )}
 
-                  {/* Spacer to push validate button to the right */}
-                  <div className="flex-1" />
+                  {/* Empty space for alignment */}
+                  {currentPlanningId && <div />}
 
                   {/* Validate Button */}
                   {currentPlanningId && currentPlanningStatus === 'en_cours' && (
