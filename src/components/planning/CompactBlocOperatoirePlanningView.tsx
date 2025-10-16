@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Scissors, MapPin } from 'lucide-react';
+import { Loader2, Scissors, MapPin, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChangeSalleDialog } from './ChangeSalleDialog';
 import ChangePersonnelDialog from './ChangePersonnelDialog';
 
@@ -67,6 +68,7 @@ const SALLE_COLORS: Record<string, string> = {
 export function CompactBlocOperatoirePlanningView({ startDate, endDate }: CompactBlocOperatoirePlanningViewProps) {
   const [operations, setOperations] = useState<BlocOperation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [changeSalleDialogOpen, setChangeSalleDialogOpen] = useState(false);
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
   const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
@@ -186,80 +188,92 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
 
   return (
     <Card className="mb-4">
-      <CardHeader className="bg-primary/5 pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Scissors className="h-4 w-4 text-primary" />
-          Bloc Opératoire
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-4">
-        <div className="space-y-3">
-          {Object.entries(operationsByDate).map(([date, dayOperations]) => (
-            <div key={date} className="border rounded-lg p-3 bg-muted/30">
-              <div className="text-xs font-medium text-muted-foreground mb-2">
-                {format(new Date(date), 'EEEE d MMMM', { locale: fr })}
-              </div>
-              
-              <div className="space-y-2">
-                {dayOperations.map((operation) => (
-                  <div key={operation.id} className="bg-background rounded border p-2">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 mb-1 flex-wrap">
-                          <Badge variant="outline" className="text-xs px-2 py-0">
-                            {PERIODE_LABELS[operation.periode]}
-                          </Badge>
-                          <Badge 
-                            className={`text-xs px-2 py-0 cursor-pointer hover:opacity-80 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
-                            variant="outline"
-                            onClick={() => handleChangeSalle(operation)}
-                          >
-                            <MapPin className="h-3 w-3 mr-0.5" />
-                            Salle {operation.salle_assignee}
-                          </Badge>
-                          <span className="text-xs font-medium">
-                            {operation.type_intervention?.nom || 'Type non défini'}
-                          </span>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger className="w-full">
+          <CardHeader className="bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ChevronDown 
+                className={`h-4 w-4 text-primary transition-transform ${
+                  isExpanded ? 'rotate-180' : ''
+                }`}
+              />
+              <Scissors className="h-4 w-4 text-primary" />
+              Bloc Opératoire
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-4">
+            <div className="space-y-3">
+              {Object.entries(operationsByDate).map(([date, dayOperations]) => (
+                <div key={date} className="border rounded-lg p-3 bg-muted/30">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">
+                    {format(new Date(date), 'EEEE d MMMM', { locale: fr })}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {dayOperations.map((operation) => (
+                      <div key={operation.id} className="bg-background rounded border p-2">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 mb-1 flex-wrap">
+                              <Badge variant="outline" className="text-xs px-2 py-0">
+                                {PERIODE_LABELS[operation.periode]}
+                              </Badge>
+                              <Badge 
+                                className={`text-xs px-2 py-0 cursor-pointer hover:opacity-80 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
+                                variant="outline"
+                                onClick={() => handleChangeSalle(operation)}
+                              >
+                                <MapPin className="h-3 w-3 mr-0.5" />
+                                Salle {operation.salle_assignee}
+                              </Badge>
+                              <span className="text-xs font-medium">
+                                {operation.type_intervention?.nom || 'Type non défini'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1">
+                          {operation.medecin && (
+                            <div className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs">
+                              <span className="text-muted-foreground">Docteur</span>
+                              <span className="font-medium">
+                                {operation.medecin.first_name} {operation.medecin.name}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {operation.personnel.map((p) => (
+                            <div 
+                              key={p.id}
+                              className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-muted transition-colors"
+                              onClick={() => handleChangePersonnel(p, operation)}
+                            >
+                              <span className="text-muted-foreground">
+                                {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
+                              </span>
+                              <span className="font-medium truncate">
+                                {p.secretaire ? (
+                                  `${p.secretaire.first_name.charAt(0)}. ${p.secretaire.name}`
+                                ) : (
+                                  <span className="text-muted-foreground italic">-</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {operation.medecin && (
-                        <div className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs">
-                          <span className="text-muted-foreground">Docteur</span>
-                          <span className="font-medium">
-                            {operation.medecin.first_name} {operation.medecin.name}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {operation.personnel.map((p) => (
-                        <div 
-                          key={p.id}
-                          className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-muted transition-colors"
-                          onClick={() => handleChangePersonnel(p, operation)}
-                        >
-                          <span className="text-muted-foreground">
-                            {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
-                          </span>
-                          <span className="font-medium truncate">
-                            {p.secretaire ? (
-                              `${p.secretaire.first_name.charAt(0)}. ${p.secretaire.name}`
-                            ) : (
-                              <span className="text-muted-foreground italic">-</span>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
 
       {selectedOperation && (
         <ChangeSalleDialog

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Building2, Scissors } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Building2, Scissors, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
@@ -249,48 +250,51 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
             
             <div className="space-y-2 pl-4">
               {needs.map((need, idx) => (
-                <button
+                <div
                   key={idx}
-                  onClick={() => handleNeedClick(need)}
-                  className="w-full flex items-center justify-between p-3 bg-background rounded border border-destructive/30 hover:bg-destructive/5 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between p-3 bg-background rounded border border-destructive/30 gap-3"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     {need.type === 'site' ? (
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     ) : (
-                      <Scissors className="h-4 w-4 text-muted-foreground" />
+                      <Scissors className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     )}
                     
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                        </Badge>
-                        
-                        {need.type === 'site' ? (
-                          <span className="text-sm font-medium">{need.site_nom}</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{need.type_intervention_nom}</span>
-                            {need.type_intervention_code && (
-                              <Badge variant="secondary" className="text-xs">
-                                {need.type_intervention_code}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                      <Badge variant="outline" className="text-xs flex-shrink-0">
+                        {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                      </Badge>
                       
-                      <div className="text-xs text-muted-foreground">
-                        Requis: {need.required} • Assigné: {need.assigned} • Manquant: {need.missing}
-                      </div>
+                      {need.type === 'site' ? (
+                        <span className="text-sm font-medium truncate">{need.site_nom}</span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-medium truncate">{need.type_intervention_nom}</span>
+                          {need.type_intervention_code && (
+                            <Badge variant="secondary" className="text-xs flex-shrink-0">
+                              {need.type_intervention_code}
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                      
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        • Requis: {need.required} • Assigné: {need.assigned} • Manquant: {need.missing}
+                      </span>
                     </div>
                   </div>
 
-                  <Badge variant="destructive">
-                    -{need.missing}
-                  </Badge>
-                </button>
+                  <Button
+                    onClick={() => handleNeedClick(need)}
+                    size="sm"
+                    variant="destructive"
+                    className="gap-2 flex-shrink-0"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Assigner
+                  </Button>
+                </div>
               ))}
             </div>
 
