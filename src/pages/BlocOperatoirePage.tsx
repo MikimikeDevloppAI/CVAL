@@ -300,8 +300,16 @@ const BlocOperatoirePage = () => {
         </div>
 
         <TabsContent value="planning" className="space-y-6 mt-0">
-          {canManage && (
-            <div className="flex justify-end">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 rounded-lg bg-primary/10">
+                <Calendar className="h-6 w-6 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+                Planning
+              </h2>
+            </div>
+            {canManage && (
               <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button className="gap-2" onClick={() => {
@@ -329,8 +337,8 @@ const BlocOperatoirePage = () => {
                   />
                 </DialogContent>
               </Dialog>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Filtres */}
           <div className="bg-card border rounded-lg p-4 space-y-4">
@@ -558,6 +566,16 @@ const BlocOperatoirePage = () => {
         </TabsContent>
 
         <TabsContent value="types">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 rounded-lg bg-primary/10">
+                <Settings className="h-6 w-6 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+                Types d'intervention
+              </h2>
+            </div>
+          </div>
           <TypesInterventionManagement />
         </TabsContent>
       </Tabs>
