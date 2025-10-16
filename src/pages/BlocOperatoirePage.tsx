@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
 import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
+import { BesoinsOperationsManagement } from '@/components/blocOperatoire/BesoinsOperationsManagement';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfWeek, addDays, isSameWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -587,8 +588,12 @@ const BlocOperatoirePage = () => {
       )}
 
       {activeTab === 'types' && (
-        <div>
+        <div className="space-y-8">
           <TypesInterventionManagement ref={typesInterventionRef} />
+          
+          <div className="border-t pt-8">
+            <BesoinsOperationsManagement />
+          </div>
         </div>
       )}
     </div>
