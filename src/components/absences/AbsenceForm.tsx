@@ -83,7 +83,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         .from('medecins')
         .select('id, first_name, name')
         .eq('actif', true)
-        .order('name');
+        .order('first_name');
       
       setMedecins(medecinData || []);
 
@@ -92,7 +92,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         .from('secretaires')
         .select('id, first_name, name')
         .eq('actif', true)
-        .order('name');
+        .order('first_name');
       
       setSecretaires(secretaireData || []);
     };
