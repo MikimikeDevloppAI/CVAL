@@ -166,10 +166,17 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
     }) };
   });
   
-  // Split into 2 columns
-  const mid = Math.ceil(groupedBySecretary.length / 2);
-  const col1 = groupedBySecretary.slice(0, mid);
-  const col2 = groupedBySecretary.slice(mid);
+  // Split into 2 columns (zigzag pattern: 1st left, 2nd right, 3rd left, 4th right, etc.)
+  const col1: typeof groupedBySecretary = [];
+  const col2: typeof groupedBySecretary = [];
+  
+  groupedBySecretary.forEach((sec, index) => {
+    if (index % 2 === 0) {
+      col1.push(sec);
+    } else {
+      col2.push(sec);
+    }
+  });
   
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Planning - Assistant médical</title>
@@ -262,14 +269,6 @@ body {
   font-weight: 700; 
   color: #334155; 
   margin-bottom: 12px; 
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.day-title::before {
-  content: "📅";
-  font-size: 14px;
 }
 
 .time-row { 
