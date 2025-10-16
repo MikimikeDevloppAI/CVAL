@@ -154,6 +154,7 @@ export async function getAssignedSecretariesForSite(
 /**
  * Get compatible secretaries for swapping with a given secretary
  * Both must be able to work at each other's sites
+ * Also includes administrative secretaries who can cover the current site
  */
 export async function getCompatibleSecretariesForSwap(
   currentAssignmentId: string,
@@ -167,6 +168,7 @@ export async function getCompatibleSecretariesForSwap(
       id,
       secretaire_id,
       site_id,
+      type_assignation,
       secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey (
         id,
         first_name,
@@ -207,6 +209,7 @@ export async function getCompatibleSecretariesForSwap(
       is_1r,
       is_2f,
       is_3f,
+      type_assignation,
       sites:sites!planning_genere_personnel_site_id_fkey (
         id,
         nom
@@ -228,12 +231,36 @@ export async function getCompatibleSecretariesForSwap(
     return [];
   }
 
+  // Get administrative secretaries
+  const { data: adminAssignments, error: errorAdmin } = await supabase
+    .from('planning_genere_personnel')
+    .select(`
+      id,
+      secretaire_id,
+      secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey (
+        id,
+        first_name,
+        name
+      )
+    `)
+    .eq('date', date)
+    .eq('periode', periode)
+    .eq('type_assignation', 'administratif')
+    .neq('secretaire_id', secretaryAId);
+
+  if (errorAdmin) {
+    console.error('Error fetching admin assignments:', errorAdmin);
+  }
+
   // Get sites for all these secretaries
   const secretaryBIds = assignments.map((a: any) => a.secretaire_id);
+  const adminSecretaryIds = (adminAssignments || []).map((a: any) => a.secretaire_id);
+  const allSecretaryIds = [...secretaryBIds, ...adminSecretaryIds];
+
   const { data: sitesBData, error: errorSitesB } = await supabase
     .from('secretaires_sites')
     .select('secretaire_id, site_id')
-    .in('secretaire_id', secretaryBIds);
+    .in('secretaire_id', allSecretaryIds);
 
   if (errorSitesB) {
     console.error('Error fetching sites for secretaries B:', errorSitesB);
@@ -274,7 +301,29 @@ export async function getCompatibleSecretariesForSwap(
       is_3f: assignment.is_3f,
     }));
 
-  return compatible.sort((a: any, b: any) => {
+  // Add compatible administrative secretaries
+  // An admin secretary can swap if they can cover the current site
+  const compatibleAdmin = (adminAssignments || [])
+    .filter((assignment: any) => {
+      if (!assignment.secretaires) return false;
+      
+      const sitesB = sitesBMap.get(assignment.secretaire_id) || [];
+      
+      // Check if the admin secretary can cover the current site
+      return sitesB.includes(currentSiteId);
+    })
+    .map((assignment: any) => ({
+      ...assignment.secretaires,
+      assignment_id: assignment.id,
+      site_nom: 'Administratif',
+      is_1r: false,
+      is_2f: false,
+      is_3f: false,
+    }));
+
+  const allCompatible = [...compatible, ...compatibleAdmin];
+
+  return allCompatible.sort((a: any, b: any) => {
     const nameA = `${a.first_name} ${a.name}`.toLowerCase();
     const nameB = `${b.first_name} ${b.name}`.toLowerCase();
     return nameA.localeCompare(nameB);

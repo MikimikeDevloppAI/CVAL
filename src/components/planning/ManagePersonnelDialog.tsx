@@ -407,14 +407,108 @@ export function ManagePersonnelDialog({
 
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('swap_secretaries_personnel', {
-        p_assignment_id_1: context.assignment_id,
-        p_assignment_id_2: targetAssignment.assignment_id,
-      });
+      // Check if swapping with administrative secretary
+      if (targetAssignment.site_nom === 'Administratif') {
+        // Swap site <-> administratif
+        // 1. Get current assignment details
+        const { data: currentData } = await supabase
+          .from('planning_genere_personnel')
+          .select('secretaire_id, site_id, is_1r, is_2f, is_3f')
+          .eq('id', context.assignment_id)
+          .single();
 
-      if (error) throw error;
+        if (!currentData) throw new Error('Assignation actuelle introuvable');
 
-      toast({ title: 'Succès', description: 'Échange effectué avec succès' });
+        // 2. Remove current secretary from site
+        const { error: error1 } = await supabase
+          .from('planning_genere_personnel')
+          .update({ secretaire_id: null })
+          .eq('id', context.assignment_id);
+
+        if (error1) throw error1;
+
+        // 3. Create admin assignment for current secretary
+        const { error: error2 } = await supabase
+          .from('planning_genere_personnel')
+          .insert({
+            date: context.date,
+            periode: selectedPeriod === 'toute_journee' ? 'matin' : selectedPeriod,
+            secretaire_id: currentData.secretaire_id,
+            type_assignation: 'administratif',
+          });
+
+        if (error2) throw error2;
+
+        // 4. If full day, also create afternoon admin assignment
+        if (selectedPeriod === 'toute_journee' && afternoonAssignmentId) {
+          const { error: error2b } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: null })
+            .eq('id', afternoonAssignmentId);
+
+          if (error2b) throw error2b;
+
+          const { error: error2c } = await supabase
+            .from('planning_genere_personnel')
+            .insert({
+              date: context.date,
+              periode: 'apres_midi',
+              secretaire_id: currentData.secretaire_id,
+              type_assignation: 'administratif',
+            });
+
+          if (error2c) throw error2c;
+        }
+
+        // 5. Delete admin assignment
+        const { error: error3 } = await supabase
+          .from('planning_genere_personnel')
+          .delete()
+          .eq('id', targetAssignment.assignment_id);
+
+        if (error3) throw error3;
+
+        // 6. Assign target to site
+        const { error: error4 } = await supabase
+          .from('planning_genere_personnel')
+          .update({ 
+            secretaire_id: targetAssignment.id,
+            is_1r: currentData.is_1r,
+            is_2f: currentData.is_2f,
+            is_3f: currentData.is_3f,
+          })
+          .eq('id', context.assignment_id);
+
+        if (error4) throw error4;
+
+        // 7. If full day, also assign afternoon
+        if (selectedPeriod === 'toute_journee' && afternoonAssignmentId) {
+          const { error: error4b } = await supabase
+            .from('planning_genere_personnel')
+            .update({ 
+              secretaire_id: targetAssignment.id,
+              is_1r: currentData.is_1r,
+              is_2f: currentData.is_2f,
+              is_3f: currentData.is_3f,
+            })
+            .eq('id', afternoonAssignmentId);
+
+          if (error4b) throw error4b;
+        }
+
+        toast({ title: 'Succès', description: 'Échange effectué avec le personnel administratif' });
+      } else {
+        // Standard swap using RPC function
+        const { error } = await supabase.rpc('swap_secretaries_personnel', {
+          p_assignment_id_1: context.assignment_id,
+          p_assignment_id_2: targetAssignment.assignment_id,
+        });
+
+        if (error) throw error;
+
+        toast({ title: 'Succès', description: 'Échange effectué avec succès' });
+      }
+
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {

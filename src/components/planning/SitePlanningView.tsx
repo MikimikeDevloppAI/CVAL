@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User, ChevronDown, Loader2, Plus, Edit2, X, RefreshCw } from 'lucide-react';
+import { Building2, User, ChevronDown, Loader2, Plus, Edit2, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
@@ -14,7 +14,6 @@ import { EditResponsibilitesDialog } from './EditResponsibilitesDialog';
 import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { AssignToUnsatisfiedNeedDialog } from './AssignToUnsatisfiedNeedDialog';
 import { Button } from '@/components/ui/button';
-import ChangePersonnelDialog from './ChangePersonnelDialog';
 
 interface SitePlanningViewProps {
   startDate: Date;
@@ -52,12 +51,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const [editRespDialogOpen, setEditRespDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
   const [respAssignment, setRespAssignment] = useState<any>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
   const [assignmentNeed, setAssignmentNeed] = useState<any>(null);
-  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -304,21 +301,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     setDeleteDialogOpen(true);
   };
 
-  const handleExchangeClick = (personnel: any, date: string, periode: 'matin' | 'apres_midi', siteId: string, siteName: string) => {
-    setSelectedPersonnel({
-      id: personnel.id,
-      type_besoin: null,
-      secretaire_id: personnel.secretaire_id,
-      secretaire_nom: personnel.secretaire_nom,
-      date,
-      periode,
-      operation_nom: siteName,
-      type_assignation: 'site',
-      site_id: siteId,
-    });
-    setChangePersonnelDialogOpen(true);
-  };
-
   return (
     <div className="space-y-4">
       {/* Unsatisfied Needs Report */}
@@ -410,16 +392,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleExchangeClick(p, date, 'matin', siteId, siteName);
-                                        }}
-                                        className="p-1 hover:bg-accent rounded transition-colors"
-                                        title="Échanger"
-                                      >
-                                        <RefreshCw className="h-3 w-3 text-primary" />
-                                      </button>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -521,16 +493,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleExchangeClick(p, date, 'apres_midi', siteId, siteName);
-                                        }}
-                                        className="p-1 hover:bg-accent rounded transition-colors"
-                                        title="Échanger"
-                                      >
-                                        <RefreshCw className="h-3 w-3 text-primary" />
-                                      </button>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -655,18 +617,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           onOpenChange={setAssignDialogOpen}
           need={assignmentNeed}
           onSuccess={fetchSitePlanning}
-        />
-      )}
-
-      {selectedPersonnel && (
-        <ChangePersonnelDialog
-          open={changePersonnelDialogOpen}
-          onOpenChange={setChangePersonnelDialogOpen}
-          assignment={selectedPersonnel}
-          onSuccess={() => {
-            fetchSitePlanning();
-            setSelectedPersonnel(null);
-          }}
         />
       )}
     </div>
