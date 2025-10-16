@@ -221,7 +221,7 @@ export const TypesInterventionManagement = forwardRef<TypesInterventionManagemen
                 {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {type.types_intervention_besoins_personnel.map((besoin, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs bg-white border">
+                      <Badge key={idx} variant="secondary" className="text-xs bg-white text-black border border-border hover:bg-white hover:text-black">
                         {besoin.besoins_operations?.nom || 'N/A'}: {besoin.nombre_requis}
                       </Badge>
                     ))}
