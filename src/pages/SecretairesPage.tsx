@@ -598,29 +598,6 @@ export default function SecretairesPage() {
                     </div>
                   </div>
                   
-                  {/* Compétences et rôles */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Compétences et rôles
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 ? (
-                        secretaire.besoins_operations.map((besoin: any, idx: number) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {besoin.besoins_operations?.nom || besoin.nom}
-                            {besoin.preference && (
-                              <span className="ml-1 text-muted-foreground">
-                                (P{besoin.preference})
-                              </span>
-                            )}
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Aucune compétence définie</p>
-                      )}
-                    </div>
-                  </div>
-                  
                   {/* Jours de travail ou horaire flexible */}
                   <div>
                     {secretaire.horaire_flexible ? (
