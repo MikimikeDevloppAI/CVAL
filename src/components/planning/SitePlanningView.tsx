@@ -96,8 +96,77 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     try {
       setLoading(true);
 
-      // Fetch site assignments
-      const { data: planningSites, error } = await supabase
+      // ÉTAPE A: Récupérer les besoins de sites avec les détails des médecins et sites
+      const { data: besoins, error: besoinsError } = await supabase
+        .from('besoin_effectif')
+        .select(`
+          *,
+          medecins(id, first_name, name, besoin_secretaires),
+          sites(id, nom, fermeture)
+        `)
+        .eq('type', 'medecin')
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'));
+
+      if (besoinsError) {
+        console.error('Error fetching besoins:', besoinsError);
+        toast({ title: "Erreur", description: "Impossible de charger les besoins", variant: "destructive" });
+        return;
+      }
+
+      // ÉTAPE B: Construire baseGroups à partir des besoins
+      const baseGroups = new Map<string, SiteBesoinsData>();
+
+      for (const besoin of besoins || []) {
+        // Déterminer les périodes (split toute_journee en matin + après-midi)
+        const periodes: Array<'matin' | 'apres_midi'> = 
+          besoin.demi_journee === 'toute_journee' 
+            ? ['matin', 'apres_midi'] 
+            : [besoin.demi_journee as 'matin' | 'apres_midi'];
+
+        for (const periode of periodes) {
+          const key = `${besoin.site_id}_${besoin.date}_${periode}`;
+
+          // Créer l'entrée si elle n'existe pas encore
+          if (!baseGroups.has(key)) {
+            baseGroups.set(key, {
+              id: key,
+              date: besoin.date,
+              periode,
+              site_id: besoin.site_id || '',
+              site_nom: besoin.sites?.nom || 'Site inconnu',
+              site_fermeture: besoin.sites?.fermeture || false,
+              nombre_secretaires_requis: 0,
+              medecins_ids: [],
+              medecins_noms: [],
+              personnel: []
+            });
+          }
+
+          const group = baseGroups.get(key)!;
+
+          // Incrémenter le besoin en secrétaires (on somme d'abord, on arrondit après)
+          const besoinSecretaires = besoin.medecins?.besoin_secretaires || 1.2;
+          group.nombre_secretaires_requis += besoinSecretaires;
+
+          // Ajouter le médecin s'il n'est pas déjà listé
+          if (besoin.medecin_id && !group.medecins_ids.includes(besoin.medecin_id)) {
+            group.medecins_ids.push(besoin.medecin_id);
+            const nomComplet = besoin.medecins 
+              ? `${besoin.medecins.first_name} ${besoin.medecins.name}` 
+              : 'Médecin inconnu';
+            group.medecins_noms.push(nomComplet);
+          }
+        }
+      }
+
+      // Appliquer Math.ceil sur chaque groupe
+      for (const group of baseGroups.values()) {
+        group.nombre_secretaires_requis = Math.ceil(group.nombre_secretaires_requis);
+      }
+
+      // ÉTAPE C: Récupérer les assignations de sites et les fusionner
+      const { data: planningSites, error: planningError } = await supabase
         .from('planning_genere_personnel')
         .select(`
           *,
@@ -111,61 +180,36 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         .order('periode', { ascending: true })
         .order('ordre', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching site planning:', error);
+      if (planningError) {
+        console.error('Error fetching site planning:', planningError);
         toast({ title: "Erreur", description: "Impossible de charger le planning des sites", variant: "destructive" });
         return;
       }
 
-      // Fetch besoins to get the required counts
-      const { data: besoins } = await supabase
-        .from('besoin_effectif')
-        .select('*, medecins(first_name, name, besoin_secretaires)')
-        .eq('type', 'medecin')
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'));
-
-      // Group site assignments by (site_id, date, periode)
-      const groupedSites = new Map<string, SiteBesoinsData>();
-      
+      // Fusionner les assignations dans baseGroups
       for (const assignment of planningSites || []) {
         const key = `${assignment.site_id}_${assignment.date}_${assignment.periode}`;
-        
-        if (!groupedSites.has(key)) {
-          // Calculate required secretaries from besoins
-          const periodBesoins = (besoins || []).filter((b: any) => 
-            b.site_id === assignment.site_id && 
-            b.date === assignment.date && 
-            (b.demi_journee === assignment.periode || b.demi_journee === 'toute_journee')
-          );
-          
-          const totalNeed = periodBesoins.reduce((sum: number, b: any) => 
-            sum + (b.medecins?.besoin_secretaires || 1.2), 0
-          );
-          
-          const medecins = periodBesoins.map((b: any) => ({
-            id: b.medecin_id,
-            nom: b.medecins ? `${b.medecins.first_name} ${b.medecins.name}` : ''
-          })).filter(m => m.nom);
 
-          groupedSites.set(key, {
+        // Si le groupe n'existe pas (cas rare: assignation sans besoin), le créer
+        if (!baseGroups.has(key)) {
+          baseGroups.set(key, {
             id: key,
             date: assignment.date,
             periode: assignment.periode,
             site_id: assignment.site_id || '',
             site_nom: assignment.sites?.nom || 'Site inconnu',
             site_fermeture: assignment.sites?.fermeture || false,
-            nombre_secretaires_requis: Math.ceil(totalNeed),
-            medecins_ids: medecins.map(m => m.id),
-            medecins_noms: medecins.map(m => m.nom),
+            nombre_secretaires_requis: 0,
+            medecins_ids: [],
+            medecins_noms: [],
             personnel: []
           });
         }
-        
-        // Add personnel to the group
+
+        // Ajouter le personnel
         if (assignment.secretaire_id && assignment.secretaires) {
-          groupedSites.get(key)!.personnel.push({
-            id: assignment.id, // ID de l'assignment
+          baseGroups.get(key)!.personnel.push({
+            id: assignment.id,
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
@@ -177,7 +221,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         }
       }
 
-      // Fetch administrative assignments
+      // ÉTAPE D: Récupérer les assignations administratives (inchangé)
       const { data: adminAssignments } = await supabase
         .from('planning_genere_personnel')
         .select(`
@@ -191,7 +235,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         .order('periode', { ascending: true })
         .order('ordre', { ascending: true });
 
-      // Group admin assignments by (date, periode)
+      // Grouper les assignations administratives par (date, periode)
       const groupedAdmin = new Map<string, SiteBesoinsData>();
       
       for (const assignment of adminAssignments || []) {
@@ -213,10 +257,10 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           });
         }
         
-        // Add personnel to the group
+        // Ajouter le personnel
         if (assignment.secretaire_id && assignment.secretaires) {
           groupedAdmin.get(key)!.personnel.push({
-            id: assignment.id, // ID de l'assignment
+            id: assignment.id,
             secretaire_id: assignment.secretaire_id,
             secretaire_nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
             ordre: assignment.ordre,
@@ -228,7 +272,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         }
       }
 
-      setSiteBesoins([...Array.from(groupedSites.values()), ...Array.from(groupedAdmin.values())]);
+      // ÉTAPE E: Concaténer tous les groupes
+      setSiteBesoins([...Array.from(baseGroups.values()), ...Array.from(groupedAdmin.values())]);
 
     } catch (error) {
       console.error('Error in fetchSitePlanning:', error);
