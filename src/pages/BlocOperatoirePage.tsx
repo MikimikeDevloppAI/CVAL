@@ -280,7 +280,7 @@ const BlocOperatoirePage = () => {
         icon={Scissors}
       />
 
-      <div className="mb-6">
+      <div className="mb-6 flex justify-center">
         <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
           <button
             onClick={() => setActiveTab('planning')}
