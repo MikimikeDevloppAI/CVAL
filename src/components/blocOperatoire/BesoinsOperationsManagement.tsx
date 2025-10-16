@@ -250,10 +250,6 @@ export function BesoinsOperationsManagement() {
               <div className={`w-2 h-2 rounded-full ${getCategorieColor(besoin.categorie)}`} />
               <div>
                 <div className="font-medium">{besoin.nom}</div>
-                <div className="text-sm text-muted-foreground">
-                  Code: {besoin.code}
-                  {besoin.description && ` - ${besoin.description}`}
-                </div>
               </div>
               <Badge variant="outline" className="text-xs">
                 {besoin.categorie}
