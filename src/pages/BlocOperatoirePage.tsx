@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
@@ -54,6 +54,7 @@ const BlocOperatoirePage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [besoinToDelete, setBesoinToDelete] = useState<{ id: string; medecinName: string } | null>(null);
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState<'planning' | 'types'>('planning');
   
   // Filtres
   const [selectedMedecin, setSelectedMedecin] = useState<string>('all');
@@ -279,28 +280,44 @@ const BlocOperatoirePage = () => {
         icon={Scissors}
       />
 
-      <Tabs defaultValue="planning" className="w-full">
-        <div className="flex justify-center mb-6">
-          <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1">
-            <TabsTrigger 
-              value="planning" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Planning
-            </TabsTrigger>
-            <TabsTrigger 
-              value="types"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Types d'intervention
-            </TabsTrigger>
-          </TabsList>
+      <div className="mb-6">
+        <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
+          <button
+            onClick={() => setActiveTab('planning')}
+            className={`
+              relative px-4 py-2.5 rounded-lg font-medium text-sm
+              transition-all duration-200 ease-in-out
+              flex items-center gap-2
+              ${activeTab === 'planning' 
+                ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              }
+            `}
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Planning</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('types')}
+            className={`
+              relative px-4 py-2.5 rounded-lg font-medium text-sm
+              transition-all duration-200 ease-in-out
+              flex items-center gap-2
+              ${activeTab === 'types' 
+                ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              }
+            `}
+          >
+            <Settings className="h-4 w-4" />
+            <span>Types d'intervention</span>
+          </button>
         </div>
+      </div>
 
-        <TabsContent value="planning" className="space-y-6 mt-0">
-          <div className="flex items-center justify-between py-4">
+      {activeTab === 'planning' && (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
               <div className="p-2.5 rounded-lg bg-primary/10">
                 <Calendar className="h-6 w-6 text-primary" />
@@ -563,10 +580,12 @@ const BlocOperatoirePage = () => {
               onSuccess={fetchBesoins}
             />
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="types">
-          <div className="flex items-center justify-between py-4">
+      {activeTab === 'types' && (
+        <div>
+            <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
               <div className="p-2.5 rounded-lg bg-primary/10">
                 <Settings className="h-6 w-6 text-primary" />
@@ -577,8 +596,8 @@ const BlocOperatoirePage = () => {
             </div>
           </div>
           <TypesInterventionManagement />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 };
