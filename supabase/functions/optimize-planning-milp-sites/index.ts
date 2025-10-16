@@ -15,6 +15,12 @@ function isCliniqueLaValleeCompatible(siteName: string): boolean {
   return siteName.startsWith('Clinique La Vallée');
 }
 
+function isWeekend(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sunday, 6=Saturday
+  return dow === 0 || dow === 6;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -395,11 +401,8 @@ async function buildMILP(
     const sec = secretaires.find((s: any) => s.id === flexSecId);
     if (!sec) continue;
 
-    // Calculate available days = total days in week minus full-day absences
-    const totalDaysInWeek = dates.filter(d => {
-      const dateObj = new Date(d + 'T00:00:00Z');
-      return dateObj.getUTCDay() !== 6; // Exclude Saturdays
-    }).length;
+    // Calculate available days = total days in week minus full-day absences (exclude weekends)
+    const totalDaysInWeek = dates.filter(d => !isWeekend(d)).length;
     
     const fullDayAbsences = absencesFullDay.get(flexSecId) || new Set();
     const availableDays = totalDaysInWeek - fullDayAbsences.size;
@@ -426,16 +429,12 @@ async function buildMILP(
       periodsByDate.get(assignment.date)!.add(assignment.periode);
     }
 
-    // Count only FULL days (both matin + apres_midi) EXCLUDING Saturdays
+    // Count only FULL days (both matin + apres_midi) EXCLUDING weekends
     const fullDays = new Set<string>();
     for (const [date, periods] of periodsByDate.entries()) {
       if (periods.has('matin') && periods.has('apres_midi')) {
-        // Check if it's a Saturday
-        const dateObj = new Date(date + 'T00:00:00Z');
-        const dayOfWeek = dateObj.getUTCDay(); // 0=Sunday, 6=Saturday
-        
-        // DO NOT count Saturdays in the quota
-        if (dayOfWeek !== 6) {
+        // DO NOT count weekends in the quota
+        if (!isWeekend(date)) {
           fullDays.add(date);
         }
       }
@@ -535,12 +534,10 @@ async function buildMILP(
           }
         }
         
-        // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
+        // CRITICAL: Flexible secretaries can only be assigned on weekends if they have explicit capacity
         if (isFlexible && !hasCapacity) {
-          const dateObj = new Date(date + 'T00:00:00Z');
-          const isSaturday = dateObj.getUTCDay() === 6;
-          if (isSaturday) {
-            continue; // Don't create variable for flexible on Saturday without capacity
+          if (isWeekend(date)) {
+            continue; // Don't create variable for flexible on weekend without capacity
           }
         }
         
@@ -646,11 +643,9 @@ async function buildMILP(
       const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
       
       if (isFlexible) {
-        // Skip flexible on Saturday without capacity
-        if (!hasCapacity) {
-          const dateObj = new Date(date + 'T00:00:00Z');
-          const isSaturday = dateObj.getUTCDay() === 6;
-          if (isSaturday) continue;
+        // Skip flexible on weekend without capacity
+        if (!hasCapacity && isWeekend(date)) {
+          continue;
         }
         
         // Skip flexible secretaries who have already met their weekly quota
@@ -719,12 +714,10 @@ async function buildMILP(
           }
         }
         
-        // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
+        // CRITICAL: Flexible secretaries can only be assigned on weekends if they have explicit capacity
         if (isFlexible && !hasCapacity) {
-          const dateObj = new Date(date + 'T00:00:00Z');
-          const isSaturday = dateObj.getUTCDay() === 6;
-          if (isSaturday) {
-            continue; // Don't create admin variable for flexible on Saturday without capacity
+          if (isWeekend(date)) {
+            continue; // Don't create admin variable for flexible on weekend without capacity
           }
         }
         
@@ -991,16 +984,13 @@ async function buildMILP(
       }
 
 
-      // 3. Limit total number of days to requiredDays (EXCLUDING Saturdays)
+      // 3. Limit total number of days to requiredDays (EXCLUDING weekends)
       const maxDaysConstraint = `max_days_${flexSecId}`;
       model.constraints[maxDaysConstraint] = { max: requiredDays };
       
       for (const date of dates) {
-        const dateObj = new Date(date + 'T00:00:00Z');
-        const isSaturday = dateObj.getUTCDay() === 6;
-        
         // Count only weekdays (Monday-Friday) in the quota
-        if (!isSaturday) {
+        if (!isWeekend(date)) {
           const dayVar = `d_${flexSecId}_${date}`;
           if (model.variables[dayVar]) {
             model.variables[dayVar][maxDaysConstraint] = 1;
@@ -1127,17 +1117,13 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
     const periode = parts[3];
     const postId = parts[4];
     
-    // Safety check for flexible secretaries on Saturday
+    // Safety check for flexible secretaries on weekend
     const sec = secretaires.find((s: any) => s.id === secId);
-    if (sec?.horaire_flexible) {
-      const dateObj = new Date(date + 'T00:00:00Z');
-      const isSaturday = dateObj.getUTCDay() === 6;
-      if (isSaturday) {
-        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
-        if (!hasCapacity) {
-          console.warn(`  ⚠️ Skipping bloc post for flexible secretary ${sec.first_name} ${sec.name} on Saturday without capacity`);
-          continue;
-        }
+    if (sec?.horaire_flexible && isWeekend(date)) {
+      const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+      if (!hasCapacity) {
+        console.log(`  ⚠️ Skip weekend (no capacity) flexible: ${sec.first_name} ${sec.name} → ${date} ${periode} (bloc post)`);
+        continue;
       }
     }
     
@@ -1175,17 +1161,13 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
     const siteId = parts[4];
     const ordre = parseInt(parts[5]);
 
-    // Safety check: for flexible secretaries on Saturday, verify they have capacity
+    // Safety check: for flexible secretaries on weekend, verify they have capacity
     const sec = secretaires.find((s: any) => s.id === secId);
-    if (sec?.horaire_flexible) {
-      const dateObj = new Date(date + 'T00:00:00Z');
-      const isSaturday = dateObj.getUTCDay() === 6;
-      if (isSaturday) {
-        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
-        if (!hasCapacity) {
-          console.log(`  ⚠️  Skip Saturday fallback flexible (safeguard): ${sec.first_name} ${sec.name} has no capacity for ${date} ${periode}`);
-          continue;
-        }
+    if (sec?.horaire_flexible && isWeekend(date)) {
+      const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+      if (!hasCapacity) {
+        console.log(`  ⚠️ Skip weekend (no capacity) flexible: ${sec.first_name} ${sec.name} → ${date} ${periode} (site)`);
+        continue;
       }
     }
 
@@ -1216,17 +1198,13 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
     const date = parts[2];
     const periode = parts.slice(3).join('_'); // "apres_midi" ou "matin"
 
-    // Safety check: for flexible secretaries on Saturday, verify they have capacity
+    // Safety check: for flexible secretaries on weekend, verify they have capacity
     const sec = secretaires.find((s: any) => s.id === secId);
-    if (sec?.horaire_flexible) {
-      const dateObj = new Date(date + 'T00:00:00Z');
-      const isSaturday = dateObj.getUTCDay() === 6;
-      if (isSaturday) {
-        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
-        if (!hasCapacity) {
-          console.log(`  ⚠️  Skip Saturday admin fallback flexible (safeguard): ${sec.first_name} ${sec.name} has no capacity for ${date} ${periode}`);
-          continue;
-        }
+    if (sec?.horaire_flexible && isWeekend(date)) {
+      const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+      if (!hasCapacity) {
+        console.log(`  ⚠️ Skip weekend (no capacity) flexible: ${sec.first_name} ${sec.name} → ${date} ${periode} (admin)`);
+        continue;
       }
     }
 

@@ -74,11 +74,22 @@ export function PlanningGridView({ assignments, weekDays, onRefresh }: PlanningG
     });
   };
 
-  // Get all secretaries from assignments
+  // Get all secretaries that appear in the filtered week days (excluding weekends)
   const allSecretaries = new Map<string, string>();
-  for (const assignment of assignments) {
-    for (const sec of assignment.secretaires) {
-      allSecretaries.set(sec.id, sec.nom);
+  for (const siteGroup of assignmentsBySite) {
+    for (const dayGroup of siteGroup.dayGroups) {
+      // Check secretaries in matin
+      if (dayGroup.matin) {
+        for (const sec of dayGroup.matin.secretaires) {
+          allSecretaries.set(sec.id, sec.nom);
+        }
+      }
+      // Check secretaries in apres_midi
+      if (dayGroup.apresMidi) {
+        for (const sec of dayGroup.apresMidi.secretaires) {
+          allSecretaries.set(sec.id, sec.nom);
+        }
+      }
     }
   }
 
