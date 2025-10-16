@@ -3,8 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface TypeInterventionBesoinsFormProps {
   open: boolean;
@@ -34,6 +36,9 @@ export function TypeInterventionBesoinsForm({
   const [besoins, setBesoins] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [besoinsOperations, setBesoinsOperations] = useState<BesoinOperation[]>([]);
+  const [showAddBesoin, setShowAddBesoin] = useState(false);
+  const [selectedNewBesoin, setSelectedNewBesoin] = useState<string>('');
+  const [newBesoinNombre, setNewBesoinNombre] = useState<number>(1);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -102,6 +107,34 @@ export function TypeInterventionBesoinsForm({
     }));
   };
 
+  const handleRemoveBesoin = (besoinId: string) => {
+    setBesoins((prev) => {
+      const newBesoins = { ...prev };
+      delete newBesoins[besoinId];
+      return newBesoins;
+    });
+  };
+
+  const handleAddBesoin = () => {
+    if (selectedNewBesoin && newBesoinNombre > 0) {
+      setBesoins((prev) => ({
+        ...prev,
+        [selectedNewBesoin]: newBesoinNombre,
+      }));
+      setSelectedNewBesoin('');
+      setNewBesoinNombre(1);
+      setShowAddBesoin(false);
+    }
+  };
+
+  const availableBesoins = besoinsOperations.filter(
+    (besoin) => !besoins[besoin.id]
+  );
+
+  const configuredBesoins = besoinsOperations.filter(
+    (besoin) => besoins[besoin.id] > 0
+  );
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -160,29 +193,113 @@ export function TypeInterventionBesoinsForm({
             Définissez le nombre de personnes nécessaires pour chaque rôle lors de ce type d'intervention.
           </p>
 
-          <div className="grid gap-4">
-            {besoinsOperations.map((besoin) => (
-              <div key={besoin.id} className="flex items-center gap-4">
-                <Label htmlFor={besoin.id} className="flex-1 font-medium">
-                  {besoin.nom}
-                  {besoin.categorie && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ({besoin.categorie})
-                    </span>
-                  )}
-                </Label>
+          {/* Liste des besoins configurés */}
+          <div className="space-y-2">
+            {configuredBesoins.length > 0 ? (
+              configuredBesoins.map((besoin) => (
+                <div key={besoin.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium">{besoin.nom}</div>
+                    {besoin.categorie && (
+                      <div className="text-xs text-muted-foreground">
+                        {besoin.categorie}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`nombre-${besoin.id}`} className="text-sm text-muted-foreground">
+                      Nombre:
+                    </Label>
+                    <Input
+                      id={`nombre-${besoin.id}`}
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={besoins[besoin.id]}
+                      onChange={(e) => handleChange(besoin.id, e.target.value)}
+                      className="w-20"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveBesoin(besoin.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Aucun besoin configuré. Cliquez sur "Ajouter un besoin" pour commencer.
+              </p>
+            )}
+          </div>
+
+          {/* Zone d'ajout de nouveau besoin */}
+          {showAddBesoin ? (
+            <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
+              <div className="space-y-2">
+                <Label>Sélectionner un rôle</Label>
+                <Select value={selectedNewBesoin} onValueChange={setSelectedNewBesoin}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un rôle..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableBesoins.map((besoin) => (
+                      <SelectItem key={besoin.id} value={besoin.id}>
+                        {besoin.nom}
+                        {besoin.categorie && ` (${besoin.categorie})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Nombre de personnes</Label>
                 <Input
-                  id={besoin.id}
                   type="number"
-                  min="0"
+                  min="1"
                   max="10"
-                  value={besoins[besoin.id] || 0}
-                  onChange={(e) => handleChange(besoin.id, e.target.value)}
-                  className="w-24"
+                  value={newBesoinNombre}
+                  onChange={(e) => setNewBesoinNombre(parseInt(e.target.value) || 1)}
+                  className="w-full"
                 />
               </div>
-            ))}
-          </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowAddBesoin(false);
+                    setSelectedNewBesoin('');
+                    setNewBesoinNombre(1);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddBesoin}
+                  disabled={!selectedNewBesoin}
+                >
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowAddBesoin(true)}
+              disabled={availableBesoins.length === 0}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un besoin
+            </Button>
+          )}
         </div>
 
         <div className="flex justify-end gap-2">
