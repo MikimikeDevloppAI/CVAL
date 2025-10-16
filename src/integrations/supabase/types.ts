@@ -838,9 +838,11 @@ export type Database = {
           id: string
           name: string | null
           nombre_jours_supplementaires: number | null
+          personnel_bloc: boolean
           phone_number: string | null
           pourcentage_temps: number | null
           prefere_port_en_truie: boolean
+          prefered_admin: boolean
           profile_id: string | null
           updated_at: string
         }
@@ -854,9 +856,11 @@ export type Database = {
           id?: string
           name?: string | null
           nombre_jours_supplementaires?: number | null
+          personnel_bloc?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
+          prefered_admin?: boolean
           profile_id?: string | null
           updated_at?: string
         }
@@ -870,9 +874,11 @@ export type Database = {
           id?: string
           name?: string | null
           nombre_jours_supplementaires?: number | null
+          personnel_bloc?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
           prefere_port_en_truie?: boolean
+          prefered_admin?: boolean
           profile_id?: string | null
           updated_at?: string
         }

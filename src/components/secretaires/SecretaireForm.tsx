@@ -49,6 +49,8 @@ const secretaireSchema = z.object({
     z.union([z.literal(''), z.string().max(50, 'Le numéro de téléphone est trop long')])
   ).optional(),
   preferePortEnTruie: z.boolean().default(false),
+  preferedAdmin: z.boolean().default(false),
+  personnelBloc: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
   horaireFlexible: z.boolean().default(false),
@@ -127,6 +129,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
       preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
+      preferedAdmin: secretaire?.prefered_admin || false,
+      personnelBloc: secretaire?.personnel_bloc || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaireFlexible: secretaire?.horaire_flexible || false,
@@ -160,6 +164,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
             prefere_port_en_truie: data.preferePortEnTruie,
+            prefered_admin: data.preferedAdmin,
+            personnel_bloc: data.personnelBloc,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
@@ -230,6 +236,8 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             phone_number: data.telephone?.trim() || null,
             profile_id: null,
             prefere_port_en_truie: data.preferePortEnTruie,
+            prefered_admin: data.preferedAdmin,
+            personnel_bloc: data.personnelBloc,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
@@ -442,6 +450,42 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel>Préfère travailler à Port-en-Truie</FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="preferedAdmin"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Préfère les tâches administratives</FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="personnelBloc"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Personnel de bloc opératoire</FormLabel>
                 </div>
               </FormItem>
             )}
