@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Plus, Edit, Settings, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,11 +24,13 @@ interface TypeIntervention {
   }>;
 }
 
-interface TypesInterventionManagementProps {
-  onAddClick?: () => void;
+interface TypesInterventionManagementProps {}
+
+export interface TypesInterventionManagementRef {
+  openAddDialog: () => void;
 }
 
-export function TypesInterventionManagement({ onAddClick }: TypesInterventionManagementProps) {
+export const TypesInterventionManagement = forwardRef<TypesInterventionManagementRef, TypesInterventionManagementProps>((props, ref) => {
   const [types, setTypes] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -38,6 +40,10 @@ export function TypesInterventionManagement({ onAddClick }: TypesInterventionMan
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchTypes();
+  }, []);
 
   useEffect(() => {
     fetchTypes();
@@ -170,16 +176,13 @@ export function TypesInterventionManagement({ onAddClick }: TypesInterventionMan
     setIsFormOpen(true);
   };
 
+  useImperativeHandle(ref, () => ({
+    openAddDialog
+  }));
+
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Chargement...</div>;
   }
-
-  // Expose the openAddDialog function to parent
-  useEffect(() => {
-    if (onAddClick) {
-      (window as any).openTypeInterventionDialog = openAddDialog;
-    }
-  }, [onAddClick]);
 
   return (
     <div className="space-y-4">
@@ -353,4 +356,4 @@ export function TypesInterventionManagement({ onAddClick }: TypesInterventionMan
       </AlertDialog>
     </div>
   );
-}
+});

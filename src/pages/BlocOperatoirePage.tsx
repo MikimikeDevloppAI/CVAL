@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit, Search, Calendar, Trash2, Settings, Filter, X, Scissors } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { BlocOperatoireForm } from '@/components/blocOperatoire/BlocOperatoireForm';
 import { DeleteBesoinDialog } from '@/components/blocOperatoire/DeleteBesoinDialog';
-import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
+import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfWeek, addDays, isSameWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -55,6 +55,7 @@ const BlocOperatoirePage = () => {
   const [besoinToDelete, setBesoinToDelete] = useState<{ id: string; medecinName: string } | null>(null);
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'planning' | 'types'>('planning');
+  const typesInterventionRef = useRef<TypesInterventionManagementRef>(null);
   
   // Filtres
   const [selectedMedecin, setSelectedMedecin] = useState<string>('all');
@@ -317,9 +318,7 @@ const BlocOperatoirePage = () => {
 
           {activeTab === 'types' && (
             <Button onClick={() => {
-              if ((window as any).openTypeInterventionDialog) {
-                (window as any).openTypeInterventionDialog();
-              }
+              typesInterventionRef.current?.openAddDialog();
             }} className="gap-2">
               <Plus className="h-4 w-4" />
               Ajouter un type
@@ -598,7 +597,7 @@ const BlocOperatoirePage = () => {
 
       {activeTab === 'types' && (
         <div>
-          <TypesInterventionManagement onAddClick={() => {}} />
+          <TypesInterventionManagement ref={typesInterventionRef} />
         </div>
       )}
     </div>
