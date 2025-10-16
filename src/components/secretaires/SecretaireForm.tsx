@@ -5,13 +5,9 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Check, ChevronsUpDown, X } from 'lucide-react';
 
 const horaireSchema = z.object({
   jour: z.number().min(1).max(7),
@@ -82,7 +78,6 @@ interface SecretaireFormProps {
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const [loading, setLoading] = useState(false);
   const [besoinsOperations, setBesoinsOperations] = useState<BesoinOperation[]>([]);
-  const [besoinsPopoverOpen, setBesoinsPopoverOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -444,106 +439,57 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Rôles et compétences</FormLabel>
-                <FormControl>
-                  <Popover open={besoinsPopoverOpen} onOpenChange={setBesoinsPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-between"
-                      >
-                        {field.value.length > 0
-                          ? `${field.value.length} rôle(s) sélectionné(s)`
-                          : "Sélectionner des rôles"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Rechercher un rôle..." />
-                        <CommandEmpty>Aucun rôle trouvé.</CommandEmpty>
-                        <CommandGroup className="max-h-64 overflow-auto">
-                          {besoinsOperations.map((besoin) => {
-                            const isSelected = field.value.some(b => b.besoinId === besoin.id);
-                            return (
-                              <CommandItem
-                                key={besoin.id}
-                                onSelect={() => {
-                                  if (isSelected) {
-                                    field.onChange(field.value.filter((b) => b.besoinId !== besoin.id));
-                                  } else {
-                                    field.onChange([...field.value, { besoinId: besoin.id, preference: null }]);
-                                  }
-                                }}
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`}
-                                />
-                                {besoin.nom}
-                                {besoin.categorie && (
-                                  <span className="ml-2 text-xs text-muted-foreground">
-                                    ({besoin.categorie})
-                                  </span>
-                                )}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </FormControl>
                 <FormDescription>
-                  Sélectionnez les rôles et compétences, puis indiquez une préférence (1=haute, 2=moyenne, 3=basse)
+                  Sélectionnez les rôles et compétences avec leur niveau de préférence (1=haute, 2=moyenne, 3=basse)
                 </FormDescription>
-                {field.value.length > 0 && (
-                  <div className="space-y-3 mt-4">
-                    {field.value.map((besoinWithPref, index) => {
-                      const besoin = besoinsOperations.find(b => b.id === besoinWithPref.besoinId);
-                      if (!besoin) return null;
-                      return (
-                        <div key={besoinWithPref.besoinId} className="flex items-center gap-3 p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="font-medium">{besoin.nom}</div>
-                            {besoin.categorie && (
-                              <div className="text-xs text-muted-foreground">{besoin.categorie}</div>
-                            )}
-                          </div>
+                <div className="space-y-2 mt-4 max-h-[400px] overflow-y-auto border rounded-lg p-4">
+                  {besoinsOperations.map((besoin) => {
+                    const selectedBesoin = field.value.find(b => b.besoinId === besoin.id);
+                    const isSelected = !!selectedBesoin;
+                    
+                    return (
+                      <div key={besoin.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              field.onChange([...field.value, { besoinId: besoin.id, preference: 1 }]);
+                            } else {
+                              field.onChange(field.value.filter(b => b.besoinId !== besoin.id));
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{besoin.nom}</div>
+                          {besoin.categorie && (
+                            <div className="text-xs text-muted-foreground">{besoin.categorie}</div>
+                          )}
+                        </div>
+                        {isSelected && (
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">Préférence:</span>
                             <select
-                              value={besoinWithPref.preference?.toString() || ''}
+                              value={selectedBesoin.preference?.toString() || '1'}
                               onChange={(e) => {
-                                const newValue = [...field.value];
-                                newValue[index] = {
-                                  ...newValue[index],
-                                  preference: e.target.value ? parseInt(e.target.value) : null
-                                };
+                                const newValue = field.value.map(b =>
+                                  b.besoinId === besoin.id
+                                    ? { ...b, preference: parseInt(e.target.value) }
+                                    : b
+                                );
                                 field.onChange(newValue);
                               }}
-                              className="border rounded px-2 py-1 text-sm"
+                              className="border rounded px-2 py-1 text-sm min-w-[120px]"
                             >
-                              <option value="">Aucune</option>
                               <option value="1">1 (Haute)</option>
                               <option value="2">2 (Moyenne)</option>
                               <option value="3">3 (Basse)</option>
                             </select>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              field.onChange(field.value.filter((b) => b.besoinId !== besoinWithPref.besoinId));
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
                 <FormMessage />
               </FormItem>
             )}
