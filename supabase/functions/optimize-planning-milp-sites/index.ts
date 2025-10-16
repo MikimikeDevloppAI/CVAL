@@ -96,7 +96,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   const weekEndStr = week_end || dates[dates.length - 1];
   
   // 1. Fetch all data
-  const [secretaires, sites, besoins, capacites, blocPersonnel, secretairesSites, secretairesMedecins] = await Promise.all([
+  const [secretaires, sites, besoins, capacites, blocPersonnel, blocVacantPosts, secretairesSites, secretairesMedecins] = await Promise.all([
     supabase.from('secretaires').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('sites').select('*').eq('actif', true).then((r: any) => r.data || []),
     supabase.from('besoin_effectif').select('*, medecins(first_name, name, besoin_secretaires)')
@@ -113,6 +113,12 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
       .in('date', dates)
       .eq('type_assignation', 'bloc')
       .not('secretaire_id', 'is', null)
+      .then((r: any) => r.data || []),
+    supabase.from('planning_genere_personnel')
+      .select('id, date, periode, type_besoin_bloc, ordre, planning_genere_bloc_operatoire_id')
+      .in('date', dates)
+      .eq('type_assignation', 'bloc')
+      .is('secretaire_id', null)
       .then((r: any) => r.data || []),
     supabase.from('secretaires_sites')
       .select('secretaire_id, site_id, priorite')
@@ -134,7 +140,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
     secMedecinPriorityMap.set(`${sm.secretaire_id}_${sm.medecin_id}`, sm.priorite);
   }
 
-  console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins`);
+  console.log(`✓ ${secretaires.length} secretaires, ${sites.length} sites, ${besoins.length} besoins, ${blocVacantPosts.length} bloc postes vacants`);
 
   // 2. Use provided planning_id or fallback to create/find one
   let planning_id = provided_planning_id;
@@ -196,7 +202,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   }
 
   // 5. Build and solve MILP
-  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, secSitePriorityMap, secMedecinPriorityMap, selected_dates);
+  const solution = await buildMILP(besoins, secretaires, capacites, blocAssignments, blocVacantPosts, sites, dates, flexibleSecs, supabase, weekStartStr, weekEndStr, secSitePriorityMap, secMedecinPriorityMap, selected_dates);
 
   if (!solution.feasible) {
     console.error('❌ MILP not feasible!');
@@ -212,7 +218,7 @@ async function optimizeMultipleDays(supabase: any, dates: string[], exclude_bloc
   if (!planning_id) {
     throw new Error('planning_id must be defined before applying solution');
   }
-  await applySolution(supabase, besoins, sites, solution, planning_id, dates, secretaires, capacites);
+  await applySolution(supabase, besoins, sites, solution, planning_id, dates, secretaires, capacites, blocVacantPosts);
 
   return new Response(JSON.stringify({
     success: true,
@@ -254,12 +260,37 @@ function extractBlocAssignments(blocPersonnel: any[], dates: string[]): Map<stri
   return map;
 }
 
+// Check if secretary can perform a bloc role
+function canPerformBlocRole(secretaire: any, type_besoin_bloc: string | null): boolean {
+  if (!type_besoin_bloc) return false;
+  
+  switch (type_besoin_bloc) {
+    case 'instrumentiste':
+      return secretaire.instrumentaliste === true;
+    case 'aide_salle':
+      return secretaire.aide_de_salle === true;
+    case 'instrumentiste_aide_salle':
+      return secretaire.instrumentaliste === true || secretaire.aide_de_salle === true;
+    case 'anesthesiste':
+      return secretaire.anesthesiste === true;
+    case 'accueil_dermato':
+      return secretaire.bloc_dermato_accueil === true;
+    case 'accueil_ophtalmo':
+      return secretaire.bloc_ophtalmo_accueil === true;
+    case 'accueil':
+      return secretaire.bloc_dermato_accueil === true || secretaire.bloc_ophtalmo_accueil === true;
+    default:
+      return false;
+  }
+}
+
 // Build MILP - aggregate besoins by site/demi-journée
 async function buildMILP(
   besoins: any[],
   secretaires: any[],
   capacites: any[],
   blocAssignments: Map<string, Set<string>>,
+  blocVacantPosts: any[],
   sites: any[],
   dates: string[],
   flexibleSecs: Map<string, number>,
@@ -500,7 +531,72 @@ async function buildMILP(
 
   console.log(`  ✅ ${varCount} site assignment variables created`);
 
-  // === 1B. ADMIN ASSIGNMENT VARIABLES ===
+  // === 1B. BLOC VACANT POST VARIABLES ===
+  console.log('  🏥 Creating bloc vacant post assignment variables...');
+  
+  let blocVarCount = 0;
+  
+  for (const post of blocVacantPosts) {
+    const { id: post_id, date, periode, type_besoin_bloc } = post;
+    
+    for (const sec of secretaires) {
+      // Check if secretary has the required competence
+      if (!canPerformBlocRole(sec, type_besoin_bloc)) continue;
+      
+      // Check capacity or flexible
+      const isFlexible = flexibleSecs.has(sec.id);
+      const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
+      
+      if (!hasCapacity && !isFlexible) continue;
+      
+      // Skip flexible on Saturday without capacity
+      if (isFlexible && !hasCapacity) {
+        const dateObj = new Date(date + 'T00:00:00Z');
+        const isSaturday = dateObj.getUTCDay() === 6;
+        if (isSaturday) continue;
+      }
+      
+      // Skip flexible secretaries who have already met their weekly quota
+      if (isFlexible) {
+        const remaining = flexibleRemaining.get(sec.id) || 0;
+        if (remaining <= 0) continue;
+      }
+      
+      // Check if already at bloc this period
+      const blocKey = `${date}_${periode}`;
+      const blocSecs = blocAssignments.get(blocKey) || new Set();
+      if (blocSecs.has(sec.id)) continue;
+      
+      // Create variable: bloc|secId|date|periode|post_id
+      const varName = `bloc|${sec.id}|${date}|${periode}|${post_id}`;
+      
+      // HIGHEST SCORE: Bloc posts are top priority
+      const score = 50000;
+      
+      model.variables[varName] = {
+        score,
+        [`bloc_post_${post_id}`]: 1,  // Each bloc post gets exactly 1 secretary
+        [`cap_${sec.id}_${date}_${periode}`]: 1  // Consumes capacity
+      };
+      model.ints[varName] = 1;
+      blocVarCount++;
+    }
+    
+    // Constraint: each bloc post gets at most 1 secretary (can remain vacant)
+    model.constraints[`bloc_post_${post_id}`] = { max: 1 };
+  }
+  
+  console.log(`  ✅ ${blocVarCount} bloc vacant post variables created`);
+  
+  // Log bloc posts to fill
+  if (blocVacantPosts.length > 0) {
+    console.log(`  📊 Bloc posts to fill: ${blocVacantPosts.length}`);
+    for (const post of blocVacantPosts) {
+      console.log(`    - ${post.date} ${post.periode}: ${post.type_besoin_bloc} (ordre ${post.ordre})`);
+    }
+  }
+
+  // === 1C. ADMIN ASSIGNMENT VARIABLES ===
   console.log('  📋 Creating admin assignment variables...');
   
   const adminAssignments = new Map<string, string[]>(); // secId -> [varNames]
@@ -900,7 +996,7 @@ async function buildMILP(
 }
 
 // Apply solution - INSERT directly into planning_genere_personnel
-async function applySolution(supabase: any, besoins: any[], sites: any[], solution: any, planning_id: string, dates: string[], secretaires: any[], capacites: any[]) {
+async function applySolution(supabase: any, besoins: any[], sites: any[], solution: any, planning_id: string, dates: string[], secretaires: any[], capacites: any[], blocVacantPosts: any[]) {
   console.log('\n💾 Applying solution...');
   
   // Build capacites lookup for safeguard
@@ -912,6 +1008,54 @@ async function applySolution(supabase: any, besoins: any[], sites: any[], soluti
       capacitesMap.set(`${cap.date}_${secId}_${p}`, cap);
     }
   }
+  
+  // 0. Apply bloc vacant post assignments - UPDATE planning_genere_personnel
+  console.log('  🏥 Applying bloc vacant post assignments...');
+  let blocPostCount = 0;
+  for (const [varName, value] of Object.entries(solution)) {
+    if (!varName.startsWith('bloc|') || (value as number) < 0.5) continue;
+    
+    // Parse: bloc|secId|date|periode|post_id
+    const parts = varName.split('|');
+    if (parts.length < 5) continue;
+    
+    const secId = parts[1];
+    const date = parts[2];
+    const periode = parts[3];
+    const postId = parts[4];
+    
+    // Safety check for flexible secretaries on Saturday
+    const sec = secretaires.find((s: any) => s.id === secId);
+    if (sec?.horaire_flexible) {
+      const dateObj = new Date(date + 'T00:00:00Z');
+      const isSaturday = dateObj.getUTCDay() === 6;
+      if (isSaturday) {
+        const hasCapacity = capacitesMap.has(`${date}_${secId}_${periode}`);
+        if (!hasCapacity) {
+          console.warn(`  ⚠️ Skipping bloc post for flexible secretary ${sec.first_name} ${sec.name} on Saturday without capacity`);
+          continue;
+        }
+      }
+    }
+    
+    // UPDATE the existing planning_genere_personnel row with secretaire_id
+    const { error: updateError } = await supabase
+      .from('planning_genere_personnel')
+      .update({ secretaire_id: secId })
+      .eq('id', postId);
+    
+    if (updateError) {
+      console.error(`  ❌ Error updating bloc post ${postId}:`, updateError);
+    } else {
+      const post = blocVacantPosts.find((p: any) => p.id === postId);
+      if (post) {
+        console.log(`  ✅ Assigned ${sec?.first_name} ${sec?.name} to bloc ${post.type_besoin_bloc} on ${date} ${periode}`);
+      }
+      blocPostCount++;
+    }
+  }
+  
+  console.log(`  ✅ ${blocPostCount} bloc vacant posts filled`);
   
   // 1. Apply site assignments - INSERT into planning_genere_personnel
   let siteCount = 0;
