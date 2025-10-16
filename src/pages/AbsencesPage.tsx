@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -340,7 +341,7 @@ export default function AbsencesPage() {
                       Période
                     </p>
                     <div className="flex items-center gap-2 text-sm">
-                      <CalendarIcon className="h-3 w-3" />
+                      <Calendar className="h-3 w-3" />
                       <span>
                         {format(new Date(absence.date_debut), 'dd MMM yyyy', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
                       </span>

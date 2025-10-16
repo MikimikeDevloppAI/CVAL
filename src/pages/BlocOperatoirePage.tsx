@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2, Settings, Filter, X } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, Trash2, Settings, Filter, X, Scissors } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -273,9 +274,10 @@ const BlocOperatoirePage = () => {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Bloc Opératoire</h1>
-      </div>
+      <PageHeader
+        title="Bloc Opératoire"
+        icon={Scissors}
+      />
 
       <Tabs defaultValue="planning" className="w-full">
         <div className="flex justify-center mb-6">
@@ -284,7 +286,7 @@ const BlocOperatoirePage = () => {
               value="planning" 
               className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2"
             >
-              <CalendarIcon className="h-4 w-4 mr-2" />
+              <Calendar className="h-4 w-4 mr-2" />
               Planning
             </TabsTrigger>
             <TabsTrigger 
@@ -407,7 +409,7 @@ const BlocOperatoirePage = () => {
                 <div key={dayGroup.date} className="border rounded-lg p-4 bg-card">
                   <div className="flex items-center justify-between mb-3 pb-2 border-b">
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-primary" />
+                      <Calendar className="h-4 w-4 text-primary" />
                       <h3 className="text-sm font-semibold text-foreground">
                         {format(new Date(dayGroup.date), 'EEE dd MMM', { locale: fr })}
                       </h3>

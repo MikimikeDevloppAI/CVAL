@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2, CalendarDays, Calendar } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, CalendarDays, Calendar, Stethoscope } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -255,10 +256,11 @@ export default function MedecinsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Gestion des Médecins</h1>
-          
-          {canManage && (
+      <PageHeader
+        title="Gestion des Médecins"
+        icon={Stethoscope}
+        action={
+          canManage && (
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
@@ -291,8 +293,9 @@ export default function MedecinsPage() {
                 </DialogContent>
               </Dialog>
             </div>
-          )}
-        </div>
+          )
+        }
+      />
 
         {/* Search and Filter */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">

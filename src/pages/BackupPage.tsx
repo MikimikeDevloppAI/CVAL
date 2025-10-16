@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, UserCog, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -83,32 +84,34 @@ const BackupPage = () => {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Personnel de Backup</h1>
-        
-        {canManage && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setSelectedBackup(null)}>
-                <Plus className="h-4 w-4" />
-                Ajouter un backup
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedBackup ? 'Modifier le backup' : 'Ajouter un backup'}
-              </DialogTitle>
-            </DialogHeader>
-            <BackupForm 
-              backup={selectedBackup} 
-              onSubmit={handleFormSuccess}
-              onCancel={() => setIsDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
-        )}
-      </div>
+      <PageHeader
+        title="Personnel de Backup"
+        icon={UserCog}
+        action={
+          canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={() => setSelectedBackup(null)}>
+                  <Plus className="h-4 w-4" />
+                  Ajouter un backup
+                </Button>
+              </DialogTrigger>
+            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedBackup ? 'Modifier le backup' : 'Ajouter un backup'}
+                </DialogTitle>
+              </DialogHeader>
+              <BackupForm 
+                backup={selectedBackup} 
+                onSubmit={handleFormSuccess}
+                onCancel={() => setIsDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+          )
+        }
+      />
 
       {/* Search and Filter */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">

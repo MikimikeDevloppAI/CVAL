@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Settings } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -139,12 +140,10 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-8 max-w-2xl">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Paramètres</h1>
-        <p className="text-muted-foreground">
-          Gérez vos informations personnelles et votre sécurité
-        </p>
-      </div>
+      <PageHeader
+        title="Paramètres"
+        icon={Settings}
+      />
 
       {/* Profile Section */}
       <Card>

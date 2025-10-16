@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, CalendarOff, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -182,29 +183,30 @@ export default function JoursFeriesPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Gestion des Jours Fériés</h1>
-        
-        {canManage && (
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setSelectedJourFerie(null);
-              form.reset();
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Ajouter un jour férié
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedJourFerie ? 'Modifier le jour férié' : 'Ajouter un jour férié'}
-                </DialogTitle>
-              </DialogHeader>
+      <PageHeader
+        title="Gestion des Jours Fériés"
+        icon={CalendarOff}
+        action={
+          canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setSelectedJourFerie(null);
+                form.reset();
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Ajouter un jour férié
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>
+                    {selectedJourFerie ? 'Modifier le jour férié' : 'Ajouter un jour férié'}
+                  </DialogTitle>
+                </DialogHeader>
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -256,8 +258,9 @@ export default function JoursFeriesPage() {
               </Form>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+          )
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -278,9 +281,9 @@ export default function JoursFeriesPage() {
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <ModernCardTitle>{jourFerie.nom}</ModernCardTitle>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                    <CalendarIcon className="h-3 w-3" />
-                    <span>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                      <Calendar className="h-3 w-3" />
+                      <span>
                       {format(new Date(jourFerie.date), 'dd MMMM yyyy', { locale: fr })}
                     </span>
                   </div>

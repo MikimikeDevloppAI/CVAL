@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Search, Edit, Shield, Stethoscope, Users } from 'lucide-react';
+import { UserPlus, Search, Edit, Shield, Stethoscope, Users, UsersRound } from 'lucide-react';
 import { InviteUserDialog } from '@/components/users/InviteUserDialog';
 import { EditUserDialog } from '@/components/users/EditUserDialog';
 
@@ -97,18 +98,16 @@ export default function UsersPage() {
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Gestion des utilisateurs</h1>
-            <p className="text-muted-foreground mt-2">
-              Invitez et gérez les utilisateurs de l'application
-            </p>
-          </div>
-          <Button onClick={() => setInviteDialogOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Inviter un utilisateur
-          </Button>
-        </div>
+        <PageHeader
+          title="Gestion des utilisateurs"
+          icon={UsersRound}
+          action={
+            <Button onClick={() => setInviteDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Inviter un utilisateur
+            </Button>
+          }
+        />
 
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">

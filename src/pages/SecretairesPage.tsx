@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Mail, Phone, Trash2, Calendar, CalendarDays } from 'lucide-react';
+import { Plus, Edit, Search, Mail, Phone, Trash2, Calendar, CalendarDays, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -359,40 +360,42 @@ export default function SecretairesPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
+      <PageHeader
+        title="Gestion des Secrétaires"
+        icon={Users}
+        action={
+          <>
             <SecretaryOptimizationHelpDialog />
-          </div>
-          
-          {canManage && (
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2" onClick={() => setGlobalCalendarOpen(true)}>
-                <CalendarDays className="h-4 w-4" />
-                Voir Calendrier
-              </Button>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
-                    <Plus className="h-4 w-4" />
-                    Ajouter une secrétaire
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {selectedSecretaire ? 'Modifier la secrétaire' : 'Ajouter une secrétaire'}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <SecretaireForm 
-                    secretaire={selectedSecretaire} 
-                    onSuccess={handleFormSuccess}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
-        </div>
+            {canManage && (
+              <div className="flex gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setGlobalCalendarOpen(true)}>
+                  <CalendarDays className="h-4 w-4" />
+                  Voir Calendrier
+                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2" onClick={() => setSelectedSecretaire(null)}>
+                      <Plus className="h-4 w-4" />
+                      Ajouter une secrétaire
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {selectedSecretaire ? 'Modifier la secrétaire' : 'Ajouter une secrétaire'}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <SecretaireForm 
+                      secretaire={selectedSecretaire} 
+                      onSuccess={handleFormSuccess}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+          </>
+        }
+      />
 
         {/* Search and Filter */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">

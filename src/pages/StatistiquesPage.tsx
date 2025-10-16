@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -358,12 +360,10 @@ export default function StatistiquesPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Statistiques</h1>
-        <p className="text-muted-foreground">
-          Analyse des besoins en secrétaires par site et type de semaine
-        </p>
-      </div>
+      <PageHeader
+        title="Statistiques"
+        icon={BarChart3}
+      />
 
       <div className="flex flex-col sm:flex-row gap-4">
         <Card className="flex-1">

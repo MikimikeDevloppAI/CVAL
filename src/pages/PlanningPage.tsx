@@ -4,9 +4,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle, RefreshCw, Scissors } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Building2, Users, Clock, Plus, Edit, Trash2, Loader2, Zap, FileText, CheckCircle, RefreshCw, Scissors, CalendarClock } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -769,12 +770,11 @@ export default function PlanningPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">Planning</h1>
-          <SecretaryOptimizationHelpDialog />
-        </div>
-      </div>
+      <PageHeader
+        title="Planning"
+        icon={CalendarClock}
+        action={<SecretaryOptimizationHelpDialog />}
+      />
 
       <div className="flex items-center justify-between bg-card p-4 rounded-lg border">
         <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
