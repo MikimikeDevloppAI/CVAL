@@ -13,6 +13,7 @@ import { QuickEditMedecinDialog } from '@/components/secretaires/QuickEditMedeci
 import { EditHoraireSecretaireDialog } from '@/components/secretaires/EditHoraireSecretaireDialog';
 import { SecretaireMonthCalendar } from '@/components/secretaires/SecretaireMonthCalendar';
 import { GlobalCalendarView } from '@/components/secretaires/GlobalCalendarView';
+import { SecretaryOptimizationHelpDialog } from '@/components/secretaires/SecretaryOptimizationHelpDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -359,7 +360,10 @@ export default function SecretairesPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Gestion des Secrétaires</h1>
+            <SecretaryOptimizationHelpDialog />
+          </div>
           
           {canManage && (
             <div className="flex gap-2">
