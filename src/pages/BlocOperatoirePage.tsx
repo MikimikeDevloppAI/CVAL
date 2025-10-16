@@ -276,13 +276,13 @@ const BlocOperatoirePage = () => {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 space-y-6">
         <PageHeader
           title="Bloc Opératoire"
           icon={Scissors}
         />
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-center gap-4">
           <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
           <button
             onClick={() => setActiveTab('planning')}
@@ -315,16 +315,18 @@ const BlocOperatoirePage = () => {
             <span>Types d'intervention</span>
           </button>
           </div>
+        </div>
 
-          {activeTab === 'types' && (
+        {activeTab === 'types' && (
+          <div className="flex justify-end">
             <Button onClick={() => {
               typesInterventionRef.current?.openAddDialog();
             }} className="gap-2">
               <Plus className="h-4 w-4" />
               Ajouter un type
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {activeTab === 'planning' && (
