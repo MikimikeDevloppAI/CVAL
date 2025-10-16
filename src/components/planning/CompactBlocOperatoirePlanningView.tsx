@@ -98,6 +98,7 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
       date: operation.date,
       periode: operation.periode,
       operation_nom: operation.type_intervention?.nom || 'Type non défini',
+      planning_genere_bloc_operatoire_id: operation.id,
     });
     setChangePersonnelDialogOpen(true);
   };
