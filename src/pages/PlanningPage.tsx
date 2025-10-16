@@ -1067,111 +1067,110 @@ export default function PlanningPage() {
           {canManage && (
             <Card className="mb-4">
               <CardContent className="pt-6">
-                {/* Planning Information in a single horizontal line with equal spacing */}
-                <div className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto_auto] items-center gap-6">
-                  {/* Optimize Button */}
-                  <Button 
-                    onClick={handleOptimizeMILP} 
-                    disabled={isOptimizingMILP}
-                    size="default"
-                    className="gap-2"
-                  >
-                    {isOptimizingMILP ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Optimisation...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-4 w-4" />
-                        Optimiser
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Optimization launched */}
-                  {currentPlanningId && (
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Optimisation lancée</span>
-                      <span className="text-sm font-semibold">
-                        {planningUpdatedAt 
-                          ? format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
-                          : '-'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Last modification */}
-                  {currentPlanningId && (
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dernière modification</span>
-                      <span className="text-sm font-semibold">
-                        {lastPersonnelUpdate 
-                          ? format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })
-                          : '-'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Validated by */}
-                  {currentPlanningId && (
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé par</span>
-                      <span className="text-sm font-semibold min-h-[1.25rem]">
-                        {currentPlanningStatus === 'valide' && validatedBy ? validatedBy : ''}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Validated at */}
-                  {currentPlanningId && (
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validé à</span>
-                      <span className="text-sm font-semibold min-h-[1.25rem]">
-                        {currentPlanningStatus === 'valide' && validatedAt 
-                          ? format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
-                          : ''}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Empty space for alignment */}
-                  {currentPlanningId && <div />}
-
-                  {/* Validate Button */}
-                  {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                {/* Planning Information - optimized horizontal distribution */}
+                <div className="flex items-center gap-4 w-full">
+                  {/* Left: Action Buttons */}
+                  <div className="flex gap-2 shrink-0">
                     <Button 
-                      onClick={validatePlanning} 
-                      disabled={isValidatingPlanning || isGeneratingPDF}
+                      onClick={handleOptimizeMILP} 
+                      disabled={isOptimizingMILP}
                       size="default"
-                      className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      className="gap-2"
                     >
-                      {isValidatingPlanning || isGeneratingPDF ? (
+                      {isOptimizingMILP ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          {isGeneratingPDF ? 'Génération...' : 'Validation...'}
+                          Optimisation...
                         </>
                       ) : (
                         <>
-                          <CheckCircle className="h-4 w-4" />
-                          Valider
+                          <Zap className="h-4 w-4" />
+                          Optimiser
                         </>
                       )}
                     </Button>
+                  </div>
+
+                  {/* Center: Information Grid - equally distributed */}
+                  {currentPlanningId && (
+                    <div className="flex-1 grid grid-cols-4 gap-6 px-6">
+                      {/* Optimization launched */}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">Optimisation lancée</span>
+                        <span className="text-sm font-semibold truncate">
+                          {planningUpdatedAt 
+                            ? format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                            : '-'}
+                        </span>
+                      </div>
+
+                      {/* Last modification */}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">Dernière modification</span>
+                        <span className="text-sm font-semibold truncate">
+                          {lastPersonnelUpdate 
+                            ? format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                            : '-'}
+                        </span>
+                      </div>
+
+                      {/* Validated by */}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">Validé par</span>
+                        <span className="text-sm font-semibold min-h-[1.25rem] truncate">
+                          {currentPlanningStatus === 'valide' && validatedBy ? validatedBy : '-'}
+                        </span>
+                      </div>
+
+                      {/* Validated at */}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">Validé à</span>
+                        <span className="text-sm font-semibold min-h-[1.25rem] truncate">
+                          {currentPlanningStatus === 'valide' && validatedAt 
+                            ? format(new Date(validatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })
+                            : '-'}
+                        </span>
+                      </div>
+                    </div>
                   )}
-                  
-                  {/* PDF Download Button */}
-                  {generatedPdfUrl && (
-                    <Button 
-                      onClick={() => window.open(generatedPdfUrl, '_blank')} 
-                      size="default"
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Télécharger le PDF
-                    </Button>
-                  )}
+
+                  {/* Right: Action Buttons */}
+                  <div className="flex gap-2 shrink-0">
+                    {/* Validate Button */}
+                    {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                      <Button 
+                        onClick={validatePlanning} 
+                        disabled={isValidatingPlanning || isGeneratingPDF}
+                        size="default"
+                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {isValidatingPlanning || isGeneratingPDF ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {isGeneratingPDF ? 'Génération...' : 'Validation...'}
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4" />
+                            Valider
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
+                    {/* PDF Download Button */}
+                    {generatedPdfUrl && (
+                      <Button 
+                        onClick={() => window.open(generatedPdfUrl, '_blank')} 
+                        size="default"
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Télécharger PDF
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
