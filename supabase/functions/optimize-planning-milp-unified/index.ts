@@ -377,6 +377,60 @@ serve(async (req) => {
       secretairesSitesMap.get(ss.secretaire_id)!.push(ss);
     });
 
+    // ============================================================
+    // GÉNÉRATION DES CAPACITÉS POUR SECRÉTAIRES FLEXIBLES
+    // ============================================================
+    console.log("\n--- GÉNÉRATION CAPACITÉS FLEXIBLES ---");
+    
+    const flexibleSecretaires = secretaires.filter((s) => s.horaire_flexible && s.actif);
+    console.log(`${flexibleSecretaires.length} secrétaires flexibles trouvées`);
+    
+    for (const sec of flexibleSecretaires) {
+      const pourcentage = sec.pourcentage_temps ?? 60; // Default 60%
+      const joursComplets = Math.round((pourcentage / 100) * 5); // Sur base 5 jours/semaine
+      console.log(`  ${sec.name}: ${pourcentage}% = ${joursComplets} jours complets requis`);
+      
+      // Générer capacités virtuelles pour toute la période
+      let capsGenerated = 0;
+      for (const date of selected_dates) {
+        const dow = new Date(date).getDay();
+        // Lundi-vendredi uniquement
+        if (dow < 1 || dow > 5) continue;
+        
+        // Vérifier si absence complète ce jour
+        const hasFullDayAbsence = absences.some(
+          (a) =>
+            a.secretaire_id === sec.id &&
+            date >= a.date_debut &&
+            date <= a.date_fin &&
+            !a.heure_debut &&
+            !a.heure_fin
+        );
+        if (hasFullDayAbsence) continue;
+        
+        // Générer DEUX capacités: matin ET après-midi
+        for (const periode of ['matin', 'apres_midi']) {
+          const key = `${sec.id}_${date}_${periode}`;
+          if (!capacitesMap.has(key)) capacitesMap.set(key, []);
+          capacitesMap.get(key)!.push({
+            secretaire_id: sec.id,
+            date: date,
+            demi_journee: periode,
+            site_id: null, // Flexible: pas de site fixe
+            is_flexible: true
+          });
+          capsGenerated++;
+        }
+      }
+      
+      console.log(`    → ${capsGenerated} capacités générées (${capsGenerated/2} jours)`);
+      
+      // Stocker le quota de jours complets pour contraintes ultérieures
+      (sec as any).quotaJoursComplets = joursComplets;
+    }
+    
+    console.log(`✓ Capacités flexibles générées`);
+
     // Tracker pour pénalités progressives
     const adminAssignmentCount = new Map<string, number>();
     const portEnTruieAssignmentCount = new Map<string, number>();
@@ -838,73 +892,67 @@ serve(async (req) => {
     console.log(`✓ ${mandatoryAssignmentCount} contraintes d'assignation obligatoire ajoutées`);
 
     // ============================================================
-    // PHASE 1E: HORAIRES FLEXIBLES
+    // PHASE 1E: CONTRAINTES JOURS COMPLETS POUR FLEXIBLES
     // ============================================================
-    console.log("\n--- PHASE 1E: GESTION DES HORAIRES FLEXIBLES ---");
+    console.log("\n--- PHASE 1E: CONTRAINTES JOURS COMPLETS FLEXIBLES ---");
 
-    const flexibleSecretaires = secretaires.filter((s) => s.horaire_flexible);
-    console.log(`${flexibleSecretaires.length} secrétaires flexibles`);
+    const flexibleSecretairesWithCapacities = flexibleSecretaires.filter(
+      sec => (sec as any).quotaJoursComplets > 0
+    );
+    console.log(`${flexibleSecretairesWithCapacities.length} secrétaires flexibles avec quotas`);
 
-    for (const sec of flexibleSecretaires) {
-      const baseRequiredDays = sec.nombre_jours_supplementaires ?? 3;
-
-      // Absences complètes (journée) pour la semaine
-      const absencesForSec = absences.filter(
-        (a) =>
-          a.secretaire_id === sec.id &&
-          a.date_debut <= week_end &&
-          a.date_fin >= week_start &&
-          !a.heure_debut &&
-          !a.heure_fin
-      );
-
-      // Calcul des jours disponibles: jours ouvrés avec AU MOINS une capacité (matin OU après-midi) et sans congé
-      const candidateDays: string[] = [];
+    for (const sec of flexibleSecretairesWithCapacities) {
+      const quotaJoursComplets = (sec as any).quotaJoursComplets;
+      console.log(`  ${sec.name}: quota = ${quotaJoursComplets} jours complets`);
+      
+      // Pour chaque date, contraindre: matin = après-midi
       for (const date of selected_dates) {
-        const dow = new Date(date).getDay();
-        if (dow < 1 || dow > 5) continue; // Lundi-vendredi
-        const isOnVacation = absencesForSec.some(
-          (a) => date >= a.date_debut && date <= a.date_fin
-        );
-        if (isOnVacation) continue;
-        const hasCap = capacitesMap.has(`${sec.id}_${date}_matin`) || capacitesMap.has(`${sec.id}_${date}_apres_midi`);
-        if (hasCap) candidateDays.push(date);
-      }
-
-      const availableDays = candidateDays.length;
-      if (availableDays === 0) {
-        console.log(`  ${sec.name}: 0 jours (en congé ou sans capacité toute la semaine)`);
-        continue;
-      }
-
-      const requiredDays = Math.min(baseRequiredDays, availableDays);
-      console.log(`  ${sec.name}: ${requiredDays} jours min requis (base: ${baseRequiredDays}, disponibles: ${availableDays})`);
-
-      // Contrainte min sur la somme des jours choisis
-      const flexConstraint = `flex_days_${sec.id}`;
-      model.constraints[flexConstraint] = { min: requiredDays };
-
-      for (const date of candidateDays) {
-        // Variable jour
-        const varName = `day_${sec.id}_${date}`;
-        model.variables[varName] = { score: 0 };
-        model.ints[varName] = 1;
-        variableCount++;
-        model.variables[varName][flexConstraint] = 1;
-
-        // Lien avec assignations de ce jour (site, bloc, admin)
-        const dayConstraint = `day_link_${sec.id}_${date}`;
-        model.constraints[dayConstraint] = { min: 0 };
-        model.variables[varName][dayConstraint] = -1;
+        const matinKey = `${sec.id}_${date}_matin`;
+        const amKey = `${sec.id}_${date}_apres_midi`;
+        
+        // Vérifier si capacités existent pour ce jour
+        if (!capacitesMap.has(matinKey) || !capacitesMap.has(amKey)) continue;
+        
+        // Trouver toutes les variables d'assignation pour ce jour
+        const varsMatin: string[] = [];
+        const varsAM: string[] = [];
+        
         for (const assign of assignments) {
           if (assign.secretaire_id === sec.id && assign.date === date) {
-            model.variables[assign.varName][dayConstraint] = 1;
+            if (assign.periode === 'matin') varsMatin.push(assign.varName);
+            if (assign.periode === 'apres_midi') varsAM.push(assign.varName);
+          }
+        }
+        
+        // Créer contrainte: sum(matin) - sum(après-midi) = 0
+        if (varsMatin.length > 0 || varsAM.length > 0) {
+          const fullDayConstraint = `full_day_${sec.id}_${date}`;
+          model.constraints[fullDayConstraint] = { equal: 0 };
+          
+          for (const varMatin of varsMatin) {
+            model.variables[varMatin][fullDayConstraint] = 1;
+          }
+          for (const varAM of varsAM) {
+            model.variables[varAM][fullDayConstraint] = -1;
           }
         }
       }
+      
+      // Contrainte de quota total: nombre max de JOURS (pas demi-journées)
+      // On compte les matins uniquement (puisque matin = après-midi)
+      const quotaConstraint = `max_days_${sec.id}`;
+      model.constraints[quotaConstraint] = { max: quotaJoursComplets };
+      
+      for (const assign of assignments) {
+        if (assign.secretaire_id === sec.id && assign.periode === 'matin') {
+          model.variables[assign.varName][quotaConstraint] = 1;
+        }
+      }
+      
+      console.log(`    → ${Object.keys(model.constraints).filter(k => k.startsWith(`full_day_${sec.id}`)).length} contraintes jour complet`);
     }
 
-    console.log(`✓ Contraintes horaires flexibles ajoutées`);
+    console.log(`✓ Contraintes jours complets flexibles ajoutées`);
 
     // ============================================================
     // PHASE 2: RÉSOLUTION MILP

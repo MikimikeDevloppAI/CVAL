@@ -119,42 +119,52 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
 
       if (blocsError) throw blocsError;
 
-      // Fetch personnel for each operation from unified planning_genere_personnel
-      const operationsWithPersonnel: BlocOperation[] = [];
+      // Fetch ALL personnel for the period at once (more efficient and fixes missing assignments)
+      const blocIds = blocsData?.map(b => b.id) || [];
       
-      for (const bloc of blocsData || []) {
-        const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_personnel')
-          .select(`
-            id,
-            ordre,
-            besoin_operation_id,
-            besoin_operation:besoins_operations!besoin_operation_id(nom),
-            secretaire:secretaires!secretaire_id(first_name, name),
-            secretaire_id
-          `)
-          .eq('planning_genere_bloc_operatoire_id', bloc.id)
-          .eq('type_assignation', 'bloc')
-          .order('besoin_operation_id', { ascending: true })
-          .order('ordre', { ascending: true });
+      if (blocIds.length === 0) {
+        setOperations([]);
+        return;
+      }
 
-        if (personnelError) throw personnelError;
+      const { data: allPersonnelData, error: personnelError } = await supabase
+        .from('planning_genere_personnel')
+        .select(`
+          id,
+          ordre,
+          besoin_operation_id,
+          planning_genere_bloc_operatoire_id,
+          besoin_operation:besoins_operations!besoin_operation_id(nom),
+          secretaire:secretaires!secretaire_id(first_name, name),
+          secretaire_id
+        `)
+        .in('planning_genere_bloc_operatoire_id', blocIds)
+        .eq('type_assignation', 'bloc')
+        .order('besoin_operation_id', { ascending: true })
+        .order('ordre', { ascending: true });
 
-        // Transform to match expected PersonnelAssignment interface
-        const personnel = (personnelData || []).map((p: any) => ({
+      if (personnelError) throw personnelError;
+
+      // Group personnel by bloc_id
+      const personnelByBloc = (allPersonnelData || []).reduce((acc, p: any) => {
+        const blocId = p.planning_genere_bloc_operatoire_id;
+        if (!acc[blocId]) acc[blocId] = [];
+        acc[blocId].push(p);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Associate personnel with each bloc
+      const operationsWithPersonnel = (blocsData || []).map(bloc => ({
+        ...bloc,
+        personnel: (personnelByBloc[bloc.id] || []).map((p: any) => ({
           id: p.id,
           ordre: p.ordre,
           besoin_operation_id: p.besoin_operation_id,
           besoin_operation_nom: p.besoin_operation?.nom,
           secretaire_id: p.secretaire_id,
           secretaire: p.secretaire
-        }));
-
-        operationsWithPersonnel.push({
-          ...bloc,
-          personnel
-        });
-      }
+        }))
+      }));
 
       setOperations(operationsWithPersonnel);
     } catch (error) {
