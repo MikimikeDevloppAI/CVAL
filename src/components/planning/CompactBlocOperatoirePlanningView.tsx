@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Loader2, Scissors, MapPin } from 'lucide-react';
+import { ChangeSalleDialog } from './ChangeSalleDialog';
+import ChangePersonnelDialog from './ChangePersonnelDialog';
 
 interface BlocOperation {
   id: string;
@@ -65,10 +67,40 @@ const SALLE_COLORS: Record<string, string> = {
 export function CompactBlocOperatoirePlanningView({ startDate, endDate }: CompactBlocOperatoirePlanningViewProps) {
   const [operations, setOperations] = useState<BlocOperation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [changeSalleDialogOpen, setChangeSalleDialogOpen] = useState(false);
+  const [selectedOperation, setSelectedOperation] = useState<any>(null);
+  const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
   useEffect(() => {
     fetchBlocOperations();
   }, [startDate, endDate]);
+
+  const handleChangeSalle = (operation: BlocOperation) => {
+    setSelectedOperation({
+      id: operation.id,
+      date: operation.date,
+      periode: operation.periode,
+      salle_assignee: operation.salle_assignee,
+      type_intervention_nom: operation.type_intervention?.nom || 'Type non défini',
+    });
+    setChangeSalleDialogOpen(true);
+  };
+
+  const handleChangePersonnel = (personnel: PersonnelAssignment, operation: BlocOperation) => {
+    setSelectedPersonnel({
+      id: personnel.id,
+      type_besoin: personnel.type_besoin,
+      secretaire_id: personnel.secretaire_id,
+      secretaire_nom: personnel.secretaire 
+        ? `${personnel.secretaire.first_name} ${personnel.secretaire.name}`
+        : null,
+      date: operation.date,
+      periode: operation.periode,
+      operation_nom: operation.type_intervention?.nom || 'Type non défini',
+    });
+    setChangePersonnelDialogOpen(true);
+  };
 
   const fetchBlocOperations = async () => {
     setLoading(true);
@@ -177,8 +209,9 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
                             {PERIODE_LABELS[operation.periode]}
                           </Badge>
                           <Badge 
-                            className={`text-xs px-2 py-0 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
+                            className={`text-xs px-2 py-0 cursor-pointer hover:opacity-80 ${SALLE_COLORS[operation.salle_assignee] || 'bg-gray-100'}`}
                             variant="outline"
+                            onClick={() => handleChangeSalle(operation)}
                           >
                             <MapPin className="h-3 w-3 mr-0.5" />
                             Salle {operation.salle_assignee}
@@ -203,7 +236,8 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
                       {operation.personnel.map((p) => (
                         <div 
                           key={p.id}
-                          className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs"
+                          className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-muted transition-colors"
+                          onClick={() => handleChangePersonnel(p, operation)}
                         >
                           <span className="text-muted-foreground">
                             {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
@@ -225,6 +259,30 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
           ))}
         </div>
       </CardContent>
+
+      {selectedOperation && (
+        <ChangeSalleDialog
+          open={changeSalleDialogOpen}
+          onOpenChange={setChangeSalleDialogOpen}
+          operation={selectedOperation}
+          onSuccess={() => {
+            fetchBlocOperations();
+            setSelectedOperation(null);
+          }}
+        />
+      )}
+
+      {selectedPersonnel && (
+        <ChangePersonnelDialog
+          open={changePersonnelDialogOpen}
+          onOpenChange={setChangePersonnelDialogOpen}
+          assignment={selectedPersonnel}
+          onSuccess={() => {
+            fetchBlocOperations();
+            setSelectedPersonnel(null);
+          }}
+        />
+      )}
     </Card>
   );
 }

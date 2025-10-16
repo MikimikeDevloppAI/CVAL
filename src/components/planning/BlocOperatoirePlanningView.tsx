@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale';
 import { Loader2, Scissors, Users, Clock, MapPin } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { ChangeSalleDialog } from './ChangeSalleDialog';
+import ChangePersonnelDialog from './ChangePersonnelDialog';
 
 interface BlocOperation {
   id: string;
@@ -69,6 +70,8 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
   const [loading, setLoading] = useState(true);
   const [changeSalleDialogOpen, setChangeSalleDialogOpen] = useState(false);
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
+  const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
   useEffect(() => {
     fetchBlocOperations();
@@ -83,6 +86,21 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
       type_intervention_nom: operation.type_intervention?.nom || 'Type non défini',
     });
     setChangeSalleDialogOpen(true);
+  };
+
+  const handleChangePersonnel = (personnel: PersonnelAssignment, operation: BlocOperation) => {
+    setSelectedPersonnel({
+      id: personnel.id,
+      type_besoin: personnel.type_besoin,
+      secretaire_id: personnel.secretaire_id,
+      secretaire_nom: personnel.secretaire 
+        ? `${personnel.secretaire.first_name} ${personnel.secretaire.name}`
+        : null,
+      date: operation.date,
+      periode: operation.periode,
+      operation_nom: operation.type_intervention?.nom || 'Type non défini',
+    });
+    setChangePersonnelDialogOpen(true);
   };
 
   const fetchBlocOperations = async () => {
@@ -240,7 +258,8 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                         {operation.personnel.map((p) => (
                           <div 
                             key={p.id} 
-                            className="flex items-center justify-between p-3 bg-background rounded border"
+                            className="flex items-center justify-between p-3 bg-background rounded border cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => handleChangePersonnel(p, operation)}
                           >
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
@@ -288,6 +307,18 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
           onSuccess={() => {
             fetchBlocOperations();
             setSelectedOperation(null);
+          }}
+        />
+      )}
+
+      {selectedPersonnel && (
+        <ChangePersonnelDialog
+          open={changePersonnelDialogOpen}
+          onOpenChange={setChangePersonnelDialogOpen}
+          assignment={selectedPersonnel}
+          onSuccess={() => {
+            fetchBlocOperations();
+            setSelectedPersonnel(null);
           }}
         />
       )}
