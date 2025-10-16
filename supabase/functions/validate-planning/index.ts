@@ -43,14 +43,119 @@ serve(async (req) => {
       throw new Error('Authentication failed');
     }
 
-    // 1. Update planning to validated status
+    // Get planning dates
+    const { data: planning, error: planningError } = await supabaseServiceRole
+      .from('planning')
+      .select('date_debut, date_fin')
+      .eq('id', planning_id)
+      .single();
+
+    if (planningError || !planning) {
+      throw new Error('Planning not found');
+    }
+
+    console.log('📅 Fetching secretary assignments for PDF generation');
+
+    // Fetch all assignments with related data
+    const { data: assignments, error: assignmentsError } = await supabaseServiceRole
+      .from('planning_genere_personnel')
+      .select(`
+        id,
+        date,
+        periode,
+        type_assignation,
+        site_id,
+        secretaire_id,
+        is_1r,
+        is_2f,
+        is_3f,
+        type_besoin_bloc,
+        planning_genere_bloc_operatoire_id,
+        secretaire:secretaires!inner(first_name, name),
+        site:sites(nom),
+        bloc:planning_genere_bloc_operatoire(salle_assignee)
+      `)
+      .eq('planning_id', planning_id)
+      .not('secretaire_id', 'is', null)
+      .order('date')
+      .order('periode');
+
+    if (assignmentsError) {
+      console.error('❌ Error fetching assignments:', assignmentsError);
+      throw assignmentsError;
+    }
+
+    console.log(`✓ Fetched ${assignments?.length || 0} assignments`);
+
+    // Group by secretary
+    const secretaryMap = new Map();
+    
+    assignments?.forEach((a: any) => {
+      const secId = a.secretaire_id;
+      const secName = `${a.secretaire.first_name} ${a.secretaire.name}`;
+      
+      if (!secretaryMap.has(secId)) {
+        secretaryMap.set(secId, { 
+          id: secId, 
+          name: secName, 
+          assignments: [] 
+        });
+      }
+      
+      // Format date as dd/MM/yyyy
+      const dateObj = new Date(a.date);
+      const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+      
+      secretaryMap.get(secId).assignments.push({
+        date: formattedDate,
+        periode: a.periode === 'matin' ? 'Matin' : 'Après-midi',
+        site: a.site?.nom || '',
+        is1R: a.is_1r || false,
+        is2F: a.is_2f || false,
+        is3F: a.is_3f || false,
+        type: a.type_assignation || 'site',
+        typeBesoinBloc: a.type_besoin_bloc,
+        salle: a.bloc?.salle_assignee
+      });
+    });
+
+    const secretaries = Array.from(secretaryMap.values()).sort((a, b) => 
+      a.name.localeCompare(b.name, 'fr')
+    );
+
+    console.log(`✓ Grouped into ${secretaries.length} secretaries`);
+
+    // Format dates for PDF
+    const formatDate = (dateStr: string): string => {
+      const date = new Date(dateStr);
+      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    };
+
+    // Generate PDF
+    console.log('📄 Calling generate-planning-pdf function');
+    const { data: pdfData, error: pdfError } = await supabaseServiceRole.functions.invoke('generate-planning-pdf', {
+      body: {
+        weekStart: formatDate(planning.date_debut),
+        weekEnd: formatDate(planning.date_fin),
+        secretaries
+      }
+    });
+
+    if (pdfError) {
+      console.error('❌ PDF generation error:', pdfError);
+      // Continue with validation even if PDF fails
+    }
+
+    const finalPdfUrl = pdfData?.pdfUrl || pdf_url || null;
+
+    // Update planning to validated status
     const { error: planningUpdateError } = await supabaseServiceRole
       .from('planning')
       .update({
         statut: 'valide',
         validated_at: new Date().toISOString(),
         validated_by: user.id,
-        pdf_url: pdf_url || null,
+        pdf_url: finalPdfUrl,
         updated_at: new Date().toISOString()
       })
       .eq('id', planning_id);
@@ -64,7 +169,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Planning validated successfully'
+      message: 'Planning validated successfully',
+      pdf_url: finalPdfUrl
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

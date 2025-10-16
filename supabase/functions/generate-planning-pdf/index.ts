@@ -6,13 +6,15 @@ const corsHeaders = {
 };
 
 interface Assignment {
-  date: string;
-  periode: string;
+  date: string;          // Format dd/MM/yyyy
+  periode: string;       // "Matin" ou "Après-midi"
   site: string;
-  medecins: string[];
   is1R: boolean;
   is2F: boolean;
-  type: string;
+  is3F: boolean;
+  type: string;          // 'site' | 'administratif' | 'bloc'
+  typeBesoinBloc?: string;
+  salle?: string;
 }
 
 interface Secretary {
@@ -142,7 +144,13 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
       }
     });
     
-    return { ...sec, byDay: Array.from(byDay.entries()) };
+    return { ...sec, byDay: Array.from(byDay.entries()).sort((a, b) => {
+      const [dayA, monthA, yearA] = a[0].split('/').map(Number);
+      const [dayB, monthB, yearB] = b[0].split('/').map(Number);
+      const dateA = new Date(yearA, monthA - 1, dayA);
+      const dateB = new Date(yearB, monthB - 1, dayB);
+      return dateA.getTime() - dateB.getTime();
+    }) };
   });
   
   // Split into 2 columns
@@ -151,51 +159,95 @@ function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekE
   const col2 = groupedBySecretary.slice(mid);
   
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Planning</title>
+<html><head><meta charset="utf-8"><title>Planning des Secrétaires</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: Arial, sans-serif; padding: 0; background: #f9fafb; }
 
-/* Header et footer sur chaque page */
 @page {
   margin: 0;
-  @top-center {
-    content: "";
-    background: #f9fafb;
-    height: 40px;
-    width: 100%;
-  }
-  @bottom-center {
-    content: "";
-    background: #f9fafb;
-    height: 40px;
-    width: 100%;
-  }
 }
 
 .content-wrapper { padding: 40px 20px; }
-.header { text-align: center; margin-bottom: 30px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.header { 
+  text-align: center; 
+  margin-bottom: 30px; 
+  background: white; 
+  padding: 25px; 
+  border-radius: 12px; 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+}
 .logo { max-width: 200px; height: auto; margin-bottom: 15px; }
 .header h1 { font-size: 28px; color: #1f2937; margin-bottom: 8px; font-weight: 700; }
 .period { font-size: 18px; color: #6b7280; font-weight: 500; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; column-gap: 30px; }
-.card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); page-break-inside: avoid; margin-bottom: 20px; }
-.secretary-name { font-size: 20px; font-weight: bold; color: #1f2937; padding-bottom: 12px; margin-bottom: 16px; }
-.day-block { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 12px; background: #f9fafb; }
-.day-title { font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 10px; padding-bottom: 8px; }
-.time-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
-.time { font-size: 14px; color: #6b7280; width: 90px; flex-shrink: 0; font-weight: 500; }
+.card { 
+  background: white; 
+  border-radius: 12px; 
+  padding: 20px; 
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+  page-break-inside: avoid; 
+  margin-bottom: 20px; 
+}
+.secretary-name { 
+  font-size: 20px; 
+  font-weight: bold; 
+  color: #1f2937; 
+  padding-bottom: 12px; 
+  margin-bottom: 16px; 
+  border-bottom: 1px solid #e5e7eb;
+}
+.day-block { 
+  border: 1px solid #e5e7eb; 
+  border-radius: 8px; 
+  padding: 14px; 
+  margin-bottom: 12px; 
+  background: #f9fafb; 
+}
+.day-title { 
+  font-size: 16px; 
+  font-weight: 600; 
+  color: #1f2937; 
+  margin-bottom: 10px; 
+}
+.time-row { 
+  display: flex; 
+  gap: 12px; 
+  align-items: flex-start; 
+  margin-bottom: 8px; 
+}
+.time-row:last-child { margin-bottom: 0; }
+.time { 
+  font-size: 14px; 
+  color: #6b7280; 
+  width: 90px; 
+  flex-shrink: 0; 
+  font-weight: 500; 
+}
 .content { flex: 1; min-width: 0; }
-.site { font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.site { 
+  font-size: 15px; 
+  font-weight: 600; 
+  color: #374151; 
+  margin-bottom: 6px; 
+}
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
-.badge { font-size: 13px; padding: 4px 10px; border-radius: 6px; font-weight: 600; }
+.badge { 
+  font-size: 13px; 
+  padding: 4px 10px; 
+  border-radius: 6px; 
+  font-weight: 600; 
+  display: inline-block;
+}
+.badge-1 { background: #e5e7eb; color: #374151; }
 .badge-1r { background: #dbeafe; color: #1e40af; }
 .badge-2f { background: #fef3c7; color: #92400e; }
+.badge-3f { background: #d1fae5; color: #065f46; }
 .badge-admin { background: #e5e7eb; color: #374151; }
+.badge-bloc { background: #e9d5ff; color: #6b21a8; }
 </style></head><body>
 <div class="content-wrapper">
 <div class="header">
-<img src="${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/logo/clinique-logo.png" class="logo" onerror="this.style.display='none'">
 <h1>Planning des Secrétaires</h1>
 <p class="period">Semaine du ${weekStart} au ${weekEnd}</p>
 </div>
@@ -211,13 +263,98 @@ function renderCard(sec: any, getDayName: (date: string) => string): string {
 <div class="secretary-name">${sec.name}</div>
 ${sec.byDay.map(([date, day]: [string, any]) => {
   const dayName = getDayName(date);
-  const canMerge = day.matin && day.apresMidi && day.matin.site === day.apresMidi.site && day.matin.type === day.apresMidi.type;
+  
+  // Check if we can merge morning and afternoon
+  const canMerge = day.matin && day.apresMidi && 
+                   day.matin.site === day.apresMidi.site && 
+                   day.matin.type === day.apresMidi.type;
   
   if (canMerge) {
-    return `<div class="day-block"><div class="day-title">${dayName} ${date}</div><div class="time-row"><div class="time">07:30-17:00</div><div class="content"><div class="site">${day.matin.type === 'administratif' ? 'Administratif' : day.matin.site}</div><div class="badges">${day.matin.is1R || day.apresMidi.is1R ? '<span class="badge badge-1r">1R</span>' : ''}${day.matin.is2F || day.apresMidi.is2F ? '<span class="badge badge-2f">2F</span>' : ''}${day.matin.type === 'administratif' ? '<span class="badge badge-admin">Admin</span>' : ''}</div></div></div></div>`;
+    // Merged view
+    const assignment = day.matin;
+    const is1R = day.matin.is1R || day.apresMidi.is1R;
+    const is2F = day.matin.is2F || day.apresMidi.is2F;
+    const is3F = day.matin.is3F || day.apresMidi.is3F;
+    
+    return `<div class="day-block">
+<div class="day-title">${dayName} ${date}</div>
+<div class="time-row">
+<div class="time">07:30-17:00</div>
+<div class="content">
+${renderAssignmentContent(assignment, is1R, is2F, is3F)}
+</div>
+</div>
+</div>`;
   }
   
-  return `<div class="day-block"><div class="day-title">${dayName} ${date}</div>${day.matin ? `<div class="time-row"><div class="time">07:30-12:00</div><div class="content"><div class="site">${day.matin.type === 'administratif' ? 'Administratif' : day.matin.site}</div><div class="badges">${day.matin.is1R ? '<span class="badge badge-1r">1R</span>' : ''}${day.matin.is2F ? '<span class="badge badge-2f">2F</span>' : ''}${day.matin.type === 'administratif' ? '<span class="badge badge-admin">Admin</span>' : ''}</div></div></div>` : ''}${day.apresMidi ? `<div class="time-row"><div class="time">13:00-17:00</div><div class="content"><div class="site">${day.apresMidi.type === 'administratif' ? 'Administratif' : day.apresMidi.site}</div><div class="badges">${day.apresMidi.is1R ? '<span class="badge badge-1r">1R</span>' : ''}${day.apresMidi.is2F ? '<span class="badge badge-2f">2F</span>' : ''}${day.apresMidi.type === 'administratif' ? '<span class="badge badge-admin">Admin</span>' : ''}</div></div></div>` : ''}</div>`;
+  // Separate morning and afternoon
+  return `<div class="day-block">
+<div class="day-title">${dayName} ${date}</div>
+${day.matin ? `<div class="time-row">
+<div class="time">07:30-12:00</div>
+<div class="content">
+${renderAssignmentContent(day.matin, day.matin.is1R, day.matin.is2F, day.matin.is3F)}
+</div>
+</div>` : ''}
+${day.apresMidi ? `<div class="time-row">
+<div class="time">13:00-17:00</div>
+<div class="content">
+${renderAssignmentContent(day.apresMidi, day.apresMidi.is1R, day.apresMidi.is2F, day.apresMidi.is3F)}
+</div>
+</div>` : ''}
+</div>`;
 }).join('')}
 </div>`;
+}
+
+function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: boolean, is3F: boolean): string {
+  let siteName = '';
+  let badges = '';
+  
+  if (assignment.type === 'administratif') {
+    siteName = 'Administratif';
+    badges = '<span class="badge badge-admin">Administratif</span>';
+  } else if (assignment.type === 'bloc') {
+    siteName = 'Bloc opératoire';
+    const blocBadges = [];
+    if (assignment.salle) {
+      blocBadges.push(`<span class="badge badge-bloc">${assignment.salle}</span>`);
+    }
+    if (assignment.typeBesoinBloc) {
+      const labels: Record<string, string> = {
+        'instrumentaliste': 'Instrumentaliste',
+        'aide_de_salle': 'Aide de salle',
+        'bloc_dermato_accueil': 'Accueil Dermato',
+        'bloc_ophtalmo_accueil': 'Accueil Ophtalmo',
+        'anesthesiste': 'Anesthésiste'
+      };
+      const label = labels[assignment.typeBesoinBloc] || assignment.typeBesoinBloc;
+      blocBadges.push(`<span class="badge badge-bloc">${label}</span>`);
+    }
+    badges = blocBadges.join('');
+  } else {
+    // type === 'site'
+    siteName = assignment.site;
+    const siteBadges = [];
+    
+    if (is1R) {
+      siteBadges.push('<span class="badge badge-1r">1R</span>');
+    }
+    if (is2F) {
+      siteBadges.push('<span class="badge badge-2f">2F</span>');
+    }
+    if (is3F) {
+      siteBadges.push('<span class="badge badge-3f">3F</span>');
+    }
+    
+    // If no responsibility badge, add "1" badge
+    if (!is1R && !is2F && !is3F) {
+      siteBadges.push('<span class="badge badge-1">1</span>');
+    }
+    
+    badges = siteBadges.join('');
+  }
+  
+  return `<div class="site">${siteName}</div>
+<div class="badges">${badges}</div>`;
 }
