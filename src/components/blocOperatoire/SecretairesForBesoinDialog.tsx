@@ -40,7 +40,7 @@ export function SecretairesForBesoinDialog({
   const [secretaireBesoins, setSecretaireBesoins] = useState<SecretaireBesoin[]>([]);
   const [availableSecretaires, setAvailableSecretaires] = useState<Secretaire[]>([]);
   const [selectedSecretaireId, setSelectedSecretaireId] = useState<string>('');
-  const [newPreference, setNewPreference] = useState<string>('5');
+  const [newPreference, setNewPreference] = useState<string>('3');
   const [loading, setLoading] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -124,7 +124,7 @@ export function SecretairesForBesoinDialog({
       });
 
       setSelectedSecretaireId('');
-      setNewPreference('5');
+      setNewPreference('3');
       fetchData();
     } catch (error) {
       console.error('Erreur:', error);
@@ -226,7 +226,7 @@ export function SecretairesForBesoinDialog({
                             Préférence:
                           </label>
                           <Select
-                            value={sb.preference?.toString() || '5'}
+                            value={sb.preference?.toString() || '3'}
                             onValueChange={(value) =>
                               handleUpdatePreference(sb.id, parseInt(value))
                             }
@@ -235,7 +235,7 @@ export function SecretairesForBesoinDialog({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-popover z-50">
-                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                              {[1, 2, 3].map((num) => (
                                 <SelectItem key={num} value={num.toString()}>
                                   {num}
                                 </SelectItem>
@@ -294,7 +294,7 @@ export function SecretairesForBesoinDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        {[1, 2, 3].map((num) => (
                           <SelectItem key={num} value={num.toString()}>
                             {num}
                           </SelectItem>
