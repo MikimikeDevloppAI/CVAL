@@ -1178,25 +1178,37 @@ export default function PlanningPage() {
 
           {/* View Selector */}
           <div className="flex justify-start mb-4">
-            <div className="inline-flex rounded-lg border p-1 bg-muted">
-              <Button
-                variant={planningView === 'site' ? 'default' : 'ghost'}
-                size="sm"
+            <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
+              <button
                 onClick={() => setPlanningView('site')}
-                className="gap-2"
+                className={`
+                  relative px-4 py-2.5 rounded-lg font-medium text-sm
+                  transition-all duration-200 ease-in-out
+                  flex items-center gap-2
+                  ${planningView === 'site' 
+                    ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  }
+                `}
               >
                 <Building2 className="h-4 w-4" />
-                Par site
-              </Button>
-              <Button
-                variant={planningView === 'secretary' ? 'default' : 'ghost'}
-                size="sm"
+                <span>Par site</span>
+              </button>
+              <button
                 onClick={() => setPlanningView('secretary')}
-                className="gap-2"
+                className={`
+                  relative px-4 py-2.5 rounded-lg font-medium text-sm
+                  transition-all duration-200 ease-in-out
+                  flex items-center gap-2
+                  ${planningView === 'secretary' 
+                    ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  }
+                `}
               >
                 <Users className="h-4 w-4" />
-                Par secrétaire
-              </Button>
+                <span>Par secrétaire</span>
+              </button>
             </div>
           </div>
 
