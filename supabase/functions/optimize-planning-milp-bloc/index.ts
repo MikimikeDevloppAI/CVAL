@@ -253,49 +253,119 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
     }
   }
   
-  // Sort by priority: operations with preferred room first
-  const sorted = operations.sort((a, b) => {
-    const typeA = typesMap.get(a.type_intervention_id);
-    const typeB = typesMap.get(b.type_intervention_id);
-    if (typeA?.salle_preferentielle && !typeB?.salle_preferentielle) return -1;
-    if (!typeA?.salle_preferentielle && typeB?.salle_preferentielle) return 1;
-    return a.date.localeCompare(b.date) || a.demi_journee.localeCompare(b.demi_journee);
-  });
+  // Group operations by date, demi_journee, and type_intervention_id
+  const groupedOps = new Map<string, any[]>();
+  for (const op of operations) {
+    const key = `${op.date}_${op.demi_journee}_${op.type_intervention_id}`;
+    if (!groupedOps.has(key)) groupedOps.set(key, []);
+    groupedOps.get(key)!.push(op);
+  }
   
-  for (const operation of sorted) {
-    const typeIntervention = typesMap.get(operation.type_intervention_id);
-    let assignedRoom = null;
+  console.log(`📦 Grouped operations into ${groupedOps.size} groups for multi-flux detection`);
+  
+  // Process each group and check for multi-flux configurations
+  const processedOps = new Set<string>();
+  
+  for (const [groupKey, groupOps] of groupedOps.entries()) {
+    const [date, demi_journee, type_intervention_id] = groupKey.split('_');
+    const count = groupOps.length;
     
-    // Try preferred room first
-    if (typeIntervention?.salle_preferentielle) {
-      const preferred = typeIntervention.salle_preferentielle;
-      if (isRoomAvailable(preferred, operation.date, operation.demi_journee, roomSchedules)) {
-        assignedRoom = preferred;
-      }
-    }
-    
-    // Fallback: first available room
-    if (!assignedRoom) {
-      for (const room of ['rouge', 'verte', 'jaune']) {
-        if (isRoomAvailable(room, operation.date, operation.demi_journee, roomSchedules)) {
-          assignedRoom = room;
-          break;
+    if (count >= 2) {
+      // Look for multi-flux configuration
+      const targetType = count === 2 ? 'double_flux' : count === 3 ? 'triple_flux' : null;
+      
+      if (targetType) {
+        const config = multiFluxConfigs.find(c => 
+          c.type_flux === targetType &&
+          c.configurations_multi_flux_interventions?.some((i: any) => i.type_intervention_id === type_intervention_id)
+        );
+        
+        if (config) {
+          console.log(`✓ Found ${targetType} config for type ${type_intervention_id}: ${config.nom}`);
+          
+          // Get interventions with their assigned rooms
+          const interventions = config.configurations_multi_flux_interventions
+            .filter((i: any) => i.type_intervention_id === type_intervention_id)
+            .sort((a: any, b: any) => a.ordre - b.ordre);
+          
+          if (interventions.length === count) {
+            // Assign rooms according to configuration
+            let allRoomsAvailable = true;
+            const roomsToAssign: string[] = [];
+            
+            for (const intervention of interventions) {
+              const room = intervention.salle;
+              if (!isRoomAvailable(room, date, demi_journee, roomSchedules)) {
+                allRoomsAvailable = false;
+                console.warn(`⚠️ Room ${room} not available for multi-flux config ${config.nom}`);
+                break;
+              }
+              roomsToAssign.push(room);
+            }
+            
+            if (allRoomsAvailable) {
+              // Assign operations to rooms from configuration
+              for (let i = 0; i < groupOps.length; i++) {
+                const operation = groupOps[i];
+                const assignedRoom = roomsToAssign[i];
+                
+                roomSchedules[assignedRoom][date][demi_journee].push(operation.id);
+                assignments.push({
+                  operation_id: operation.id,
+                  salle: assignedRoom,
+                  demi_journee: operation.demi_journee
+                });
+                processedOps.add(operation.id + '_' + operation.demi_journee);
+              }
+              
+              console.log(`✓ Assigned ${count} operations using ${targetType} config: ${roomsToAssign.join(', ')}`);
+              continue;
+            }
+          }
         }
       }
     }
     
-    if (!assignedRoom) {
-      console.warn(`⚠️ Cannot assign room for operation ${operation.id}`);
-      continue;
+    // Fallback: no multi-flux config or not available, assign individually
+    for (const operation of groupOps) {
+      const opKey = operation.id + '_' + operation.demi_journee;
+      if (processedOps.has(opKey)) continue;
+      
+      const typeIntervention = typesMap.get(operation.type_intervention_id);
+      let assignedRoom = null;
+      
+      // Try preferred room first
+      if (typeIntervention?.salle_preferentielle) {
+        const preferred = typeIntervention.salle_preferentielle;
+        if (isRoomAvailable(preferred, operation.date, operation.demi_journee, roomSchedules)) {
+          assignedRoom = preferred;
+        }
+      }
+      
+      // Fallback: first available room
+      if (!assignedRoom) {
+        for (const room of ['rouge', 'verte', 'jaune']) {
+          if (isRoomAvailable(room, operation.date, operation.demi_journee, roomSchedules)) {
+            assignedRoom = room;
+            break;
+          }
+        }
+      }
+      
+      if (!assignedRoom) {
+        console.warn(`⚠️ Cannot assign room for operation ${operation.id}`);
+        continue;
+      }
+      
+      roomSchedules[assignedRoom][operation.date][operation.demi_journee].push(operation.id);
+      
+      assignments.push({
+        operation_id: operation.id,
+        salle: assignedRoom,
+        demi_journee: operation.demi_journee
+      });
+      processedOps.add(opKey);
     }
-    
-    roomSchedules[assignedRoom][operation.date][operation.demi_journee].push(operation.id);
-    
-    assignments.push({
-      operation_id: operation.id,
-      salle: assignedRoom,
-      demi_journee: operation.demi_journee
-    });
   }
   
   return assignments;
