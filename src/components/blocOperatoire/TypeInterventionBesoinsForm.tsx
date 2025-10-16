@@ -241,17 +241,29 @@ export function TypeInterventionBesoinsForm({
             <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
               <div className="space-y-2">
                 <Label>Sélectionner un rôle</Label>
-                <Select value={selectedNewBesoin} onValueChange={setSelectedNewBesoin}>
+                <Select 
+                  value={selectedNewBesoin || undefined} 
+                  onValueChange={(value) => {
+                    console.log('Selected besoin:', value);
+                    setSelectedNewBesoin(value);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir un rôle..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableBesoins.map((besoin) => (
-                      <SelectItem key={besoin.id} value={besoin.id}>
-                        {besoin.nom}
-                        {besoin.categorie && ` (${besoin.categorie})`}
-                      </SelectItem>
-                    ))}
+                    {availableBesoins.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        Tous les rôles ont déjà été ajoutés
+                      </div>
+                    ) : (
+                      availableBesoins.map((besoin) => (
+                        <SelectItem key={besoin.id} value={besoin.id}>
+                          {besoin.nom}
+                          {besoin.categorie && ` (${besoin.categorie})`}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -283,7 +295,7 @@ export function TypeInterventionBesoinsForm({
                 <Button
                   size="sm"
                   onClick={handleAddBesoin}
-                  disabled={!selectedNewBesoin}
+                  disabled={!selectedNewBesoin || newBesoinNombre < 1}
                 >
                   Ajouter
                 </Button>
