@@ -22,6 +22,7 @@ interface MissingNeed {
   site_id?: string;
   type_intervention_nom?: string;
   type_intervention_code?: string;
+  besoin_operation_nom?: string;
   required: number;
   assigned: number;
   missing: number;
@@ -188,7 +189,7 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
       // Fetch bloc missing rows only: operations with unassigned personnel
       const { data: blocMissingRows, error: blocMissingError } = await supabase
         .from('planning_genere_personnel')
-        .select('planning_genere_bloc_operatoire_id, date, periode')
+        .select('planning_genere_bloc_operatoire_id, date, periode, besoin_operation_id')
         .eq('type_assignation', 'bloc')
         .is('secretaire_id', null)
         .gte('date', startDateStr)
@@ -199,6 +200,11 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
       // Build set of operation IDs to fetch labels for
       const opIds = Array.from(new Set((blocMissingRows || [])
         .map((r: any) => r.planning_genere_bloc_operatoire_id)
+        .filter(Boolean)));
+
+      // Build set of besoin_operation_id to fetch names
+      const besoinOpIds = Array.from(new Set((blocMissingRows || [])
+        .map((r: any) => r.besoin_operation_id)
         .filter(Boolean)));
 
       let opLabelMap = new Map<string, { nom?: string; code?: string }>();
@@ -215,18 +221,32 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
           .map((op: any) => op.id));
       }
 
+      // Fetch besoin_operation names
+      let besoinOpNamesMap = new Map<string, string>();
+      if (besoinOpIds.length > 0) {
+        const { data: besoinOpsData, error: besoinOpsError } = await supabase
+          .from('besoins_operations')
+          .select('id, nom')
+          .in('id', besoinOpIds);
+        if (besoinOpsError) throw besoinOpsError;
+        besoinOpNamesMap = new Map((besoinOpsData || []).map((b: any) => [b.id, b.nom]));
+      }
+
       // Each missing row corresponds to exactly one unassigned need
       for (const row of blocMissingRows || []) {
         if (typeof allowedOps !== 'undefined' && row.planning_genere_bloc_operatoire_id && !allowedOps.has(row.planning_genere_bloc_operatoire_id)) {
           continue;
         }
         const labels = opLabelMap.get(row.planning_genere_bloc_operatoire_id) || {};
+        const besoinOpNom = row.besoin_operation_id ? besoinOpNamesMap.get(row.besoin_operation_id) : undefined;
+        
         missing.push({
           date: row.date,
           periode: row.periode as 'matin' | 'apres_midi',
           type: 'bloc',
           type_intervention_nom: labels.nom,
           type_intervention_code: labels.code,
+          besoin_operation_nom: besoinOpNom,
           required: 1,
           assigned: 0,
           missing: 1,
@@ -308,7 +328,9 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
                         <span className="text-sm font-medium truncate">{need.site_nom}</span>
                       ) : (
                         <>
-                          <span className="text-sm font-medium truncate">{need.type_intervention_nom}</span>
+                          <span className="text-sm font-medium truncate">
+                            {need.besoin_operation_nom || need.type_intervention_nom}
+                          </span>
                           {need.type_intervention_code && (
                             <Badge variant="secondary" className="text-xs flex-shrink-0">
                               {need.type_intervention_code}
