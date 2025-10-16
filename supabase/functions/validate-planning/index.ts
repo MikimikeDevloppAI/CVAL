@@ -62,22 +62,6 @@ serve(async (req) => {
 
     console.log(`✓ Planning ${planning_id} marked as validated`);
 
-    // 2. Update all associated planning_genere to confirmed status
-    const { error: creneauxUpdateError } = await supabaseServiceRole
-      .from('planning_genere')
-      .update({
-        statut: 'confirme',
-        updated_at: new Date().toISOString()
-      })
-      .eq('planning_id', planning_id);
-
-    if (creneauxUpdateError) {
-      console.error('❌ Error updating planning_genere:', creneauxUpdateError);
-      throw creneauxUpdateError;
-    }
-
-    console.log(`✓ All planning_genere entries marked as confirmed`);
-
     return new Response(JSON.stringify({
       success: true,
       message: 'Planning validated successfully'
