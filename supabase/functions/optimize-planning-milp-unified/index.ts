@@ -868,6 +868,11 @@ serve(async (req) => {
           const capKey = `${sec.id}_${date}_${periode}`;
           if (!capacitesMap.has(capKey)) continue;
 
+          // Pour les secrétaires flexibles, on ne force PAS l'assignation obligatoire
+          if (sec.horaire_flexible) {
+            continue;
+          }
+
           // Cette secrétaire a une capacité pour cette date/période
           // Elle DOIT être assignée à au moins quelque chose (bloc, site ou admin)
           const mandatoryConstraint = `mandatory_${sec.id}_${date}_${periode}`;
