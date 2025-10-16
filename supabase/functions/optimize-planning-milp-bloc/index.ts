@@ -327,44 +327,105 @@ function assignRooms(operations: any[], typesMap: Map<string, any>, multiFluxCon
     }
     
     // Fallback: no multi-flux config or not available, assign individually
-    for (const operation of groupOps) {
-      const opKey = operation.id + '_' + operation.demi_journee;
-      if (processedOps.has(opKey)) continue;
+    // But respect preferences and handle conflicts
+    const remainingOps = groupOps.filter(op => !processedOps.has(op.id + '_' + op.demi_journee));
+    
+    if (remainingOps.length > 0) {
+      // Group by preference
+      const byPreference = new Map<string, any[]>();
+      const noPreference: any[] = [];
       
-      const typeIntervention = typesMap.get(operation.type_intervention_id);
-      let assignedRoom = null;
-      
-      // Try preferred room first
-      if (typeIntervention?.salle_preferentielle) {
-        const preferred = typeIntervention.salle_preferentielle;
-        if (isRoomAvailable(preferred, operation.date, operation.demi_journee, roomSchedules)) {
-          assignedRoom = preferred;
+      for (const op of remainingOps) {
+        const typeIntervention = typesMap.get(op.type_intervention_id);
+        const pref = typeIntervention?.salle_preferentielle;
+        
+        if (pref) {
+          if (!byPreference.has(pref)) byPreference.set(pref, []);
+          byPreference.get(pref)!.push(op);
+        } else {
+          noPreference.push(op);
         }
       }
       
-      // Fallback: first available room
-      if (!assignedRoom) {
-        for (const room of ['rouge', 'verte', 'jaune']) {
-          if (isRoomAvailable(room, operation.date, operation.demi_journee, roomSchedules)) {
-            assignedRoom = room;
-            break;
+      // Assign operations with preferences
+      for (const [preferredRoom, ops] of byPreference.entries()) {
+        // Check if preferred room is available
+        if (isRoomAvailable(preferredRoom, date, demi_journee, roomSchedules) && ops.length === 1) {
+          // Single operation with preference: assign to preferred room
+          const op = ops[0];
+          roomSchedules[preferredRoom][date][demi_journee].push(op.id);
+          assignments.push({
+            operation_id: op.id,
+            salle: preferredRoom,
+            demi_journee: op.demi_journee
+          });
+          processedOps.add(op.id + '_' + op.demi_journee);
+        } else {
+          // Multiple ops want same room OR room not available: distribute randomly
+          const shuffled = [...ops].sort(() => Math.random() - 0.5);
+          
+          for (const op of shuffled) {
+            const opKey = op.id + '_' + op.demi_journee;
+            if (processedOps.has(opKey)) continue;
+            
+            let assignedRoom = null;
+            
+            // Try preferred room first
+            if (isRoomAvailable(preferredRoom, date, demi_journee, roomSchedules)) {
+              assignedRoom = preferredRoom;
+            } else {
+              // Fallback: first available room
+              for (const room of ['rouge', 'verte', 'jaune']) {
+                if (isRoomAvailable(room, date, demi_journee, roomSchedules)) {
+                  assignedRoom = room;
+                  break;
+                }
+              }
+            }
+            
+            if (!assignedRoom) {
+              console.warn(`⚠️ Cannot assign room for operation ${op.id}`);
+              continue;
+            }
+            
+            roomSchedules[assignedRoom][date][demi_journee].push(op.id);
+            assignments.push({
+              operation_id: op.id,
+              salle: assignedRoom,
+              demi_journee: op.demi_journee
+            });
+            processedOps.add(opKey);
           }
         }
       }
       
-      if (!assignedRoom) {
-        console.warn(`⚠️ Cannot assign room for operation ${operation.id}`);
-        continue;
+      // Assign operations without preference (distribute randomly)
+      const shuffledNoPreference = [...noPreference].sort(() => Math.random() - 0.5);
+      for (const op of shuffledNoPreference) {
+        const opKey = op.id + '_' + op.demi_journee;
+        if (processedOps.has(opKey)) continue;
+        
+        let assignedRoom = null;
+        for (const room of ['rouge', 'verte', 'jaune']) {
+          if (isRoomAvailable(room, date, demi_journee, roomSchedules)) {
+            assignedRoom = room;
+            break;
+          }
+        }
+        
+        if (!assignedRoom) {
+          console.warn(`⚠️ Cannot assign room for operation ${op.id}`);
+          continue;
+        }
+        
+        roomSchedules[assignedRoom][date][demi_journee].push(op.id);
+        assignments.push({
+          operation_id: op.id,
+          salle: assignedRoom,
+          demi_journee: op.demi_journee
+        });
+        processedOps.add(opKey);
       }
-      
-      roomSchedules[assignedRoom][operation.date][operation.demi_journee].push(operation.id);
-      
-      assignments.push({
-        operation_id: operation.id,
-        salle: assignedRoom,
-        demi_journee: operation.demi_journee
-      });
-      processedOps.add(opKey);
     }
   }
   
