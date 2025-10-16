@@ -61,14 +61,27 @@ export function AddSecretaryAssignmentsDialog({
 
   const fetchSites = async () => {
     try {
-      const { data, error } = await supabase
-        .from('sites')
-        .select('id, nom')
-        .eq('actif', true)
-        .order('nom');
+      // Get only sites assigned to this secretary
+      const { data: secretarySites, error: ssError } = await supabase
+        .from('secretaires_sites')
+        .select(`
+          sites!inner (
+            id,
+            nom,
+            actif
+          )
+        `)
+        .eq('secretaire_id', secretaryId);
 
-      if (error) throw error;
-      setSites(data || []);
+      if (ssError) throw ssError;
+
+      // Filter only active sites and extract them
+      const activeSites = (secretarySites || [])
+        .filter((ss: any) => ss.sites?.actif)
+        .map((ss: any) => ss.sites)
+        .sort((a: any, b: any) => a.nom.localeCompare(b.nom, 'fr'));
+
+      setSites(activeSites);
     } catch (error) {
       console.error('Error fetching sites:', error);
       toast({
