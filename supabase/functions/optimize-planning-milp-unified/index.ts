@@ -2,6 +2,35 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
+// Utilitaires pour semaine ISO (lundi-dimanche)
+function getISOWeek(date: Date): number {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+function getISOWeekYear(date: Date): number {
+  const d = new Date(date);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  return d.getFullYear();
+}
+
+function getDateFromISOWeek(year: number, week: number, dayOfWeek: number): string {
+  const jan4 = new Date(year, 0, 4);
+  const mondayOfWeek1 = new Date(jan4);
+  mondayOfWeek1.setDate(jan4.getDate() - (jan4.getDay() + 6) % 7);
+  const targetDate = new Date(mondayOfWeek1);
+  targetDate.setDate(mondayOfWeek1.getDate() + (week - 1) * 7 + (dayOfWeek - 1));
+  return targetDate.toISOString().split('T')[0];
+}
+
+function isWeekday(dateStr: string): boolean {
+  const dow = new Date(dateStr).getDay();
+  return dow >= 1 && dow <= 5; // Lundi=1 à Vendredi=5
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -430,12 +459,78 @@ serve(async (req) => {
     const flexibleSecretaires = secretaires.filter((s) => s.horaire_flexible && s.actif);
     console.log(`${flexibleSecretaires.length} secrétaires flexibles trouvées`);
     
+    // Déterminer la semaine ISO de la première date sélectionnée
+    const firstDateFlex = new Date(selected_dates[0]);
+    const isoWeek = getISOWeek(firstDateFlex);
+    const isoYear = getISOWeekYear(firstDateFlex);
+
+    // Calculer le lundi et vendredi de cette semaine ISO
+    const mondayOfWeek = getDateFromISOWeek(isoYear, isoWeek, 1); // Lundi (jour 1)
+    const fridayOfWeek = getDateFromISOWeek(isoYear, isoWeek, 5); // Vendredi (jour 5)
+
+    console.log(`📅 Semaine ISO ${isoWeek}/${isoYear}: ${mondayOfWeek} → ${fridayOfWeek}`);
+
+    // Récupérer les assignations existantes pour les flexibles dans cette semaine
+    const flexibleIds = flexibleSecretaires.map(s => s.id);
+    const { data: existingAssignments, error: existingError } = await supabase
+      .from('planning_genere_personnel')
+      .select('secretaire_id, date, periode')
+      .in('secretaire_id', flexibleIds)
+      .gte('date', mondayOfWeek)
+      .lte('date', fridayOfWeek);
+
+    if (existingError) {
+      console.error("Erreur récupération assignations existantes:", existingError);
+      throw existingError;
+    }
+
+    // Compter les jours OUVRABLES déjà travaillés par secrétaire
+    const joursDejaTravailes = new Map<string, Set<string>>();
+    for (const assign of existingAssignments || []) {
+      // FILTRER : ne compter que les jours ouvrables (lundi-vendredi)
+      if (!isWeekday(assign.date)) {
+        continue; // Ignorer samedi/dimanche
+      }
+      
+      if (!joursDejaTravailes.has(assign.secretaire_id)) {
+        joursDejaTravailes.set(assign.secretaire_id, new Set());
+      }
+      // Un jour complet = matin + après-midi, on compte uniquement les dates uniques
+      joursDejaTravailes.get(assign.secretaire_id)!.add(assign.date);
+    }
+
+    console.log("Jours ouvrables déjà travaillés cette semaine:", 
+      Array.from(joursDejaTravailes.entries()).map(([id, dates]) => {
+        const sec = flexibleSecretaires.find(s => s.id === id);
+        return `  ${sec?.name}: ${dates.size} jours (${Array.from(dates).join(', ')})`;
+      }).join('\n')
+    );
+    
     for (const sec of flexibleSecretaires) {
       const pourcentage = sec.pourcentage_temps ?? 60; // Default 60%
-      const joursComplets = Math.round((pourcentage / 100) * 5); // Sur base 5 jours/semaine
-      console.log(`  ${sec.name}: ${pourcentage}% = ${joursComplets} jours complets requis`);
+      const joursCompletsTotal = Math.round((pourcentage / 100) * 5); // Quota hebdo total
       
-      // Générer capacités virtuelles pour toute la période
+      // Compter les jours ouvrables déjà travaillés HORS dates sélectionnées
+      const joursDejaSet = joursDejaTravailes.get(sec.id) || new Set<string>();
+      const joursDejaHorsPeriode = Array.from(joursDejaSet).filter(
+        d => !selected_dates.includes(d)
+      ).length;
+      
+      const quotaRestant = Math.max(0, joursCompletsTotal - joursDejaHorsPeriode);
+      
+      console.log(`  ${sec.name} (${pourcentage}%):`);
+      console.log(`    • Quota total: ${joursCompletsTotal} jours/semaine`);
+      console.log(`    • Déjà travaillé: ${joursDejaHorsPeriode} jours cette semaine (hors période opt.)`);
+      console.log(`    • Quota restant: ${quotaRestant} jours`);
+      
+      // Si quota déjà atteint, ne pas générer de capacités
+      if (quotaRestant === 0) {
+        console.log(`    ⚠️ Quota atteint, pas de nouvelles assignations possibles`);
+        (sec as any).quotaJoursComplets = 0;
+        continue;
+      }
+      
+      // Générer capacités virtuelles pour les dates sélectionnées
       let capsGenerated = 0;
       for (const date of selected_dates) {
         const dow = new Date(date).getDay();
@@ -468,10 +563,10 @@ serve(async (req) => {
         }
       }
       
-      console.log(`    → ${capsGenerated} capacités générées (${capsGenerated/2} jours)`);
+      console.log(`    • Capacités générées: ${capsGenerated} demi-journées (${capsGenerated/2} jours max)`);
       
-      // Stocker le quota de jours complets pour contraintes ultérieures
-      (sec as any).quotaJoursComplets = joursComplets;
+      // Stocker le quota RESTANT (pas le total)
+      (sec as any).quotaJoursComplets = quotaRestant;
     }
     
     console.log(`✓ Capacités flexibles générées`);
