@@ -48,6 +48,7 @@ interface SwapOption extends PersonnelOption {
   assignment_id: string;
   type_besoin: string | null;
   operation_nom: string;
+  is_same_operation?: boolean;
 }
 
 export default function ChangePersonnelDialog({
@@ -60,9 +61,8 @@ export default function ChangePersonnelDialog({
   const [loading, setLoading] = useState(false);
   const [availablePersonnel, setAvailablePersonnel] = useState<PersonnelOption[]>([]);
   const [swapPersonnel, setSwapPersonnel] = useState<SwapOption[]>([]);
-  const [sameOpPersonnel, setSameOpPersonnel] = useState<SwapOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
-  const [action, setAction] = useState<'reassign' | 'swap_other_operation' | 'swap_same_operation' | 'remove'>('reassign');
+  const [action, setAction] = useState<'reassign' | 'swap' | 'remove'>('reassign');
 
   useEffect(() => {
     if (open) {
@@ -108,8 +108,9 @@ export default function ChangePersonnelDialog({
       const available = eligible.filter(p => !assignedIds.has(p.id));
       setAvailablePersonnel(available);
 
-      // 3. Récupérer le personnel de la même opération (rôles différents)
+      // 3. Récupérer le personnel échangeable (même opération ou autres opérations)
       if (assignment.secretaire_id) {
+        // 3a. Personnel de la même opération (rôles différents)
         const { data: sameOp, error: sameOpError } = await supabase
           .from('planning_genere_personnel')
           .select(`
@@ -137,15 +138,12 @@ export default function ChangePersonnelDialog({
           .eq('id', assignment.secretaire_id)
           .single();
 
-        // Vérification bidirectionnelle : les deux peuvent faire le rôle de l'autre
+        // Vérification bidirectionnelle pour même opération
         const validSameOp = (sameOp || [])
           .filter(s => {
             if (!s.secretaires || !currentSecretaire || !assignment.type_besoin || !s.type_besoin_bloc) return false;
             
-            // La personne cible peut-elle faire le rôle actuel ?
             const targetCanDoCurrentRole = canPerformBlocRole(s.secretaires, assignment.type_besoin);
-            
-            // La personne actuelle peut-elle faire le rôle cible ?
             const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
             
             return targetCanDoCurrentRole && currentCanDoTargetRole;
@@ -154,13 +152,12 @@ export default function ChangePersonnelDialog({
             ...s.secretaires!,
             assignment_id: s.id,
             type_besoin: s.type_besoin_bloc,
-            operation_nom: assignment.operation_nom
+            operation_nom: `${assignment.operation_nom} (même opération)`,
+            is_same_operation: true
           }));
 
-        setSameOpPersonnel(validSameOp);
-
-        // 4. Récupérer le personnel échangeable (autres opérations, même type de besoin)
-        const { data: swappable, error: swapError } = await supabase
+        // 3b. Personnel d'autres opérations
+        const { data: otherOps, error: otherOpsError } = await supabase
           .from('planning_genere_personnel')
           .select(`
             id,
@@ -179,23 +176,32 @@ export default function ChangePersonnelDialog({
           .eq('date', assignment.date)
           .eq('periode', assignment.periode)
           .eq('type_assignation', 'bloc')
-          .eq('type_besoin_bloc', assignment.type_besoin as any)
           .neq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
           .neq('id', assignment.id)
           .not('secretaire_id', 'is', null);
 
-        if (swapError) throw swapError;
+        if (otherOpsError) throw otherOpsError;
 
-        const validSwaps = (swappable || [])
-          .filter(s => s.secretaires && assignment.type_besoin && canPerformBlocRole(s.secretaires, assignment.type_besoin))
+        // Vérification pour autres opérations
+        const validOtherOps = (otherOps || [])
+          .filter(s => {
+            if (!s.secretaires || !currentSecretaire || !s.type_besoin_bloc) return false;
+            
+            const targetCanDoCurrentRole = assignment.type_besoin && canPerformBlocRole(s.secretaires, assignment.type_besoin);
+            const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
+            
+            return targetCanDoCurrentRole && currentCanDoTargetRole;
+          })
           .map(s => ({
             ...s.secretaires!,
             assignment_id: s.id,
             type_besoin: s.type_besoin_bloc,
-            operation_nom: s.operation?.type_intervention?.nom || 'Opération'
+            operation_nom: s.operation?.type_intervention?.nom || 'Opération',
+            is_same_operation: false
           }));
 
-        setSwapPersonnel(validSwaps);
+        // Combiner les deux listes
+        setSwapPersonnel([...validSameOp, ...validOtherOps]);
       }
     } catch (error) {
       console.error('Erreur lors du chargement du personnel:', error);
@@ -234,32 +240,8 @@ export default function ChangePersonnelDialog({
           title: 'Succès',
           description: assignment.secretaire_id ? 'Personnel réassigné avec succès' : 'Personnel assigné avec succès',
         });
-      } else if (action === 'swap_same_operation') {
-        // Échange dans la même opération
-        const targetPerson = sameOpPersonnel.find(p => p.id === selectedPersonId);
-        if (!targetPerson) throw new Error('Personnel cible introuvable');
-
-        // Échanger les deux assignations
-        const { error: error1 } = await supabase
-          .from('planning_genere_personnel')
-          .update({ secretaire_id: targetPerson.id })
-          .eq('id', assignment.id);
-
-        if (error1) throw error1;
-
-        const { error: error2 } = await supabase
-          .from('planning_genere_personnel')
-          .update({ secretaire_id: assignment.secretaire_id })
-          .eq('id', targetPerson.assignment_id);
-
-        if (error2) throw error2;
-
-        toast({
-          title: 'Succès',
-          description: 'Échange effectué dans la même opération',
-        });
-      } else if (action === 'swap_other_operation') {
-        // Échange avec une autre opération
+      } else if (action === 'swap') {
+        // Échange (même opération ou autre opération)
         const targetPerson = swapPersonnel.find(p => p.id === selectedPersonId);
         if (!targetPerson) throw new Error('Personnel cible introuvable');
 
@@ -280,7 +262,9 @@ export default function ChangePersonnelDialog({
 
         toast({
           title: 'Succès',
-          description: 'Échange effectué avec une autre opération',
+          description: targetPerson.is_same_operation 
+            ? 'Échange effectué dans la même opération' 
+            : 'Échange effectué avec une autre opération',
         });
       } else if (action === 'remove') {
         // Retirer le personnel
@@ -387,22 +371,12 @@ export default function ChangePersonnelDialog({
                       </Label>
                     </div>
 
-                    {sameOpPersonnel.length > 0 && (
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="swap_same_operation" id="swap_same_operation" />
-                        <Label htmlFor="swap_same_operation" className="flex items-center gap-2 cursor-pointer">
-                          <RefreshCw className="h-4 w-4" />
-                          Échanger dans la même opération ({sameOpPersonnel.length})
-                        </Label>
-                      </div>
-                    )}
-
                     {swapPersonnel.length > 0 && (
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="swap_other_operation" id="swap_other_operation" />
-                        <Label htmlFor="swap_other_operation" className="flex items-center gap-2 cursor-pointer">
+                        <RadioGroupItem value="swap" id="swap" />
+                        <Label htmlFor="swap" className="flex items-center gap-2 cursor-pointer">
                           <RefreshCw className="h-4 w-4" />
-                          Échanger avec une autre opération ({swapPersonnel.length})
+                          Échanger avec un autre personnel ({swapPersonnel.length})
                         </Label>
                       </div>
                     )}
@@ -444,39 +418,18 @@ export default function ChangePersonnelDialog({
                   </>
                 )}
 
-                {action === 'swap_same_operation' && (
-                  <div className="space-y-2">
-                    <Label>Sélectionner un personnel de la même opération à échanger</Label>
-                    <RadioGroup value={selectedPersonId} onValueChange={setSelectedPersonId}>
-                      {sameOpPersonnel.map(person => (
-                        <div key={person.id} className="flex items-center space-x-2">
-                          <RadioGroupItem value={person.id} id={person.id} />
-                          <Label htmlFor={person.id} className="cursor-pointer flex-1">
-                            <div>
-                              <div>{person.first_name} {person.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Rôle actuel: {getTypeBesoinLabel(person.type_besoin)}
-                              </div>
-                            </div>
-                          </Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  </div>
-                )}
-
-                {action === 'swap_other_operation' && (
+                {action === 'swap' && (
                   <>
                     {swapPersonnel.length === 0 ? (
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                          Aucun échange possible avec d'autres opérations pour ce rôle.
+                          Aucun échange possible pour ce rôle.
                         </AlertDescription>
                       </Alert>
                     ) : (
                       <div className="space-y-2">
-                        <Label>Sélectionner un personnel d'une autre opération à échanger</Label>
+                        <Label>Sélectionner un personnel à échanger</Label>
                         <RadioGroup value={selectedPersonId} onValueChange={setSelectedPersonId}>
                           {swapPersonnel.map(person => (
                             <div key={person.id} className="flex items-center space-x-2">
@@ -485,7 +438,7 @@ export default function ChangePersonnelDialog({
                                 <div>
                                   <div>{person.first_name} {person.name}</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {person.operation_nom}
+                                    {person.operation_nom} - {getTypeBesoinLabel(person.type_besoin)}
                                   </div>
                                 </div>
                               </Label>
@@ -521,8 +474,7 @@ export default function ChangePersonnelDialog({
           >
             {loading ? 'Chargement...' : 
               action === 'reassign' ? (assignment.secretaire_id ? 'Réassigner' : 'Assigner') :
-              action === 'swap_same_operation' ? 'Échanger' :
-              action === 'swap_other_operation' ? 'Échanger' :
+              action === 'swap' ? 'Échanger' :
               'Retirer'
             }
           </Button>
