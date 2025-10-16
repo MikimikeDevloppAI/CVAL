@@ -45,10 +45,6 @@ export const TypesInterventionManagement = forwardRef<TypesInterventionManagemen
     fetchTypes();
   }, []);
 
-  useEffect(() => {
-    fetchTypes();
-  }, []);
-
   const fetchTypes = async () => {
     try {
       const { data, error } = await supabase
@@ -357,3 +353,5 @@ export const TypesInterventionManagement = forwardRef<TypesInterventionManagemen
     </div>
   );
 });
+
+TypesInterventionManagement.displayName = 'TypesInterventionManagement';
