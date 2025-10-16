@@ -933,7 +933,7 @@ serve(async (req) => {
               if (assignMatin?.type === "site" && assignAM?.type === "site") {
                 // Créer une variable de pénalité
                 const penaltyVar = `penalty_site_change_${sec.id}_${date}_${site1.id}_${site2.id}`;
-                model.variables[penaltyVar] = { score: -50 };
+                model.variables[penaltyVar] = { score: -800 };
                 model.ints[penaltyVar] = 1;
                 variableCount++;
 
