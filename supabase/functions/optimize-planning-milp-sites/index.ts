@@ -324,11 +324,18 @@ async function buildMILP(
       periodsByDate.get(assignment.date)!.add(assignment.periode);
     }
 
-    // Count only FULL days (both matin + apres_midi)
+    // Count only FULL days (both matin + apres_midi) EXCLUDING Saturdays
     const fullDays = new Set<string>();
     for (const [date, periods] of periodsByDate.entries()) {
       if (periods.has('matin') && periods.has('apres_midi')) {
-        fullDays.add(date);
+        // Check if it's a Saturday
+        const dateObj = new Date(date + 'T00:00:00Z');
+        const dayOfWeek = dateObj.getUTCDay(); // 0=Sunday, 6=Saturday
+        
+        // DO NOT count Saturdays in the quota
+        if (dayOfWeek !== 6) {
+          fullDays.add(date);
+        }
       }
     }
 
@@ -767,14 +774,20 @@ async function buildMILP(
       }
 
 
-      // 3. Limit total number of days to requiredDays
+      // 3. Limit total number of days to requiredDays (EXCLUDING Saturdays)
       const maxDaysConstraint = `max_days_${flexSecId}`;
       model.constraints[maxDaysConstraint] = { max: requiredDays };
       
       for (const date of dates) {
-        const dayVar = `d_${flexSecId}_${date}`;
-        if (model.variables[dayVar]) {
-          model.variables[dayVar][maxDaysConstraint] = 1;
+        const dateObj = new Date(date + 'T00:00:00Z');
+        const isSaturday = dateObj.getUTCDay() === 6;
+        
+        // Count only weekdays (Monday-Friday) in the quota
+        if (!isSaturday) {
+          const dayVar = `d_${flexSecId}_${date}`;
+          if (model.variables[dayVar]) {
+            model.variables[dayVar][maxDaysConstraint] = 1;
+          }
         }
       }
     }
