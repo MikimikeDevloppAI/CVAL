@@ -328,6 +328,51 @@ serve(async (req) => {
     console.log(`${blocsOperatoireInserted.length} opérations bloc insérées avec salles assignées`);
 
     // ============================================================
+    // PHASE 1.5: CRÉER LES LIGNES DE PERSONNEL POUR TOUS LES BLOCS
+    // ============================================================
+    console.log("\n--- PHASE 1.5: CRÉATION DES LIGNES PERSONNEL POUR BLOCS ---");
+
+    const personnelRowsCreated: any[] = [];
+    for (const bloc of blocsOperatoireInserted) {
+      // Récupérer les besoins en personnel pour ce type d'intervention
+      const besoinsPersonnel = typesBesoinPersonnel.filter(
+        (tb: any) => tb.type_intervention_id === bloc.type_intervention_id
+      );
+
+      for (const besoinPers of besoinsPersonnel) {
+        const besoinOpId = besoinPers.besoin_operation_id;
+        const nombreRequis = besoinPers.nombre_requis || 1;
+
+        for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+          // Créer la ligne avec secretaire_id = NULL (sera mise à jour par le MILP)
+          const { data: personnelRow, error: personnelError } = await supabase
+            .from("planning_genere_personnel")
+            .insert({
+              planning_id,
+              planning_genere_bloc_operatoire_id: bloc.id,
+              date: bloc.date,
+              periode: bloc.periode,
+              besoin_operation_id: besoinOpId,
+              type_assignation: "bloc",
+              ordre,
+              secretaire_id: null, // Sera assigné par le MILP
+            })
+            .select("*")
+            .single();
+
+          if (personnelError) {
+            console.error(`Erreur création ligne personnel:`, personnelError);
+            continue;
+          }
+
+          personnelRowsCreated.push(personnelRow);
+        }
+      }
+    }
+
+    console.log(`✓ ${personnelRowsCreated.length} lignes personnel créées pour les blocs`);
+
+    // ============================================================
     // PHASE 2: CONSTRUCTION DU MODÈLE MILP
     // ============================================================
     console.log("\n--- PHASE 2: CONSTRUCTION DU MODÈLE MILP ---");
@@ -1029,6 +1074,7 @@ serve(async (req) => {
 
     const blocsToInsert: any[] = [];
     const personnelToInsert: any[] = [];
+    const personnelBlocToUpdate: Array<{row_id: string, secretaire_id: string}> = [];
 
     // Grouper les opérations bloc par (date, periode, type_intervention_id, medecin_id)
     const blocsMap = new Map<string, any>();
@@ -1058,20 +1104,26 @@ serve(async (req) => {
       if (!selected) continue; // Variable non sélectionnée
 
       if (assign.type === "bloc") {
-        // Les blocs ont déjà été créés au début. On crée uniquement le personnel lié au bloc existant.
+        // Les lignes personnel ont déjà été créées en Phase 1.5 avec secretaire_id = NULL
+        // On trouve la ligne correspondante et on la met à jour
         if (!assign.bloc_id) {
           console.warn("Avertissement: bloc_id manquant pour une variable bloc, assign ignoré", assign.varName);
         } else {
-          personnelToInsert.push({
-            planning_id,
-            planning_genere_bloc_operatoire_id: assign.bloc_id,
-            date: assign.date,
-            periode: assign.periode,
-            secretaire_id: assign.secretaire_id,
-            besoin_operation_id: assign.besoin_operation_id,
-            type_assignation: "bloc",
-            ordre: assign.ordre,
-          });
+          const existingRow = personnelRowsCreated.find(
+            (row: any) =>
+              row.planning_genere_bloc_operatoire_id === assign.bloc_id &&
+              row.besoin_operation_id === assign.besoin_operation_id &&
+              row.ordre === assign.ordre
+          );
+
+          if (existingRow) {
+            personnelBlocToUpdate.push({
+              row_id: existingRow.id,
+              secretaire_id: assign.secretaire_id,
+            });
+          } else {
+            console.warn(`⚠️ Ligne personnel non trouvée pour bloc ${assign.bloc_id}, besoin ${assign.besoin_operation_id}, ordre ${assign.ordre}`);
+          }
         }
 
         // Mettre à jour les compteurs de pénalités
@@ -1127,6 +1179,7 @@ serve(async (req) => {
     }
 
     console.log(`${blocsMap.size} opérations bloc à insérer`);
+    console.log(`${personnelBlocToUpdate.length} assignations bloc à mettre à jour`);
     console.log(`${personnelToInsert.length} assignations personnel (site + admin) à insérer`);
     
     // Log diagnostic post-résolution pour chaque site
@@ -1215,7 +1268,23 @@ serve(async (req) => {
       }
     }
 
-    // Insérer tout le personnel
+    // Mettre à jour les assignations bloc (lignes déjà créées en Phase 1.5)
+    if (personnelBlocToUpdate.length > 0) {
+      console.log(`\n🔄 Mise à jour de ${personnelBlocToUpdate.length} assignations bloc...`);
+      for (const update of personnelBlocToUpdate) {
+        const { error: updateError } = await supabase
+          .from("planning_genere_personnel")
+          .update({ secretaire_id: update.secretaire_id })
+          .eq("id", update.row_id);
+
+        if (updateError) {
+          console.error(`Erreur MAJ personnel row ${update.row_id}:`, updateError);
+        }
+      }
+      console.log(`✓ Assignations bloc mises à jour`);
+    }
+
+    // Insérer tout le personnel (sites + admin uniquement, les blocs sont déjà créés)
     if (personnelToInsert.length > 0) {
       const cleaned = personnelToInsert.map((r) => ({
         ...r,
