@@ -427,11 +427,14 @@ serve(async (req) => {
         const capKey = `${sec.id}_${date}_${periode}`;
         if (!capacitesMap.has(capKey)) continue;
 
-        // Vérifier que le site est priorité 1, 2 ou 3 pour cette secrétaire
+        // Vérifier que le site est priorité 1, 2 ou 3 pour cette secrétaire (supporte string ou number)
         const sitesData = secretairesSitesMap.get(sec.id) || [];
         const siteData = sitesData.find((s) => s.site_id === site_id);
-        
-        if (!siteData || ![1, 2, 3].includes(siteData.priorite)) {
+        if (!siteData) {
+          continue; // aucune préférence pour ce site
+        }
+        const prio = typeof siteData.priorite === 'string' ? parseInt(siteData.priorite as any, 10) : siteData.priorite;
+        if (![1, 2, 3].includes(prio as any)) {
           continue; // Ne pas créer de variable si pas priorité 1/2/3
         }
 
@@ -442,15 +445,15 @@ serve(async (req) => {
         for (const medData of medecinsData) {
           const medRelation = secretairesMedecinsMap.get(`${sec.id}_${medData.medecin_id}`)?.[0];
           if (medRelation) {
-            if (medRelation.priorite === 1) score += 10000;
-            else if (medRelation.priorite === 2) score += 6000;
+            if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 10000;
+            else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 6000;
           }
         }
 
         // Score site
-        if (siteData.priorite === 1) score += 800;
-        else if (siteData.priorite === 2) score += 400;
-        else if (siteData.priorite === 3) score += 100;
+        if (prio === 1) score += 800;
+        else if (prio === 2) score += 400;
+        else if (prio === 3) score += 100;
 
         // Pénalité Port-en-Truie progressive
         if (portEnTruieSite && site_id === portEnTruieSite.id) {
@@ -602,10 +605,9 @@ serve(async (req) => {
     console.log(`${flexibleSecretaires.length} secrétaires flexibles`);
 
     for (const sec of flexibleSecretaires) {
-      const percentage = sec.pourcentage_temps || 60;
-      const baseRequiredDays = Math.round((percentage / 100) * 5);
+      const baseRequiredDays = sec.nombre_jours_supplementaires ?? 3;
 
-      // Compter les jours de congé dans la semaine (lundi-vendredi uniquement)
+      // Absences complètes (journée) pour la semaine
       const absencesForSec = absences.filter(
         (a) =>
           a.secretaire_id === sec.id &&
@@ -615,72 +617,44 @@ serve(async (req) => {
           !a.heure_fin
       );
 
-      let vacationDays = 0;
-      for (const absence of absencesForSec) {
-        const start = new Date(Math.max(new Date(absence.date_debut).getTime(), new Date(week_start).getTime()));
-        const end = new Date(Math.min(new Date(absence.date_fin).getTime(), new Date(week_end).getTime()));
-        
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const dayOfWeek = d.getDay();
-          if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Lundi à vendredi seulement
-            vacationDays++;
-          }
-        }
+      // Calcul des jours disponibles: jours ouvrés avec AU MOINS une capacité (matin OU après-midi) et sans congé
+      const candidateDays: string[] = [];
+      for (const date of selected_dates) {
+        const dow = new Date(date).getDay();
+        if (dow < 1 || dow > 5) continue; // Lundi-vendredi
+        const isOnVacation = absencesForSec.some(
+          (a) => date >= a.date_debut && date <= a.date_fin
+        );
+        if (isOnVacation) continue;
+        const hasCap = capacitesMap.has(`${sec.id}_${date}_matin`) || capacitesMap.has(`${sec.id}_${date}_apres_midi`);
+        if (hasCap) candidateDays.push(date);
       }
 
-      // Calculer les jours disponibles (jours ouvrés - congés)
-      const workingDaysInWeek = selected_dates.filter(d => {
-        const dow = new Date(d).getDay();
-        return dow >= 1 && dow <= 5;
-      }).length;
-      
-      const availableDays = workingDaysInWeek - vacationDays;
-      
-      // Si en congé toute la semaine, ne rien assigner (skip)
+      const availableDays = candidateDays.length;
       if (availableDays === 0) {
-        console.log(`  ${sec.name}: 0 jours (en congé toute la semaine)`);
+        console.log(`  ${sec.name}: 0 jours (en congé ou sans capacité toute la semaine)`);
         continue;
       }
 
-      // Le solver choisira les meilleurs jours parmi ceux disponibles
       const requiredDays = Math.min(baseRequiredDays, availableDays);
-      
-      console.log(`  ${sec.name}: ${requiredDays} jours min requis (base: ${baseRequiredDays}, congés: ${vacationDays}, disponibles: ${availableDays})`);
+      console.log(`  ${sec.name}: ${requiredDays} jours min requis (base: ${baseRequiredDays}, disponibles: ${availableDays})`);
 
-      // Créer une contrainte FLEXIBLE (min) pour cette secrétaire
+      // Contrainte min sur la somme des jours choisis
       const flexConstraint = `flex_days_${sec.id}`;
       model.constraints[flexConstraint] = { min: requiredDays };
 
-      // Ajouter toutes les variables de cette secrétaire pour les jours où elle peut travailler
-      for (const date of selected_dates) {
-        const dateObj = new Date(date);
-        const dayOfWeek = dateObj.getDay();
-        
-        // Seulement lundi à vendredi
-        if (dayOfWeek < 1 || dayOfWeek > 5) continue;
-
-        // Vérifier si pas en congé ce jour-là
-        const isOnVacation = absencesForSec.some(
-          (a) => date >= a.date_debut && date <= a.date_fin && !a.heure_debut && !a.heure_fin
-        );
-        if (isOnVacation) continue;
-
-        // Créer une variable binaire pour ce jour (toute la journée)
+      for (const date of candidateDays) {
+        // Variable jour
         const varName = `day_${sec.id}_${date}`;
-        model.variables[varName] = { score: 0 }; // Pas de score, juste pour la contrainte
+        model.variables[varName] = { score: 0 };
         model.ints[varName] = 1;
         variableCount++;
-
-        // Cette variable vaut 1 si la secrétaire travaille ce jour (matin OU après-midi)
         model.variables[varName][flexConstraint] = 1;
 
-        // Lier avec les variables d'assignation
-        // day_var <= sum(assignations matin + assignations après-midi)
+        // Lien avec assignations de ce jour (site, bloc, admin)
         const dayConstraint = `day_link_${sec.id}_${date}`;
         model.constraints[dayConstraint] = { min: 0 };
         model.variables[varName][dayConstraint] = -1;
-
-        // Ajouter toutes les variables d'assignation pour cette secrétaire ce jour-là
         for (const assign of assignments) {
           if (assign.secretaire_id === sec.id && assign.date === date) {
             model.variables[assign.varName][dayConstraint] = 1;
