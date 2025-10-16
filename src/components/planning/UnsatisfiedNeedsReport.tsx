@@ -32,6 +32,7 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
   const [loading, setLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedNeed, setSelectedNeed] = useState<any>(null);
+  const [hasPlanning, setHasPlanning] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +69,25 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
     try {
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      // Vérifier si l'optimiseur a déjà tourné pour cette période
+      const { data: planningCheck, error: planningCheckError } = await supabase
+        .from('planning_genere_personnel')
+        .select('id')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .limit(1);
+
+      if (planningCheckError) throw planningCheckError;
+
+      // Si aucun planning n'existe, ne pas afficher les besoins non satisfaits
+      if (!planningCheck || planningCheck.length === 0) {
+        setHasPlanning(false);
+        setMissingNeeds([]);
+        return;
+      }
+
+      setHasPlanning(true);
 
       // Fetch site needs (besoin_effectif type=medecin)
       const { data: siteBesoinsData, error: siteBesoinsError } = await supabase
@@ -232,6 +252,11 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
   };
 
   if (loading) {
+    return null;
+  }
+
+  // Ne pas afficher si l'optimiseur n'a pas encore tourné
+  if (!hasPlanning) {
     return null;
   }
 
