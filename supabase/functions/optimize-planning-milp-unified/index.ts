@@ -189,9 +189,10 @@ serve(async (req) => {
     if (besoinsEffError) throw besoinsEffError;
     console.log(`✓ ${besoinsEffectifs.length} besoins effectifs chargés`);
 
-    const besoinsBloc = besoinsEffectifs.filter((b) => b.type === "bloc_operatoire");
-    const besoinsMedecins = besoinsEffectifs.filter((b) => b.type === "medecin");
-    console.log(`  - ${besoinsBloc.length} besoins bloc opératoire`);
+    // Construire la liste des opérations à partir de tout besoin_effectif ayant un type_intervention_id
+    const besoinsBloc = besoinsEffectifs.filter((b: any) => !!b.type_intervention_id);
+    const besoinsMedecins = besoinsEffectifs.filter((b: any) => b.type === "medecin");
+    console.log(`  - ${besoinsBloc.length} opérations détectées (type_intervention_id non nul)`);
     console.log(`  - ${besoinsMedecins.length} besoins médecins`);
 
     // 11. Capacités effectives (disponibilités secrétaires)
@@ -809,37 +810,36 @@ serve(async (req) => {
       if (value < 0.5) continue; // Variable non sélectionnée
 
       if (assign.type === "bloc") {
-        const blocKey = `${assign.date}_${assign.periode}_${assign.type_intervention_id}_${assign.medecin_id || "null"}`;
-        
-        if (!blocsMap.has(blocKey)) {
-          blocsMap.set(blocKey, {
+        // Les blocs ont déjà été créés au début. On crée uniquement le personnel lié au bloc existant.
+        if (!assign.bloc_id) {
+          console.warn("Avertissement: bloc_id manquant pour une variable bloc, assign ignoré", assign.varName);
+        } else {
+          personnelToInsert.push({
+            planning_id,
+            planning_genere_bloc_operatoire_id: assign.bloc_id,
             date: assign.date,
             periode: assign.periode,
-            type_intervention_id: assign.type_intervention_id,
-            medecin_id: assign.medecin_id,
-            personnel: [],
+            secretaire_id: assign.secretaire_id,
+            besoin_operation_id: assign.besoin_operation_id,
+            type_assignation: "bloc",
+            ordre: assign.ordre,
           });
         }
 
-        blocsMap.get(blocKey)!.personnel.push({
-          secretaire_id: assign.secretaire_id,
-          besoin_operation_id: assign.besoin_operation_id,
-          ordre: assign.ordre,
-        });
-
         // Mettre à jour les compteurs de pénalités
-        const sec = secretaires.find((s) => s.id === assign.secretaire_id);
+        const sec = secretaires.find((s: any) => s.id === assign.secretaire_id);
         
         // Port-en-Truie
         if (portEnTruieSite) {
           const sitesData = secretairesSitesMap.get(assign.secretaire_id) || [];
-          const sitePref1 = sitesData.find((s) => s.priorite === 1);
+          const sitePref1 = sitesData.find((s: any) => s.priorite === 1);
           if (!sitePref1 || sitePref1.site_id !== portEnTruieSite.id) {
             const count = portEnTruieAssignmentCount.get(assign.secretaire_id) || 0;
             portEnTruieAssignmentCount.set(assign.secretaire_id, count + 1);
           }
         }
-      } else if (assign.type === "site") {
+      }
+      else if (assign.type === "site") {
         personnelToInsert.push({
           planning_id,
           date: assign.date,
