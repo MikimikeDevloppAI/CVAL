@@ -1232,16 +1232,23 @@ export default function PlanningPage() {
                 <p className="text-muted-foreground">Chargement du planning optimisé...</p>
               </CardContent>
             </Card>
-          ) : planningView === 'site' ? (
-            <SitePlanningView
-              startDate={currentWeekStart}
-              endDate={weekEnd}
-            />
           ) : (
-            <SecretaryPlanningView
-              startDate={currentWeekStart}
-              endDate={weekEnd}
-            />
+            <>
+              <div style={{ display: planningView === 'site' ? 'block' : 'none' }}>
+                <SitePlanningView
+                  key="site-view"
+                  startDate={currentWeekStart}
+                  endDate={weekEnd}
+                />
+              </div>
+              <div style={{ display: planningView === 'secretary' ? 'block' : 'none' }}>
+                <SecretaryPlanningView
+                  key="secretary-view"
+                  startDate={currentWeekStart}
+                  endDate={weekEnd}
+                />
+              </div>
+            </>
           )}
         </TabsContent>
       </Tabs>

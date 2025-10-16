@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -58,7 +58,19 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchSitePlanning();
+    let mounted = true;
+    
+    const fetchData = async () => {
+      if (mounted) {
+        await fetchSitePlanning();
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      mounted = false;
+    };
   }, [startDate, endDate]);
 
   const fetchSitePlanning = async () => {

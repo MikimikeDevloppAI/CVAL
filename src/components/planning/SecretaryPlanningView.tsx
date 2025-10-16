@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,7 +55,7 @@ interface SecretaryData {
   }>;
 }
 
-export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningViewProps) {
+export const SecretaryPlanningView = memo(function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningViewProps) {
   const [loading, setLoading] = useState(true);
   const [secretaries, setSecretaries] = useState<SecretaryData[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -66,7 +66,15 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
   const [selectedSecretary, setSelectedSecretary] = useState<{ id: string; name: string; weekSchedule: any[] } | null>(null);
 
   useEffect(() => {
-    fetchSecretaryPlanning();
+    let mounted = true;
+    
+    const fetchData = async () => {
+      if (mounted) {
+        await fetchSecretaryPlanning();
+      }
+    };
+    
+    fetchData();
 
     // Real-time updates
     const channel = supabase
@@ -79,12 +87,15 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
           table: 'planning_genere_personnel'
         },
         () => {
-          fetchSecretaryPlanning();
+          if (mounted) {
+            fetchSecretaryPlanning();
+          }
         }
       )
       .subscribe();
 
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, [startDate, endDate]);
@@ -516,4 +527,4 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
       )}
     </>
   );
-}
+});

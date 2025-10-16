@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, Building2, Scissors, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Separator } from '@/components/ui/separator';
 import { AssignToUnsatisfiedNeedDialog } from './AssignToUnsatisfiedNeedDialog';
@@ -27,14 +27,26 @@ interface MissingNeed {
   missing: number;
 }
 
-export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsReportProps) {
+export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsReportProps) {
   const [missingNeeds, setMissingNeeds] = useState<MissingNeed[]>([]);
   const [loading, setLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedNeed, setSelectedNeed] = useState<any>(null);
 
   useEffect(() => {
-    fetchMissingNeeds();
+    let mounted = true;
+    
+    const fetchData = async () => {
+      if (mounted) {
+        await fetchMissingNeeds();
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      mounted = false;
+    };
   }, [startDate, endDate]);
 
   const handleNeedClick = (need: MissingNeed, plannelPersonnelId?: string) => {
@@ -318,4 +330,4 @@ export function UnsatisfiedNeedsReport({ startDate, endDate }: UnsatisfiedNeedsR
       )}
     </Card>
   );
-}
+});

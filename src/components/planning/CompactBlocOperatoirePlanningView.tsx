@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +65,7 @@ const SALLE_COLORS: Record<string, string> = {
   jaune: 'bg-yellow-100 text-yellow-700 border-yellow-300'
 };
 
-export function CompactBlocOperatoirePlanningView({ startDate, endDate }: CompactBlocOperatoirePlanningViewProps) {
+export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperatoirePlanningView({ startDate, endDate }: CompactBlocOperatoirePlanningViewProps) {
   const [operations, setOperations] = useState<BlocOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -75,7 +75,19 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
   const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
   useEffect(() => {
-    fetchBlocOperations();
+    let mounted = true;
+    
+    const fetchData = async () => {
+      if (mounted) {
+        await fetchBlocOperations();
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      mounted = false;
+    };
   }, [startDate, endDate]);
 
   const handleChangeSalle = (operation: BlocOperation) => {
@@ -300,4 +312,4 @@ export function CompactBlocOperatoirePlanningView({ startDate, endDate }: Compac
       )}
     </Card>
   );
-}
+});
