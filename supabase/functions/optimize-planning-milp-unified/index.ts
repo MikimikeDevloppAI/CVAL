@@ -953,6 +953,57 @@ serve(async (req) => {
     console.log(`✓ Pénalités changement de site ajoutées (uniquement pour assignations site-site)`);
 
     // ============================================================
+    // PHASE 1C-BIS: BONUS MÊME SITE MATIN ET APRÈS-MIDI
+    // ============================================================
+    console.log("\n--- PHASE 1C-BIS: BONUS MÊME SITE ---");
+
+    for (const date of selected_dates) {
+      for (const sec of secretaires) {
+        // Vérifier si la secrétaire peut travailler matin ET après-midi
+        const capMatin = capacitesMap.has(`${sec.id}_${date}_matin`);
+        const capAM = capacitesMap.has(`${sec.id}_${date}_apres_midi`);
+
+        if (!capMatin || !capAM) continue;
+
+        // Pour chaque site, créer un bonus si la secrétaire reste sur ce site toute la journée
+        for (const site of sites) {
+          const varMatin = `y_${sec.id}_${site.id}_${date}_matin`;
+          const varAM = `y_${sec.id}_${site.id}_${date}_apres_midi`;
+
+          // Si les deux variables existent dans le modèle
+          if (model.variables[varMatin] && model.variables[varAM]) {
+            // Créer une variable de bonus
+            const bonusVar = `bonus_same_site_${sec.id}_${date}_${site.id}`;
+            model.variables[bonusVar] = { score: 800 }; // Bonus de 800 pour rester sur le même site
+            model.ints[bonusVar] = 1;
+            variableCount++;
+
+            // Contrainte: bonus_var <= varMatin (si pas au site le matin, pas de bonus)
+            const constraintName1 = `same_site_upper1_${sec.id}_${date}_${site.id}`;
+            model.constraints[constraintName1] = { max: 0 };
+            model.variables[bonusVar][constraintName1] = 1;
+            model.variables[varMatin][constraintName1] = -1;
+
+            // Contrainte: bonus_var <= varAM (si pas au site l'après-midi, pas de bonus)
+            const constraintName2 = `same_site_upper2_${sec.id}_${date}_${site.id}`;
+            model.constraints[constraintName2] = { max: 0 };
+            model.variables[bonusVar][constraintName2] = 1;
+            model.variables[varAM][constraintName2] = -1;
+
+            // Contrainte: bonus_var >= varMatin + varAM - 1 (si les deux à 1, bonus doit être à 1)
+            const constraintName3 = `same_site_lower_${sec.id}_${date}_${site.id}`;
+            model.constraints[constraintName3] = { min: -1 };
+            model.variables[bonusVar][constraintName3] = 1;
+            model.variables[varMatin][constraintName3] = -1;
+            model.variables[varAM][constraintName3] = -1;
+          }
+        }
+      }
+    }
+
+    console.log(`✓ Bonus même site ajoutés`);
+
+    // ============================================================
     // PHASE 1D: VARIABLES ADMINISTRATIVES
     // ============================================================
     console.log("\n--- PHASE 1D: CRÉATION DES VARIABLES ADMINISTRATIVES ---");
