@@ -560,7 +560,10 @@ serve(async (req) => {
         );
         if (alreadyBloc) continue;
 
-        // Vérifier capacité
+        // IMPORTANT: Vérifier capacité INDÉPENDAMMENT du site_id de la capacité
+        // Une capacité signifie que la secrétaire est disponible pour cette demi-journée,
+        // peu importe le site_id stocké dans capacite_effective.
+        // Le site d'assignation est déterminé par les préférences et le solveur.
         const capKey = `${sec.id}_${date}_${periode}`;
         const hasCapacity = capacitesMap.has(capKey);
         
@@ -611,6 +614,21 @@ serve(async (req) => {
         if (prio === 1) score += 8000;
         else if (prio === 2) score += 4000;
         else if (prio === 3) score += 1000;
+
+        // Bonus pour journée complète sur le même site (tie-breaker doux)
+        // Favorise les affectations matin + après-midi au même endroit
+        if (periode === 'apres_midi') {
+          const hasMorningOnSameSite = assignments.some(
+            (a) => a.type === "site" && 
+                   a.secretaire_id === sec.id && 
+                   a.date === date && 
+                   a.periode === 'matin' && 
+                   a.site_id === site_id
+          );
+          if (hasMorningOnSameSite) {
+            score += 500; // Petit bonus pour cohérence journée complète
+          }
+        }
 
         // Pénalité Port-en-Truie progressive
         if (portEnTruieSite && site_id === portEnTruieSite.id) {
