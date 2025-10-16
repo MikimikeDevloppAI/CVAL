@@ -247,7 +247,6 @@ export function BesoinsOperationsManagement() {
             className="flex items-center justify-between p-3 border rounded-lg bg-card"
           >
             <div className="flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${getCategorieColor(besoin.categorie)}`} />
               <div>
                 <div className="font-medium">{besoin.nom}</div>
               </div>
