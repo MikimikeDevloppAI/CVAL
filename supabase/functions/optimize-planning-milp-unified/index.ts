@@ -557,16 +557,15 @@ serve(async (req) => {
         const capKey = `${sec.id}_${date}_${periode}`;
         if (!capacitesMap.has(capKey)) continue;
 
-        // Vérifier que le site est priorité 1, 2 ou 3 pour cette secrétaire (supporte string ou number)
+        // Vérifier que le site fait partie des préférences de cette secrétaire
         const sitesData = secretairesSitesMap.get(sec.id) || [];
         const siteData = sitesData.find((s) => s.site_id === site_id);
         if (!siteData) {
           continue; // aucune préférence pour ce site
         }
-        const prio = typeof siteData.priorite === 'string' ? parseInt(siteData.priorite as any, 10) : siteData.priorite;
-        if (![1, 2, 3].includes(prio as any)) {
-          continue; // Ne pas créer de variable si pas priorité 1/2/3
-        }
+        const prio = typeof siteData.priorite === 'string' 
+          ? parseInt(siteData.priorite as any, 10) 
+          : (siteData.priorite ?? null);
 
         // Calculer le score
         let score = 5000; // Base priorité site
