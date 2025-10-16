@@ -585,16 +585,6 @@ const BlocOperatoirePage = () => {
 
       {activeTab === 'types' && (
         <div>
-            <div className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-4">
-              <div className="p-2.5 rounded-lg bg-primary/10">
-                <Settings className="h-6 w-6 text-primary" />
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-                Types d'intervention
-              </h2>
-            </div>
-          </div>
           <TypesInterventionManagement />
         </div>
       )}
