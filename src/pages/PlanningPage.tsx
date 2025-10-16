@@ -1366,6 +1366,12 @@ export default function PlanningPage() {
       <OptimizationProgressDialog
         open={showProgressDialog}
       />
+
+      <OptimizationProgressDialog
+        open={isGeneratingPDF}
+        message="Génération du PDF en cours"
+        subtitle="Veuillez patienter..."
+      />
     </div>
   );
 }
