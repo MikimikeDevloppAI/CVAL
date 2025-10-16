@@ -589,10 +589,10 @@ const BlocOperatoirePage = () => {
 
       {activeTab === 'types' && (
         <div className="space-y-8">
-          <TypesInterventionManagement ref={typesInterventionRef} />
+          <BesoinsOperationsManagement />
           
           <div className="border-t pt-8">
-            <BesoinsOperationsManagement />
+            <TypesInterventionManagement ref={typesInterventionRef} />
           </div>
         </div>
       )}
