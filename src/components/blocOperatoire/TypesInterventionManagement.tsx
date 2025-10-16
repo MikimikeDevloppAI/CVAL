@@ -24,7 +24,11 @@ interface TypeIntervention {
   }>;
 }
 
-export function TypesInterventionManagement() {
+interface TypesInterventionManagementProps {
+  onAddClick?: () => void;
+}
+
+export function TypesInterventionManagement({ onAddClick }: TypesInterventionManagementProps) {
   const [types, setTypes] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -170,16 +174,15 @@ export function TypesInterventionManagement() {
     return <div className="text-center py-8 text-muted-foreground">Chargement...</div>;
   }
 
+  // Expose the openAddDialog function to parent
+  useEffect(() => {
+    if (onAddClick) {
+      (window as any).openTypeInterventionDialog = openAddDialog;
+    }
+  }, [onAddClick]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Types d'intervention</h2>
-        <Button onClick={openAddDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Ajouter un type
-        </Button>
-      </div>
-
       <div className="grid gap-3">
         {types.map((type) => (
           <div
