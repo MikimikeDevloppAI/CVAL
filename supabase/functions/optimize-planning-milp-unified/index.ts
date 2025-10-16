@@ -657,15 +657,8 @@ serve(async (req) => {
           const capKey = `${sec.id}_${date}_${periode}`;
           if (!capacitesMap.has(capKey)) continue;
 
-          // Vérifier si déjà assignée (bloc ou site)
-          const alreadyAssigned = assignments.some(
-            (a) =>
-              (a.type === "bloc" || a.type === "site") &&
-              a.secretaire_id === sec.id &&
-              a.date === date &&
-              a.periode === periode
-          );
-          if (alreadyAssigned) continue;
+          // On crée la variable admin pour toutes les secrétaires ayant une capacité
+          // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
           // Calculer le score avec pénalité progressive
           let score = 100; // Base admin
@@ -779,13 +772,38 @@ serve(async (req) => {
     console.log(`Total de variables: ${variableCount}`);
     console.log(`Total de contraintes: ${Object.keys(model.constraints).length}`);
 
-    const solution = solver.Solve(model);
-    console.log(`Statut: ${solution.feasible ? "FAISABLE" : "INFAISABLE"}`);
-    console.log(`Score optimal: ${solution.result || 0}`);
+    let solution: any;
+    try {
+      solution = solver.Solve(model);
+      console.log(`Statut: ${solution.feasible ? "FAISABLE ✓" : "INFAISABLE ❌"}`);
+      console.log(`Score optimal: ${solution.result || 0}`);
+    } catch (error: any) {
+      console.error("❌ Erreur lors de la résolution MILP:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Erreur lors de la résolution MILP",
+          details: error?.message || "Erreur inconnue",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
 
     if (!solution.feasible) {
       console.warn("⚠️ Solution MILP infaisable - retour partiel (blocs déjà créés, pas d'assignation personnel)");
-      // On continue quand même pour retourner un succès partiel
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Solution MILP infaisable",
+          planning_id,
+          details: {
+            blocs_crees: blocsOperatoireInserted.length,
+            variables: variableCount,
+            contraintes: Object.keys(model.constraints).length,
+          },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
     }
 
     // ============================================================
