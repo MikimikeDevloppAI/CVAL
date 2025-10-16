@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,8 +49,6 @@ const secretaireSchema = z.object({
   aideDeSalle: z.boolean().default(false),
   blocOphtalmoAccueil: z.boolean().default(false),
   blocDermatoAccueil: z.boolean().default(false),
-  sitesPriorite1: z.array(z.string()).default([]),
-  sitesPriorite2: z.array(z.string()).default([]),
   horaires: z.array(horaireSchema),
 }).refine((data) => {
   if (data.horaireFlexible && !data.pourcentageTemps) {
@@ -72,7 +69,6 @@ interface SecretaireFormProps {
 
 export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
   const [loading, setLoading] = useState(false);
-  const [sitesOptions, setSitesOptions] = useState<{ id: string; nom: string }[]>([]);
   const { toast } = useToast();
 
   const form = useForm<SecretaireFormData>({
@@ -94,8 +90,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       aideDeSalle: secretaire?.aide_de_salle || false,
       blocOphtalmoAccueil: secretaire?.bloc_ophtalmo_accueil || false,
       blocDermatoAccueil: secretaire?.bloc_dermato_accueil || false,
-      sitesPriorite1: [],
-      sitesPriorite2: [],
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
         { jour: 2, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
@@ -105,34 +99,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       ],
     },
   });
-
-  // Fetch sites and site assignments
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: sitesData } = await supabase
-        .from('sites')
-        .select('id, nom')
-        .eq('actif', true)
-        .order('nom');
-      
-      setSitesOptions(sitesData || []);
-      
-      if (secretaire?.id) {
-        const { data: associations } = await supabase
-          .from('secretaires_sites')
-          .select('site_id, priorite')
-          .eq('secretaire_id', secretaire.id);
-        
-        const prio1 = associations?.filter(a => a.priorite === '1').map(a => a.site_id) || [];
-        const prio2 = associations?.filter(a => a.priorite === '2').map(a => a.site_id) || [];
-        
-        form.setValue('sitesPriorite1', prio1);
-        form.setValue('sitesPriorite2', prio2);
-      }
-    };
-    
-    fetchData();
-  }, [secretaire?.id]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -167,33 +133,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .eq('id', secretaire.id);
 
         if (secretaireError) throw secretaireError;
-
-        // Gestion des sites avec priorités
-        await supabase
-          .from('secretaires_sites')
-          .delete()
-          .eq('secretaire_id', secretaire.id);
-
-        const sitesData = [
-          ...(data.sitesPriorite1 || []).map(siteId => ({
-            secretaire_id: secretaire.id,
-            site_id: siteId,
-            priorite: '1' as '1' | '2'
-          })),
-          ...(data.sitesPriorite2 || []).map(siteId => ({
-            secretaire_id: secretaire.id,
-            site_id: siteId,
-            priorite: '2' as '1' | '2'
-          }))
-        ];
-
-        if (sitesData.length > 0) {
-          const { error: sitesError } = await supabase
-            .from('secretaires_sites')
-            .insert(sitesData);
-          
-          if (sitesError) throw sitesError;
-        }
 
         // Mettre à jour les horaires
         await supabase
@@ -254,29 +193,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
 
         if (secretaireError) throw secretaireError;
 
-        // Gestion des sites avec priorités
         if (secretaireData) {
-          const sitesData = [
-            ...(data.sitesPriorite1 || []).map(siteId => ({
-              secretaire_id: secretaireData.id,
-              site_id: siteId,
-              priorite: '1' as '1' | '2'
-            })),
-            ...(data.sitesPriorite2 || []).map(siteId => ({
-              secretaire_id: secretaireData.id,
-              site_id: siteId,
-              priorite: '2' as '1' | '2'
-            }))
-          ];
-
-          if (sitesData.length > 0) {
-            const { error: sitesError } = await supabase
-              .from('secretaires_sites')
-              .insert(sitesData);
-            
-            if (sitesError) throw sitesError;
-          }
-
           // Créer les horaires
           const horairesActifs = data.horaires.filter(horaire => 
             horaire.jourTravaille && horaire.demiJournee
@@ -444,57 +361,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 )}
               />
             )}
-          </div>
-        </div>
-
-        {/* Sites assignés avec priorités */}
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-medium">Sites assignés</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="sitesPriorite1"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sites priorité 1</FormLabel>
-                  <FormControl>
-                    <MultiSelect
-                      options={sitesOptions}
-                      selected={field.value || []}
-                      onChange={field.onChange}
-                      placeholder="Sélectionner les sites prioritaires..."
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Sites préférés pour l'assignation
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="sitesPriorite2"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sites priorité 2</FormLabel>
-                  <FormControl>
-                    <MultiSelect
-                      options={sitesOptions}
-                      selected={field.value || []}
-                      onChange={field.onChange}
-                      placeholder="Sélectionner les sites secondaires..."
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Sites secondaires pour l'assignation
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
         </div>
 
