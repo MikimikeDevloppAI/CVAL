@@ -643,26 +643,24 @@ export default function PlanningPage() {
       setOptimizationProgress({
         currentDay: 0,
         totalDays: daysToOptimize.length,
-        currentPhase: optimizeBloc ? 'bloc' : 'sites',
+        currentPhase: 'bloc',
         currentDate: daysToOptimize[0],
         completedDays: [],
-        optimizeBloc,
-        optimizeSites,
+        optimizeBloc: true,
+        optimizeSites: true,
       });
       setShowProgressDialog(true);
 
       const firstDay = daysToOptimize[0];
 
-      // Un seul appel pour toute la semaine (beaucoup plus rapide)
+      // Un seul appel pour toute la semaine avec la nouvelle fonction unifiée
       console.log(`Optimizing entire week starting from: ${firstDay}`);
       
-        const { data, error } = await supabase.functions.invoke('optimize-planning-milp-orchestrator', {
-          body: {
-            selected_dates: daysToOptimize,
-            optimize_bloc: optimizeBloc,
-            optimize_sites: optimizeSites,
-          },
-        });
+      const { data, error } = await supabase.functions.invoke('optimize-planning-milp-unified', {
+        body: {
+          selected_dates: daysToOptimize,
+        },
+      });
 
       if (error) throw error;
 
@@ -672,19 +670,11 @@ export default function PlanningPage() {
         setCurrentPlanningStatus('en_cours');
       }
 
-      // Compter les assignations totales
-      let totalBlocAssignments = 0;
-      let totalSitesAssignments = 0;
-      
-      if (optimizeBloc && data?.bloc_results) {
-        const br = data.bloc_results as any;
-        totalBlocAssignments = (br.blocs_assigned ?? 0) + (br.personnel_assigned ?? 0);
-      }
-      
-      if (optimizeSites && data?.sites_results) {
-        const sr = data.sites_results as any;
-        totalSitesAssignments = sr.rows ?? 0;
-      }
+      // Récupérer les statistiques
+      const stats = data?.stats || {};
+      const totalBlocAssignments = stats.assignations_bloc_personnel || 0;
+      const totalSitesAssignments = stats.assignations_sites || 0;
+      const totalAdminAssignments = stats.assignations_admin || 0;
 
       // Simuler la progression pour une meilleure UX
       for (let i = 0; i < daysToOptimize.length; i++) {
@@ -693,16 +683,16 @@ export default function PlanningPage() {
           ...prev,
           currentDay: i + 1,
           currentDate: daysToOptimize[i],
-          currentPhase: i < daysToOptimize.length - 1 ? (optimizeBloc ? 'bloc' : 'sites') : 'complete',
+          currentPhase: i < daysToOptimize.length - 1 ? 'bloc' : 'complete',
           completedDays: [...prev.completedDays, {
             date: daysToOptimize[i],
-            blocAssignments: Math.round(totalBlocAssignments / daysToOptimize.length),
-            sitesAssignments: Math.round(totalSitesAssignments / daysToOptimize.length),
+            blocAssignments: Math.round((totalBlocAssignments + stats.operations_bloc) / daysToOptimize.length),
+            sitesAssignments: Math.round((totalSitesAssignments + totalAdminAssignments) / daysToOptimize.length),
           }],
         }));
       }
 
-      const totalAssignments = totalBlocAssignments + totalSitesAssignments;
+      const totalAssignments = totalBlocAssignments + totalSitesAssignments + totalAdminAssignments;
 
       // Marquer comme terminé
       setOptimizationProgress(prev => ({
@@ -1361,8 +1351,8 @@ export default function PlanningPage() {
         open={selectDatesDialogOpen}
         onOpenChange={setSelectDatesDialogOpen}
         weekDays={weekDays}
-        onOptimize={async (dates, optimizeBloc, optimizeSites) => {
-          await executeOptimizeMILP(dates, optimizeBloc, optimizeSites);
+        onOptimize={async (dates) => {
+          await executeOptimizeMILP(dates);
         }}
         isOptimizing={isOptimizingMILP}
       />
