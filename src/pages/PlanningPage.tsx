@@ -1334,13 +1334,6 @@ export default function PlanningPage() {
 
       <OptimizationProgressDialog
         open={showProgressDialog}
-        currentDay={optimizationProgress.currentDay}
-        totalDays={optimizationProgress.totalDays}
-        currentPhase={optimizationProgress.currentPhase}
-        currentDate={optimizationProgress.currentDate}
-        completedDays={optimizationProgress.completedDays}
-        optimizeBloc={optimizationProgress.optimizeBloc}
-        optimizeSites={optimizationProgress.optimizeSites}
       />
     </div>
   );
