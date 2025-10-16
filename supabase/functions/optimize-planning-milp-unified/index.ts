@@ -144,6 +144,21 @@ serve(async (req) => {
     if (typesBesoinError) throw typesBesoinError;
     console.log(`✓ ${typesBesoinPersonnel.length} besoins personnel par type d'intervention chargés`);
 
+    // 6b. Configurations multi-flux
+    const { data: configurationsMultiFlux, error: configsError } = await supabase
+      .from("configurations_multi_flux")
+      .select("*")
+      .eq("actif", true);
+    if (configsError) throw configsError;
+    console.log(`✓ ${configurationsMultiFlux?.length || 0} configurations multi-flux chargées`);
+
+    // 6c. Interventions pour les configurations multi-flux
+    const { data: configurationsInterventions, error: configsIntError } = await supabase
+      .from("configurations_multi_flux_interventions")
+      .select("*");
+    if (configsIntError) throw configsIntError;
+    console.log(`✓ ${configurationsInterventions?.length || 0} interventions multi-flux chargées`);
+
     // 7. Secrétaires <-> Besoins opérations (compétences + préférences)
     const { data: secretairesBesoins, error: secBesoinsError } = await supabase
       .from("secretaires_besoins_operations")
@@ -220,9 +235,101 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // CONSTRUCTION DU MODÈLE MILP
+    // PHASE 1: ASSIGNATION DES SALLES BLOC OPÉRATOIRE
     // ============================================================
-    console.log("\n--- PHASE 1: CONSTRUCTION DU MODÈLE MILP ---");
+    console.log("\n--- PHASE 1: ASSIGNATION DES SALLES BLOC OPÉRATOIRE ---");
+
+    const blocsOperatoireInserted: any[] = [];
+
+    for (const besoin of besoinsBloc) {
+      const date = besoin.date;
+      const periodes = besoin.demi_journee === "toute_journee" ? ["matin", "apres_midi"] : [besoin.demi_journee];
+
+      for (const periode of periodes) {
+        // Obtenir le type d'intervention et sa salle préférentielle
+        const typeIntervention = typesIntervention.find(t => t.id === besoin.type_intervention_id);
+        const sallePreferentielle = typeIntervention?.salle_preferentielle;
+
+        console.log(`Opération ${typeIntervention?.nom} (${date} ${periode}) - Salle pref: ${sallePreferentielle || 'aucune'}`);
+
+        // Vérifier si la salle préférentielle est disponible
+        const sallesDisponibles = new Set(['rouge', 'verte', 'jaune']);
+        
+        // Retirer les salles déjà occupées
+        for (const blocInserted of blocsOperatoireInserted) {
+          if (blocInserted.date === date && blocInserted.periode === periode && blocInserted.salle_assignee) {
+            sallesDisponibles.delete(blocInserted.salle_assignee);
+          }
+        }
+
+        let salleAssignee: string | null = null;
+
+        // Si salle préférentielle disponible, l'utiliser
+        if (sallePreferentielle && sallesDisponibles.has(sallePreferentielle)) {
+          salleAssignee = sallePreferentielle;
+        } else {
+          // Chercher une configuration multi-flux compatible
+          const configurationsCompatibles = (configurationsMultiFlux || []).filter((config: any) => {
+            const interventions = (configurationsInterventions || []).filter((ci: any) => ci.configuration_id === config.id);
+            return interventions.some((ci: any) => ci.type_intervention_id === besoin.type_intervention_id);
+          });
+
+          for (const config of configurationsCompatibles) {
+            const interventions = (configurationsInterventions || [])
+              .filter((ci: any) => ci.configuration_id === config.id)
+              .sort((a: any, b: any) => a.ordre - b.ordre);
+            
+            const interventionCourante = interventions.find((ci: any) => ci.type_intervention_id === besoin.type_intervention_id);
+            if (interventionCourante && sallesDisponibles.has(interventionCourante.salle)) {
+              salleAssignee = interventionCourante.salle;
+              break;
+            }
+          }
+
+          // Si pas de config multi-flux, prendre la première salle disponible
+          if (!salleAssignee && sallesDisponibles.size > 0) {
+            salleAssignee = Array.from(sallesDisponibles)[0];
+          }
+        }
+
+        if (!salleAssignee) {
+          console.error(`❌ Aucune salle disponible pour ${typeIntervention?.nom} le ${date} ${periode}`);
+          continue;
+        }
+
+        console.log(`  → Salle assignée: ${salleAssignee}`);
+
+        // Insérer dans planning_genere_bloc_operatoire
+        const { data: blocInserted, error: blocError } = await supabase
+          .from("planning_genere_bloc_operatoire")
+          .insert({
+            planning_id,
+            date,
+            periode,
+            type_intervention_id: besoin.type_intervention_id,
+            medecin_id: besoin.medecin_id,
+            salle_assignee: salleAssignee,
+            statut: "planifie",
+          })
+          .select("*")
+          .single();
+
+        if (blocError) {
+          console.error(`Erreur insertion bloc:`, blocError);
+          continue;
+        }
+
+        blocsOperatoireInserted.push(blocInserted);
+        console.log(`✓ Bloc inséré: ${blocInserted.id}`);
+      }
+    }
+
+    console.log(`${blocsOperatoireInserted.length} opérations bloc insérées avec salles assignées`);
+
+    // ============================================================
+    // PHASE 2: CONSTRUCTION DU MODÈLE MILP
+    // ============================================================
+    console.log("\n--- PHASE 2: CONSTRUCTION DU MODÈLE MILP ---");
 
     const model: any = {
       optimize: "score",
@@ -274,98 +381,97 @@ serve(async (req) => {
     console.log(`Site Port-en-Truie: ${portEnTruieSite?.nom || "Non trouvé"}`);
 
     // ============================================================
-    // PHASE 1A: VARIABLES BLOC OPÉRATOIRE
+    // PHASE 2A: VARIABLES BLOC OPÉRATOIRE (PERSONNEL)
     // ============================================================
-    console.log("\n--- PHASE 1A: CRÉATION DES VARIABLES BLOC OPÉRATOIRE ---");
+    console.log("\n--- PHASE 2A: CRÉATION DES VARIABLES BLOC OPÉRATOIRE (PERSONNEL) ---");
 
-    for (const besoin of besoinsBloc) {
-      const date = besoin.date;
-      const periode = besoin.demi_journee === "toute_journee" ? ["matin", "apres_midi"] : [besoin.demi_journee];
+    let blocVariableCount = 0;
+    for (const bloc of blocsOperatoireInserted) {
+      const date = bloc.date;
+      const periode = bloc.periode;
 
       // Récupérer le médecin assigné à cette opération
-      const medecinAssigne = besoin.medecin_id ? medecins.find(m => m.id === besoin.medecin_id) : null;
+      const medecinAssigne = bloc.medecin_id ? medecins.find((m: any) => m.id === bloc.medecin_id) : null;
 
-      for (const per of periode) {
-        // Récupérer les besoins en personnel pour ce type d'intervention
-        const besoinsPersonnel = typesBesoinPersonnel.filter(
-          (tb) => tb.type_intervention_id === besoin.type_intervention_id
-        );
+      // Récupérer les besoins en personnel pour ce type d'intervention
+      const besoinsPersonnel = typesBesoinPersonnel.filter(
+        (tb: any) => tb.type_intervention_id === bloc.type_intervention_id
+      );
 
-        console.log(`Besoin bloc ${besoin.id} - ${date} ${per}: ${besoinsPersonnel.length} besoins personnel`);
+      console.log(`Bloc ${bloc.id} (${date} ${periode}): ${besoinsPersonnel.length} besoins personnel`);
 
-        for (const besoinPers of besoinsPersonnel) {
-          const besoinOpId = besoinPers.besoin_operation_id;
-          const nombreRequis = besoinPers.nombre_requis || 1;
+      for (const besoinPers of besoinsPersonnel) {
+        const besoinOpId = besoinPers.besoin_operation_id;
+        const nombreRequis = besoinPers.nombre_requis || 1;
 
-          console.log(`  Besoin: ${besoinPers.besoin_operation?.nom} (${besoinOpId}) x${nombreRequis}`);
+        console.log(`  Besoin: ${besoinPers.besoin_operation?.nom} (${besoinOpId}) x${nombreRequis}`);
 
-          for (let ordre = 1; ordre <= nombreRequis; ordre++) {
-            // Trouver les secrétaires compétentes pour ce besoin
-            const secretairesCompetentes = secretaires.filter((sec) => {
-              const hasBesoin = secretairesBesoinsMap.has(`${sec.id}_${besoinOpId}`);
-              return hasBesoin;
+        for (let ordre = 1; ordre <= nombreRequis; ordre++) {
+          // Trouver les secrétaires compétentes pour ce besoin
+          const secretairesCompetentes = secretaires.filter((sec: any) => {
+            const hasBesoin = secretairesBesoinsMap.has(`${sec.id}_${besoinOpId}`);
+            return hasBesoin;
+          });
+
+          console.log(`    Ordre ${ordre}: ${secretairesCompetentes.length} secrétaires compétentes`);
+
+          for (const sec of secretairesCompetentes) {
+            // Vérifier capacité
+            const capKey = `${sec.id}_${date}_${periode}`;
+            if (!capacitesMap.has(capKey)) continue;
+
+            // Vérifier contrainte d'exclusion Stéphanie Guillaume + Dr Krunic
+            if (stephanieGuillaume && drKrunic && sec.id === stephanieGuillaume.id && medecinAssigne?.id === drKrunic.id) {
+              console.log(`    ❌ Exclusion: ${sec.name} ne peut pas être assignée avec Dr Krunic`);
+              continue;
+            }
+
+            // Récupérer la préférence
+            const prefData = secretairesBesoinsMap.get(`${sec.id}_${besoinOpId}`)?.[0];
+            const preference = prefData?.preference || 99;
+
+            // Calculer le score
+            let score = 10000; // Base priorité bloc
+            if (preference === 1) score += 5000;
+            else if (preference === 2) score += 2500;
+            else if (preference === 3) score += 1000;
+
+            const varName = `x_${sec.id}_${besoinOpId}_${date}_${periode}_${ordre}_${bloc.id}`;
+            model.variables[varName] = { score };
+            model.ints[varName] = 1;
+            variableCount++;
+            blocVariableCount++;
+
+            assignments.push({
+              varName,
+              type: "bloc",
+              secretaire_id: sec.id,
+              besoin_operation_id: besoinOpId,
+              date,
+              periode,
+              ordre,
+              bloc_id: bloc.id,
             });
 
-            console.log(`    Ordre ${ordre}: ${secretairesCompetentes.length} secrétaires compétentes`);
-
-            for (const sec of secretairesCompetentes) {
-              // Vérifier capacité
-              const capKey = `${sec.id}_${date}_${per}`;
-              if (!capacitesMap.has(capKey)) continue;
-
-              // Vérifier contrainte d'exclusion Stéphanie Guillaume + Dr Krunic
-              if (stephanieGuillaume && drKrunic && sec.id === stephanieGuillaume.id && medecinAssigne?.id === drKrunic.id) {
-                console.log(`    ❌ Exclusion: ${sec.name} ne peut pas être assignée avec Dr Krunic`);
-                continue;
-              }
-
-              // Récupérer la préférence
-              const prefData = secretairesBesoinsMap.get(`${sec.id}_${besoinOpId}`)?.[0];
-              const preference = prefData?.preference || 99;
-
-              // Calculer le score
-              let score = 10000; // Base priorité bloc
-              if (preference === 1) score += 5000;
-              else if (preference === 2) score += 2500;
-              else if (preference === 3) score += 1000;
-
-              const varName = `x_${sec.id}_${besoinOpId}_${date}_${per}_${ordre}`;
-              model.variables[varName] = { score };
-              model.ints[varName] = 1;
-              variableCount++;
-
-              assignments.push({
-                varName,
-                type: "bloc",
-                secretaire_id: sec.id,
-                besoin_operation_id: besoinOpId,
-                date,
-                periode: per,
-                ordre,
-                type_intervention_id: besoin.type_intervention_id,
-                medecin_id: besoin.medecin_id,
-              });
-
-              // Contrainte: chaque besoin doit être assigné à exactement 1 secrétaire
-              const constraintName = `besoin_bloc_${besoinOpId}_${date}_${per}_${ordre}`;
-              if (!model.constraints[constraintName]) {
-                model.constraints[constraintName] = { equal: 1 };
-              }
-              model.variables[varName][constraintName] = 1;
-
-              // Contrainte: secrétaire ne peut être assignée qu'une fois par date+période
-              const uniqueConstraint = `unique_${sec.id}_${date}_${per}`;
-              if (!model.constraints[uniqueConstraint]) {
-                model.constraints[uniqueConstraint] = { max: 1 };
-              }
-              model.variables[varName][uniqueConstraint] = 1;
+            // Contrainte: chaque besoin doit être assigné à exactement 1 secrétaire
+            const constraintName = `besoin_bloc_${bloc.id}_${besoinOpId}_${ordre}`;
+            if (!model.constraints[constraintName]) {
+              model.constraints[constraintName] = { equal: 1 };
             }
+            model.variables[varName][constraintName] = 1;
+
+            // Contrainte: secrétaire ne peut être assignée qu'une fois par date+période
+            const uniqueConstraint = `unique_${sec.id}_${date}_${periode}`;
+            if (!model.constraints[uniqueConstraint]) {
+              model.constraints[uniqueConstraint] = { max: 1 };
+            }
+            model.variables[varName][uniqueConstraint] = 1;
           }
         }
       }
     }
 
-    console.log(`✓ ${variableCount} variables bloc créées`);
+    console.log(`✓ ${blocVariableCount} variables bloc créées`);
 
     // ============================================================
     // PHASE 1B: VARIABLES SITES
