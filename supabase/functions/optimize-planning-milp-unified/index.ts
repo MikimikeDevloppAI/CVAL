@@ -533,7 +533,13 @@ serve(async (req) => {
     }
 
     let siteVariableCount = 0;
-    const siteVariablesLog: Array<{site: string, date: string, periode: string, variablesCreated: number}> = [];
+    const siteVariablesLog: Array<{
+      site: string, 
+      date: string, 
+      periode: string, 
+      variablesCreated: number,
+      candidates: Array<{nom: string, hasCapacity: boolean, hasPreference: boolean, score: number, concurrentBloc: boolean}>
+    }> = [];
     
     for (const [key, besoinSite] of besoinsParSite.entries()) {
       const { date, site_id, periode, medecins: medecinsData, besoin_total } = besoinSite;
@@ -541,6 +547,7 @@ serve(async (req) => {
 
       const site = sites.find((s) => s.id === site_id);
       let localVariableCount = 0;
+      const candidatesLog: Array<{nom: string, hasCapacity: boolean, hasPreference: boolean, score: number, concurrentBloc: boolean}> = [];
 
       // Contrainte: maximum de secrétaires par site (contrainte dure)
       const maxConstraint = `max_site_${site_id}_${date}_${periode}`;
@@ -555,14 +562,32 @@ serve(async (req) => {
 
         // Vérifier capacité
         const capKey = `${sec.id}_${date}_${periode}`;
-        if (!capacitesMap.has(capKey)) continue;
-
+        const hasCapacity = capacitesMap.has(capKey);
+        
         // Vérifier que le site fait partie des préférences de cette secrétaire
         const sitesData = secretairesSitesMap.get(sec.id) || [];
         const siteData = sitesData.find((s) => s.site_id === site_id);
+        const hasPreference = !!siteData;
+        
+        // Check concurrent bloc variable
+        const hasConcurrentBloc = assignments.some(
+          (a) => a.type === "bloc" && a.secretaire_id === sec.id && a.date === date && a.periode === periode
+        );
+        
+        if (!hasCapacity) continue;
+        
         if (!siteData) {
+          // Log secrétaire candidate mais sans préférence
+          candidatesLog.push({
+            nom: `${sec.first_name || ''} ${sec.name || ''}`.trim(),
+            hasCapacity,
+            hasPreference: false,
+            score: 0,
+            concurrentBloc: hasConcurrentBloc
+          });
           continue; // aucune préférence pour ce site
         }
+        
         const prio = typeof siteData.priorite === 'string' 
           ? parseInt(siteData.priorite as any, 10) 
           : (siteData.priorite ?? null);
@@ -620,6 +645,15 @@ serve(async (req) => {
           model.constraints[uniqueConstraint] = { max: 1 };
         }
         model.variables[varName][uniqueConstraint] = 1;
+        
+        // Log candidate retenue
+        candidatesLog.push({
+          nom: `${sec.first_name || ''} ${sec.name || ''}`.trim(),
+          hasCapacity: true,
+          hasPreference: true,
+          score,
+          concurrentBloc: hasConcurrentBloc
+        });
       }
       
       // Logger les variables créées pour ce site
@@ -628,16 +662,30 @@ serve(async (req) => {
         site: site?.nom || 'Site inconnu',
         date,
         periode,
-        variablesCreated: localVariableCount
+        variablesCreated: localVariableCount,
+        candidates: candidatesLog
       });
     }
 
     console.log(`✓ ${siteVariableCount} variables sites créées au total`);
     
-    // Log détaillé des variables par site
-    console.log('\n📊 Variables créées par site:');
+    // Log détaillé des variables par site avec diagnostic approfondi
+    console.log('\n📊 DIAGNOSTIC DÉTAILLÉ - Variables créées par site:');
     for (const log of siteVariablesLog) {
-      console.log(`  ${log.site} - ${log.date} ${log.periode}: ${log.variablesCreated} variable(s)`);
+      console.log(`\n  📍 ${log.site} - ${log.date} ${log.periode}:`);
+      console.log(`     Variables créées: ${log.variablesCreated}`);
+      
+      if (log.candidates.length > 0) {
+        console.log(`     Candidates analysées:`);
+        for (const candidate of log.candidates) {
+          const status = candidate.hasPreference 
+            ? `✓ RETENUE (score: ${candidate.score}${candidate.concurrentBloc ? ', BLOC concurrent' : ''})`
+            : `✗ REJETÉE (pas de préférence site)`;
+          console.log(`       - ${candidate.nom}: capacité=${candidate.hasCapacity} | ${status}`);
+        }
+      } else {
+        console.log(`     ⚠️ AUCUNE CANDIDATE (vérifier capacités PM et préférences site)`);
+      }
     }
 
     // ============================================================
@@ -913,10 +961,30 @@ serve(async (req) => {
 
     // Grouper les opérations bloc par (date, periode, type_intervention_id, medecin_id)
     const blocsMap = new Map<string, any>();
+    
+    // Diagnostic post-résolution par site
+    const siteAssignmentsLog = new Map<string, Array<{secretaire: string, score: number, selected: boolean}>>();
 
     for (const assign of assignments) {
       const value = solution[assign.varName] || 0;
-      if (value < 0.5) continue; // Variable non sélectionnée
+      const selected = value >= 0.5;
+      
+      // Log pour diagnostic des sites
+      if (assign.type === "site") {
+        const key = `${assign.site_id}_${assign.date}_${assign.periode}`;
+        if (!siteAssignmentsLog.has(key)) {
+          siteAssignmentsLog.set(key, []);
+        }
+        const sec = secretaires.find((s: any) => s.id === assign.secretaire_id);
+        const varScore = model.variables[assign.varName]?.score || 0;
+        siteAssignmentsLog.get(key)!.push({
+          secretaire: `${sec?.first_name || ''} ${sec?.name || ''}`.trim(),
+          score: varScore,
+          selected
+        });
+      }
+      
+      if (!selected) continue; // Variable non sélectionnée
 
       if (assign.type === "bloc") {
         // Les blocs ont déjà été créés au début. On crée uniquement le personnel lié au bloc existant.
@@ -989,6 +1057,55 @@ serve(async (req) => {
 
     console.log(`${blocsMap.size} opérations bloc à insérer`);
     console.log(`${personnelToInsert.length} assignations personnel (site + admin) à insérer`);
+    
+    // Log diagnostic post-résolution pour chaque site
+    console.log('\n🔍 DIAGNOSTIC POST-RÉSOLUTION - Assignations par site:');
+    for (const [key, assignList] of siteAssignmentsLog.entries()) {
+      const [site_id, date, periode] = key.split('_');
+      const site = sites.find((s: any) => s.id === site_id);
+      const selected = assignList.filter(a => a.selected);
+      const rejected = assignList.filter(a => !a.selected);
+      
+      console.log(`\n  📍 ${site?.nom || 'Site inconnu'} - ${date} ${periode}:`);
+      console.log(`     ✓ Assignées (${selected.length}):`);
+      for (const s of selected.sort((a, b) => b.score - a.score)) {
+        console.log(`       - ${s.secretaire} (score: ${s.score})`);
+      }
+      
+      if (rejected.length > 0) {
+        console.log(`     ✗ Candidates non retenues (${rejected.length}):`);
+        for (const r of rejected.sort((a, b) => b.score - a.score).slice(0, 5)) {
+          console.log(`       - ${r.secretaire} (score: ${r.score})`);
+          
+          // Trouver où elle a été assignée à la place
+          const secId = secretaires.find((sec: any) => 
+            `${sec.first_name || ''} ${sec.name || ''}`.trim() === r.secretaire
+          )?.id;
+          
+          if (secId) {
+            const otherAssign = assignments.find(a => 
+              a.secretaire_id === secId && 
+              a.date === date && 
+              a.periode === periode && 
+              solution[a.varName] >= 0.5
+            );
+            
+            if (otherAssign) {
+              if (otherAssign.type === 'bloc') {
+                console.log(`         → Assignée au BLOC (priorité supérieure)`);
+              } else if (otherAssign.type === 'admin') {
+                console.log(`         → Assignée en ADMIN (score probablement supérieur)`);
+              } else if (otherAssign.type === 'site') {
+                const otherSite = sites.find((s: any) => s.id === otherAssign.site_id);
+                console.log(`         → Assignée à autre SITE: ${otherSite?.nom || 'inconnu'}`);
+              }
+            } else {
+              console.log(`         → NON assignée (capacité insuffisante ou autre contrainte)`);
+            }
+          }
+        }
+      }
+    }
 
     // Insérer les opérations bloc
     for (const [key, blocData] of blocsMap.entries()) {
