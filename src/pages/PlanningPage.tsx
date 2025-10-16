@@ -1177,7 +1177,7 @@ export default function PlanningPage() {
           )}
 
           {/* View Selector */}
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-start mb-4">
             <div className="inline-flex rounded-lg border p-1 bg-muted">
               <Button
                 variant={planningView === 'site' ? 'default' : 'ghost'}
