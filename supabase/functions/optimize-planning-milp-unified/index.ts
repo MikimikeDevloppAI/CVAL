@@ -914,6 +914,7 @@ serve(async (req) => {
         if (!capMatin || !capAM) continue;
 
         // Créer des variables auxiliaires pour détecter changement de site
+        // MAIS uniquement entre deux assignations site (pas avec admin)
         for (const site1 of sites) {
           for (const site2 of sites) {
             if (site1.id === site2.id) continue;
@@ -923,26 +924,34 @@ serve(async (req) => {
 
             // Si les deux variables existent dans le modèle
             if (model.variables[varMatin] && model.variables[varAM]) {
-              // Créer une variable de pénalité
-              const penaltyVar = `penalty_site_change_${sec.id}_${date}_${site1.id}_${site2.id}`;
-              model.variables[penaltyVar] = { score: -50 };
-              model.ints[penaltyVar] = 1;
-              variableCount++;
+              // Ne créer la pénalité QUE si les deux périodes sont des assignations site
+              // (pas si l'une est admin - dans ce cas pas de pénalité)
+              const assignMatin = assignments.find(a => a.varName === varMatin);
+              const assignAM = assignments.find(a => a.varName === varAM);
+              
+              // Ne pénaliser que les changements site->site (exclure site->admin ou admin->site)
+              if (assignMatin?.type === "site" && assignAM?.type === "site") {
+                // Créer une variable de pénalité
+                const penaltyVar = `penalty_site_change_${sec.id}_${date}_${site1.id}_${site2.id}`;
+                model.variables[penaltyVar] = { score: -50 };
+                model.ints[penaltyVar] = 1;
+                variableCount++;
 
-              // Contrainte: penalty_var >= varMatin + varAM - 1
-              // Si les deux sont à 1, penalty_var doit être à 1
-              const constraintName = `site_change_${sec.id}_${date}_${site1.id}_${site2.id}`;
-              model.constraints[constraintName] = { min: 0 };
-              model.variables[varMatin][constraintName] = 1;
-              model.variables[varAM][constraintName] = 1;
-              model.variables[penaltyVar][constraintName] = -1;
+                // Contrainte: penalty_var >= varMatin + varAM - 1
+                // Si les deux sont à 1, penalty_var doit être à 1
+                const constraintName = `site_change_${sec.id}_${date}_${site1.id}_${site2.id}`;
+                model.constraints[constraintName] = { min: 0 };
+                model.variables[varMatin][constraintName] = 1;
+                model.variables[varAM][constraintName] = 1;
+                model.variables[penaltyVar][constraintName] = -1;
+              }
             }
           }
         }
       }
     }
 
-    console.log(`✓ Pénalités changement de site ajoutées`);
+    console.log(`✓ Pénalités changement de site ajoutées (uniquement pour assignations site-site)`);
 
     // ============================================================
     // PHASE 1D: VARIABLES ADMINISTRATIVES
