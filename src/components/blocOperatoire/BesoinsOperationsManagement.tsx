@@ -17,6 +17,13 @@ interface BesoinOperation {
   description?: string;
   categorie?: string;
   actif: boolean;
+  secretaires_besoins_operations?: Array<{
+    preference: number;
+    secretaires: {
+      first_name: string;
+      name: string;
+    };
+  }>;
 }
 
 export function BesoinsOperationsManagement() {
@@ -42,7 +49,16 @@ export function BesoinsOperationsManagement() {
     try {
       const { data, error } = await supabase
         .from('besoins_operations')
-        .select('*')
+        .select(`
+          *,
+          secretaires_besoins_operations (
+            preference,
+            secretaires (
+              first_name,
+              name
+            )
+          )
+        `)
         .order('categorie', { ascending: true })
         .order('nom', { ascending: true });
 
@@ -244,54 +260,72 @@ export function BesoinsOperationsManagement() {
         {besoins.filter(b => b.actif).map((besoin) => (
           <div
             key={besoin.id}
-            className="flex items-center justify-between p-3 border rounded-lg bg-card"
+            className="p-3 border rounded-lg bg-card space-y-3"
           >
-            <div className="flex items-center gap-3">
-              <div>
-                <div className="font-medium">{besoin.nom}</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="font-medium">{besoin.nom}</div>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {besoin.categorie}
+                </Badge>
               </div>
-              <Badge variant="outline" className="text-xs">
-                {besoin.categorie}
-              </Badge>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openSecretairesDialog(besoin)}
+                  title="Gérer les secrétaires"
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEditDialog(besoin)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Êtes-vous sûr de vouloir désactiver ce besoin ? Il ne sera plus disponible dans les formulaires.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annuler</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(besoin.id)}>
+                        Désactiver
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openSecretairesDialog(besoin)}
-                title="Gérer les secrétaires"
-              >
-                <Users className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openEditDialog(besoin)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Êtes-vous sûr de vouloir désactiver ce besoin ? Il ne sera plus disponible dans les formulaires.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Annuler</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(besoin.id)}>
-                      Désactiver
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            
+            {/* Liste des secrétaires assignées */}
+            {besoin.secretaires_besoins_operations && besoin.secretaires_besoins_operations.length > 0 && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-2">Secrétaires assignées:</div>
+                <div className="flex flex-wrap gap-2">
+                  {besoin.secretaires_besoins_operations
+                    .sort((a, b) => a.preference - b.preference)
+                    .map((sa, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs bg-white text-black border border-border hover:bg-white hover:text-black">
+                        {sa.secretaires.first_name} {sa.secretaires.name} (Pref: {sa.preference})
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
