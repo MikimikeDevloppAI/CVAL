@@ -96,8 +96,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     try {
       setLoading(true);
 
-      // ÉTAPE A: Récupérer les besoins de sites avec les détails des médecins et sites
-      const { data: besoins, error: besoinsError } = await supabase
+      // ÉTAPE A: Récupérer les besoins de sites avec les détails des médecins et sites (exclure le bloc opératoire)
+      const { data: allBesoins, error: besoinsError } = await supabase
         .from('besoin_effectif')
         .select(`
           *,
@@ -113,6 +113,12 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         toast({ title: "Erreur", description: "Impossible de charger les besoins", variant: "destructive" });
         return;
       }
+
+      // Filtrer pour exclure le site "Bloc opératoire" (affiché séparément au-dessus)
+      const besoins = (allBesoins || []).filter(b => 
+        !b.sites?.nom?.toLowerCase().includes('bloc opératoire') &&
+        !b.sites?.nom?.toLowerCase().includes('bloc operatoire')
+      );
 
       // ÉTAPE B: Construire baseGroups à partir des besoins
       const baseGroups = new Map<string, SiteBesoinsData>();
