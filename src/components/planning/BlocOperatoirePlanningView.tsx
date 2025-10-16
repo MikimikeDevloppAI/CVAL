@@ -30,7 +30,8 @@ interface BlocOperation {
 
 interface PersonnelAssignment {
   id: string;
-  type_besoin: string;
+  besoin_operation_id: string | null;
+  besoin_operation_nom?: string;
   ordre: number;
   secretaire_id: string | null;
   secretaire?: {
@@ -44,14 +45,6 @@ interface BlocOperatoirePlanningViewProps {
   endDate: Date;
 }
 
-const TYPE_BESOIN_LABELS: Record<string, string> = {
-  instrumentiste: 'Instrumentiste',
-  aide_salle: 'Aide de salle',
-  instrumentiste_aide_salle: 'Instrumentiste/Aide de salle',
-  anesthesiste: 'Anesthésiste',
-  accueil_dermato: 'Accueil Dermato',
-  accueil_ophtalmo: 'Accueil Ophtalmo',
-};
 
 const PERIODE_LABELS: Record<string, string> = {
   matin: 'Matin',
@@ -91,7 +84,8 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
   const handleChangePersonnel = (personnel: PersonnelAssignment, operation: BlocOperation) => {
     setSelectedPersonnel({
       id: personnel.id,
-      type_besoin: personnel.type_besoin,
+      besoin_operation_id: personnel.besoin_operation_id,
+      besoin_operation_nom: personnel.besoin_operation_nom,
       secretaire_id: personnel.secretaire_id,
       secretaire_nom: personnel.secretaire 
         ? `${personnel.secretaire.first_name} ${personnel.secretaire.name}`
@@ -134,13 +128,14 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
           .select(`
             id,
             ordre,
-            type_besoin_bloc,
+            besoin_operation_id,
+            besoin_operation:besoins_operations!besoin_operation_id(nom),
             secretaire:secretaires!secretaire_id(first_name, name),
             secretaire_id
           `)
           .eq('planning_genere_bloc_operatoire_id', bloc.id)
           .eq('type_assignation', 'bloc')
-          .order('type_besoin_bloc', { ascending: true })
+          .order('besoin_operation_id', { ascending: true })
           .order('ordre', { ascending: true });
 
         if (personnelError) throw personnelError;
@@ -149,7 +144,8 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
         const personnel = (personnelData || []).map((p: any) => ({
           id: p.id,
           ordre: p.ordre,
-          type_besoin: p.type_besoin_bloc,
+          besoin_operation_id: p.besoin_operation_id,
+          besoin_operation_nom: p.besoin_operation?.nom,
           secretaire_id: p.secretaire_id,
           secretaire: p.secretaire
         }));
@@ -264,7 +260,7 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                           >
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
-                                {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
+                                {p.besoin_operation_nom || 'Personnel'}
                               </Badge>
                               {p.ordre > 1 && (
                                 <span className="text-xs text-muted-foreground">#{p.ordre}</span>

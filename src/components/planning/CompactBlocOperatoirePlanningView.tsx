@@ -145,13 +145,14 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
           .select(`
             id,
             ordre,
-            type_besoin_bloc,
+            besoin_operation_id,
+            besoin_operation:besoins_operations!besoin_operation_id(nom),
             secretaire:secretaires!secretaire_id(first_name, name),
             secretaire_id
           `)
           .eq('planning_genere_bloc_operatoire_id', bloc.id)
           .eq('type_assignation', 'bloc')
-          .order('type_besoin_bloc', { ascending: true })
+          .order('besoin_operation_id', { ascending: true })
           .order('ordre', { ascending: true });
 
         if (personnelError) throw personnelError;
@@ -160,7 +161,7 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
         const personnel = (personnelData || []).map((p: any) => ({
           id: p.id,
           ordre: p.ordre,
-          type_besoin: p.type_besoin_bloc,
+          type_besoin: p.besoin_operation?.nom || 'Personnel',
           secretaire_id: p.secretaire_id,
           secretaire: p.secretaire
         }));

@@ -32,7 +32,8 @@ interface SecretaryAssignment {
   is_2f: boolean;
   is_3f: boolean;
   ordre: number;
-  type_besoin_bloc?: string;
+  besoin_operation_id?: string;
+  besoin_operation_nom?: string;
   salle_assignee?: string;
 }
 
@@ -198,7 +199,8 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
             is_2f: assignment.is_2f,
             is_3f: assignment.is_3f,
             ordre: assignment.ordre,
-            type_besoin_bloc: assignment.type_besoin_bloc,
+            besoin_operation_id: assignment.besoin_operation_id,
+            besoin_operation_nom: undefined,
             salle_assignee: assignment.bloc?.salle_assignee
           };
 
@@ -268,7 +270,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
             </Badge>
           )}
           <Badge variant="outline" className="bg-purple-100 text-purple-800 text-xs">
-            {assignment.type_besoin_bloc || 'Personnel'}
+            {assignment.besoin_operation_nom || 'Personnel'}
           </Badge>
         </div>
       );

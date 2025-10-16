@@ -56,7 +56,8 @@ export const UnsatisfiedNeedsReport = memo(function UnsatisfiedNeedsReport({ sta
       type: need.type,
       site_id: need.site_id,
       site_nom: need.site_nom,
-      type_besoin_bloc: need.type,
+      besoin_operation_id: need.type,
+      besoin_operation_nom: need.type_intervention_nom,
       planning_genere_personnel_id: plannelPersonnelId,
     });
     setAssignDialogOpen(true);

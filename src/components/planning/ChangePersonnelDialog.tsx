@@ -22,7 +22,8 @@ interface ChangePersonnelDialogProps {
   onOpenChange: (open: boolean) => void;
   assignment: {
     id: string;
-    type_besoin: string | null;
+    besoin_operation_id?: string | null;
+    besoin_operation_nom?: string;
     secretaire_id: string | null;
     secretaire_nom?: string;
     date: string;
@@ -40,13 +41,14 @@ interface PersonnelOption {
   first_name: string;
   name: string;
   secretaires_besoins_operations?: Array<{
-    besoins_operations: { code: string };
+    besoin_operation_id: string;
   }>;
 }
 
 interface SwapOption extends PersonnelOption {
   assignment_id: string;
-  type_besoin: string | null;
+  besoin_operation_id?: string | null;
+  besoin_operation_nom?: string;
   operation_nom: string;
   is_same_operation?: boolean;
 }
@@ -57,7 +59,8 @@ interface ReassignOption {
   label: string;
   assignment_id?: string;
   site_id?: string;
-  type_besoin?: string | null;
+  besoin_operation_id?: string | null;
+  besoin_operation_nom?: string;
 }
 
 export default function ChangePersonnelDialog({
@@ -91,23 +94,19 @@ export default function ChangePersonnelDialog({
     try {
       if (assignment.type_assignation === 'bloc') {
         // Logique pour assignations bloc
-        if (!assignment.type_besoin) return;
+        if (!assignment.besoin_operation_id) return;
         
         // 1. Récupérer tous les secrétaires avec leurs compétences bloc
         const { data: allSecretaires, error: secError } = await supabase
           .from('secretaires')
           .select(`
             id, first_name, name,
-            secretaires_besoins_operations(besoins_operations(code))
+            secretaires_besoins_operations!inner(besoin_operation_id)
           `)
-          .eq('actif', true);
+          .eq('actif', true)
+          .eq('secretaires_besoins_operations.besoin_operation_id', assignment.besoin_operation_id);
 
         if (secError) throw secError;
-
-        // Filtrer selon les compétences requises
-        const eligible = (allSecretaires || []).filter(sec => 
-          canPerformBlocRole(sec, assignment.type_besoin)
-        );
 
         // 2. Récupérer toutes les assignations du même jour/période
         const { data: assigned, error: assignError } = await supabase
@@ -123,7 +122,7 @@ export default function ChangePersonnelDialog({
         const assignedIds = new Set((assigned || []).map(a => a.secretaire_id));
         
         // Personnel disponible = compétent ET non assigné
-        const available = eligible.filter(p => !assignedIds.has(p.id));
+        const available = (allSecretaires || []).filter(p => !assignedIds.has(p.id));
         setAvailablePersonnel(available);
       } else if (assignment.type_assignation === 'site') {
         // Logique pour assignations site
@@ -162,16 +161,17 @@ export default function ChangePersonnelDialog({
             .select(`
               id,
               secretaire_id,
-              type_besoin_bloc,
+              besoin_operation_id,
+              besoin_operation:besoins_operations!besoin_operation_id(nom),
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                secretaires_besoins_operations(besoins_operations(code))
+                secretaires_besoins_operations(besoin_operation_id)
               )
             `)
             .eq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
             .eq('type_assignation', 'bloc')
             .neq('id', assignment.id)
-            .neq('type_besoin_bloc', assignment.type_besoin as any)
+            .neq('besoin_operation_id', assignment.besoin_operation_id)
             .not('secretaire_id', 'is', null);
 
           if (sameOpError) throw sameOpError;
@@ -179,24 +179,29 @@ export default function ChangePersonnelDialog({
           // Récupérer les compétences de la personne actuelle
           const { data: currentSecretaire } = await supabase
             .from('secretaires')
-            .select('id, secretaires_besoins_operations(besoins_operations(code))')
+            .select('id, secretaires_besoins_operations(besoin_operation_id)')
             .eq('id', assignment.secretaire_id)
             .single();
 
           // Vérification bidirectionnelle pour même opération
           const validSameOp = (sameOp || [])
             .filter(s => {
-              if (!s.secretaires || !currentSecretaire || !assignment.type_besoin || !s.type_besoin_bloc) return false;
+              if (!s.secretaires || !currentSecretaire || !assignment.besoin_operation_id || !s.besoin_operation_id) return false;
               
-              const targetCanDoCurrentRole = canPerformBlocRole(s.secretaires, assignment.type_besoin);
-              const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
+              const targetHasCurrentSkill = currentSecretaire.secretaires_besoins_operations?.some(
+                (sb: any) => sb.besoin_operation_id === s.besoin_operation_id
+              );
+              const currentHasTargetSkill = s.secretaires.secretaires_besoins_operations?.some(
+                (sb: any) => sb.besoin_operation_id === assignment.besoin_operation_id
+              );
               
-              return targetCanDoCurrentRole && currentCanDoTargetRole;
+              return targetHasCurrentSkill && currentHasTargetSkill;
             })
             .map(s => ({
               ...s.secretaires!,
               assignment_id: s.id,
-              type_besoin: s.type_besoin_bloc,
+              besoin_operation_id: s.besoin_operation_id,
+              besoin_operation_nom: s.besoin_operation?.nom,
               operation_nom: `${assignment.operation_nom} (même opération)`,
               is_same_operation: true
             }));
@@ -207,11 +212,12 @@ export default function ChangePersonnelDialog({
             .select(`
               id,
               secretaire_id,
-              type_besoin_bloc,
+              besoin_operation_id,
+              besoin_operation:besoins_operations!besoin_operation_id(nom),
               planning_genere_bloc_operatoire_id,
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                secretaires_besoins_operations(besoins_operations(code))
+                secretaires_besoins_operations(besoin_operation_id)
               ),
               operation:planning_genere_bloc_operatoire_id(
                 type_intervention:type_intervention_id(nom)
@@ -234,7 +240,7 @@ export default function ChangePersonnelDialog({
               secretaire_id,
               secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
                 id, first_name, name,
-                secretaires_besoins_operations(besoins_operations(code))
+                secretaires_besoins_operations(besoin_operation_id)
               )
             `)
             .eq('date', assignment.date)
@@ -247,17 +253,22 @@ export default function ChangePersonnelDialog({
           // Vérification pour autres opérations bloc
           const validOtherOps = (otherOps || [])
             .filter(s => {
-              if (!s.secretaires || !currentSecretaire || !s.type_besoin_bloc) return false;
+              if (!s.secretaires || !currentSecretaire || !s.besoin_operation_id) return false;
               
-              const targetCanDoCurrentRole = assignment.type_besoin && canPerformBlocRole(s.secretaires, assignment.type_besoin);
-              const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
+              const targetHasCurrentSkill = assignment.besoin_operation_id && currentSecretaire.secretaires_besoins_operations?.some(
+                (sb: any) => sb.besoin_operation_id === s.besoin_operation_id
+              );
+              const currentHasTargetSkill = s.secretaires.secretaires_besoins_operations?.some(
+                (sb: any) => sb.besoin_operation_id === assignment.besoin_operation_id
+              );
               
-              return targetCanDoCurrentRole && currentCanDoTargetRole;
+              return targetHasCurrentSkill && currentHasTargetSkill;
             })
             .map(s => ({
               ...s.secretaires!,
               assignment_id: s.id,
-              type_besoin: s.type_besoin_bloc,
+              besoin_operation_id: s.besoin_operation_id,
+              besoin_operation_nom: s.besoin_operation?.nom,
               operation_nom: s.operation?.type_intervention?.nom || 'Opération',
               is_same_operation: false
             }));
@@ -267,15 +278,17 @@ export default function ChangePersonnelDialog({
             .filter(s => {
               if (!s.secretaires || !currentSecretaire) return false;
               // Le personnel admin doit pouvoir faire le rôle actuel
-              const targetCanDoCurrentRole = assignment.type_besoin && 
-                canPerformBlocRole(s.secretaires, assignment.type_besoin);
+              const targetHasCurrentSkill = assignment.besoin_operation_id && s.secretaires.secretaires_besoins_operations?.some(
+                (sb: any) => sb.besoin_operation_id === assignment.besoin_operation_id
+              );
               
-              return targetCanDoCurrentRole;
+              return targetHasCurrentSkill;
             })
             .map(s => ({
               ...s.secretaires!,
               assignment_id: s.id,
-              type_besoin: null,
+              besoin_operation_id: null,
+              besoin_operation_nom: undefined,
               operation_nom: 'Administratif',
               is_same_operation: false
             }));
@@ -327,7 +340,8 @@ export default function ChangePersonnelDialog({
             .map(s => ({
               ...s.secretaires!,
               assignment_id: s.id,
-              type_besoin: null,
+              besoin_operation_id: null,
+              besoin_operation_nom: undefined,
               operation_nom: `Site: ${s.sites?.nom || 'Inconnu'}`,
               is_same_operation: false,
               site_id: s.site_id
@@ -337,7 +351,8 @@ export default function ChangePersonnelDialog({
             .map(s => ({
               ...s.secretaires!,
               assignment_id: s.id,
-              type_besoin: null,
+              besoin_operation_id: null,
+              besoin_operation_nom: undefined,
               operation_nom: 'Administratif',
               is_same_operation: false
             }));
@@ -370,7 +385,7 @@ export default function ChangePersonnelDialog({
       // Récupérer les compétences de la personne
       const { data: currentSecretaire } = await supabase
         .from('secretaires')
-        .select('id, secretaires_besoins_operations(besoins_operations(code))')
+        .select('id, secretaires_besoins_operations(besoin_operation_id)')
         .eq('id', assignment.secretaire_id)
         .single();
 
@@ -381,7 +396,8 @@ export default function ChangePersonnelDialog({
         .from('planning_genere_personnel')
         .select(`
           id,
-          type_besoin_bloc,
+          besoin_operation_id,
+          besoin_operation:besoins_operations!besoin_operation_id(nom),
           planning_genere_bloc_operatoire_id,
           operation:planning_genere_bloc_operatoire_id(
             type_intervention:type_intervention_id(nom)
@@ -394,16 +410,19 @@ export default function ChangePersonnelDialog({
         .is('secretaire_id', null);
 
       const validBlocPosts = (emptyBlocPosts || []).filter(post => 
-        post.type_besoin_bloc && canPerformBlocRole(currentSecretaire, post.type_besoin_bloc)
+        post.besoin_operation_id && currentSecretaire.secretaires_besoins_operations?.some(
+          (sb: any) => sb.besoin_operation_id === post.besoin_operation_id
+        )
       );
 
       validBlocPosts.forEach(post => {
         options.push({
           id: post.id,
           type: 'bloc',
-          label: `${post.operation?.type_intervention?.nom || 'Opération'} - ${getTypeBesoinLabel(post.type_besoin_bloc)}`,
+          label: `${post.operation?.type_intervention?.nom || 'Opération'} - ${post.besoin_operation?.nom || 'Personnel'}`,
           assignment_id: post.id,
-          type_besoin: post.type_besoin_bloc,
+          besoin_operation_id: post.besoin_operation_id,
+          besoin_operation_nom: post.besoin_operation?.nom,
         });
       });
 
@@ -693,10 +712,10 @@ export default function ChangePersonnelDialog({
           </div>
         ) : (
           <div className="space-y-4">
-            {assignment.type_assignation === 'bloc' && assignment.type_besoin && (
+            {assignment.type_assignation === 'bloc' && assignment.besoin_operation_nom && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
-                <span>Rôle requis: <strong>{getTypeBesoinLabel(assignment.type_besoin)}</strong></span>
+                <span>Rôle requis: <strong>{assignment.besoin_operation_nom}</strong></span>
               </div>
             )}
             
@@ -829,7 +848,7 @@ export default function ChangePersonnelDialog({
                                 <div>
                                   <div>{person.first_name} {person.name}</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {person.operation_nom} - {getTypeBesoinLabel(person.type_besoin)}
+                                    {person.operation_nom} - {person.besoin_operation_nom || 'Personnel'}
                                   </div>
                                 </div>
                               </Label>

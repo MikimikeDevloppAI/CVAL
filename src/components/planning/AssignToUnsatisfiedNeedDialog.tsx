@@ -30,7 +30,8 @@ interface AssignToUnsatisfiedNeedDialogProps {
     type: 'site' | 'bloc';
     site_id?: string;
     site_nom?: string;
-    type_besoin_bloc?: string;
+    besoin_operation_id?: string;
+    besoin_operation_nom?: string;
     planning_genere_personnel_id?: string;
   };
   onSuccess: () => void;
@@ -65,11 +66,11 @@ export function AssignToUnsatisfiedNeedDialog({
           need.periode,
           need.site_id
         );
-      } else if (need.type === 'bloc' && need.type_besoin_bloc) {
+      } else if (need.type === 'bloc' && need.besoin_operation_id) {
         secretaries = await getAvailableSecretariesForBloc(
           need.date,
           need.periode,
-          need.type_besoin_bloc
+          need.besoin_operation_id
         );
       } else {
         secretaries = [];
@@ -169,7 +170,7 @@ export function AssignToUnsatisfiedNeedDialog({
           <DialogDescription>
             {need.type === 'site'
               ? `${need.site_nom} - ${need.periode === 'matin' ? 'Matin' : 'Après-midi'}`
-              : `Bloc opératoire - ${need.type_besoin_bloc || 'Personnel'} - ${need.periode === 'matin' ? 'Matin' : 'Après-midi'}`}
+              : `Bloc opératoire - ${need.besoin_operation_nom || 'Personnel'} - ${need.periode === 'matin' ? 'Matin' : 'Après-midi'}`}
           </DialogDescription>
         </DialogHeader>
 

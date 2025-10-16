@@ -52,67 +52,30 @@ export async function getAvailableSecretariesForSite(
 }
 
 /**
- * Get available secretaries for a bloc assignment based on type_besoin_bloc
+ * Get available secretaries for a bloc assignment based on besoin_operation_id
  */
 export async function getAvailableSecretariesForBloc(
   date: string,
   periode: 'matin' | 'apres_midi',
-  typeBesoinBloc: string
+  besoinOperationId: string
 ) {
-  let filter: any = { actif: true };
-
-  // Apply specific filters based on type
-  switch (typeBesoinBloc) {
-    case 'instrumentiste':
-      filter.instrumentaliste = true;
-      break;
-    case 'aide_salle':
-      filter.aide_de_salle = true;
-      break;
-    case 'instrumentiste_aide_salle':
-      // Either instrumentiste OR aide_de_salle
-      break;
-    case 'anesthesiste':
-      filter.anesthesiste = true;
-      break;
-    case 'accueil_dermato':
-      filter.bloc_dermato_accueil = true;
-      break;
-    case 'accueil_ophtalmo':
-      filter.bloc_ophtalmo_accueil = true;
-      break;
-    default:
-      filter.personnel_bloc_operatoire = true;
-  }
-
+  // Get all secretaries who have this besoin operation assigned
   const { data: secretaries, error: secError } = await supabase
     .from('secretaires')
     .select(`
       id, 
       first_name, 
       name,
-      secretaires_besoins_operations(
-        besoins_operations(code)
+      secretaires_besoins_operations!inner(
+        besoin_operation_id
       )
     `)
-    .eq('actif', true);
+    .eq('actif', true)
+    .eq('secretaires_besoins_operations.besoin_operation_id', besoinOperationId);
 
   if (secError) throw secError;
 
-  let eligibleSecs = (secretaries || []).filter(s => {
-    const besoins = s.secretaires_besoins_operations?.map(sb => sb.besoins_operations?.code) || [];
-    
-    switch (typeBesoinBloc) {
-      case 'instrumentiste': return besoins.includes('instrumentiste');
-      case 'aide_salle': return besoins.includes('aide_salle');
-      case 'instrumentiste_aide_salle': 
-        return besoins.includes('instrumentiste') || besoins.includes('aide_salle') || besoins.includes('instrumentiste_aide_salle');
-      case 'anesthesiste': return besoins.includes('anesthesiste');
-      case 'accueil_dermato': return besoins.includes('accueil_dermato');
-      case 'accueil_ophtalmo': return besoins.includes('accueil_ophtalmo');
-      default: return false;
-    }
-  });
+  let eligibleSecs = secretaries || [];
 
   // Get already assigned secretaries for this date/periode
   const { data: assignments, error: assignError } = await supabase

@@ -710,6 +710,7 @@ export type Database = {
       }
       planning_genere_personnel: {
         Row: {
+          besoin_operation_id: string | null
           created_at: string | null
           date: string
           id: string
@@ -723,12 +724,10 @@ export type Database = {
           secretaire_id: string | null
           site_id: string | null
           type_assignation: string
-          type_besoin_bloc:
-            | Database["public"]["Enums"]["type_besoin_personnel"]
-            | null
           updated_at: string | null
         }
         Insert: {
+          besoin_operation_id?: string | null
           created_at?: string | null
           date: string
           id?: string
@@ -742,12 +741,10 @@ export type Database = {
           secretaire_id?: string | null
           site_id?: string | null
           type_assignation: string
-          type_besoin_bloc?:
-            | Database["public"]["Enums"]["type_besoin_personnel"]
-            | null
           updated_at?: string | null
         }
         Update: {
+          besoin_operation_id?: string | null
           created_at?: string | null
           date?: string
           id?: string
@@ -761,12 +758,16 @@ export type Database = {
           secretaire_id?: string | null
           site_id?: string | null
           type_assignation?: string
-          type_besoin_bloc?:
-            | Database["public"]["Enums"]["type_besoin_personnel"]
-            | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "planning_genere_personnel_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planning_genere_personnel_planning_genere_bloc_operatoire__fkey"
             columns: ["planning_genere_bloc_operatoire_id"]
