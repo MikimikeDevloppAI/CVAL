@@ -21,6 +21,7 @@ import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCrene
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
 import { OptimizationProgressDialog } from '@/components/planning/OptimizationProgressDialog';
+import { SecretaryOptimizationHelpDialog } from '@/components/secretaires/SecretaryOptimizationHelpDialog';
 import { OptimizationResult } from '@/types/planning';
 import { eachDayOfInterval } from 'date-fns';
 import {
@@ -769,7 +770,10 @@ export default function PlanningPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Planning</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-foreground">Planning</h1>
+          <SecretaryOptimizationHelpDialog />
+        </div>
       </div>
 
       <div className="flex items-center justify-between bg-card p-4 rounded-lg border">
