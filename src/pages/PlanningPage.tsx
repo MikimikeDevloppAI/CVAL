@@ -550,69 +550,23 @@ export default function PlanningPage() {
 
       // No need to update planning_genere_site_besoin as it no longer exists
       // All assignments are now in planning_genere_personnel
-
-      // Prepare secretary data for PDF
-      const secretaryData = optimizationResult?.assignments.reduce((acc: any[], assignment) => {
-        assignment.secretaires.forEach((sec) => {
-          let secretary = acc.find((s) => s.id === sec.id);
-          if (!secretary) {
-            secretary = {
-              id: sec.id,
-              name: sec.nom,
-              assignments: [],
-            };
-            acc.push(secretary);
-          }
-
-          secretary.assignments.push({
-            date: format(new Date(assignment.date), 'dd/MM/yyyy'),
-            periode: assignment.periode === 'matin' ? 'Matin (7h30-12h00)' : 'Après-midi (12h00-17h30)',
-            site: assignment.site_nom,
-            medecins: assignment.medecins,
-            is1R: sec.is_1r || false,
-            is2F: sec.is_2f || false,
-            type: assignment.type_assignation || 'site',
-          });
-        });
-        return acc;
-      }, []);
-
-      // Call edge function to generate PDF
-      const { data, error } = await supabase.functions.invoke('generate-planning-pdf', {
+      
+      // Call validate-planning which will generate PDF and validate
+      const { error: validateError } = await supabase.functions.invoke('validate-planning', {
         body: {
-          weekStart: format(currentWeekStart, 'dd/MM/yyyy'),
-          weekEnd: format(weekEnd, 'dd/MM/yyyy'),
-          secretaries: secretaryData || [],
+          planning_id: currentPlanningId,
         },
       });
 
-      if (error) throw error;
+      if (validateError) {
+        console.error('Error validating planning:', validateError);
+        throw validateError;
+      }
 
       toast({
         title: "Succès",
         description: "Planning validé et PDF généré avec succès !",
       });
-
-      // Store the PDF URL and validate planning
-      if (data?.pdfUrl) {
-        console.log('PDF URL received:', data.pdfUrl);
-        setGeneratedPdfUrl(data.pdfUrl);
-
-        // Validate planning with PDF URL
-        const { error: validateError } = await supabase.functions.invoke('validate-planning', {
-          body: {
-            planning_id: currentPlanningId,
-            pdf_url: data.pdfUrl,
-          },
-        });
-
-        if (validateError) {
-          console.error('Error validating planning:', validateError);
-          throw validateError;
-        }
-      } else {
-        console.warn('No PDF URL in response:', data);
-      }
 
       await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);
     } catch (error: any) {
