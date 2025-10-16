@@ -113,11 +113,11 @@ export function SecretaryPlanningView({ startDate, endDate }: SecretaryPlanningV
 
       if (personnelError) throw personnelError;
 
-      // Get all days in the week (Monday to Friday)
+      // Get all days in the week (Monday to Saturday)
       const weekDays = eachDayOfInterval({ start: startDate, end: endDate })
         .filter(d => {
           const dow = d.getDay();
-          return dow !== 0 && dow !== 6; // Exclude weekends
+          return dow !== 0; // Exclude only Sunday
         });
 
       // Group by secretary
