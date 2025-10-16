@@ -133,6 +133,18 @@ serve(async (req) => {
 
   console.log(`📋 Using planning_id: ${planning_id} for week ${weekStart} to ${weekEnd}`);
 
+  // Update planning timestamp to mark optimization start
+  const { error: timestampError } = await supabaseServiceRole
+    .from('planning')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', planning_id);
+
+  if (timestampError) {
+    console.error('⚠️ Failed to update planning timestamp:', timestampError);
+    // Non-blocking - continue anyway
+  }
+  console.log('⏰ Updated planning.updated_at to mark optimization start');
+
   // Delete existing unified personnel rows (only selected dates or full week)
   // Conditional cleanup based on optimization type
   if (selected_dates.length < 7) {

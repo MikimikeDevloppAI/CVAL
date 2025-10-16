@@ -1114,40 +1114,32 @@ export default function PlanningPage() {
 
         <TabsContent value="planning" className="space-y-4">
           {canManage && (
-            <div className="flex flex-col gap-4 py-4 bg-card rounded-lg border">
-              {/* Status Header */}
-              {currentPlanningId && (
-                <div className="flex flex-col gap-2 border-b pb-4 px-4">
-                  <div className="flex items-center justify-center gap-2 text-sm">
-                    {currentPlanningStatus === 'valide' ? (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-success" />
-                        <span className="font-medium">Planning validé</span>
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium text-muted-foreground">Planning en cours</span>
-                      </>
-                    )}
-                  </div>
-                  
-                  {/* Planning timestamps */}
-                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                {/* Planning Information */}
+                {currentPlanningId && (
+                  <div className="space-y-2 mb-4">
+                    <h3 className="text-lg font-semibold mb-3">📊 Informations d'optimisation</h3>
+                    
                     {planningUpdatedAt && (
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Optimisation lancée :</span>
                         <span>{format(new Date(planningUpdatedAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
                       </div>
                     )}
+                    
                     {lastPersonnelUpdate && (
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Dernière modification :</span>
                         <span>{format(new Date(lastPersonnelUpdate), 'dd/MM/yyyy à HH:mm', { locale: fr })}</span>
                       </div>
                     )}
+                    
                     {currentPlanningStatus === 'valide' && validatedBy && (
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle className="h-4 w-4" />
                         <span className="font-medium">Validé par :</span>
                         <span>{validatedBy}</span>
                         {validatedAt && (
@@ -1156,64 +1148,64 @@ export default function PlanningPage() {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-center gap-3 flex-wrap px-4">
-                <Button 
-                  onClick={handleOptimizeMILP} 
-                  disabled={isOptimizingMILP}
-                  size="default"
-                  className="gap-2"
-                >
-                  {isOptimizingMILP ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Optimisation...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Optimiser
-                    </>
-                  )}
-                </Button>
-                
-                {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                {/* Action Buttons - Aligned Right */}
+                <div className="flex justify-end gap-3">
                   <Button 
-                    onClick={validatePlanning} 
-                    disabled={isValidatingPlanning || isGeneratingPDF}
+                    onClick={handleOptimizeMILP} 
+                    disabled={isOptimizingMILP}
                     size="default"
                     className="gap-2"
                   >
-                    {isValidatingPlanning || isGeneratingPDF ? (
+                    {isOptimizingMILP ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        {isGeneratingPDF ? 'Génération PDF...' : 'Validation...'}
+                        Optimisation...
                       </>
                     ) : (
                       <>
-                        <CheckCircle className="h-4 w-4" />
-                        Valider et générer PDF
+                        <Zap className="h-4 w-4" />
+                        Optimiser
                       </>
                     )}
                   </Button>
-                )}
-                
-                {generatedPdfUrl && (
-                  <Button 
-                    onClick={() => window.open(generatedPdfUrl, '_blank')} 
-                    size="default"
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Télécharger le PDF
-                  </Button>
-                )}
-              </div>
-            </div>
+                  
+                  {currentPlanningId && currentPlanningStatus === 'en_cours' && (
+                    <Button 
+                      onClick={validatePlanning} 
+                      disabled={isValidatingPlanning || isGeneratingPDF}
+                      size="default"
+                      className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {isValidatingPlanning || isGeneratingPDF ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {isGeneratingPDF ? 'Génération...' : 'Validation...'}
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4" />
+                          Valider
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  
+                  {generatedPdfUrl && (
+                    <Button 
+                      onClick={() => window.open(generatedPdfUrl, '_blank')} 
+                      size="default"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Télécharger le PDF
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* View Selector */}
