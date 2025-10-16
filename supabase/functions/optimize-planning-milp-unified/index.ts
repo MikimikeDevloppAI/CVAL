@@ -554,11 +554,11 @@ serve(async (req) => {
       model.constraints[maxConstraint] = { max: maxSecretaires };
 
       for (const sec of secretaires) {
-        // Vérifier si secrétaire déjà assignée au bloc
+        // Ne pas exclure les candidates bloc: laisser le solveur arbitrer via contrainte unique
         const alreadyBloc = assignments.some(
           (a) => a.type === "bloc" && a.secretaire_id === sec.id && a.date === date && a.periode === periode
         );
-        if (alreadyBloc) continue;
+        // Note: alreadyBloc conservé pour diagnostic uniquement
 
         // IMPORTANT: Vérifier capacité INDÉPENDAMMENT du site_id de la capacité
         // Une capacité signifie que la secrétaire est disponible pour cette demi-journée,
