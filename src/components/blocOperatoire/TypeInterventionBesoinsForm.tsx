@@ -127,9 +127,9 @@ export function TypeInterventionBesoinsForm({
     }
   };
 
-  const availableBesoins = besoinsOperations.filter(
-    (besoin) => !besoins[besoin.id]
-  );
+  const availableBesoins = besoinsOperations
+    .filter((besoin) => !besoins[besoin.id])
+    .sort((a, b) => a.nom.localeCompare(b.nom));
 
   const configuredBesoins = besoinsOperations.filter(
     (besoin) => besoins[besoin.id] > 0
