@@ -41,9 +41,6 @@ interface Secretaire {
   }[];
   horaires?: { jour: number; jourTravaille: boolean; demiJournee: string; actif: boolean }[];
   profile_id?: string;
-  prefere_port_en_truie?: boolean;
-  prefered_admin?: boolean;
-  personnel_bloc?: boolean;
   flexible_jours_supplementaires?: boolean;
   nombre_jours_supplementaires?: number;
   horaire_flexible?: boolean;
@@ -55,6 +52,7 @@ interface Secretaire {
       code: string;
       categorie?: string;
     };
+    preference: number | null;
   }>;
 }
 
@@ -87,9 +85,6 @@ export default function SecretairesPage() {
           email,
           phone_number,
           profile_id,
-          prefere_port_en_truie,
-          prefered_admin,
-          personnel_bloc,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
           horaire_flexible,
@@ -107,6 +102,7 @@ export default function SecretairesPage() {
             alternance_semaine_modulo
           ),
           besoins_operations:secretaires_besoins_operations(
+            preference,
             besoins_operations(nom, code, categorie)
           )
         `);
@@ -608,32 +604,18 @@ export default function SecretairesPage() {
                       Compétences et rôles
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {secretaire.prefere_port_en_truie && (
-                        <Badge variant="secondary" className="text-xs">
-                          Port-en-Truie
-                        </Badge>
-                      )}
-                      {secretaire.prefered_admin && (
-                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          Préfère Admin
-                        </Badge>
-                      )}
-                      {secretaire.personnel_bloc && (
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          Personnel Bloc
-                        </Badge>
-                      )}
-                      {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 && 
+                      {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 ? (
                         secretaire.besoins_operations.map((besoin: any, idx: number) => (
                           <Badge key={idx} variant="outline" className="text-xs">
                             {besoin.besoins_operations?.nom || besoin.nom}
+                            {besoin.preference && (
+                              <span className="ml-1 text-muted-foreground">
+                                (P{besoin.preference})
+                              </span>
+                            )}
                           </Badge>
                         ))
-                      }
-                      {!secretaire.prefere_port_en_truie && 
-                       !secretaire.prefered_admin && 
-                       !secretaire.personnel_bloc && 
-                       (!secretaire.besoins_operations || secretaire.besoins_operations.length === 0) && (
+                      ) : (
                         <p className="text-sm text-muted-foreground">Aucune compétence définie</p>
                       )}
                     </div>

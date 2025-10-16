@@ -37,6 +37,11 @@ interface BesoinOperation {
   categorie?: string;
 }
 
+interface BesoinOperationWithPreference {
+  besoinId: string;
+  preference: number | null;
+}
+
 const secretaireSchema = z.object({
   prenom: z.string().trim().min(1, 'Le prénom est requis').max(50, 'Le prénom est trop long'),
   nom: z.string().trim().min(1, 'Le nom est requis').max(50, 'Le nom est trop long'),
@@ -48,14 +53,14 @@ const secretaireSchema = z.object({
     (val) => (typeof val === 'string' ? val.trim() : val),
     z.union([z.literal(''), z.string().max(50, 'Le numéro de téléphone est trop long')])
   ).optional(),
-  preferePortEnTruie: z.boolean().default(false),
-  preferedAdmin: z.boolean().default(false),
-  personnelBloc: z.boolean().default(false),
   flexibleJoursSupplementaires: z.boolean().default(false),
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
   horaireFlexible: z.boolean().default(false),
   pourcentageTemps: z.number().min(0.01).max(100).optional(),
-  besoinsOperations: z.array(z.string()),
+  besoinsOperations: z.array(z.object({
+    besoinId: z.string(),
+    preference: z.number().min(1).max(3).nullable(),
+  })),
   horaires: z.array(horaireSchema),
 }).refine((data) => {
   if (data.horaireFlexible && !data.pourcentageTemps) {
@@ -109,13 +114,16 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     try {
       const { data, error } = await supabase
         .from('secretaires_besoins_operations')
-        .select('besoin_operation_id')
+        .select('besoin_operation_id, preference')
         .eq('secretaire_id', secretaire.id);
 
       if (error) throw error;
       
-      const besoinsIds = data?.map(b => b.besoin_operation_id) || [];
-      form.setValue('besoinsOperations', besoinsIds);
+      const besoinsWithPreferences = data?.map(b => ({
+        besoinId: b.besoin_operation_id,
+        preference: b.preference,
+      })) || [];
+      form.setValue('besoinsOperations', besoinsWithPreferences);
     } catch (error) {
       console.error('Erreur lors du chargement des besoins de la secrétaire:', error);
     }
@@ -128,9 +136,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nom: secretaire?.name || secretaire?.profiles?.nom || '',
       email: secretaire?.email || secretaire?.profiles?.email || '',
       telephone: secretaire?.phone_number || '',
-      preferePortEnTruie: secretaire?.prefere_port_en_truie || false,
-      preferedAdmin: secretaire?.prefered_admin || false,
-      personnelBloc: secretaire?.personnel_bloc || false,
       flexibleJoursSupplementaires: secretaire?.flexible_jours_supplementaires || false,
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaireFlexible: secretaire?.horaire_flexible || false,
@@ -163,9 +168,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             name: data.nom,
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
-            prefere_port_en_truie: data.preferePortEnTruie,
-            prefered_admin: data.preferedAdmin,
-            personnel_bloc: data.personnelBloc,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
@@ -182,9 +184,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           .eq('secretaire_id', secretaire.id);
 
         if (data.besoinsOperations.length > 0) {
-          const besoinsData = data.besoinsOperations.map(besoinId => ({
+          const besoinsData = data.besoinsOperations.map(besoin => ({
             secretaire_id: secretaire.id,
-            besoin_operation_id: besoinId,
+            besoin_operation_id: besoin.besoinId,
+            preference: besoin.preference,
           }));
 
           const { error: besoinsError } = await supabase
@@ -235,9 +238,6 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             email: data.email?.trim() || null,
             phone_number: data.telephone?.trim() || null,
             profile_id: null,
-            prefere_port_en_truie: data.preferePortEnTruie,
-            prefered_admin: data.preferedAdmin,
-            personnel_bloc: data.personnelBloc,
             flexible_jours_supplementaires: data.flexibleJoursSupplementaires,
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
@@ -251,9 +251,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
         if (secretaireData) {
           // Créer les besoins opérationnels
           if (data.besoinsOperations.length > 0) {
-            const besoinsData = data.besoinsOperations.map(besoinId => ({
+            const besoinsData = data.besoinsOperations.map(besoin => ({
               secretaire_id: secretaireData.id,
-              besoin_operation_id: besoinId,
+              besoin_operation_id: besoin.besoinId,
+              preference: besoin.preference,
             }));
 
             const { error: besoinsError } = await supabase
@@ -433,64 +434,10 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
           </div>
         </div>
 
-        {/* Caractéristiques professionnelles */}
+        {/* Compétences et rôles avec préférences */}
         <div className="space-y-4 pt-4 border-t">
           <h3 className="text-sm font-medium">Compétences et rôles</h3>
           
-          <FormField
-            control={form.control}
-            name="preferePortEnTruie"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Préfère travailler à Port-en-Truie</FormLabel>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="preferedAdmin"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Préfère les tâches administratives</FormLabel>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="personnelBloc"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Personnel de bloc opératoire</FormLabel>
-                </div>
-              </FormItem>
-            )}
-          />
-
           <FormField
             control={form.control}
             name="besoinsOperations"
@@ -516,52 +463,83 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                         <CommandInput placeholder="Rechercher un rôle..." />
                         <CommandEmpty>Aucun rôle trouvé.</CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
-                          {besoinsOperations.map((besoin) => (
-                            <CommandItem
-                              key={besoin.id}
-                              onSelect={() => {
-                                const newValue = field.value.includes(besoin.id)
-                                  ? field.value.filter((id) => id !== besoin.id)
-                                  : [...field.value, besoin.id];
-                                field.onChange(newValue);
-                              }}
-                            >
-                              <Check
-                                className={`mr-2 h-4 w-4 ${
-                                  field.value.includes(besoin.id) ? "opacity-100" : "opacity-0"
-                                }`}
-                              />
-                              {besoin.nom}
-                              {besoin.categorie && (
-                                <span className="ml-2 text-xs text-muted-foreground">
-                                  ({besoin.categorie})
-                                </span>
-                              )}
-                            </CommandItem>
-                          ))}
+                          {besoinsOperations.map((besoin) => {
+                            const isSelected = field.value.some(b => b.besoinId === besoin.id);
+                            return (
+                              <CommandItem
+                                key={besoin.id}
+                                onSelect={() => {
+                                  if (isSelected) {
+                                    field.onChange(field.value.filter((b) => b.besoinId !== besoin.id));
+                                  } else {
+                                    field.onChange([...field.value, { besoinId: besoin.id, preference: null }]);
+                                  }
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`}
+                                />
+                                {besoin.nom}
+                                {besoin.categorie && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    ({besoin.categorie})
+                                  </span>
+                                )}
+                              </CommandItem>
+                            );
+                          })}
                         </CommandGroup>
                       </Command>
                     </PopoverContent>
                   </Popover>
                 </FormControl>
                 <FormDescription>
-                  Sélectionnez les rôles et compétences de cette secrétaire
+                  Sélectionnez les rôles et compétences, puis indiquez une préférence (1=haute, 2=moyenne, 3=basse)
                 </FormDescription>
                 {field.value.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {field.value.map((besoinId) => {
-                      const besoin = besoinsOperations.find(b => b.id === besoinId);
+                  <div className="space-y-3 mt-4">
+                    {field.value.map((besoinWithPref, index) => {
+                      const besoin = besoinsOperations.find(b => b.id === besoinWithPref.besoinId);
                       if (!besoin) return null;
                       return (
-                        <Badge key={besoinId} variant="secondary" className="gap-1">
-                          {besoin.nom}
-                          <X
-                            className="h-3 w-3 cursor-pointer"
+                        <div key={besoinWithPref.besoinId} className="flex items-center gap-3 p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium">{besoin.nom}</div>
+                            {besoin.categorie && (
+                              <div className="text-xs text-muted-foreground">{besoin.categorie}</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Préférence:</span>
+                            <select
+                              value={besoinWithPref.preference?.toString() || ''}
+                              onChange={(e) => {
+                                const newValue = [...field.value];
+                                newValue[index] = {
+                                  ...newValue[index],
+                                  preference: e.target.value ? parseInt(e.target.value) : null
+                                };
+                                field.onChange(newValue);
+                              }}
+                              className="border rounded px-2 py-1 text-sm"
+                            >
+                              <option value="">Aucune</option>
+                              <option value="1">1 (Haute)</option>
+                              <option value="2">2 (Moyenne)</option>
+                              <option value="3">3 (Basse)</option>
+                            </select>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
-                              field.onChange(field.value.filter((id) => id !== besoinId));
+                              field.onChange(field.value.filter((b) => b.besoinId !== besoinWithPref.besoinId));
                             }}
-                          />
-                        </Badge>
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       );
                     })}
                   </div>

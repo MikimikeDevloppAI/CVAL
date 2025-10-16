@@ -838,10 +838,8 @@ export type Database = {
           id: string
           name: string | null
           nombre_jours_supplementaires: number | null
-          personnel_bloc: boolean
           phone_number: string | null
           pourcentage_temps: number | null
-          prefere_port_en_truie: boolean
           prefered_admin: boolean
           profile_id: string | null
           updated_at: string
@@ -856,10 +854,8 @@ export type Database = {
           id?: string
           name?: string | null
           nombre_jours_supplementaires?: number | null
-          personnel_bloc?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
-          prefere_port_en_truie?: boolean
           prefered_admin?: boolean
           profile_id?: string | null
           updated_at?: string
@@ -874,10 +870,8 @@ export type Database = {
           id?: string
           name?: string | null
           nombre_jours_supplementaires?: number | null
-          personnel_bloc?: boolean
           phone_number?: string | null
           pourcentage_temps?: number | null
-          prefere_port_en_truie?: boolean
           prefered_admin?: boolean
           profile_id?: string | null
           updated_at?: string
@@ -897,7 +891,7 @@ export type Database = {
           besoin_operation_id: string
           created_at: string | null
           id: string
-          niveau_competence: string | null
+          preference: number | null
           secretaire_id: string
           updated_at: string | null
         }
@@ -905,7 +899,7 @@ export type Database = {
           besoin_operation_id: string
           created_at?: string | null
           id?: string
-          niveau_competence?: string | null
+          preference?: number | null
           secretaire_id: string
           updated_at?: string | null
         }
@@ -913,7 +907,7 @@ export type Database = {
           besoin_operation_id?: string
           created_at?: string | null
           id?: string
-          niveau_competence?: string | null
+          preference?: number | null
           secretaire_id?: string
           updated_at?: string | null
         }
