@@ -539,33 +539,34 @@ async function buildMILP(
   for (const post of blocVacantPosts) {
     const { id: post_id, date, periode, type_besoin_bloc } = post;
     
+    // Count eligible candidates for debugging
+    let eligibleCount = 0;
+    
     for (const sec of secretaires) {
       // Check if secretary has the required competence
       if (!canPerformBlocRole(sec, type_besoin_bloc)) continue;
       
-      // Check capacity or flexible
-      const isFlexible = flexibleSecs.has(sec.id);
-      const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
-      
-      if (!hasCapacity && !isFlexible) continue;
-      
-      // Skip flexible on Saturday without capacity
-      if (isFlexible && !hasCapacity) {
-        const dateObj = new Date(date + 'T00:00:00Z');
-        const isSaturday = dateObj.getUTCDay() === 6;
-        if (isSaturday) continue;
-      }
-      
-      // Skip flexible secretaries who have already met their weekly quota
-      if (isFlexible) {
-        const remaining = flexibleRemaining.get(sec.id) || 0;
-        if (remaining <= 0) continue;
-      }
-      
-      // Check if already at bloc this period
+      // Check if already at bloc this period (prevents double assignment)
       const blocKey = `${date}_${periode}`;
       const blocSecs = blocAssignments.get(blocKey) || new Set();
       if (blocSecs.has(sec.id)) continue;
+      
+      // For flexible secretaries, apply specific rules
+      const isFlexible = flexibleSecs.has(sec.id);
+      const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
+      
+      if (isFlexible) {
+        // Skip flexible on Saturday without capacity
+        if (!hasCapacity) {
+          const dateObj = new Date(date + 'T00:00:00Z');
+          const isSaturday = dateObj.getUTCDay() === 6;
+          if (isSaturday) continue;
+        }
+        
+        // Skip flexible secretaries who have already met their weekly quota
+        const remaining = flexibleRemaining.get(sec.id) || 0;
+        if (remaining <= 0) continue;
+      }
       
       // Create variable: bloc|secId|date|periode|post_id
       const varName = `bloc|${sec.id}|${date}|${periode}|${post_id}`;
@@ -576,25 +577,21 @@ async function buildMILP(
       model.variables[varName] = {
         score,
         [`bloc_post_${post_id}`]: 1,  // Each bloc post gets exactly 1 secretary
-        [`cap_${sec.id}_${date}_${periode}`]: 1  // Consumes capacity
+        [`cap_${sec.id}_${date}_${periode}`]: 1  // Consumes capacity (or creates it)
       };
       model.ints[varName] = 1;
       blocVarCount++;
+      eligibleCount++;
     }
     
     // Constraint: each bloc post gets at most 1 secretary (can remain vacant)
     model.constraints[`bloc_post_${post_id}`] = { max: 1 };
+    
+    // Log for debugging
+    console.log(`    - ${post.date} ${post.periode}: ${post.type_besoin_bloc} → ${eligibleCount} candidates`);
   }
   
   console.log(`  ✅ ${blocVarCount} bloc vacant post variables created`);
-  
-  // Log bloc posts to fill
-  if (blocVacantPosts.length > 0) {
-    console.log(`  📊 Bloc posts to fill: ${blocVacantPosts.length}`);
-    for (const post of blocVacantPosts) {
-      console.log(`    - ${post.date} ${post.periode}: ${post.type_besoin_bloc} (ordre ${post.ordre})`);
-    }
-  }
 
   // === 1C. ADMIN ASSIGNMENT VARIABLES ===
   console.log('  📋 Creating admin assignment variables...');
