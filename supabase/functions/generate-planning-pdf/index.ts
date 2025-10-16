@@ -240,6 +240,7 @@ body {
   padding: 24px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
   page-break-inside: avoid;
+  margin-top: 20px;
   margin-bottom: 20px;
   border: 1px solid rgba(255,255,255,0.9);
   transition: transform 0.2s;
@@ -291,14 +292,6 @@ body {
   color: #64748b; 
   font-weight: 700; 
   margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.time::before {
-  content: "⏰";
-  font-size: 12px;
 }
 
 .content { 
@@ -396,7 +389,7 @@ ${sec.byDay.map(([date, day]: [string, any]) => {
     return `<div class="day-block">
 <div class="day-title">${dayName} ${date}</div>
 <div class="time-row">
-<div class="time">Toute la journée</div>
+<div class="time">Journée entière</div>
 <div class="content">
 ${renderAssignmentContent(assignment, is1R, is2F, is3F)}
 </div>
@@ -436,19 +429,27 @@ function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: bo
         bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', 
         text: '#6b21a8' 
       };
-      parts.push(`<span class="badge" style="background: ${colors.bg}; color: ${colors.text};">${assignment.salle}</span>`);
+      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important;">${assignment.salle}</span>`);
     }
     
     // Badge pour le type de besoin
     if (assignment.typeBesoinBloc) {
       const labels: Record<string, string> = {
         'instrumentaliste': 'Instrumentaliste',
-        'aide_de_salle': 'Aide de salle',
+        'aide_de_salle': 'Aide De Salle',
         'bloc_dermato_accueil': 'Accueil Dermato',
         'bloc_ophtalmo_accueil': 'Accueil Ophtalmo',
         'anesthesiste': 'Anesthésiste'
       };
-      const label = labels[assignment.typeBesoinBloc] || assignment.typeBesoinBloc;
+      
+      // Fonction de formatage générique si le type n'est pas dans le mapping
+      const formatLabel = (str: string) => {
+        return str.split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      };
+      
+      const label = labels[assignment.typeBesoinBloc] || formatLabel(assignment.typeBesoinBloc);
       parts.push(`<span class="badge badge-bloc">${label}</span>`);
     }
     
