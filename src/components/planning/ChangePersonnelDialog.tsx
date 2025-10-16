@@ -28,7 +28,9 @@ interface ChangePersonnelDialogProps {
     date: string;
     periode: 'matin' | 'apres_midi';
     operation_nom: string;
-    planning_genere_bloc_operatoire_id: string;
+    planning_genere_bloc_operatoire_id?: string;
+    type_assignation: 'bloc' | 'site' | 'administratif';
+    site_id?: string | null;
   };
   onSuccess: () => void;
 }
@@ -85,174 +87,269 @@ export default function ChangePersonnelDialog({
   }, [open, assignment.id]);
 
   const fetchPersonnel = async () => {
-    if (!open || !assignment.type_besoin) return;
+    if (!open) return;
     
     setLoading(true);
     try {
-      // 1. Récupérer tous les secrétaires avec leurs compétences bloc
-      const { data: allSecretaires, error: secError } = await supabase
-        .from('secretaires')
-        .select('id, first_name, name, instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil, personnel_bloc_operatoire')
-        .eq('actif', true)
-        .eq('personnel_bloc_operatoire', true);
-
-      if (secError) throw secError;
-
-      // Filtrer selon les compétences requises
-      const eligible = (allSecretaires || []).filter(sec => 
-        canPerformBlocRole(sec, assignment.type_besoin)
-      );
-
-      // 2. Récupérer toutes les assignations du même jour/période
-      const { data: assigned, error: assignError } = await supabase
-        .from('planning_genere_personnel')
-        .select('secretaire_id')
-        .eq('date', assignment.date)
-        .eq('periode', assignment.periode)
-        .eq('type_assignation', 'bloc')
-        .not('secretaire_id', 'is', null);
-
-      if (assignError) throw assignError;
-
-      const assignedIds = new Set((assigned || []).map(a => a.secretaire_id));
-      
-      // Personnel disponible = compétent ET non assigné
-      const available = eligible.filter(p => !assignedIds.has(p.id));
-      setAvailablePersonnel(available);
-
-      // 3. Récupérer le personnel échangeable (même opération ou autres opérations)
-      if (assignment.secretaire_id) {
-        // 3a. Personnel de la même opération (rôles différents)
-        const { data: sameOp, error: sameOpError } = await supabase
-          .from('planning_genere_personnel')
-          .select(`
-            id,
-            secretaire_id,
-            type_besoin_bloc,
-            secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
-              id, first_name, name,
-              instrumentaliste, aide_de_salle, anesthesiste,
-              bloc_dermato_accueil, bloc_ophtalmo_accueil
-            )
-          `)
-          .eq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
-          .eq('type_assignation', 'bloc')
-          .neq('id', assignment.id)
-          .neq('type_besoin_bloc', assignment.type_besoin as any)
-          .not('secretaire_id', 'is', null);
-
-        if (sameOpError) throw sameOpError;
-
-        // Récupérer les compétences de la personne actuelle
-        const { data: currentSecretaire } = await supabase
+      if (assignment.type_assignation === 'bloc') {
+        // Logique pour assignations bloc
+        if (!assignment.type_besoin) return;
+        
+        // 1. Récupérer tous les secrétaires avec leurs compétences bloc
+        const { data: allSecretaires, error: secError } = await supabase
           .from('secretaires')
-          .select('instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil')
-          .eq('id', assignment.secretaire_id)
-          .single();
+          .select('id, first_name, name, instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil, personnel_bloc_operatoire')
+          .eq('actif', true)
+          .eq('personnel_bloc_operatoire', true);
 
-        // Vérification bidirectionnelle pour même opération
-        const validSameOp = (sameOp || [])
-          .filter(s => {
-            if (!s.secretaires || !currentSecretaire || !assignment.type_besoin || !s.type_besoin_bloc) return false;
-            
-            const targetCanDoCurrentRole = canPerformBlocRole(s.secretaires, assignment.type_besoin);
-            const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
-            
-            return targetCanDoCurrentRole && currentCanDoTargetRole;
-          })
-          .map(s => ({
-            ...s.secretaires!,
-            assignment_id: s.id,
-            type_besoin: s.type_besoin_bloc,
-            operation_nom: `${assignment.operation_nom} (même opération)`,
-            is_same_operation: true
-          }));
+        if (secError) throw secError;
 
-        // 3b. Personnel d'autres opérations bloc
-        const { data: otherOps, error: otherOpsError } = await supabase
+        // Filtrer selon les compétences requises
+        const eligible = (allSecretaires || []).filter(sec => 
+          canPerformBlocRole(sec, assignment.type_besoin)
+        );
+
+        // 2. Récupérer toutes les assignations du même jour/période
+        const { data: assigned, error: assignError } = await supabase
           .from('planning_genere_personnel')
-          .select(`
-            id,
-            secretaire_id,
-            type_besoin_bloc,
-            planning_genere_bloc_operatoire_id,
-            secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
-              id, first_name, name,
-              instrumentaliste, aide_de_salle, anesthesiste,
-              bloc_dermato_accueil, bloc_ophtalmo_accueil
-            ),
-            operation:planning_genere_bloc_operatoire_id(
-              type_intervention:type_intervention_id(nom)
-            )
-          `)
+          .select('secretaire_id')
           .eq('date', assignment.date)
           .eq('periode', assignment.periode)
           .eq('type_assignation', 'bloc')
-          .neq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
-          .neq('id', assignment.id)
           .not('secretaire_id', 'is', null);
 
-        if (otherOpsError) throw otherOpsError;
+        if (assignError) throw assignError;
 
-        // 3c. Personnel en administratif avec compétences bloc
-        const { data: adminPersonnel, error: adminError } = await supabase
+        const assignedIds = new Set((assigned || []).map(a => a.secretaire_id));
+        
+        // Personnel disponible = compétent ET non assigné
+        const available = eligible.filter(p => !assignedIds.has(p.id));
+        setAvailablePersonnel(available);
+      } else if (assignment.type_assignation === 'site') {
+        // Logique pour assignations site
+        // 1. Récupérer tous les secrétaires actifs
+        const { data: allSecretaires, error: secError } = await supabase
+          .from('secretaires')
+          .select('id, first_name, name')
+          .eq('actif', true);
+
+        if (secError) throw secError;
+
+        // 2. Récupérer toutes les assignations du même jour/période
+        const { data: assigned, error: assignError } = await supabase
           .from('planning_genere_personnel')
-          .select(`
-            id,
-            secretaire_id,
-            secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
-              id, first_name, name,
-              instrumentaliste, aide_de_salle, anesthesiste,
-              bloc_dermato_accueil, bloc_ophtalmo_accueil,
-              personnel_bloc_operatoire
-            )
-          `)
+          .select('secretaire_id')
           .eq('date', assignment.date)
           .eq('periode', assignment.periode)
-          .eq('type_assignation', 'administratif')
           .not('secretaire_id', 'is', null);
 
-        if (adminError) throw adminError;
+        if (assignError) throw assignError;
 
-        // Vérification pour autres opérations bloc
-        const validOtherOps = (otherOps || [])
-          .filter(s => {
-            if (!s.secretaires || !currentSecretaire || !s.type_besoin_bloc) return false;
-            
-            const targetCanDoCurrentRole = assignment.type_besoin && canPerformBlocRole(s.secretaires, assignment.type_besoin);
-            const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
-            
-            return targetCanDoCurrentRole && currentCanDoTargetRole;
-          })
-          .map(s => ({
-            ...s.secretaires!,
-            assignment_id: s.id,
-            type_besoin: s.type_besoin_bloc,
-            operation_nom: s.operation?.type_intervention?.nom || 'Opération',
-            is_same_operation: false
-          }));
+        const assignedIds = new Set((assigned || []).map(a => a.secretaire_id));
+        
+        // Personnel disponible = non assigné
+        const available = (allSecretaires || []).filter(p => !assignedIds.has(p.id));
+        setAvailablePersonnel(available);
+      }
 
-        // Vérification pour personnel administratif avec compétences bloc
-        const validAdminPersonnel = (adminPersonnel || [])
-          .filter(s => {
-            if (!s.secretaires || !currentSecretaire) return false;
-            // Le personnel admin doit pouvoir faire le rôle actuel
-            const targetCanDoCurrentRole = assignment.type_besoin && 
-              s.secretaires.personnel_bloc_operatoire &&
-              canPerformBlocRole(s.secretaires, assignment.type_besoin);
-            
-            return targetCanDoCurrentRole;
-          })
-          .map(s => ({
-            ...s.secretaires!,
-            assignment_id: s.id,
-            type_besoin: null,
-            operation_nom: 'Administratif',
-            is_same_operation: false
-          }));
+      // 3. Récupérer le personnel échangeable
+      if (assignment.secretaire_id) {
+        if (assignment.type_assignation === 'bloc') {
+          // Logique d'échange pour le bloc
+          // 3a. Personnel de la même opération (rôles différents)
+          const { data: sameOp, error: sameOpError } = await supabase
+            .from('planning_genere_personnel')
+            .select(`
+              id,
+              secretaire_id,
+              type_besoin_bloc,
+              secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+                id, first_name, name,
+                instrumentaliste, aide_de_salle, anesthesiste,
+                bloc_dermato_accueil, bloc_ophtalmo_accueil
+              )
+            `)
+            .eq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
+            .eq('type_assignation', 'bloc')
+            .neq('id', assignment.id)
+            .neq('type_besoin_bloc', assignment.type_besoin as any)
+            .not('secretaire_id', 'is', null);
 
-        // Combiner les trois listes
-        setSwapPersonnel([...validSameOp, ...validOtherOps, ...validAdminPersonnel]);
+          if (sameOpError) throw sameOpError;
+
+          // Récupérer les compétences de la personne actuelle
+          const { data: currentSecretaire } = await supabase
+            .from('secretaires')
+            .select('instrumentaliste, aide_de_salle, anesthesiste, bloc_dermato_accueil, bloc_ophtalmo_accueil')
+            .eq('id', assignment.secretaire_id)
+            .single();
+
+          // Vérification bidirectionnelle pour même opération
+          const validSameOp = (sameOp || [])
+            .filter(s => {
+              if (!s.secretaires || !currentSecretaire || !assignment.type_besoin || !s.type_besoin_bloc) return false;
+              
+              const targetCanDoCurrentRole = canPerformBlocRole(s.secretaires, assignment.type_besoin);
+              const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
+              
+              return targetCanDoCurrentRole && currentCanDoTargetRole;
+            })
+            .map(s => ({
+              ...s.secretaires!,
+              assignment_id: s.id,
+              type_besoin: s.type_besoin_bloc,
+              operation_nom: `${assignment.operation_nom} (même opération)`,
+              is_same_operation: true
+            }));
+
+          // 3b. Personnel d'autres opérations bloc
+          const { data: otherOps, error: otherOpsError } = await supabase
+            .from('planning_genere_personnel')
+            .select(`
+              id,
+              secretaire_id,
+              type_besoin_bloc,
+              planning_genere_bloc_operatoire_id,
+              secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+                id, first_name, name,
+                instrumentaliste, aide_de_salle, anesthesiste,
+                bloc_dermato_accueil, bloc_ophtalmo_accueil
+              ),
+              operation:planning_genere_bloc_operatoire_id(
+                type_intervention:type_intervention_id(nom)
+              )
+            `)
+            .eq('date', assignment.date)
+            .eq('periode', assignment.periode)
+            .eq('type_assignation', 'bloc')
+            .neq('planning_genere_bloc_operatoire_id', assignment.planning_genere_bloc_operatoire_id)
+            .neq('id', assignment.id)
+            .not('secretaire_id', 'is', null);
+
+          if (otherOpsError) throw otherOpsError;
+
+          // 3c. Personnel en administratif avec compétences bloc
+          const { data: adminPersonnel, error: adminError } = await supabase
+            .from('planning_genere_personnel')
+            .select(`
+              id,
+              secretaire_id,
+              secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+                id, first_name, name,
+                instrumentaliste, aide_de_salle, anesthesiste,
+                bloc_dermato_accueil, bloc_ophtalmo_accueil,
+                personnel_bloc_operatoire
+              )
+            `)
+            .eq('date', assignment.date)
+            .eq('periode', assignment.periode)
+            .eq('type_assignation', 'administratif')
+            .not('secretaire_id', 'is', null);
+
+          if (adminError) throw adminError;
+
+          // Vérification pour autres opérations bloc
+          const validOtherOps = (otherOps || [])
+            .filter(s => {
+              if (!s.secretaires || !currentSecretaire || !s.type_besoin_bloc) return false;
+              
+              const targetCanDoCurrentRole = assignment.type_besoin && canPerformBlocRole(s.secretaires, assignment.type_besoin);
+              const currentCanDoTargetRole = canPerformBlocRole(currentSecretaire, s.type_besoin_bloc);
+              
+              return targetCanDoCurrentRole && currentCanDoTargetRole;
+            })
+            .map(s => ({
+              ...s.secretaires!,
+              assignment_id: s.id,
+              type_besoin: s.type_besoin_bloc,
+              operation_nom: s.operation?.type_intervention?.nom || 'Opération',
+              is_same_operation: false
+            }));
+
+          // Vérification pour personnel administratif avec compétences bloc
+          const validAdminPersonnel = (adminPersonnel || [])
+            .filter(s => {
+              if (!s.secretaires || !currentSecretaire) return false;
+              // Le personnel admin doit pouvoir faire le rôle actuel
+              const targetCanDoCurrentRole = assignment.type_besoin && 
+                s.secretaires.personnel_bloc_operatoire &&
+                canPerformBlocRole(s.secretaires, assignment.type_besoin);
+              
+              return targetCanDoCurrentRole;
+            })
+            .map(s => ({
+              ...s.secretaires!,
+              assignment_id: s.id,
+              type_besoin: null,
+              operation_nom: 'Administratif',
+              is_same_operation: false
+            }));
+
+          // Combiner les trois listes
+          setSwapPersonnel([...validSameOp, ...validOtherOps, ...validAdminPersonnel]);
+        } else if (assignment.type_assignation === 'site') {
+          // Logique d'échange pour les sites
+          // 3a. Personnel d'autres sites
+          const { data: otherSites, error: otherSitesError } = await supabase
+            .from('planning_genere_personnel')
+            .select(`
+              id,
+              secretaire_id,
+              site_id,
+              secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+                id, first_name, name
+              ),
+              sites:sites!planning_genere_personnel_site_id_fkey(
+                nom
+              )
+            `)
+            .eq('date', assignment.date)
+            .eq('periode', assignment.periode)
+            .eq('type_assignation', 'site')
+            .neq('id', assignment.id)
+            .not('secretaire_id', 'is', null);
+
+          if (otherSitesError) throw otherSitesError;
+
+          // 3b. Personnel en administratif
+          const { data: adminPersonnel, error: adminError } = await supabase
+            .from('planning_genere_personnel')
+            .select(`
+              id,
+              secretaire_id,
+              secretaires:secretaires!planning_genere_personnel_secretaire_id_fkey(
+                id, first_name, name
+              )
+            `)
+            .eq('date', assignment.date)
+            .eq('periode', assignment.periode)
+            .eq('type_assignation', 'administratif')
+            .not('secretaire_id', 'is', null);
+
+          if (adminError) throw adminError;
+
+          const validOtherSites = (otherSites || [])
+            .map(s => ({
+              ...s.secretaires!,
+              assignment_id: s.id,
+              type_besoin: null,
+              operation_nom: `Site: ${s.sites?.nom || 'Inconnu'}`,
+              is_same_operation: false,
+              site_id: s.site_id
+            }));
+
+          const validAdminPersonnel = (adminPersonnel || [])
+            .map(s => ({
+              ...s.secretaires!,
+              assignment_id: s.id,
+              type_besoin: null,
+              operation_nom: 'Administratif',
+              is_same_operation: false
+            }));
+
+          // Combiner les deux listes
+          setSwapPersonnel([...validOtherSites, ...validAdminPersonnel]);
+        }
 
         // 5. Récupérer les options de réassignation si l'utilisateur veut retirer
         await fetchReassignOptions();
@@ -406,8 +503,8 @@ export default function ChangePersonnelDialog({
         const targetPerson = swapPersonnel.find(p => p.id === selectedPersonId);
         if (!targetPerson) throw new Error('Personnel cible introuvable');
 
-        if (targetPerson.type_besoin === null) {
-          // Échange avec personnel administratif
+        if (assignment.type_assignation === 'bloc' && targetPerson.operation_nom === 'Administratif') {
+          // Échange bloc <-> administratif
           // 1. Retirer la personne actuelle du bloc
           const { error: error1 } = await supabase
             .from('planning_genere_personnel')
@@ -448,8 +545,50 @@ export default function ChangePersonnelDialog({
             title: 'Succès',
             description: 'Échange effectué avec le personnel administratif',
           });
+        } else if (assignment.type_assignation === 'site' && targetPerson.operation_nom === 'Administratif') {
+          // Échange site <-> administratif
+          // 1. Retirer la personne actuelle du site
+          const { error: error1 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: null })
+            .eq('id', assignment.id);
+
+          if (error1) throw error1;
+
+          // 2. Assigner la personne actuelle en administratif (créer nouvelle ligne)
+          const { error: error2 } = await supabase
+            .from('planning_genere_personnel')
+            .insert({
+              date: assignment.date,
+              periode: assignment.periode,
+              secretaire_id: assignment.secretaire_id,
+              type_assignation: 'administratif',
+            });
+
+          if (error2) throw error2;
+
+          // 3. Supprimer l'assignation administrative de la cible
+          const { error: error3 } = await supabase
+            .from('planning_genere_personnel')
+            .delete()
+            .eq('id', targetPerson.assignment_id);
+
+          if (error3) throw error3;
+
+          // 4. Assigner la cible au site
+          const { error: error4 } = await supabase
+            .from('planning_genere_personnel')
+            .update({ secretaire_id: targetPerson.id })
+            .eq('id', assignment.id);
+
+          if (error4) throw error4;
+
+          toast({
+            title: 'Succès',
+            description: 'Échange effectué avec le personnel administratif',
+          });
         } else {
-          // Échange classique entre postes bloc
+          // Échange classique entre postes (bloc <-> bloc ou site <-> site)
           const { error: error1 } = await supabase
             .from('planning_genere_personnel')
             .update({ secretaire_id: targetPerson.id })
@@ -468,7 +607,7 @@ export default function ChangePersonnelDialog({
             title: 'Succès',
             description: targetPerson.is_same_operation 
               ? 'Échange effectué dans la même opération' 
-              : 'Échange effectué avec une autre opération',
+              : 'Échange effectué',
           });
         }
       } else if (action === 'remove') {
@@ -559,10 +698,19 @@ export default function ChangePersonnelDialog({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>Rôle requis: <strong>{getTypeBesoinLabel(assignment.type_besoin)}</strong></span>
-            </div>
+            {assignment.type_assignation === 'bloc' && assignment.type_besoin && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                <span>Rôle requis: <strong>{getTypeBesoinLabel(assignment.type_besoin)}</strong></span>
+              </div>
+            )}
+            
+            {assignment.type_assignation === 'site' && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                <span>Type: <strong>Assignation Site</strong></span>
+              </div>
+            )}
 
             {assignment.secretaire_nom && (
               <div className="flex items-center gap-2 text-sm">
