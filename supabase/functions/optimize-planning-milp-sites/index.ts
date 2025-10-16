@@ -323,6 +323,68 @@ async function buildMILP(
 
   const sitesMap = new Map(sites.map((s: any) => [s.id, s]));
 
+  // === FETCH ABSENCES FOR FLEXIBLE SECRETARIES ===
+  console.log('  🚫 Fetching absences for flexible secretaries...');
+  
+  const flexSecIds = Array.from(flexibleSecs.keys());
+  const absencesData = flexSecIds.length > 0 
+    ? await supabase
+        .from('absences')
+        .select('*')
+        .in('secretaire_id', flexSecIds)
+        .in('statut', ['approuve', 'en_attente'])
+        .or(`date_debut.lte.${dates[dates.length - 1]},date_fin.gte.${dates[0]}`)
+        .then((r: any) => r.data || [])
+    : [];
+  
+  // Build absence maps: full-day and partial-day (by period)
+  const absencesFullDay = new Map<string, Set<string>>(); // secId -> Set<date>
+  const absencesPartialMatin = new Map<string, Set<string>>();
+  const absencesPartialApresMidi = new Map<string, Set<string>>();
+  
+  for (const abs of absencesData) {
+    const secId = abs.secretaire_id;
+    const isFullDay = !abs.heure_debut && !abs.heure_fin;
+    
+    // Generate all dates in absence range
+    let currentDate = new Date(abs.date_debut + 'T00:00:00Z');
+    const endDate = new Date(abs.date_fin + 'T00:00:00Z');
+    
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      if (dates.includes(dateStr)) {
+        if (isFullDay) {
+          if (!absencesFullDay.has(secId)) absencesFullDay.set(secId, new Set());
+          absencesFullDay.get(secId)!.add(dateStr);
+        } else {
+          // Partial absence - determine period based on hours
+          const startHour = parseInt(abs.heure_debut?.split(':')[0] || '0');
+          const endHour = parseInt(abs.heure_fin?.split(':')[0] || '24');
+          
+          // Morning: 07:30-12:30 (7-12)
+          if (startHour < 12) {
+            if (!absencesPartialMatin.has(secId)) absencesPartialMatin.set(secId, new Set());
+            absencesPartialMatin.get(secId)!.add(dateStr);
+          }
+          // Afternoon: 13:00-17:00 (13-17)
+          if (endHour > 12) {
+            if (!absencesPartialApresMidi.has(secId)) absencesPartialApresMidi.set(secId, new Set());
+            absencesPartialApresMidi.get(secId)!.add(dateStr);
+          }
+        }
+      }
+      
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+  }
+  
+  console.log(`  ✅ Absences fetched: ${absencesData.length} records for ${flexSecIds.length} flexible secretaries`);
+  for (const [secId, dates] of absencesFullDay) {
+    const sec = secretaires.find(s => s.id === secId);
+    console.log(`    - ${sec?.first_name} ${sec?.name}: ${dates.size} jours d'absence complète`);
+  }
+
   // === CALCULATE FLEXIBLE SECRETARIES REMAINING DAYS (ALWAYS, even in single-day mode) ===
   console.log('  📅 Calculating flexible secretaries remaining days...');
   
@@ -333,6 +395,15 @@ async function buildMILP(
     const sec = secretaires.find((s: any) => s.id === flexSecId);
     if (!sec) continue;
 
+    // Calculate available days = total days in week minus full-day absences
+    const totalDaysInWeek = dates.filter(d => {
+      const dateObj = new Date(d + 'T00:00:00Z');
+      return dateObj.getUTCDay() !== 6; // Exclude Saturdays
+    }).length;
+    
+    const fullDayAbsences = absencesFullDay.get(flexSecId) || new Set();
+    const availableDays = totalDaysInWeek - fullDayAbsences.size;
+    
     // Query existing assignments excluding selected_dates
     const { data: existingAssignments } = await supabase
       .from('planning_genere_personnel')
@@ -371,12 +442,14 @@ async function buildMILP(
     }
 
     const alreadyWorked = fullDays.size;
-    const remaining = Math.max(0, requiredDays - alreadyWorked);
+    // Adjust required days based on available days
+    const adjustedRequired = Math.min(requiredDays, availableDays);
+    const remaining = Math.max(0, adjustedRequired - alreadyWorked);
     
     daysAlreadyWorked.set(flexSecId, alreadyWorked);
     flexibleRemaining.set(flexSecId, remaining);
     
-    console.log(`    ${sec.first_name} ${sec.name}: requis ${requiredDays}, déjà ${alreadyWorked}, restants ${remaining}`);
+    console.log(`    ${sec.first_name} ${sec.name}: requis ${requiredDays}, disponibles ${availableDays}, déjà ${alreadyWorked}, restants ${remaining}`);
   }
 
   // === 1. PRE-PROCESS: AGGREGATE BESOINS BY (date, site_id, periode) ===
@@ -444,6 +517,23 @@ async function buildMILP(
         const hasCapacity = capacitesMap.has(`${date}_${sec.id}_${periode}`);
         
         if (!hasCapacity && !isFlexible) continue;
+        
+        // CRITICAL: Check absences for flexible secretaries ONLY
+        if (isFlexible) {
+          // Check full-day absence
+          const fullDayAbs = absencesFullDay.get(sec.id);
+          if (fullDayAbs && fullDayAbs.has(date)) {
+            continue; // Skip this flexible secretary - full day absence
+          }
+          
+          // Check partial absence for this period
+          const partialAbs = periode === 'matin' 
+            ? absencesPartialMatin.get(sec.id)
+            : absencesPartialApresMidi.get(sec.id);
+          if (partialAbs && partialAbs.has(date)) {
+            continue; // Skip this flexible secretary - partial absence for this period
+          }
+        }
         
         // CRITICAL: Flexible secretaries can only be assigned on Saturday if they have explicit capacity
         if (isFlexible && !hasCapacity) {

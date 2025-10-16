@@ -291,32 +291,9 @@ serve(async (req) => {
     console.log(`✅ Sites phase complete: ${JSON.stringify(sitesResults)}`);
   }
 
-  // PHASE 3: Flexible secretaries
+  // PHASE 3: Flexible secretaries (REMOVED - now handled in Phase 2)
   let flexibleResults = null;
-  console.log('👥 Phase 3: Optimizing flexible secretaries...');
-  
-  const flexibleUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/optimize-planning-milp-flexible`;
-  const flexibleResponse = await fetch(flexibleUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-    },
-    body: JSON.stringify({ 
-      week_start: weekStart,
-      week_end: weekEnd,
-      planning_id,
-      selected_dates
-    })
-  });
-
-  if (!flexibleResponse.ok) {
-    const errorText = await flexibleResponse.text();
-    console.error('⚠️ Flexible optimization failed:', errorText);
-  } else {
-    flexibleResults = await flexibleResponse.json();
-    console.log(`✅ Flexible phase complete: ${JSON.stringify(flexibleResults)}`);
-  }
+  console.log('👥 Phase 3: SKIPPED (flexible secretaries now handled in Phase 2 with absence checks)');
 
   // PHASE 4: Assign closing responsibles (1R, 2F, 3F)
   let closingResults = null;
@@ -350,7 +327,6 @@ serve(async (req) => {
       success: true,
       bloc_results: blocResults,
       sites_results: sitesResults,
-      flexible_results: flexibleResults,
       closing_results: closingResults
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
