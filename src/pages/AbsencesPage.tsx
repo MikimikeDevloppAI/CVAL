@@ -93,40 +93,63 @@ export default function AbsencesPage() {
     fetchAbsences();
   }, []);
 
-  // Group consecutive absences together
+  // Group consecutive absences together by person
   const groupConsecutiveAbsences = (absences: Absence[]) => {
-    const grouped: Absence[] = [];
-    const sorted = [...absences].sort((a, b) => 
-      new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
-    );
-
-    for (const absence of sorted) {
-      const lastGroup = grouped[grouped.length - 1];
-      
-      // Check if this absence can be merged with the last group
-      if (lastGroup && 
-          absence.type_personne === lastGroup.type_personne &&
-          absence.medecin_id === lastGroup.medecin_id &&
-          absence.secretaire_id === lastGroup.secretaire_id &&
-          absence.type === lastGroup.type &&
-          absence.statut === lastGroup.statut) {
-        
-        const lastEndDate = new Date(lastGroup.date_fin);
-        const currentStartDate = new Date(absence.date_debut);
-        const dayDiff = Math.floor((currentStartDate.getTime() - lastEndDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // If absences are consecutive (1 day apart), merge them
-        if (dayDiff === 1) {
-          lastGroup.date_fin = absence.date_fin;
-          continue;
-        }
-      }
-      
-      // Otherwise, add as a new group
-      grouped.push({ ...absence });
-    }
+    // First, group by person
+    const byPerson = new Map<string, Absence[]>();
     
-    return grouped;
+    absences.forEach(absence => {
+      const personKey = `${absence.type_personne}_${absence.medecin_id || absence.secretaire_id}`;
+      if (!byPerson.has(personKey)) {
+        byPerson.set(personKey, []);
+      }
+      byPerson.get(personKey)!.push(absence);
+    });
+
+    // Then, merge consecutive absences for each person
+    const grouped: Absence[] = [];
+    
+    byPerson.forEach(personAbsences => {
+      const sorted = personAbsences.sort((a, b) => 
+        new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
+      );
+
+      for (const absence of sorted) {
+        const lastGroup = grouped[grouped.length - 1];
+        
+        // Check if this absence can be merged with the last group
+        if (lastGroup && 
+            absence.type_personne === lastGroup.type_personne &&
+            absence.medecin_id === lastGroup.medecin_id &&
+            absence.secretaire_id === lastGroup.secretaire_id &&
+            absence.type === lastGroup.type &&
+            absence.statut === lastGroup.statut &&
+            absence.heure_debut === lastGroup.heure_debut &&
+            absence.heure_fin === lastGroup.heure_fin) {
+          
+          const lastEndDate = new Date(lastGroup.date_fin);
+          const currentStartDate = new Date(absence.date_debut);
+          lastEndDate.setHours(0, 0, 0, 0);
+          currentStartDate.setHours(0, 0, 0, 0);
+          
+          const dayDiff = Math.floor((currentStartDate.getTime() - lastEndDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // If absences are consecutive (1 day apart), merge them
+          if (dayDiff === 1) {
+            lastGroup.date_fin = absence.date_fin;
+            continue;
+          }
+        }
+        
+        // Otherwise, add as a new group
+        grouped.push({ ...absence });
+      }
+    });
+    
+    // Return sorted by date_debut descending (most recent first)
+    return grouped.sort((a, b) => 
+      new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime()
+    );
   };
 
   const filteredAbsences = groupConsecutiveAbsences(absences).filter(absence => {
