@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { SecretairesForBesoinDialog } from './SecretairesForBesoinDialog';
 
 interface BesoinOperation {
   id: string;
@@ -22,7 +23,9 @@ export function BesoinsOperationsManagement() {
   const [besoins, setBesoins] = useState<BesoinOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSecretairesDialogOpen, setIsSecretairesDialogOpen] = useState(false);
   const [selectedBesoin, setSelectedBesoin] = useState<BesoinOperation | null>(null);
+  const [selectedBesoinForSecretaires, setSelectedBesoinForSecretaires] = useState<BesoinOperation | null>(null);
   const [formData, setFormData] = useState({
     code: '',
     nom: '',
@@ -148,6 +151,11 @@ export function BesoinsOperationsManagement() {
     setIsDialogOpen(true);
   };
 
+  const openSecretairesDialog = (besoin: BesoinOperation) => {
+    setSelectedBesoinForSecretaires(besoin);
+    setIsSecretairesDialogOpen(true);
+  };
+
   if (loading) {
     return <div className="text-center p-4">Chargement...</div>;
   }
@@ -255,6 +263,14 @@ export function BesoinsOperationsManagement() {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => openSecretairesDialog(besoin)}
+                title="Gérer les secrétaires"
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => openEditDialog(besoin)}
               >
                 <Edit className="h-4 w-4" />
@@ -284,6 +300,16 @@ export function BesoinsOperationsManagement() {
           </div>
         ))}
       </div>
+
+      {/* Dialog pour gérer les secrétaires d'un besoin */}
+      {selectedBesoinForSecretaires && (
+        <SecretairesForBesoinDialog
+          open={isSecretairesDialogOpen}
+          onOpenChange={setIsSecretairesDialogOpen}
+          besoinOperationId={selectedBesoinForSecretaires.id}
+          besoinOperationNom={selectedBesoinForSecretaires.nom}
+        />
+      )}
     </div>
   );
 }
