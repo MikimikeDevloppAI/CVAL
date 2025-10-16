@@ -275,12 +275,12 @@ const BlocOperatoirePage = () => {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <PageHeader
-        title="Bloc Opératoire"
-        icon={Scissors}
-      />
+      <div className="flex items-center justify-between mb-6">
+        <PageHeader
+          title="Bloc Opératoire"
+          icon={Scissors}
+        />
 
-      <div className="mb-6 flex justify-center">
         <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
           <button
             onClick={() => setActiveTab('planning')}
