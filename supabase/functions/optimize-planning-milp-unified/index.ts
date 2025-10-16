@@ -514,26 +514,37 @@ serve(async (req) => {
 
     console.log(`${besoinsParSite.size} besoins sites agrégés`);
     
-    // Log détaillé des besoins par site
+    // Log détaillé des besoins par site avec noms des médecins
     for (const [key, besoinSite] of besoinsParSite.entries()) {
       const site = sites.find((s) => s.id === besoinSite.site_id);
+      const medecinsNames = besoinSite.medecins.map((m: any) => {
+        const medecin = medecins.find((med) => med.id === m.medecin_id);
+        return medecin ? `${medecin.first_name} ${medecin.name} (${m.besoin_secretaires})` : 'Médecin inconnu';
+      }).join(', ');
       console.log(
-        `  ${site?.nom} - ${besoinSite.date} ${besoinSite.periode}: ` +
-        `${besoinSite.medecins.length} médecin(s), besoin total: ${besoinSite.besoin_total.toFixed(2)}`
+        `  📍 ${site?.nom || 'Site inconnu'} - ${besoinSite.date} ${besoinSite.periode}:\n` +
+        `     Médecins: ${medecinsNames}\n` +
+        `     Besoin total: ${besoinSite.besoin_total.toFixed(2)} → arrondi à ${Math.ceil(besoinSite.besoin_total)}`
       );
     }
 
     let siteVariableCount = 0;
+    const siteVariablesLog: Array<{site: string, date: string, periode: string, variablesCreated: number}> = [];
+    
     for (const [key, besoinSite] of besoinsParSite.entries()) {
       const { date, site_id, periode, medecins: medecinsData, besoin_total } = besoinSite;
       const maxSecretaires = Math.ceil(besoin_total);
 
       const site = sites.find((s) => s.id === site_id);
-      console.log(`Site ${site?.nom} - ${date} ${periode}: ${maxSecretaires} secrétaires max (besoin: ${besoin_total.toFixed(2)})`);
+      let localVariableCount = 0;
 
       // Contrainte: maximum de secrétaires par site (contrainte dure)
       const maxConstraint = `max_site_${site_id}_${date}_${periode}`;
       model.constraints[maxConstraint] = { max: maxSecretaires };
+      
+      // Contrainte: besoin minimum de secrétaires (contrainte souple via score négatif)
+      const minConstraint = `min_site_${site_id}_${date}_${periode}`;
+      model.constraints[minConstraint] = { min: maxSecretaires };
 
       for (const sec of secretaires) {
         // Vérifier si secrétaire déjà assignée au bloc
@@ -568,6 +579,8 @@ serve(async (req) => {
             else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 6000;
           }
         }
+        
+        localVariableCount++;
 
         // Score site
         if (prio === 1) score += 800;
@@ -600,6 +613,9 @@ serve(async (req) => {
 
         // Contrainte max secrétaires
         model.variables[varName][maxConstraint] = 1;
+        
+        // Contrainte min secrétaires (besoin)
+        model.variables[varName][minConstraint] = 1;
 
         // Contrainte unique
         const uniqueConstraint = `unique_${sec.id}_${date}_${periode}`;
@@ -608,9 +624,24 @@ serve(async (req) => {
         }
         model.variables[varName][uniqueConstraint] = 1;
       }
+      
+      // Logger les variables créées pour ce site
+      siteVariableCount += localVariableCount;
+      siteVariablesLog.push({
+        site: site?.nom || 'Site inconnu',
+        date,
+        periode,
+        variablesCreated: localVariableCount
+      });
     }
 
-    console.log(`✓ ${siteVariableCount} variables sites créées`);
+    console.log(`✓ ${siteVariableCount} variables sites créées au total`);
+    
+    // Log détaillé des variables par site
+    console.log('\n📊 Variables créées par site:');
+    for (const log of siteVariablesLog) {
+      console.log(`  ${log.site} - ${log.date} ${log.periode}: ${log.variablesCreated} variable(s)`);
+    }
 
     // ============================================================
     // PHASE 1C: PÉNALITÉ CHANGEMENT DE SITE

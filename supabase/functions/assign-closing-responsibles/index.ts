@@ -193,6 +193,11 @@ serve(async (req) => {
     }
 
     console.log(`🔒 Found ${sitesNeedingClosing.length} site/date combinations needing closing responsibles`);
+    
+    // Log détaillé de chaque site/date nécessitant des responsables
+    for (const siteDay of sitesNeedingClosing) {
+      console.log(`  📍 ${siteDay.site_nom} - ${siteDay.date}: nécessite 1R et 2F/3F`);
+    }
 
     // Sort by date to ensure day-by-day processing in chronological order
     sitesNeedingClosing.sort((a, b) => a.date.localeCompare(b.date));
@@ -272,10 +277,19 @@ serve(async (req) => {
       
       const bothPeriods = Array.from(morningIds).filter(id => afternoonIds.has(id));
 
+      console.log(`  🔍 ${date} ${siteDay.site_nom}: ${morningIds.size} secrétaires matin, ${afternoonIds.size} après-midi, ${bothPeriods.length} présentes toute la journée`);
+      
       if (bothPeriods.length === 0) {
-        console.log(`⚠️ No secretary works both periods on ${date} at ${siteDay.site_nom}`);
+        console.log(`  ⚠️ Aucune secrétaire ne travaille toute la journée - impossible d'assigner 1R/2F/3F`);
         continue;
       }
+      
+      // Log des secrétaires candidates
+      const candidatesNames = bothPeriods.map(id => {
+        const sec = secretaries?.find(s => s.id === id);
+        return sec ? `${sec.first_name} ${sec.name}` : id;
+      }).join(', ');
+      console.log(`  👥 Candidates pour responsabilités: ${candidatesNames}`);
 
       // Filter out Florence Bron on Tuesdays for 2F role
       let candidates = bothPeriods;
