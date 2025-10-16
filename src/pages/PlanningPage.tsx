@@ -1071,11 +1071,17 @@ export default function PlanningPage() {
                 <div className="flex items-center gap-4 w-full">
                   {/* Left: Action Buttons */}
                   <div className="flex gap-2 shrink-0">
-                    <Button 
+                    <button
                       onClick={handleOptimizeMILP} 
                       disabled={isOptimizingMILP}
-                      size="default"
-                      className="gap-2"
+                      className={`
+                        px-4 py-2.5 rounded-lg font-medium text-sm
+                        transition-all duration-200 ease-in-out
+                        flex items-center gap-2
+                        bg-primary text-primary-foreground shadow-md
+                        hover:shadow-lg hover:scale-[1.02]
+                        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+                      `}
                     >
                       {isOptimizingMILP ? (
                         <>
@@ -1088,7 +1094,7 @@ export default function PlanningPage() {
                           Optimiser
                         </>
                       )}
-                    </Button>
+                    </button>
                   </div>
 
                   {/* Center: Information Grid - equally distributed */}
@@ -1138,11 +1144,17 @@ export default function PlanningPage() {
                   <div className="flex gap-2 shrink-0">
                     {/* Validate Button */}
                     {currentPlanningId && currentPlanningStatus === 'en_cours' && (
-                      <Button 
+                      <button
                         onClick={validatePlanning} 
                         disabled={isValidatingPlanning || isGeneratingPDF}
-                        size="default"
-                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                        className={`
+                          px-4 py-2.5 rounded-lg font-medium text-sm
+                          transition-all duration-200 ease-in-out
+                          flex items-center gap-2
+                          bg-green-600 text-white shadow-md
+                          hover:bg-green-700 hover:shadow-lg hover:scale-[1.02]
+                          disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+                        `}
                       >
                         {isValidatingPlanning || isGeneratingPDF ? (
                           <>
@@ -1155,7 +1167,7 @@ export default function PlanningPage() {
                             Valider
                           </>
                         )}
-                      </Button>
+                      </button>
                     )}
                     
                     {/* PDF Download Button */}
@@ -1177,7 +1189,7 @@ export default function PlanningPage() {
           )}
 
           {/* View Selector */}
-          <div className="flex justify-start mb-4">
+          <div className="flex justify-center mb-4">
             <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
               <button
                 onClick={() => setPlanningView('site')}
@@ -1207,7 +1219,7 @@ export default function PlanningPage() {
                 `}
               >
                 <Users className="h-4 w-4" />
-                <span>Par secrétaire</span>
+                <span>Par assistante médicale</span>
               </button>
             </div>
           </div>
