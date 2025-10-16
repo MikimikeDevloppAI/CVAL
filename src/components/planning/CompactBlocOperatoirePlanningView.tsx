@@ -84,9 +84,48 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
     };
     
     fetchData();
+
+    // Real-time subscription for bloc operations
+    const blocChannel = supabase
+      .channel('bloc-operatoire-planning-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere_bloc_operatoire'
+        },
+        () => {
+          if (mounted) {
+            fetchBlocOperations();
+          }
+        }
+      )
+      .subscribe();
+
+    // Real-time subscription for personnel assignments
+    const personnelChannel = supabase
+      .channel('bloc-personnel-planning-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere_personnel',
+          filter: 'type_assignation=eq.bloc'
+        },
+        () => {
+          if (mounted) {
+            fetchBlocOperations();
+          }
+        }
+      )
+      .subscribe();
     
     return () => {
       mounted = false;
+      supabase.removeChannel(blocChannel);
+      supabase.removeChannel(personnelChannel);
     };
   }, [startDate, endDate]);
 

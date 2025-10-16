@@ -67,9 +67,28 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     };
     
     fetchData();
+
+    // Real-time subscription for personnel assignments
+    const personnelChannel = supabase
+      .channel('site-personnel-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere_personnel'
+        },
+        () => {
+          if (mounted) {
+            fetchSitePlanning();
+          }
+        }
+      )
+      .subscribe();
     
     return () => {
       mounted = false;
+      supabase.removeChannel(personnelChannel);
     };
   }, [startDate, endDate]);
 
