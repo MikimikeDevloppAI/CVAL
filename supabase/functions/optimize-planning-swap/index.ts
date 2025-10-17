@@ -546,12 +546,14 @@ serve(async (req) => {
             console.log(`   adminBonusBefore: ${adminBonusBefore}, adminBonusAfter: ${adminBonusAfter}`);
           }
 
-          // Log spécial pour Laura Spring et changements de site
-          if ((sec1?.name === 'Spring' || sec2?.name === 'Spring') && a1.date === '2025-11-18') {
-            console.log(`\n🔍 SWAP LAURA SPRING 18/11:`);
-            console.log(`   Sec1: ${sec1?.first_name} ${sec1?.name}, siteChanges=${m1.siteChanges}→${newSiteChanges1}`);
-            console.log(`   Sec2: ${sec2?.first_name} ${sec2?.name}, siteChanges=${m2.siteChanges}→${newSiteChanges2}`);
-            console.log(`   Gain: ${gain.toFixed(0)}`);
+          // Log spécial pour Laura Spring et Léna Jurot le 18/11
+          if (a1.date === '2025-11-18' && 
+              ((sec1?.name === 'Spring' && sec2?.name === 'Jurot') || 
+               (sec1?.name === 'Jurot' && sec2?.name === 'Spring'))) {
+            console.log(`\n🔍 SWAP LAURA/LÉNA 18/11:`);
+            console.log(`   Sec1: ${sec1?.first_name} ${sec1?.name}, type=${a1.type_assignation}, siteChanges=${m1.siteChanges}→${newSiteChanges1}, admin=${m1.adminCount}→${newAdminCount1}`);
+            console.log(`   Sec2: ${sec2?.first_name} ${sec2?.name}, type=${a2.type_assignation}, siteChanges=${m2.siteChanges}→${newSiteChanges2}, admin=${m2.adminCount}→${newAdminCount2}`);
+            console.log(`   Gain: ${gain.toFixed(0)}, scoreBefore: ${scoreBefore.toFixed(0)}, scoreAfter: ${scoreAfter.toFixed(0)}`);
           }
           
           if (gain > 0) {
@@ -698,6 +700,33 @@ serve(async (req) => {
       
       candidates.sort((a, b) => b.gain - a.gain);
       console.log(`${candidates.length} candidats d'échange trouvés`);
+      
+      // Log des candidats impliquant Laura Spring ou Léna Jurot le 18/11
+      const lauraLenaCandidates = candidates.filter(c => {
+        const s1 = secretaires.find(s => s.id === c.secretaire_1);
+        const s2 = secretaires.find(s => s.id === c.secretaire_2);
+        return c.date === '2025-11-18' && 
+               ((s1?.name === 'Spring' && s2?.name === 'Jurot') || 
+                (s1?.name === 'Jurot' && s2?.name === 'Spring'));
+      });
+      
+      if (lauraLenaCandidates.length > 0) {
+        console.log(`\n📋 ${lauraLenaCandidates.length} candidats Laura/Léna 18/11:`);
+        lauraLenaCandidates.forEach((c, idx) => {
+          const a1 = currentAssignments.find((a: any) => 
+            a.secretaire_id === c.secretaire_1 && a.date === c.date && 
+            (c.type === 'half_day' ? true : a.periode === 'matin')
+          );
+          const a2 = currentAssignments.find((a: any) => 
+            a.secretaire_id === c.secretaire_2 && a.date === c.date && 
+            (c.type === 'half_day' ? true : a.periode === 'matin')
+          );
+          const s1 = secretaires.find(s => s.id === c.secretaire_1);
+          const s2 = secretaires.find(s => s.id === c.secretaire_2);
+          console.log(`   ${idx+1}. ${s1?.first_name} ${a1?.type_assignation} ↔ ${s2?.first_name} ${a2?.type_assignation}, type=${c.type}, gain=${c.gain.toFixed(0)}`);
+        });
+      }
+      
       
       const best = candidates[0];
       console.log(`💡 Meilleur échange retenu (${best.type}): gain +${best.gain.toFixed(0)}`);
