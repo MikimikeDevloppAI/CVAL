@@ -195,11 +195,29 @@ serve(async (req) => {
       return score;
     };
     
+    // Sites sensibles pour le bloc opératoire
+    const BLOC_RESTRICTED_SITES = [
+      '7723c334-d06c-413d-96f0-be281d76520d',
+      '043899a1-a232-4c4b-9d7d-0eb44dad00ad'
+    ];
+    
+    // Helper: pénalité si swap bloc ↔ site restreint
+    const getBlocSitePenalty = (a1: any, a2: any): number => {
+      const isBlocToRestrictedSite = 
+        (a1.type_assignation === 'bloc' && a2.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(a2.site_id)) ||
+        (a2.type_assignation === 'bloc' && a1.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(a1.site_id));
+      
+      return isBlocToRestrictedSite ? -5000 : 0;
+    };
+    
     // Helper: vérifier si échange est éligible
     const isEligible = (a1: any, a2: any): boolean => {
       if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
       if (a1.type_assignation === 'administratif' && a2.type_assignation === 'administratif') return false;
-      if (a1.type_assignation === 'bloc' || a2.type_assignation === 'bloc') return false;
+      
+      // Permettre les swaps avec le bloc (la pénalité gérera les sites restreints)
       
       if (a1.type_assignation === 'site' && a1.site_id) {
         const sitesData = secretairesSitesMap.get(a2.secretaire_id) || [];
@@ -316,7 +334,10 @@ serve(async (req) => {
             calculatePenalties(newAdminCount1, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
             calculatePenalties(newAdminCount2, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id);
           
-          const gain = scoreAfter - scoreBefore;
+          let gain = scoreAfter - scoreBefore;
+          
+          // Appliquer pénalité bloc ↔ site restreint
+          gain += getBlocSitePenalty(a1, a2);
           
           if (gain > 0) {
             regularCandidates.push({
@@ -368,7 +389,11 @@ serve(async (req) => {
               calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
               calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id);
             
-            const gain = scoreAfter - scoreBefore;
+            let gain = scoreAfter - scoreBefore;
+            
+            // Appliquer pénalités bloc ↔ site restreint pour les 2 demi-journées
+            gain += getBlocSitePenalty(s1Matin, s2Matin);
+            gain += getBlocSitePenalty(s1Aprem, s2Aprem);
             
             if (gain > 0) {
               const idx1 = currentAssignments.indexOf(s1Matin);
