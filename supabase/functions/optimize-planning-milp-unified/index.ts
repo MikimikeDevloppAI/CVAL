@@ -1021,30 +1021,6 @@ serve(async (req) => {
         else if (prio === 2) score += 1100;
         else if (prio === 3) score += 1000;
 
-        // Bonus pour journée complète sur le même site (tie-breaker doux)
-        // Favorise les affectations matin + après-midi au même endroit
-        if (periode === 'apres_midi') {
-          const hasMorningOnSameSite = assignments.some(
-            (a) => a.type === "site" && 
-                   a.secretaire_id === sec.id && 
-                   a.date === date && 
-                   a.periode === 'matin' && 
-                   a.site_id === site_id
-          );
-          if (hasMorningOnSameSite) {
-            score += 500; // Petit bonus pour cohérence journée complète
-          }
-        }
-
-        // Pénalité Port-en-Truie progressive
-        if (portEnTruieSite && site_id === portEnTruieSite.id) {
-          const sitePref1 = sitesData.find((s) => s.priorite === 1);
-          if (!sitePref1 || sitePref1.site_id !== portEnTruieSite.id) {
-            const count = portEnTruieAssignmentCount.get(sec.id) || 0;
-            score -= (count + 1) * 5;
-          }
-        }
-
         const varName = `y_${sec.id}_${site_id}_${date}_${periode}`;
         model.variables[varName] = { score };
         model.ints[varName] = 1;
@@ -1208,44 +1184,6 @@ serve(async (req) => {
 
     console.log(`✓ ${adminVariableCount} variables administratives créées`);
 
-    // ============================================================
-    // PHASE 1D-BIS: VARIABLES D'ACTIVATION "PRÉFÈRE ADMIN"
-    // ============================================================
-    console.log("\n--- PHASE 1D-BIS: VARIABLES D'ACTIVATION PRÉFÈRE ADMIN ---");
-
-    let activationVariableCount = 0;
-    for (const sec of secretaires) {
-      if (!sec.prefered_admin) continue;
-
-      // Variable binaire : 1 si la secrétaire reçoit au moins une demi-journée admin
-      const activationVarName = `has_admin_${sec.id}`;
-      model.variables[activationVarName] = { 
-        score: 500  // Bonus unique de +500 points
-      };
-      model.ints[activationVarName] = 1;
-      variableCount++;
-      activationVariableCount++;
-
-      // Contrainte : has_admin_X <= sum(z_X_date_periode)
-      // Si aucune variable admin n'est activée, has_admin_X doit être 0
-      // Si au moins une variable admin est activée, has_admin_X peut être 1
-      const activationConstraint = `activation_admin_${sec.id}`;
-      model.constraints[activationConstraint] = { max: 0 };
-      
-      // La variable d'activation a un coefficient POSITIF
-      model.variables[activationVarName][activationConstraint] = 1;
-
-      // Toutes les variables admin de cette secrétaire ont un coefficient NÉGATIF
-      // Cela donne : has_admin_X - sum(z_X_date_periode) <= 0
-      // Donc : has_admin_X <= sum(z_X_date_periode)
-      for (const assign of assignments) {
-        if (assign.type === "admin" && assign.secretaire_id === sec.id) {
-          model.variables[assign.varName][activationConstraint] = -1;
-        }
-      }
-    }
-
-    console.log(`✓ ${activationVariableCount} variables d'activation créées`);
 
 
     // ============================================================
