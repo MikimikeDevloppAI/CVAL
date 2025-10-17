@@ -55,13 +55,15 @@ serve(async (req) => {
     
     console.log(`📦 ${assignments.length} assignations à optimiser`);
     
-    // Sites constants - derive dynamically from sites array
+    // Sites constants - FIXED IDs provided by user
     const PORT_EN_TRUIE_ID = sites.find(s => s.nom.toLowerCase().includes('port'))?.id || '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-    const CENTRE_ESPLANADE_ID = sites.find(s => s.nom.toLowerCase().includes('esplanade'))?.id || 'f10f0d75-0a2d-40cd-8e9c-9f8b10bff4f4';
-    const BLOC_RESTRICTED_SITES = [PORT_EN_TRUIE_ID, CENTRE_ESPLANADE_ID].filter(Boolean);
+    const BLOC_RESTRICTED_SITES = [
+      '043899a1-a232-4c4b-9d7d-0eb44dad00ad',
+      '7723c334-d06c-413d-96f0-be281d76520d'
+    ];
     
     console.log(`🏥 Port-en-Truie ID: ${PORT_EN_TRUIE_ID}`);
-    console.log(`🏥 Centre Esplanade ID: ${CENTRE_ESPLANADE_ID}`);
+    console.log(`🔒 BLOC Restricted Sites (Fixed IDs):`, BLOC_RESTRICTED_SITES);
     
     // Créer une copie mutable des assignations
     let currentAssignments = JSON.parse(JSON.stringify(assignments));
@@ -487,7 +489,17 @@ serve(async (req) => {
                BLOC_RESTRICTED_SITES.includes(otherAssignment.site_id);
       });
       
+      // LOG DÉTAILLÉ: toutes les combinaisons bloc + site restreint trouvées
       console.log(`   📍 ${blockedAssignments.length} situation(s) bloquée(s) détectée(s)`);
+      for (const blocked of blockedAssignments) {
+        const otherPeriod = blocked.periode === 'matin' ? 'apres_midi' : 'matin';
+        const otherAssignment = currentAssignments.find((a: any) =>
+          a.secretaire_id === blocked.secretaire_id &&
+          a.date === blocked.date &&
+          a.periode === otherPeriod
+        )!;
+        console.log(`      🚨 VIOLATION P1 | ${getSecretaryName(blocked.secretaire_id)} | ${blocked.date} | ${blocked.periode}=BLOC, ${otherPeriod}=${getSiteName(otherAssignment.site_id)}`);
+      }
       
       let totalSwaps = 0;
       let totalGain = 0;
@@ -562,7 +574,8 @@ serve(async (req) => {
           restrictedSiteAssignment.secretaire_id = best.candidate.secretaire_id;
           best.candidate.secretaire_id = tempSecId;
           
-          console.log(`      ✅ SWAP: ${sec1Name} ↔ ${sec2Name}`);
+          console.log(`      ✅ SWAP PHASE 1: ${sec1Name} (${getSiteName(restrictedSiteAssignment.site_id)}) ↔ ${sec2Name} (${best.candidate.type_assignation === 'site' ? getSiteName(best.candidate.site_id) : best.candidate.type_assignation})`);
+          console.log(`         Date: ${restrictedSiteAssignment.date} ${restrictedSiteAssignment.periode}`);
           console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
           totalSwaps++;
           totalGain += best.delta;
@@ -768,7 +781,15 @@ serve(async (req) => {
               return true;
             });
             
-            console.log(`      📋 ${siteCandidates.length} candidat(s) site, ${adminCandidates.length} admin`);
+            console.log(`      📋 Candidats: ${siteCandidates.length} site (même site), ${adminCandidates.length} admin`);
+            
+            // LOG SPÉCIAL pour Centre Esplanade le 22/10
+            if (site.nom.includes('Esplanade') && date === '2025-10-22') {
+              console.log(`      🔍 FOCUS CE 2025-10-22: recherche journée complète pour ${getSecretaryName(candidateId)}`);
+              console.log(`         A déjà: ${existingPeriod}, cherche: ${neededPeriod}`);
+              console.log(`         Candidats site: ${siteCandidates.map((c: any) => getSecretaryName(c.secretaire_id)).join(', ')}`);
+              console.log(`         Candidats admin: ${adminCandidates.map((c: any) => getSecretaryName(c.secretaire_id)).join(', ')}`);
+            }
             
             // ÉVALUATION EXHAUSTIVE: tester TOUS les candidats
             let bestCandidate: any = null;
@@ -808,6 +829,11 @@ serve(async (req) => {
                   causesRegression = true;
                   break;
                 }
+              }
+              
+              // LOG détaillé pour CE 2025-10-22
+              if (site.nom.includes('Esplanade') && date === '2025-10-22') {
+                console.log(`         Test ${getSecretaryName(candidate.secretaire_id)}: améliore=${improvesTarget}, régresse=${causesRegression}, Phase1=${wouldCreatePhase1Violation(otherAssignment, candidate) ? 'FAIL' : 'OK'}`);
               }
               
               // Calculer delta
@@ -867,15 +893,25 @@ serve(async (req) => {
               
               const newFullDayCount = finalSnap.get(`${site.id}|${date}`)?.fullDayCount || 0;
               
-              console.log(`      ✅ SWAP: ${sec1Name} obtient ${neededPeriod}`);
-              console.log(`         ↔ ${sec2Name} (${bestCandidate.candidate.type_assignation})`);
-              console.log(`         Delta: ${bestDelta >= 0 ? '+' : ''}${bestDelta.toFixed(0)} points`);
+              console.log(`      ✅ SWAP PHASE 2: ${sec1Name} obtient ${neededPeriod} au ${site.nom}`);
+              console.log(`         ↔ ${sec2Name} (${bestCandidate.candidate.type_assignation === 'site' ? getSiteName(bestCandidate.candidate.site_id) : bestCandidate.candidate.type_assignation})`);
+              console.log(`         Date: ${date}, Delta: +${bestDelta.toFixed(0)} points`);
               console.log(`         Full-day: ${fullDayCount} → ${newFullDayCount}`);
               
               totalSwaps++;
               totalGain += bestDelta;
               needed--;
+            } else {
+              console.log(`      ❌ Aucun candidat valide pour ${getSecretaryName(candidateId)} (${neededPeriod})`);
+              if (site.nom.includes('Esplanade') && date === '2025-10-22') {
+                console.log(`         💡 CE 2025-10-22: considérer stratégie alternative`);
+              }
             }
+          }
+          
+          // LOG si still needed
+          if (needed > 0) {
+            console.log(`      ⚠️ Tentative pairing non implémentée pour l'instant - manque encore ${needed} journée(s) complète(s)`);
           }
           
           // Vérifier l'état final
@@ -1432,7 +1468,7 @@ serve(async (req) => {
               (currentAdminCount > 2) || // Réduit surcharge
               (candidateSec?.prefered_admin && candidateAdminCount < 2); // Donne admin à prefered
             
-            const acceptableDelta = isGoodForBalance ? -300 : 0;
+            const acceptableDelta = isGoodForBalance ? -150 : 0; // AJUSTÉ de -300 à -150
             
             return { 
               candidate, 
@@ -1452,8 +1488,8 @@ serve(async (req) => {
             adminAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: ${sec1Name} admin → ${sec2Name} site le ${adminAssignment.date} ${adminAssignment.periode}`);
-            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
+            console.log(`      ✅ SWAP PHASE 5: ${sec1Name} admin → ${sec2Name} site le ${adminAssignment.date} ${adminAssignment.periode}`);
+            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points${best.delta < 0 ? ' (négatif accepté: surcharge admin)' : ''}`);
             totalSwaps++;
             totalGain += best.delta;
             currentAdminCount--;
@@ -1555,7 +1591,7 @@ serve(async (req) => {
             candidate.secretaire_id = originalCandidateSecId;
             
             return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
-          }).filter((s: any) => s.delta >= 0 && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta);
+          }).filter((s: any) => s.delta >= -150 && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta); // AJUSTÉ: accepter delta >= -150
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
@@ -1567,8 +1603,8 @@ serve(async (req) => {
             portAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: ${sec1Name} Port-en-Truie → ${sec2Name} le ${portAssignment.date} ${portAssignment.periode}`);
-            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
+            console.log(`      ✅ SWAP PHASE 6: ${sec1Name} Port-en-Truie → ${sec2Name} le ${portAssignment.date} ${portAssignment.periode}`);
+            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points${best.delta < 0 ? ' (négatif accepté: surcharge Port-en-Truie)' : ''}`);
             totalSwaps++;
             totalGain += best.delta;
             currentCount--;
