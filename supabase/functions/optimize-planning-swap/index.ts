@@ -187,6 +187,98 @@ serve(async (req) => {
       return true;
     };
     
+    // Micro-validation helpers
+    const wouldCreatePhase1Violation = (assignA: any, assignB: any): boolean => {
+      // Simulate swap
+      const originalA = assignA.secretaire_id;
+      const originalB = assignB.secretaire_id;
+      
+      assignA.secretaire_id = originalB;
+      assignB.secretaire_id = originalA;
+      
+      // Check both secretaries for bloc + restricted site
+      const isViolation = [originalA, originalB].some(secId => {
+        const dates = Array.from(new Set(
+          currentAssignments.filter((a: any) => a.secretaire_id === secId).map((a: any) => a.date)
+        )) as string[];
+        
+        for (const date of dates) {
+          const { matin, aprem } = getDayAssignments(secId, date);
+          if (matin && aprem) {
+            const hasBlocAndRestricted = 
+              (matin.type_assignation === 'bloc' && aprem.type_assignation === 'site' && 
+               BLOC_RESTRICTED_SITES.includes(aprem.site_id)) ||
+              (aprem.type_assignation === 'bloc' && matin.type_assignation === 'site' && 
+               BLOC_RESTRICTED_SITES.includes(matin.site_id));
+            
+            if (hasBlocAndRestricted) {
+              assignA.secretaire_id = originalA;
+              assignB.secretaire_id = originalB;
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+      
+      // Restore
+      assignA.secretaire_id = originalA;
+      assignB.secretaire_id = originalB;
+      
+      return isViolation;
+    };
+    
+    const wouldBreakClosureConstraint = (assignA: any, assignB: any): boolean => {
+      // Only check if one assignment is on a closing site
+      const closingSites = sites.filter((s: any) => s.fermeture);
+      const affectedSites = new Set<string>();
+      
+      if (assignA.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignA.site_id)) {
+        affectedSites.add(assignA.site_id);
+      }
+      if (assignB.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignB.site_id)) {
+        affectedSites.add(assignB.site_id);
+      }
+      
+      if (affectedSites.size === 0) return false;
+      
+      // Simulate swap
+      const originalA = assignA.secretaire_id;
+      const originalB = assignB.secretaire_id;
+      
+      assignA.secretaire_id = originalB;
+      assignB.secretaire_id = originalA;
+      
+      // Check full-day count for affected sites
+      for (const siteId of affectedSites) {
+        const date = assignA.site_id === siteId ? assignA.date : assignB.date;
+        
+        const matinSecs = new Set<string>();
+        const apremSecs = new Set<string>();
+        
+        currentAssignments
+          .filter((a: any) => a.date === date && a.site_id === siteId && a.type_assignation === 'site')
+          .forEach((a: any) => {
+            if (a.periode === 'matin') matinSecs.add(a.secretaire_id);
+            else apremSecs.add(a.secretaire_id);
+          });
+        
+        const fullDayCount = Array.from(matinSecs).filter((secId: string) => apremSecs.has(secId)).length;
+        
+        if (fullDayCount < 2) {
+          assignA.secretaire_id = originalA;
+          assignB.secretaire_id = originalB;
+          return true;
+        }
+      }
+      
+      // Restore
+      assignA.secretaire_id = originalA;
+      assignB.secretaire_id = originalB;
+      
+      return false;
+    };
+    
     // Helper: calculer score total (simplifié pour deltas)
     const calculateTotalScore = (): number => {
       let totalScore = 0;
@@ -295,8 +387,8 @@ serve(async (req) => {
           else if (adminCount === 2) totalScore -= 1200;
         }
         
-        // Pénalité changement de site
-        totalScore -= metrics.siteChanges * 1500;
+        // Pénalité changement de site (renforcée)
+        totalScore -= metrics.siteChanges * 6000;
         
         // Pénalité Port-en-Truie
         const sitesData = secretairesSitesMap.get(sec.id) || [];
@@ -371,8 +463,9 @@ serve(async (req) => {
         console.log(`      ${blockedAssignment.periode}: BLOC`);
         console.log(`      ${otherPeriod}: ${getSiteName(restrictedSiteAssignment.site_id)}`);
         
-        // Trouver tous les candidats
+        // Trouver tous les candidats (filtrer null)
         const candidates = currentAssignments.filter((candidate: any) =>
+          candidate.secretaire_id && // Pas de null
           candidate.secretaire_id !== blockedAssignment.secretaire_id &&
           candidate.date === restrictedSiteAssignment.date &&
           candidate.periode === restrictedSiteAssignment.periode &&
@@ -382,10 +475,16 @@ serve(async (req) => {
         
         console.log(`      → ${candidates.length} candidat(s) trouvé(s)`);
         
-        // Trier par delta
+        // Trier par delta avec micro-validations
         const scoredCandidates = candidates.map((candidate: any) => {
           const originalRestrictedSecId = restrictedSiteAssignment.secretaire_id;
           const originalCandidateSecId = candidate.secretaire_id;
+          
+          // Check constraints
+          if (wouldCreatePhase1Violation(restrictedSiteAssignment, candidate) ||
+              wouldBreakClosureConstraint(restrictedSiteAssignment, candidate)) {
+            return { candidate, delta: -Infinity, originalCandidateSecId };
+          }
           
           const scoreBefore = calculateTotalScore();
           
@@ -495,6 +594,7 @@ serve(async (req) => {
             if (!otherAssignment) continue;
             
             const swapCandidates = currentAssignments.filter((candidate: any) =>
+              candidate.secretaire_id && // Pas de null
               candidate.secretaire_id !== candidateId &&
               candidate.date === date &&
               candidate.periode === neededPeriod &&
@@ -504,6 +604,12 @@ serve(async (req) => {
             const scoredSwaps = swapCandidates.map((candidate: any) => {
               const originalOtherSecId = otherAssignment.secretaire_id;
               const originalCandidateSecId = candidate.secretaire_id;
+              
+              // Check constraints
+              if (wouldCreatePhase1Violation(otherAssignment, candidate) ||
+                  wouldBreakClosureConstraint(otherAssignment, candidate)) {
+                return { candidate, delta: -Infinity, originalCandidateSecId };
+              }
               
               const scoreBefore = calculateTotalScore();
               
@@ -518,22 +624,48 @@ serve(async (req) => {
               return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
             }).sort((a: any, b: any) => b.delta - a.delta);
             
-            if (scoredSwaps.length > 0) {
+            if (scoredSwaps.length > 0 && scoredSwaps[0].delta > -Infinity) {
               const best = scoredSwaps[0];
               
               const sec1Name = getSecretaryName(candidateId);
               const sec2Name = getSecretaryName(best.originalCandidateSecId);
               
+              // Recalcul du fullDayCount AVANT swap
+              const oldFullDayCount = fullDayCount;
+              
               const tempSecId = otherAssignment.secretaire_id;
               otherAssignment.secretaire_id = best.candidate.secretaire_id;
               best.candidate.secretaire_id = tempSecId;
               
-              console.log(`      ✅ SWAP: ${sec1Name} obtient ${neededPeriod}`);
-              console.log(`         ↔ ${sec2Name}`);
-              console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
-              totalSwaps++;
-              totalGain += best.delta;
-              needed--;
+              // Recalcul APRÈS swap
+              const newDayAssignments = currentAssignments.filter((a: any) =>
+                a.date === date && a.site_id === site.id && a.type_assignation === 'site'
+              );
+              const newSecretaryDays = new Map<string, Set<string>>();
+              newDayAssignments.forEach((a: any) => {
+                if (!newSecretaryDays.has(a.secretaire_id)) {
+                  newSecretaryDays.set(a.secretaire_id, new Set());
+                }
+                newSecretaryDays.get(a.secretaire_id)!.add(a.periode);
+              });
+              const newFullDayCount = Array.from(newSecretaryDays.values())
+                .filter(periods => periods.has('matin') && periods.has('apres_midi'))
+                .length;
+              
+              if (newFullDayCount > oldFullDayCount) {
+                console.log(`      ✅ SWAP: ${sec1Name} obtient ${neededPeriod}`);
+                console.log(`         ↔ ${sec2Name}`);
+                console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
+                console.log(`         Full-day: ${oldFullDayCount} → ${newFullDayCount}`);
+                totalSwaps++;
+                totalGain += best.delta;
+                needed--;
+              } else {
+                // Revert
+                best.candidate.secretaire_id = best.originalCandidateSecId;
+                otherAssignment.secretaire_id = candidateId;
+                console.log(`      ❌ Revert: pas d'amélioration du fullDayCount`);
+              }
             }
           }
           
@@ -558,17 +690,13 @@ serve(async (req) => {
       let totalSwaps = 0;
       let totalGain = 0;
       
-      for (const sec of preferredAdminSecs) {
+      // Helper pour tenter des swaps
+      const trySwapsForSecretary = (sec: any, minDelta: number, passName: string): number => {
         const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
         const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
         
-        if (adminCount >= 2) {
-          console.log(`   ${getSecretaryName(sec.id)}: ${adminCount} admin ✓`);
-          continue;
-        }
-        
+        let swaps = 0;
         let needed = 2 - adminCount;
-        console.log(`\n   👤 ${getSecretaryName(sec.id)}: ${adminCount}/2 admin (besoin ${needed})`);
         
         const swappableSiteAssignments = secAssignments.filter((a: any) =>
           a.type_assignation === 'site' && !hasHighPriorityDoctor(a)
@@ -578,6 +706,7 @@ serve(async (req) => {
           if (needed <= 0) break;
           
           const adminCandidates = currentAssignments.filter((candidate: any) =>
+            candidate.secretaire_id && // Pas de null
             candidate.secretaire_id !== sec.id &&
             candidate.date === siteAssignment.date &&
             candidate.periode === siteAssignment.periode &&
@@ -588,6 +717,12 @@ serve(async (req) => {
           const scoredSwaps = adminCandidates.map((candidate: any) => {
             const originalSiteSecId = siteAssignment.secretaire_id;
             const originalCandidateSecId = candidate.secretaire_id;
+            
+            // Check constraints
+            if (wouldCreatePhase1Violation(siteAssignment, candidate) ||
+                wouldBreakClosureConstraint(siteAssignment, candidate)) {
+              return { candidate, delta: -Infinity, originalCandidateSecId };
+            }
             
             const scoreBefore = calculateTotalScore();
             
@@ -600,7 +735,7 @@ serve(async (req) => {
             candidate.secretaire_id = originalCandidateSecId;
             
             return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
-          }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
+          }).filter((s: any) => s.delta >= minDelta && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
@@ -612,13 +747,53 @@ serve(async (req) => {
             siteAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: ${sec1Name} obtient admin le ${siteAssignment.date} ${siteAssignment.periode}`);
+            console.log(`      ✅ ${passName}: ${sec1Name} obtient admin le ${siteAssignment.date} ${siteAssignment.periode}`);
             console.log(`         ↔ ${sec2Name}`);
-            console.log(`         Delta: +${best.delta.toFixed(0)} points`);
-            totalSwaps++;
+            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
+            swaps++;
             totalGain += best.delta;
             needed--;
           }
+        }
+        
+        return swaps;
+      };
+      
+      for (const sec of preferredAdminSecs) {
+        const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
+        const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
+        
+        console.log(`\n   👤 ${getSecretaryName(sec.id)}: ${adminCount}/2 admin`);
+        
+        if (adminCount >= 2) {
+          console.log(`      ✓ Déjà satisfait`);
+          continue;
+        }
+        
+        // PASSE 3A: Delta >= 0
+        const swaps3A = trySwapsForSecretary(sec, 0, "PASSE 3A");
+        totalSwaps += swaps3A;
+        
+        const currentAdminCount = currentAssignments
+          .filter((a: any) => a.secretaire_id === sec.id && a.type_assignation === 'administratif')
+          .length;
+        
+        // PASSE 3B: Si toujours 0 admin, autoriser delta >= -300 pour 1er admin
+        if (currentAdminCount === 0) {
+          console.log(`      🔸 PASSE 3B: forcer 1er admin (delta >= -300)`);
+          const swaps3B = trySwapsForSecretary(sec, -300, "PASSE 3B");
+          totalSwaps += swaps3B;
+        }
+        
+        const finalAdminCount = currentAssignments
+          .filter((a: any) => a.secretaire_id === sec.id && a.type_assignation === 'administratif')
+          .length;
+        
+        // PASSE 3C: Si seulement 1 admin, autoriser delta >= -100 pour 2ème admin
+        if (finalAdminCount === 1) {
+          console.log(`      🔸 PASSE 3C: forcer 2ème admin (delta >= -100)`);
+          const swaps3C = trySwapsForSecretary(sec, -100, "PASSE 3C");
+          totalSwaps += swaps3C;
         }
       }
       
@@ -654,6 +829,7 @@ serve(async (req) => {
         console.log(`      aprem: ${change.aprem.type_assignation === 'site' ? getSiteName(change.aprem.site_id) : 'BLOC'}`);
         
         const matinCandidates = currentAssignments.filter((candidate: any) =>
+          candidate.secretaire_id && // Pas de null
           candidate.secretaire_id !== change.secId &&
           candidate.date === change.date &&
           candidate.periode === 'matin' &&
@@ -662,6 +838,7 @@ serve(async (req) => {
         );
         
         const apremCandidates = currentAssignments.filter((candidate: any) =>
+          candidate.secretaire_id && // Pas de null
           candidate.secretaire_id !== change.secId &&
           candidate.date === change.date &&
           candidate.periode === 'apres_midi' &&
@@ -674,6 +851,12 @@ serve(async (req) => {
         for (const candidate of matinCandidates) {
           const originalMatinSecId = change.matin.secretaire_id;
           const originalCandidateSecId = candidate.secretaire_id;
+          
+          // Check constraints
+          if (wouldCreatePhase1Violation(change.matin, candidate) ||
+              wouldBreakClosureConstraint(change.matin, candidate)) {
+            continue;
+          }
           
           const scoreBefore = calculateTotalScore();
           
@@ -694,6 +877,12 @@ serve(async (req) => {
         for (const candidate of apremCandidates) {
           const originalApremSecId = change.aprem.secretaire_id;
           const originalCandidateSecId = candidate.secretaire_id;
+          
+          // Check constraints
+          if (wouldCreatePhase1Violation(change.aprem, candidate) ||
+              wouldBreakClosureConstraint(change.aprem, candidate)) {
+            continue;
+          }
           
           const scoreBefore = calculateTotalScore();
           
@@ -770,6 +959,7 @@ serve(async (req) => {
           if (currentAdminCount <= 2) break;
           
           const siteCandidates = currentAssignments.filter((candidate: any) =>
+            candidate.secretaire_id && // Pas de null
             candidate.secretaire_id !== sec.id &&
             candidate.date === adminAssignment.date &&
             candidate.periode === adminAssignment.periode &&
@@ -782,6 +972,12 @@ serve(async (req) => {
             const originalAdminSecId = adminAssignment.secretaire_id;
             const originalCandidateSecId = candidate.secretaire_id;
             
+            // Check constraints
+            if (wouldCreatePhase1Violation(adminAssignment, candidate) ||
+                wouldBreakClosureConstraint(adminAssignment, candidate)) {
+              return { candidate, delta: -Infinity, originalCandidateSecId };
+            }
+            
             const scoreBefore = calculateTotalScore();
             
             adminAssignment.secretaire_id = originalCandidateSecId;
@@ -793,7 +989,7 @@ serve(async (req) => {
             candidate.secretaire_id = originalCandidateSecId;
             
             return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
-          }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
+          }).filter((s: any) => s.delta >= 0 && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
@@ -868,6 +1064,7 @@ serve(async (req) => {
           if (hasHighPriorityDoctor(portAssignment)) continue;
           
           const candidates = currentAssignments.filter((candidate: any) =>
+            candidate.secretaire_id && // Pas de null
             candidate.secretaire_id !== sec.id &&
             candidate.date === portAssignment.date &&
             candidate.periode === portAssignment.periode &&
@@ -881,6 +1078,12 @@ serve(async (req) => {
             const originalPortSecId = portAssignment.secretaire_id;
             const originalCandidateSecId = candidate.secretaire_id;
             
+            // Check constraints
+            if (wouldCreatePhase1Violation(portAssignment, candidate) ||
+                wouldBreakClosureConstraint(portAssignment, candidate)) {
+              return { candidate, delta: -Infinity, originalCandidateSecId };
+            }
+            
             const scoreBefore = calculateTotalScore();
             
             portAssignment.secretaire_id = originalCandidateSecId;
@@ -892,7 +1095,7 @@ serve(async (req) => {
             candidate.secretaire_id = originalCandidateSecId;
             
             return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
-          }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
+          }).filter((s: any) => s.delta >= 0 && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
@@ -978,6 +1181,7 @@ serve(async (req) => {
         success: true, 
         totalSwaps, 
         totalGain,
+        assignmentsCount: currentAssignments.length,
         phase1: phase1Result,
         phase2: phase2Result,
         phase3: phase3Result,
