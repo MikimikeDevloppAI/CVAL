@@ -292,6 +292,49 @@ serve(async (req) => {
         continue;
       }
       
+      // Si une seule personne toute la journée, on ne peut pas assigner deux rôles distincts
+      if (bothPeriods.length === 1) {
+        console.log(`  ⚠️ Une seule secrétaire toute la journée - assignation d'un seul rôle (2F/3F) pour éviter check_single_responsable_role`);
+        
+        const singleSecId = bothPeriods[0];
+        const secName = secretaries?.find(s => s.id === singleSecId);
+        
+        // Assigner uniquement 2F ou 3F (pas 1R)
+        const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
+        
+        // Reset flags
+        await supabase
+          .from('planning_genere_personnel')
+          .update({ is_1r: false, is_2f: false, is_3f: false })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('type_assignation', 'site');
+        
+        // Set 2F/3F morning
+        await supabase
+          .from('planning_genere_personnel')
+          .update(update2F3FData)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('periode', 'matin')
+          .eq('secretaire_id', singleSecId)
+          .eq('type_assignation', 'site');
+        
+        // Set 2F/3F afternoon
+        await supabase
+          .from('planning_genere_personnel')
+          .update(update2F3FData)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('periode', 'apres_midi')
+          .eq('secretaire_id', singleSecId)
+          .eq('type_assignation', 'site');
+        
+        console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (1R impossible)`);
+        assignmentCount += 1;
+        continue;
+      }
+      
       // Log des secrétaires candidates
       const candidatesNames = bothPeriods.map(id => {
         const sec = secretaries?.find(s => s.id === id);
@@ -374,7 +417,7 @@ serve(async (req) => {
       
       // STEP 2: Assign 1R
       // Choose someone with lowest score, excluding 2F/3F
-      // If someone has 2 x 2F/3F this week, reduce their 1R priority (add virtual penalty)
+      // IMPORTANT: Must be different from responsable2F3F to avoid check_single_responsable_role violation
       const candidates1R = bothPeriods
         .filter(id => id !== responsable2F3F)
         .map(id => {
