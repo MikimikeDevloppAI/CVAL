@@ -234,6 +234,39 @@ serve(async (req) => {
       return hasBlocAndRestrictedSite ? -5000 : 0;
     };
     
+    // Helper: obtenir les assignations d'une secrétaire pour une journée
+    const getDayAssignments = (secId: string, date: string): { matin?: any; aprem?: any } => {
+      const dayAssignments = currentAssignments.filter((a: any) => 
+        a.secretaire_id === secId && a.date === date
+      );
+      
+      return {
+        matin: dayAssignments.find((a: any) => a.periode === 'matin'),
+        aprem: dayAssignments.find((a: any) => a.periode === 'apres_midi')
+      };
+    };
+    
+    // Helper: vérifier si une paire matin/aprem crée un changement de site
+    const hasSiteChangeForPair = (matin?: any, aprem?: any): boolean => {
+      if (!matin || !aprem) return false;
+      return matin.type_assignation === 'site' && 
+             aprem.type_assignation === 'site' &&
+             matin.site_id !== aprem.site_id;
+    };
+    
+    // Helper: calculer la pénalité "bloc + site restreint" pour une paire matin/aprem
+    const computeDayPenaltyForPair = (matin?: any, aprem?: any): number => {
+      if (!matin || !aprem) return 0;
+      
+      const hasBlocAndRestrictedSite = 
+        (matin.type_assignation === 'bloc' && aprem.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(aprem.site_id)) ||
+        (aprem.type_assignation === 'bloc' && matin.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(matin.site_id));
+      
+      return hasBlocAndRestrictedSite ? -5000 : 0;
+    };
+    
     // Helper: vérifier si échange est éligible
     const isEligible = (a1: any, a2: any): boolean => {
       if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
@@ -266,6 +299,13 @@ serve(async (req) => {
         assignments: any[]
       }>();
       
+      // Logs de diagnostic ciblés
+      const targetDiagnostics = [
+        { name: 'Aurélie Nusbaumer', date: '2025-10-13' },
+        { name: 'Christine Ribeaud', date: '2025-10-17' },
+        { name: 'Sarah Bortolon', date: null } // On vérifie tous ses jeudis
+      ];
+      
       for (const sec of eligibleSecretaires) {
         const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
         
@@ -278,7 +318,7 @@ serve(async (req) => {
           dateGroups.get(a.date)!.push(a);
         }
         
-        for (const [_, dayAssignments] of dateGroups) {
+        for (const [date, dayAssignments] of dateGroups) {
           const matin = dayAssignments.find(a => a.periode === 'matin');
           const aprem = dayAssignments.find(a => a.periode === 'apres_midi');
           
@@ -286,6 +326,39 @@ serve(async (req) => {
               matin.type_assignation === 'site' && aprem.type_assignation === 'site' &&
               matin.site_id !== aprem.site_id) {
             siteChanges++;
+          }
+          
+          // Diagnostic: détecter bloc + site restreint
+          const penalty = computeDayPenaltyForPair(matin, aprem);
+          if (penalty < 0) {
+            console.log(`⚠ BLOC+SITE RESTREINT détecté: ${sec.first_name} ${sec.name} le ${date}`);
+            console.log(`   Matin: ${matin?.type_assignation}, Aprem: ${aprem?.type_assignation}, Pénalité: ${penalty}`);
+          }
+          
+          // Diagnostic ciblé pour personnes spécifiques
+          const fullName = `${sec.first_name} ${sec.name}`;
+          const target = targetDiagnostics.find(t => fullName.includes(t.name) || t.name.includes(fullName));
+          if (target && (!target.date || target.date === date)) {
+            console.log(`🔍 DIAGNOSTIC ${fullName} le ${date}:`);
+            console.log(`   Matin: ${matin?.type_assignation} ${matin?.site_id || ''}`);
+            console.log(`   Aprem: ${aprem?.type_assignation} ${aprem?.site_id || ''}`);
+            
+            // Vérifier médecins prioritaires
+            if (matin?.type_assignation === 'site') {
+              const medecinsOnSite = besoinsEffectifs.filter(b =>
+                b.site_id === matin.site_id &&
+                b.date === date &&
+                b.demi_journee === 'matin' &&
+                b.type === 'medecin'
+              );
+              const prioMeds = medecinsOnSite.filter(m => {
+                const rel = secretairesMedecinsMap.get(`${sec.id}_${m.medecin_id}`)?.[0];
+                return rel && (rel.priorite === 1 || rel.priorite === '1' || rel.priorite === 2 || rel.priorite === '2');
+              });
+              if (prioMeds.length > 0) {
+                console.log(`   → Médecins prio 1/2 présents matin: ${prioMeds.length}`);
+              }
+            }
           }
         }
         
@@ -340,7 +413,7 @@ serve(async (req) => {
             getSecretaryBlocRestrictedDayPenalty(a1.secretaire_id, a1.date) +
             getSecretaryBlocRestrictedDayPenalty(a2.secretaire_id, a2.date);
           
-          // Simuler échange
+          // Simuler échange - recalculer adminCount
           let newAdminCount1 = m1.adminCount;
           let newAdminCount2 = m2.adminCount;
           
@@ -352,11 +425,51 @@ serve(async (req) => {
             newAdminCount2 -= 1;
           }
           
+          // Recalculer siteChanges pour sec1
+          const day1 = getDayAssignments(a1.secretaire_id, a1.date);
+          const beforeHasChange1 = hasSiteChangeForPair(day1.matin, day1.aprem);
+          
+          // Simuler le swap pour sec1: remplacer la période de a1 par les attributs de a2
+          const simulated1 = {
+            matin: a1.periode === 'matin' ? { type_assignation: a2.type_assignation, site_id: a2.site_id } : day1.matin,
+            aprem: a1.periode === 'apres_midi' ? { type_assignation: a2.type_assignation, site_id: a2.site_id } : day1.aprem
+          };
+          const afterHasChange1 = hasSiteChangeForPair(simulated1.matin, simulated1.aprem);
+          const newSiteChanges1 = m1.siteChanges - (beforeHasChange1 ? 1 : 0) + (afterHasChange1 ? 1 : 0);
+          
+          // Recalculer siteChanges pour sec2
+          const day2 = getDayAssignments(a2.secretaire_id, a2.date);
+          const beforeHasChange2 = hasSiteChangeForPair(day2.matin, day2.aprem);
+          
+          const simulated2 = {
+            matin: a2.periode === 'matin' ? { type_assignation: a1.type_assignation, site_id: a1.site_id } : day2.matin,
+            aprem: a2.periode === 'apres_midi' ? { type_assignation: a1.type_assignation, site_id: a1.site_id } : day2.aprem
+          };
+          const afterHasChange2 = hasSiteChangeForPair(simulated2.matin, simulated2.aprem);
+          const newSiteChanges2 = m2.siteChanges - (beforeHasChange2 ? 1 : 0) + (afterHasChange2 ? 1 : 0);
+          
+          // Recalculer esplanadeCount
+          const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+          const deltaEsplanade1 = 
+            (a2.type_assignation === 'site' && a2.site_id === ESPLANADE_ID ? 1 : 0) -
+            (a1.type_assignation === 'site' && a1.site_id === ESPLANADE_ID ? 1 : 0);
+          const newEsplanadeCount1 = m1.esplanadeCount + deltaEsplanade1;
+          
+          const deltaEsplanade2 = 
+            (a1.type_assignation === 'site' && a1.site_id === ESPLANADE_ID ? 1 : 0) -
+            (a2.type_assignation === 'site' && a2.site_id === ESPLANADE_ID ? 1 : 0);
+          const newEsplanadeCount2 = m2.esplanadeCount + deltaEsplanade2;
+          
+          // Recalculer dayPenalty après swap
+          const dayPenaltyAfter1 = computeDayPenaltyForPair(simulated1.matin, simulated1.aprem);
+          const dayPenaltyAfter2 = computeDayPenaltyForPair(simulated2.matin, simulated2.aprem);
+          
           const scoreAfter = 
             calculateScore(a1, a2.secretaire_id) + 
             calculateScore(a2, a1.secretaire_id) +
-            calculatePenalties(newAdminCount1, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
-            calculatePenalties(newAdminCount2, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id);
+            calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, a1.secretaire_id) +
+            calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, a2.secretaire_id) +
+            dayPenaltyAfter1 + dayPenaltyAfter2;
           
           let gain = scoreAfter - scoreBefore;
           
@@ -409,11 +522,56 @@ serve(async (req) => {
               getSecretaryBlocRestrictedDayPenalty(sec1.id, date) +
               getSecretaryBlocRestrictedDayPenalty(sec2.id, date);
             
+            // Recalculer adminCount (généralement inchangé pour journée complète site↔site)
+            let newAdminCount1 = m1.adminCount;
+            let newAdminCount2 = m2.adminCount;
+            
+            // Recalculer siteChanges après swap
+            const beforeHasChange1 = hasSiteChangeForPair(s1Matin, s1Aprem);
+            const afterHasChange1 = hasSiteChangeForPair(s2Matin, s2Aprem); // sec1 reçoit le pair de sec2
+            const newSiteChanges1 = m1.siteChanges - (beforeHasChange1 ? 1 : 0) + (afterHasChange1 ? 1 : 0);
+            
+            const beforeHasChange2 = hasSiteChangeForPair(s2Matin, s2Aprem);
+            const afterHasChange2 = hasSiteChangeForPair(s1Matin, s1Aprem); // sec2 reçoit le pair de sec1
+            const newSiteChanges2 = m2.siteChanges - (beforeHasChange2 ? 1 : 0) + (afterHasChange2 ? 1 : 0);
+            
+            // Recalculer esplanadeCount
+            const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+            const deltaEsplanade1 = 
+              (s2Matin.type_assignation === 'site' && s2Matin.site_id === ESPLANADE_ID ? 1 : 0) +
+              (s2Aprem.type_assignation === 'site' && s2Aprem.site_id === ESPLANADE_ID ? 1 : 0) -
+              (s1Matin.type_assignation === 'site' && s1Matin.site_id === ESPLANADE_ID ? 1 : 0) -
+              (s1Aprem.type_assignation === 'site' && s1Aprem.site_id === ESPLANADE_ID ? 1 : 0);
+            const newEsplanadeCount1 = m1.esplanadeCount + deltaEsplanade1;
+            
+            const deltaEsplanade2 = 
+              (s1Matin.type_assignation === 'site' && s1Matin.site_id === ESPLANADE_ID ? 1 : 0) +
+              (s1Aprem.type_assignation === 'site' && s1Aprem.site_id === ESPLANADE_ID ? 1 : 0) -
+              (s2Matin.type_assignation === 'site' && s2Matin.site_id === ESPLANADE_ID ? 1 : 0) -
+              (s2Aprem.type_assignation === 'site' && s2Aprem.site_id === ESPLANADE_ID ? 1 : 0);
+            const newEsplanadeCount2 = m2.esplanadeCount + deltaEsplanade2;
+            
+            // Recalculer dayPenalty après swap
+            const dayPenaltyAfter1 = computeDayPenaltyForPair(s2Matin, s2Aprem); // sec1 reçoit s2
+            const dayPenaltyAfter2 = computeDayPenaltyForPair(s1Matin, s1Aprem); // sec2 reçoit s1
+            
+            // Calculer bonus de continuité après swap
+            let afterContinuityBonus = 0;
+            if (s2Matin.type_assignation === 'site' && s2Aprem.type_assignation === 'site' && 
+                s2Matin.site_id === s2Aprem.site_id) {
+              afterContinuityBonus += 600; // 300*2 pour sec1
+            }
+            if (s1Matin.type_assignation === 'site' && s1Aprem.type_assignation === 'site' && 
+                s1Matin.site_id === s1Aprem.site_id) {
+              afterContinuityBonus += 600; // 300*2 pour sec2
+            }
+            
             const scoreAfter = 
               calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
               calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id) +
-              calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
-              calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id);
+              calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, sec1.id) +
+              calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, sec2.id) +
+              dayPenaltyAfter1 + dayPenaltyAfter2 + afterContinuityBonus;
             
             let gain = scoreAfter - scoreBefore;
             
@@ -451,6 +609,13 @@ serve(async (req) => {
       
       const best = candidates[0];
       console.log(`💡 Meilleur échange retenu (${best.type}): gain +${best.gain.toFixed(0)}`);
+      console.log(`   Sec1: ${best.secretaire_1}, Sec2: ${best.secretaire_2}, Date: ${best.date}`);
+      
+      // Afficher les métriques avant/après pour diagnostic
+      const m1 = secretaryMetrics.get(best.secretaire_1)!;
+      const m2 = secretaryMetrics.get(best.secretaire_2)!;
+      console.log(`   Avant - Sec1: admin=${m1.adminCount}, changes=${m1.siteChanges}, espl=${m1.esplanadeCount}`);
+      console.log(`   Avant - Sec2: admin=${m2.adminCount}, changes=${m2.siteChanges}, espl=${m2.esplanadeCount}`);
       
       // Appliquer l'échange EN MÉMOIRE
       if (best.type === 'half_day') {
