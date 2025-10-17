@@ -229,54 +229,62 @@ serve(async (req) => {
     };
     
     const wouldBreakClosureConstraint = (assignA: any, assignB: any): boolean => {
-      // Only check if one assignment is on a closing site
+      // Check only regression on closing sites (no absolute threshold)
       const closingSites = sites.filter((s: any) => s.fermeture);
-      const affectedSites = new Set<string>();
-      
+      const affectedPairs: Array<{ siteId: string; date: string }> = [];
+
       if (assignA.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignA.site_id)) {
-        affectedSites.add(assignA.site_id);
+        affectedPairs.push({ siteId: assignA.site_id, date: assignA.date });
       }
       if (assignB.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignB.site_id)) {
-        affectedSites.add(assignB.site_id);
+        affectedPairs.push({ siteId: assignB.site_id, date: assignB.date });
       }
-      
-      if (affectedSites.size === 0) return false;
-      
-      // Simulate swap
-      const originalA = assignA.secretaire_id;
-      const originalB = assignB.secretaire_id;
-      
-      assignA.secretaire_id = originalB;
-      assignB.secretaire_id = originalA;
-      
-      // Check full-day count for affected sites
-      for (const siteId of affectedSites) {
-        const date = assignA.site_id === siteId ? assignA.date : assignB.date;
-        
+
+      if (affectedPairs.length === 0) return false;
+
+      const pairKey = (p: { siteId: string; date: string }) => `${p.siteId}|${p.date}`;
+      const uniquePairs = Array.from(new Map(affectedPairs.map(p => [pairKey(p), p])).values());
+
+      const countFullDays = (siteId: string, date: string) => {
         const matinSecs = new Set<string>();
         const apremSecs = new Set<string>();
-        
         currentAssignments
           .filter((a: any) => a.date === date && a.site_id === siteId && a.type_assignation === 'site')
           .forEach((a: any) => {
             if (a.periode === 'matin') matinSecs.add(a.secretaire_id);
             else apremSecs.add(a.secretaire_id);
           });
-        
-        const fullDayCount = Array.from(matinSecs).filter((secId: string) => apremSecs.has(secId)).length;
-        
-        if (fullDayCount < 2) {
-          assignA.secretaire_id = originalA;
-          assignB.secretaire_id = originalB;
-          return true;
+        return Array.from(matinSecs).filter((secId: string) => apremSecs.has(secId)).length;
+      };
+
+      // Baseline before swap
+      const baseline = new Map<string, number>();
+      for (const p of uniquePairs) {
+        baseline.set(pairKey(p), countFullDays(p.siteId, p.date));
+      }
+
+      // Simulate swap
+      const originalA = assignA.secretaire_id;
+      const originalB = assignB.secretaire_id;
+      assignA.secretaire_id = originalB;
+      assignB.secretaire_id = originalA;
+
+      // Check regression for affected pairs
+      let regresses = false;
+      for (const p of uniquePairs) {
+        const afterCount = countFullDays(p.siteId, p.date);
+        const beforeCount = baseline.get(pairKey(p)) ?? 0;
+        if (afterCount < beforeCount) {
+          regresses = true;
+          break;
         }
       }
-      
+
       // Restore
       assignA.secretaire_id = originalA;
       assignB.secretaire_id = originalB;
-      
-      return false;
+
+      return regresses;
     };
     
     // Helper: calculer score total (simplifié pour deltas)
@@ -584,6 +592,38 @@ serve(async (req) => {
         }
       }
       
+      const getClosureSnapshot = () => {
+        const snapshot = new Map<string, { fullDayCount: number; fullDaySecretaries: string[] }>();
+        for (const s of sitesWithClosure) {
+          for (const d of dates) {
+            const medecinMatin = besoinsEffectifs.filter((b: any) =>
+              b.site_id === s.id && b.date === d && b.demi_journee === 'matin' && b.type === 'medecin'
+            );
+            const medecinAprem = besoinsEffectifs.filter((b: any) =>
+              b.site_id === s.id && b.date === d && b.demi_journee === 'apres_midi' && b.type === 'medecin'
+            );
+            if (medecinMatin.length === 0 || medecinAprem.length === 0) continue;
+
+            const dayAssignments = currentAssignments.filter((a: any) =>
+              a.date === d && a.site_id === s.id && a.type_assignation === 'site'
+            );
+            const secretaryDays = new Map<string, Set<string>>();
+            dayAssignments.forEach((a: any) => {
+              if (!secretaryDays.has(a.secretaire_id)) {
+                secretaryDays.set(a.secretaire_id, new Set());
+              }
+              secretaryDays.get(a.secretaire_id)!.add(a.periode);
+            });
+            const fullDaySecretaries = Array.from(secretaryDays.entries())
+              .filter(([_, periods]) => periods.has('matin') && periods.has('apres_midi'))
+              .map(([secId, _]) => secId);
+            const fullDayCount = fullDaySecretaries.length;
+            snapshot.set(`${s.id}|${d}`, { fullDayCount, fullDaySecretaries });
+          }
+        }
+        return snapshot;
+      };
+
       let totalSwaps = 0;
       let totalGain = 0;
       let allResolved = true;
@@ -755,7 +795,7 @@ serve(async (req) => {
               const improvesClosure = newFullDayCount > fullDayCount;
               
               // Accepter si améliore ET (delta positif OU delta acceptable)
-              if (improvesClosure && (best.delta > 0 || best.delta >= -1000)) {
+              if (improvesClosure && (best.delta > 0 || best.delta >= -1500)) {
                 const sec1Name = getSecretaryName(candidateId);
                 const sec2Name = getSecretaryName(best.originalCandidateSecId);
                 
