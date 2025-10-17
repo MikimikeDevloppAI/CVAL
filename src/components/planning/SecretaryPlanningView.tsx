@@ -333,7 +333,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                 <CardTitle className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <User className="h-5 w-5 text-primary" />
-                    <span className="truncate">{secretary.name}</span>
+                    <span className="break-words">{secretary.name}</span>
                   </div>
                   <Button
                     variant="outline"
