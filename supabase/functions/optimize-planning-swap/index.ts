@@ -1270,12 +1270,52 @@ serve(async (req) => {
       const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
       const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
       
-      console.log(`\n👤 ${sec.name || sec.first_name || sec.id}: ${adminCount} admin actuellement`);
+      console.log(`\n👤 ${sec.name || sec.first_name || sec.id}: ${adminCount} demi-journée(s) admin actuellement`);
       
-      // Essayer d'augmenter le nombre d'admin (pas de limite arbitraire)
+      // Objectif: au moins 2 demi-journées admin (3 si déjà 1 et swap journée entière possible)
+      const targetMin = 2;
+      const targetOptimal = 3;
+      
+      if (adminCount >= targetOptimal) {
+        console.log(`  ✓ Déjà ${adminCount} demi-journées admin (objectif atteint)`);
+        continue;
+      }
+      
+      // Compter les demi-journées nécessaires
+      const needed = Math.max(0, targetMin - adminCount);
+      console.log(`  🎯 Besoin de ${needed} demi-journée(s) supplémentaire(s) pour atteindre ${targetMin}`);
+      
+      // Collecter toutes les assignations site de cette secrétaire
       const siteAssignments = secAssignments.filter((a: any) => a.type_assignation === 'site');
       
-      // Grouper par date pour tenter des swaps journée complète
+      // Vérifier pour chaque assignation si elle est bloquée par contrainte fermeture
+      const blockedByClosureAssignments: any[] = [];
+      for (const sa of siteAssignments) {
+        if (sa.protectedForClosure) {
+          // Cette assignation fait partie d'une journée complète sur un site avec fermeture
+          // On peut l'échanger seulement si on échange toute la journée
+          blockedByClosureAssignments.push(sa);
+        }
+      }
+      
+      console.log(`  🔒 ${blockedByClosureAssignments.length} assignation(s) bloquée(s) par contrainte fermeture`);
+      
+      // Tester tous les swaps possibles et garder le meilleur
+      interface SwapCandidate {
+        mode: 'matin' | 'apres_midi' | 'both';
+        date: string;
+        siteAM?: any;
+        adminAM?: any;
+        sitePM?: any;
+        adminPM?: any;
+        delta: number;
+        gainedAdmin: number;
+      }
+      
+      const allSwapCandidates: SwapCandidate[] = [];
+      const baseScore = calculateTotalScore();
+      
+      // Grouper les assignations site par date
       const byDate = new Map<string, { matin?: any; aprem?: any }>();
       for (const sa of siteAssignments) {
         if (!byDate.has(sa.date)) byDate.set(sa.date, {});
@@ -1284,162 +1324,229 @@ serve(async (req) => {
         else day.aprem = sa;
       }
       
+      // Pour chaque date, tester tous les modes de swap
       for (const [date, { matin, aprem }] of byDate.entries()) {
-        const baseScore = calculateTotalScore();
-        let bestDelta = 0;
-        let bestMode: 'matin' | 'apres_midi' | 'both' | null = null;
-        let bestSwap: { site?: any; admin?: any; sitePM?: any; adminPM?: any } = {};
-        
-        const logTry = (mode: string, msg: string) => {
-          console.log(`  [Phase3][${mode}] ${sec.name || sec.first_name} ${date}: ${msg}`);
-        };
-        
-        const attempt = (mode: 'matin' | 'apres_midi' | 'both', siteAM?: any, adminAM?: any, sitePM?: any, adminPM?: any) => {
-          if (mode !== 'apres_midi' && !siteAM) {
-            logTry(mode, 'skip: no morning site assignment');
-            return;
-          }
-          if (mode !== 'matin' && !sitePM) {
-            logTry(mode, 'skip: no afternoon site assignment');
-            return;
-          }
+        const testSwap = (mode: 'matin' | 'apres_midi' | 'both', siteAM?: any, sitePM?: any) => {
+          const logPrefix = `  [Phase3][${date}][${mode}]`;
           
-          // Trouver des candidats admin pour le swap
-          const amAdmins = mode !== 'apres_midi' 
-            ? currentAssignments.filter((c: any) =>
-                c.date === date &&
-                c.periode === 'matin' &&
-                c.type_assignation === 'administratif' &&
-                c.secretaire_id !== sec.id &&
-                !c.protectedForClosure
+          // Trouver les candidats admin qui peuvent prendre la place
+          const amAdminCandidates = mode !== 'apres_midi' && siteAM
+            ? currentAssignments.filter((a: any) =>
+                a.date === date &&
+                a.periode === 'matin' &&
+                a.type_assignation === 'administratif' &&
+                a.secretaire_id !== sec.id
               )
             : [];
           
-          const pmAdmins = mode !== 'matin'
-            ? currentAssignments.filter((c: any) =>
-                c.date === date &&
-                c.periode === 'apres_midi' &&
-                c.type_assignation === 'administratif' &&
-                c.secretaire_id !== sec.id &&
-                !c.protectedForClosure
+          const pmAdminCandidates = mode !== 'matin' && sitePM
+            ? currentAssignments.filter((a: any) =>
+                a.date === date &&
+                a.periode === 'apres_midi' &&
+                a.type_assignation === 'administratif' &&
+                a.secretaire_id !== sec.id
               )
             : [];
           
-          if (mode !== 'apres_midi' && amAdmins.length === 0) {
-            logTry(mode, 'skip: no morning admin candidates');
+          // Vérifier si l'assignation site peut être swappée
+          const amBlocked = siteAM?.protectedForClosure;
+          const pmBlocked = sitePM?.protectedForClosure;
+          
+          // Si une période est bloquée, on ne peut swapper que toute la journée
+          if (mode !== 'both' && (amBlocked || pmBlocked)) {
+            console.log(`${logPrefix} skip: période bloquée par fermeture, nécessite swap journée entière`);
             return;
           }
-          if (mode !== 'matin' && pmAdmins.length === 0) {
-            logTry(mode, 'skip: no afternoon admin candidates');
+          
+          // Si mode=both et l'une des périodes est bloquée, l'autre doit aussi être swappée
+          if (mode === 'both' && (amBlocked || pmBlocked)) {
+            if (!siteAM || !sitePM) {
+              console.log(`${logPrefix} skip: fermeture nécessite journée complète mais une période manque`);
+              return;
+            }
+          }
+          
+          if (mode !== 'apres_midi' && amAdminCandidates.length === 0) {
+            console.log(`${logPrefix} skip: aucun candidat admin matin disponible`);
+            return;
+          }
+          if (mode !== 'matin' && pmAdminCandidates.length === 0) {
+            console.log(`${logPrefix} skip: aucun candidat admin après-midi disponible`);
             return;
           }
           
           // Tester tous les candidats
-          for (const adminAMCand of mode !== 'apres_midi' ? amAdmins : [undefined]) {
-            for (const adminPMCand of mode !== 'matin' ? pmAdmins : [undefined]) {
-              if (mode !== 'apres_midi' && !adminAMCand) continue;
-              if (mode !== 'matin' && !adminPMCand) continue;
+          const candidatesAM = mode !== 'apres_midi' ? amAdminCandidates : [undefined];
+          const candidatesPM = mode !== 'matin' ? pmAdminCandidates : [undefined];
+          
+          for (const adminAM of candidatesAM) {
+            for (const adminPM of candidatesPM) {
+              if (mode !== 'apres_midi' && !adminAM) continue;
+              if (mode !== 'matin' && !adminPM) continue;
               
-              // Phase 1 checks
-              if (mode !== 'apres_midi' && siteAM && adminAMCand && wouldCreatePhase1Violation(siteAM, adminAMCand)) {
-                logTry(mode, `rejected AM: Phase1 violation with ${getSecretaryName(adminAMCand.secretaire_id)}`);
+              const adminNames = [
+                mode !== 'apres_midi' ? getSecretaryName(adminAM?.secretaire_id) : null,
+                mode !== 'matin' ? getSecretaryName(adminPM?.secretaire_id) : null
+              ].filter(Boolean).join(' + ');
+              
+              // Vérifier que le candidat admin peut aller sur le site
+              if (mode !== 'apres_midi' && siteAM && adminAM) {
+                const adminSecData = secretaires.find((s: any) => s.id === adminAM.secretaire_id);
+                if (adminSecData) {
+                  const sitesForAdmin = secretairesSitesMap.get(adminSecData.id) || [];
+                  const canGoToSite = sitesForAdmin.some((ss: any) => ss.site_id === siteAM.site_id);
+                  if (!canGoToSite) {
+                    console.log(`${logPrefix} reject: ${adminNames} ne peut pas aller sur site ${getSiteName(siteAM.site_id)} (matin)`);
+                    continue;
+                  }
+                }
+              }
+              
+              if (mode !== 'matin' && sitePM && adminPM) {
+                const adminSecData = secretaires.find((s: any) => s.id === adminPM.secretaire_id);
+                if (adminSecData) {
+                  const sitesForAdmin = secretairesSitesMap.get(adminSecData.id) || [];
+                  const canGoToSite = sitesForAdmin.some((ss: any) => ss.site_id === sitePM.site_id);
+                  if (!canGoToSite) {
+                    console.log(`${logPrefix} reject: ${adminNames} ne peut pas aller sur site ${getSiteName(sitePM.site_id)} (après-midi)`);
+                    continue;
+                  }
+                }
+              }
+              
+              // Phase 1 check
+              if (mode !== 'apres_midi' && siteAM && adminAM && wouldCreatePhase1Violation(siteAM, adminAM)) {
+                console.log(`${logPrefix} reject: ${adminNames} violerait Phase 1 (matin)`);
                 continue;
               }
-              if (mode !== 'matin' && sitePM && adminPMCand && wouldCreatePhase1Violation(sitePM, adminPMCand)) {
-                logTry(mode, `rejected PM: Phase1 violation with ${getSecretaryName(adminPMCand.secretaire_id)}`);
+              if (mode !== 'matin' && sitePM && adminPM && wouldCreatePhase1Violation(sitePM, adminPM)) {
+                console.log(`${logPrefix} reject: ${adminNames} violerait Phase 1 (après-midi)`);
                 continue;
               }
               
-              // Closure checks
-              if (mode !== 'apres_midi' && siteAM && adminAMCand && (siteAM.protectedForClosure || wouldBreakClosureConstraint(siteAM, adminAMCand))) {
-                logTry(mode, `rejected AM: closure break`);
-                continue;
-              }
-              if (mode !== 'matin' && sitePM && adminPMCand && (sitePM.protectedForClosure || wouldBreakClosureConstraint(sitePM, adminPMCand))) {
-                logTry(mode, `rejected PM: closure break`);
-                continue;
-              }
-              
-              // Simulate
+              // Simuler le swap
               const original = {
-                siteAM: siteAM?.secretaire_id,
-                adminAM: adminAMCand?.secretaire_id,
-                sitePM: sitePM?.secretaire_id,
-                adminPM: adminPMCand?.secretaire_id,
+                amSite: siteAM?.secretaire_id,
+                amAdmin: adminAM?.secretaire_id,
+                pmSite: sitePM?.secretaire_id,
+                pmAdmin: adminPM?.secretaire_id
               };
               
-              if (mode !== 'apres_midi' && siteAM && adminAMCand) {
-                siteAM.secretaire_id = original.adminAM;
-                adminAMCand.secretaire_id = original.siteAM;
+              if (mode !== 'apres_midi' && siteAM && adminAM) {
+                siteAM.secretaire_id = original.amAdmin;
+                adminAM.secretaire_id = original.amSite;
               }
-              if (mode !== 'matin' && sitePM && adminPMCand) {
-                sitePM.secretaire_id = original.adminPM;
-                adminPMCand.secretaire_id = original.sitePM;
+              if (mode !== 'matin' && sitePM && adminPM) {
+                sitePM.secretaire_id = original.pmAdmin;
+                adminPM.secretaire_id = original.pmSite;
               }
               
               const closureOK = validatePhase2Constraint();
               const scoreAfter = calculateTotalScore();
+              const delta = scoreAfter - baseScore;
+              
+              // Calculer le gain en demi-journées admin pour sec
+              const newAdminCount = currentAssignments.filter((a: any) =>
+                a.secretaire_id === sec.id && a.type_assignation === 'administratif'
+              ).length;
+              const gainedAdmin = newAdminCount - adminCount;
               
               // Revert
-              if (mode !== 'apres_midi' && siteAM && adminAMCand) {
-                siteAM.secretaire_id = original.siteAM;
-                adminAMCand.secretaire_id = original.adminAM;
+              if (mode !== 'apres_midi' && siteAM && adminAM) {
+                siteAM.secretaire_id = original.amSite;
+                adminAM.secretaire_id = original.amAdmin;
               }
-              if (mode !== 'matin' && sitePM && adminPMCand) {
-                sitePM.secretaire_id = original.sitePM;
-                adminPMCand.secretaire_id = original.adminPM;
+              if (mode !== 'matin' && sitePM && adminPM) {
+                sitePM.secretaire_id = original.pmSite;
+                adminPM.secretaire_id = original.pmAdmin;
               }
               
-              const delta = closureOK ? (scoreAfter - baseScore) : -Infinity;
-              const adminNames = [
-                mode !== 'apres_midi' ? getSecretaryName(adminAMCand?.secretaire_id) : null,
-                mode !== 'matin' ? getSecretaryName(adminPMCand?.secretaire_id) : null,
-              ].filter(Boolean).join(' + ');
-              
-              logTry(mode, `candidate ${adminNames}: score ${baseScore}→${scoreAfter} Δ=${delta} closure=${closureOK}`);
+              console.log(`${logPrefix} test: ${adminNames} | gain=${gainedAdmin} admin | Δ=${delta} | closure=${closureOK}`);
               
               if (!closureOK) {
-                logTry(mode, `rejected: would break closure constraint`);
+                console.log(`${logPrefix} reject: ${adminNames} casserait contrainte fermeture`);
                 continue;
               }
               
-              if (delta > bestDelta) {
-                bestDelta = delta;
-                bestMode = mode;
-                bestSwap = { site: siteAM, admin: adminAMCand, sitePM, adminPM: adminPMCand };
+              if (gainedAdmin <= 0) {
+                console.log(`${logPrefix} reject: ${adminNames} n'apporte pas de gain admin (${gainedAdmin})`);
+                continue;
               }
+              
+              // Ajouter ce candidat
+              allSwapCandidates.push({
+                mode,
+                date,
+                siteAM,
+                adminAM,
+                sitePM,
+                adminPM,
+                delta,
+                gainedAdmin
+              });
             }
           }
         };
         
-        // Try all modes
-        if (matin) attempt('matin', matin);
-        if (aprem) attempt('apres_midi', undefined, undefined, aprem);
-        if (matin && aprem) attempt('both', matin, undefined, aprem);
-        
-        if (bestMode && bestDelta > 0) {
-          const { site, admin, sitePM, adminPM } = bestSwap;
-          
-          if (bestMode !== 'apres_midi' && site && admin) {
-            const t1 = site.secretaire_id, t2 = admin.secretaire_id;
-            site.secretaire_id = t2;
-            admin.secretaire_id = t1;
-          }
-          if (bestMode !== 'matin' && sitePM && adminPM) {
-            const t1 = sitePM.secretaire_id, t2 = adminPM.secretaire_id;
-            sitePM.secretaire_id = t2;
-            adminPM.secretaire_id = t1;
-          }
-          
-          const newAdminCount = currentAssignments.filter((a: any) => 
-            a.secretaire_id === sec.id && a.type_assignation === 'administratif'
-          ).length;
-          
-          console.log(`  ✅ Applied ${bestMode} swap for ${sec.name || sec.first_name} on ${date}. Δ=${bestDelta}. Admin now: ${newAdminCount}`);
-          phase3SwapsCount += bestMode === 'both' ? 2 : 1;
-        } else {
-          console.log(`  ℹ️ No improving swap for ${sec.name || sec.first_name} on ${date} (best Δ=${bestDelta})`);
+        // Tester tous les modes
+        if (matin) testSwap('matin', matin, undefined);
+        if (aprem) testSwap('apres_midi', undefined, aprem);
+        if (matin && aprem) testSwap('both', matin, aprem);
+      }
+      
+      // Trier les candidats par gain admin (desc), puis par delta score (desc)
+      allSwapCandidates.sort((a, b) => {
+        if (b.gainedAdmin !== a.gainedAdmin) return b.gainedAdmin - a.gainedAdmin;
+        return b.delta - a.delta;
+      });
+      
+      console.log(`  📊 ${allSwapCandidates.length} swap(s) candidat(s) trouvé(s)`);
+      
+      // Appliquer les swaps tant qu'on n'a pas atteint l'objectif
+      let currentAdminCount = adminCount;
+      for (const candidate of allSwapCandidates) {
+        if (currentAdminCount >= targetOptimal) {
+          console.log(`  ✓ Objectif optimal atteint (${currentAdminCount} admin)`);
+          break;
         }
+        
+        // Appliquer ce swap
+        const { mode, date, siteAM, adminAM, sitePM, adminPM, delta, gainedAdmin } = candidate;
+        
+        if (mode !== 'apres_midi' && siteAM && adminAM) {
+          const t1 = siteAM.secretaire_id, t2 = adminAM.secretaire_id;
+          siteAM.secretaire_id = t2;
+          adminAM.secretaire_id = t1;
+        }
+        if (mode !== 'matin' && sitePM && adminPM) {
+          const t1 = sitePM.secretaire_id, t2 = adminPM.secretaire_id;
+          sitePM.secretaire_id = t2;
+          adminPM.secretaire_id = t1;
+        }
+        
+        currentAdminCount += gainedAdmin;
+        phase3SwapsCount += mode === 'both' ? 2 : 1;
+        
+        const adminNames = [
+          mode !== 'apres_midi' ? getSecretaryName(adminAM?.secretaire_id) : null,
+          mode !== 'matin' ? getSecretaryName(adminPM?.secretaire_id) : null
+        ].filter(Boolean).join(' + ');
+        
+        console.log(`  ✅ Swap appliqué: ${date} ${mode} avec ${adminNames} | gain=${gainedAdmin} | Δ=${delta} | admin=${currentAdminCount}`);
+        
+        // Recalculer la liste des candidats restants car l'état a changé
+        // (les assignations ont changé, donc certains swaps ne sont plus valides)
+        break; // Pour l'instant on applique un swap à la fois et on reboucle
+      }
+      
+      const finalAdminCount = currentAssignments.filter((a: any) =>
+        a.secretaire_id === sec.id && a.type_assignation === 'administratif'
+      ).length;
+      
+      if (finalAdminCount >= targetMin) {
+        console.log(`  ✅ ${sec.name || sec.first_name} a maintenant ${finalAdminCount} demi-journée(s) admin (objectif ${targetMin} atteint)`);
+      } else {
+        console.log(`  ⚠️ ${sec.name || sec.first_name} a ${finalAdminCount} demi-journée(s) admin (objectif ${targetMin} non atteint)`);
       }
     }
     
