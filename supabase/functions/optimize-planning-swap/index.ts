@@ -234,21 +234,47 @@ serve(async (req) => {
     
     // Micro-validation helpers
     const wouldCreatePhase1Violation = (assignA: any, assignB: any): boolean => {
-      // Simulate swap
-      const originalA = assignA.secretaire_id;
-      const originalB = assignB.secretaire_id;
+      // Créer une copie profonde pour simulation isolée (ne modifie pas currentAssignments)
+      const snapshot = currentAssignments.map((a: any) => ({ ...a }));
       
-      assignA.secretaire_id = originalB;
-      assignB.secretaire_id = originalA;
+      const snapA = snapshot.find((a: any) => 
+        a.secretaire_id === assignA.secretaire_id && 
+        a.date === assignA.date && 
+        a.periode === assignA.periode &&
+        a.type_assignation === assignA.type_assignation &&
+        (assignA.site_id ? a.site_id === assignA.site_id : true)
+      );
+      const snapB = snapshot.find((a: any) => 
+        a.secretaire_id === assignB.secretaire_id && 
+        a.date === assignB.date && 
+        a.periode === assignB.periode &&
+        a.type_assignation === assignB.type_assignation &&
+        (assignB.site_id ? a.site_id === assignB.site_id : true)
+      );
+      
+      if (!snapA || !snapB) return false;
+      
+      const originalA = snapA.secretaire_id;
+      const originalB = snapB.secretaire_id;
+      
+      // Simuler le swap dans le snapshot
+      snapA.secretaire_id = originalB;
+      snapB.secretaire_id = originalA;
       
       // Check both secretaries for bloc + restricted site
       const isViolation = [originalA, originalB].some(secId => {
         const dates = Array.from(new Set(
-          currentAssignments.filter((a: any) => a.secretaire_id === secId).map((a: any) => a.date)
+          snapshot.filter((a: any) => a.secretaire_id === secId).map((a: any) => a.date)
         )) as string[];
         
         for (const date of dates) {
-          const { matin, aprem } = getDayAssignments(secId, date);
+          const matin = snapshot.find((a: any) => 
+            a.secretaire_id === secId && a.date === date && a.periode === 'matin'
+          );
+          const aprem = snapshot.find((a: any) => 
+            a.secretaire_id === secId && a.date === date && a.periode === 'apres_midi'
+          );
+          
           if (matin && aprem) {
             const hasBlocAndRestricted = 
               (matin.type_assignation === 'bloc' && aprem.type_assignation === 'site' && 
@@ -257,18 +283,12 @@ serve(async (req) => {
                BLOC_RESTRICTED_SITES.includes(matin.site_id));
             
             if (hasBlocAndRestricted) {
-              assignA.secretaire_id = originalA;
-              assignB.secretaire_id = originalB;
               return true;
             }
           }
         }
         return false;
       });
-      
-      // Restore
-      assignA.secretaire_id = originalA;
-      assignB.secretaire_id = originalB;
       
       return isViolation;
     };
@@ -490,7 +510,7 @@ serve(async (req) => {
       });
       
       // LOG DÉTAILLÉ: toutes les combinaisons bloc + site restreint trouvées
-      console.log(`   📍 ${blockedAssignments.length} situation(s) bloquée(s) détectée(s)`);
+      console.log(`📍 ${blockedAssignments.length} situation(s) bloquée(s) détectée(s)`);
       for (const blocked of blockedAssignments) {
         const otherPeriod = blocked.periode === 'matin' ? 'apres_midi' : 'matin';
         const otherAssignment = currentAssignments.find((a: any) =>
@@ -498,7 +518,9 @@ serve(async (req) => {
           a.date === blocked.date &&
           a.periode === otherPeriod
         )!;
-        console.log(`      🚨 VIOLATION P1 | ${getSecretaryName(blocked.secretaire_id)} | ${blocked.date} | ${blocked.periode}=BLOC, ${otherPeriod}=${getSiteName(otherAssignment.site_id)}`);
+        const secName = getSecretaryName(blocked.secretaire_id);
+        const siteName = getSiteName(otherAssignment.site_id);
+        console.log(`   🚨 VIOLATION P1 | ${secName} | ${blocked.date} | ${blocked.periode}=BLOC, ${otherPeriod}=${siteName} (${otherAssignment.site_id})`);
       }
       
       let totalSwaps = 0;
@@ -574,8 +596,12 @@ serve(async (req) => {
           restrictedSiteAssignment.secretaire_id = best.candidate.secretaire_id;
           best.candidate.secretaire_id = tempSecId;
           
-          console.log(`      ✅ SWAP PHASE 1: ${sec1Name} (${getSiteName(restrictedSiteAssignment.site_id)}) ↔ ${sec2Name} (${best.candidate.type_assignation === 'site' ? getSiteName(best.candidate.site_id) : best.candidate.type_assignation})`);
-          console.log(`         Date: ${restrictedSiteAssignment.date} ${restrictedSiteAssignment.periode}`);
+          const blocPeriod = blockedAssignment.periode;
+          const otherPeriod = blocPeriod === 'matin' ? 'apres_midi' : 'matin';
+          const restrictedSiteName = getSiteName(restrictedSiteAssignment.site_id);
+          
+          console.log(`      ✅ SWAP PHASE 1: ${sec1Name} → ${sec2Name} le ${restrictedSiteAssignment.date} ${restrictedSiteAssignment.periode}`);
+          console.log(`         Correction: ${blocPeriod}=BLOC + ${otherPeriod}=${restrictedSiteName} (${restrictedSiteAssignment.site_id})`);
           console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
           totalSwaps++;
           totalGain += best.delta;
@@ -601,7 +627,10 @@ serve(async (req) => {
       const closureStateMap = new Map<string, { fullDayCount: number; fullDaySecretaries: string[] }>();
       
       console.log(`\n🔍 État des sites de fermeture AVANT Phase 2:`);
+      console.log(`📍 Sites avec fermeture dans la table: ${sitesWithClosure.map(s => s.nom).join(', ')}`);
+      
       for (const site of sitesWithClosure) {
+        console.log(`\n   📍 Site: ${site.nom} (${site.id})`);
         for (const date of dates) {
           const medecinMatin = besoinsEffectifs.filter((b: any) =>
             b.site_id === site.id && b.date === date && 
@@ -612,7 +641,12 @@ serve(async (req) => {
             b.demi_journee === 'apres_midi' && b.type === 'medecin'
           );
           
-          if (medecinMatin.length === 0 || medecinAprem.length === 0) continue;
+          console.log(`      ${date}: matin=${medecinMatin.length} médecin(s), aprem=${medecinAprem.length} médecin(s)`);
+          
+          if (medecinMatin.length === 0 || medecinAprem.length === 0) {
+            console.log(`      ⚠️ SKIP: site non ouvert toute la journée`);
+            continue;
+          }
           
           const dayAssignments = currentAssignments.filter((a: any) =>
             a.date === date && a.site_id === site.id && a.type_assignation === 'site'
