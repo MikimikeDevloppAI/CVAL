@@ -330,14 +330,16 @@ serve(async (req) => {
         const scoredCandidates = candidates.map((candidate: any) => {
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId = restrictedSiteAssignment.secretaire_id;
-          restrictedSiteAssignment.secretaire_id = candidate.secretaire_id;
-          candidate.secretaire_id = tempSecId;
+          const tempSecId1 = restrictedSiteAssignment.secretaire_id;
+          const tempSecId2 = candidate.secretaire_id;
+          
+          restrictedSiteAssignment.secretaire_id = tempSecId2;
+          candidate.secretaire_id = tempSecId1;
           
           const scoreAfter = calculateTotalScore();
           
-          restrictedSiteAssignment.secretaire_id = tempSecId;
-          candidate.secretaire_id = restrictedSiteAssignment.secretaire_id;
+          restrictedSiteAssignment.secretaire_id = tempSecId1;
+          candidate.secretaire_id = tempSecId2;
           
           return { candidate, delta: scoreAfter - scoreBefore };
         }).sort((a: any, b: any) => b.delta - a.delta);
@@ -442,14 +444,16 @@ serve(async (req) => {
             const scoredSwaps = swapCandidates.map((candidate: any) => {
               const scoreBefore = calculateTotalScore();
               
-              const tempSecId = otherAssignment.secretaire_id;
-              otherAssignment.secretaire_id = candidate.secretaire_id;
-              candidate.secretaire_id = tempSecId;
+              const tempSecId1 = otherAssignment.secretaire_id;
+              const tempSecId2 = candidate.secretaire_id;
+              
+              otherAssignment.secretaire_id = tempSecId2;
+              candidate.secretaire_id = tempSecId1;
               
               const scoreAfter = calculateTotalScore();
               
-              otherAssignment.secretaire_id = tempSecId;
-              candidate.secretaire_id = otherAssignment.secretaire_id;
+              otherAssignment.secretaire_id = tempSecId1;
+              candidate.secretaire_id = tempSecId2;
               
               return { candidate, delta: scoreAfter - scoreBefore };
             }).sort((a: any, b: any) => b.delta - a.delta);
@@ -521,14 +525,16 @@ serve(async (req) => {
           const scoredSwaps = adminCandidates.map((candidate: any) => {
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId = siteAssignment.secretaire_id;
-            siteAssignment.secretaire_id = candidate.secretaire_id;
-            candidate.secretaire_id = tempSecId;
+            const tempSecId1 = siteAssignment.secretaire_id;
+            const tempSecId2 = candidate.secretaire_id;
+            
+            siteAssignment.secretaire_id = tempSecId2;
+            candidate.secretaire_id = tempSecId1;
             
             const scoreAfter = calculateTotalScore();
             
-            siteAssignment.secretaire_id = tempSecId;
-            candidate.secretaire_id = siteAssignment.secretaire_id;
+            siteAssignment.secretaire_id = tempSecId1;
+            candidate.secretaire_id = tempSecId2;
             
             return { candidate, delta: scoreAfter - scoreBefore };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
@@ -602,15 +608,17 @@ serve(async (req) => {
         for (const candidate of matinCandidates) {
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId = change.matin.secretaire_id;
-          change.matin.secretaire_id = candidate.secretaire_id;
-          candidate.secretaire_id = tempSecId;
+          const tempSecId1 = change.matin.secretaire_id;
+          const tempSecId2 = candidate.secretaire_id;
+          
+          change.matin.secretaire_id = tempSecId2;
+          candidate.secretaire_id = tempSecId1;
           
           const scoreAfter = calculateTotalScore();
           const delta = scoreAfter - scoreBefore;
           
-          change.matin.secretaire_id = tempSecId;
-          candidate.secretaire_id = change.matin.secretaire_id;
+          change.matin.secretaire_id = tempSecId1;
+          candidate.secretaire_id = tempSecId2;
           
           if (delta > 0 && (!bestSwap || delta > bestSwap.delta)) {
             bestSwap = { period: 'matin', candidate, delta };
@@ -620,15 +628,17 @@ serve(async (req) => {
         for (const candidate of apremCandidates) {
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId = change.aprem.secretaire_id;
-          change.aprem.secretaire_id = candidate.secretaire_id;
-          candidate.secretaire_id = tempSecId;
+          const tempSecId1 = change.aprem.secretaire_id;
+          const tempSecId2 = candidate.secretaire_id;
+          
+          change.aprem.secretaire_id = tempSecId2;
+          candidate.secretaire_id = tempSecId1;
           
           const scoreAfter = calculateTotalScore();
           const delta = scoreAfter - scoreBefore;
           
-          change.aprem.secretaire_id = tempSecId;
-          candidate.secretaire_id = change.aprem.secretaire_id;
+          change.aprem.secretaire_id = tempSecId1;
+          candidate.secretaire_id = tempSecId2;
           
           if (delta > 0 && (!bestSwap || delta > bestSwap.delta)) {
             bestSwap = { period: 'apres_midi', candidate, delta };
@@ -701,14 +711,16 @@ serve(async (req) => {
           const scoredSwaps = siteCandidates.map((candidate: any) => {
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId = adminAssignment.secretaire_id;
-            adminAssignment.secretaire_id = candidate.secretaire_id;
-            candidate.secretaire_id = tempSecId;
+            const tempSecId1 = adminAssignment.secretaire_id;
+            const tempSecId2 = candidate.secretaire_id;
+            
+            adminAssignment.secretaire_id = tempSecId2;
+            candidate.secretaire_id = tempSecId1;
             
             const scoreAfter = calculateTotalScore();
             
-            adminAssignment.secretaire_id = tempSecId;
-            candidate.secretaire_id = adminAssignment.secretaire_id;
+            adminAssignment.secretaire_id = tempSecId1;
+            candidate.secretaire_id = tempSecId2;
             
             return { candidate, delta: scoreAfter - scoreBefore };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
@@ -796,14 +808,16 @@ serve(async (req) => {
           const scoredSwaps = candidates.map((candidate: any) => {
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId = portAssignment.secretaire_id;
-            portAssignment.secretaire_id = candidate.secretaire_id;
-            candidate.secretaire_id = tempSecId;
+            const tempSecId1 = portAssignment.secretaire_id;
+            const tempSecId2 = candidate.secretaire_id;
+            
+            portAssignment.secretaire_id = tempSecId2;
+            candidate.secretaire_id = tempSecId1;
             
             const scoreAfter = calculateTotalScore();
             
-            portAssignment.secretaire_id = tempSecId;
-            candidate.secretaire_id = portAssignment.secretaire_id;
+            portAssignment.secretaire_id = tempSecId1;
+            candidate.secretaire_id = tempSecId2;
             
             return { candidate, delta: scoreAfter - scoreBefore };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
