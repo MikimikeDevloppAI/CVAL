@@ -56,6 +56,7 @@ export function ManagePersonnelDialog({
   const [availableSecretaries, setAvailableSecretaries] = useState<any[]>([]);
   const [assignedSecretaries, setAssignedSecretaries] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
+  const [filteredSites, setFilteredSites] = useState<any[]>([]);
   const [selectedSecretaryId, setSelectedSecretaryId] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
   const [is1R, setIs1R] = useState(false);
@@ -135,6 +136,18 @@ export function ManagePersonnelDialog({
         setIs2F(data.is_2f || false);
         setIs3F(data.is_3f || false);
         setSelectedPeriod(data.periode);
+
+        // Load secretary site preferences
+        const { data: sitesPreferences } = await supabase
+          .from('secretaires_sites')
+          .select('site_id')
+          .eq('secretaire_id', data.secretaire_id);
+
+        if (sitesPreferences) {
+          const preferredSiteIds = sitesPreferences.map(sp => sp.site_id);
+          const filtered = sites.filter(site => preferredSiteIds.includes(site.id));
+          setFilteredSites(filtered);
+        }
 
         // Check if this is part of a full day assignment
         const fullDayInfo = await getFullDayAssignments(context.date, context.secretaire_id);
@@ -604,13 +617,18 @@ export function ManagePersonnelDialog({
                     <SelectValue placeholder="Sélectionner un site" />
                   </SelectTrigger>
                   <SelectContent>
-                    {sites.map((site) => (
+                    {filteredSites.map((site) => (
                       <SelectItem key={site.id} value={site.id}>
                         {site.nom}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {filteredSites.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Aucun site dans les préférences de cette secrétaire
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
