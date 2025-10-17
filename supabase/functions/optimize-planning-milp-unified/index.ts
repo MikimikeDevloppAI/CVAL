@@ -1255,69 +1255,32 @@ serve(async (req) => {
     // ============================================================
     // PHASE 2: RÉSOLUTION MILP
     // ============================================================
-    console.log("\n--- PHASE 2: RÉSOLUTION MILP ---");
-    console.log(`Total de variables: ${variableCount}`);
-    console.log(`Total de contraintes: ${Object.keys(model.constraints).length}`);
+    console.log("\n========== AVANT RÉSOLUTION MILP ==========");
+    console.log(`Variables: ${variableCount}, Contraintes: ${Object.keys(model.constraints).length}`);
 
     let solution: any;
     try {
       solution = solver.Solve(model);
+      console.log("\n========== APRÈS RÉSOLUTION MILP ==========");
       console.log(`Statut: ${solution.feasible ? "FAISABLE ✓" : "INFAISABLE ❌"}`);
       console.log(`Score optimal: ${solution.result || 0}`);
     } catch (error: any) {
       console.error("❌ Erreur lors de la résolution MILP:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Erreur lors de la résolution MILP",
-          details: error?.message || "Erreur inconnue",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
+      // Ne pas retourner, continuer avec solution infaisable
+      solution = { feasible: false, result: 0 };
+      console.log("⚠️ Continuation avec solution vide pour tester Phase 2 séquentielle");
     }
 
     if (!solution.feasible) {
-      console.warn("⚠️ Solution MILP infaisable - mais on continue avec assignations existantes");
-      // En cas d'infaisabilité, on retourne quand même un succès avec les blocs créés
-      // et des assignations vides pour les autres types
-      
-      // Appeler assign-closing-responsibles quand même
-      const week_start = selected_dates[0];
-      const week_end = selected_dates[selected_dates.length - 1];
-      
-      try {
-        await supabase.functions.invoke("assign-closing-responsibles", {
-          body: { 
-            planning_id,
-            selected_dates,
-            week_start,
-            week_end
-          },
-        });
-      } catch (assignError) {
-        console.warn("Erreur lors de l'assignation des responsables fermeture:", assignError);
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Optimisation partielle : blocs créés, assignations sites/admin limitées par contraintes",
-          planning_id,
-          stats: {
-            blocs_crees: blocsOperatoireInserted.length,
-            personnel_bloc: blocsOperatoireInserted.length > 0 ? blocsOperatoireInserted.length * 2 : 0,
-            personnel_sites: 0,
-            personnel_admin: 0,
-            total_assignments: blocsOperatoireInserted.length > 0 ? blocsOperatoireInserted.length * 2 : 0,
-          },
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.warn("⚠️ Solution MILP infaisable - on continue quand même pour tester la Phase 2");
+      // Ne PAS retourner ici, on va continuer jusqu'à la Phase 2 séquentielle
     }
 
     // ============================================================
     // PHASE 3: APPLICATION DE LA SOLUTION
     // ============================================================
+    console.log("\n========== DÉBUT PHASE 3: APPLICATION SOLUTION ==========");
+    console.log(`Solution faisable: ${solution.feasible}`);
     console.log("\n--- PHASE 3: APPLICATION DE LA SOLUTION ---");
 
     const blocsToInsert: any[] = [];
@@ -1533,6 +1496,9 @@ serve(async (req) => {
     }
 
     // Insérer tout le personnel (sites + admin uniquement, les blocs sont déjà créés)
+    console.log(`\n========== AVANT INSERTION PERSONNEL ==========`);
+    console.log(`personnelToInsert.length: ${personnelToInsert.length}`);
+    
     if (personnelToInsert.length > 0) {
       const cleaned = personnelToInsert.map((r) => ({
         ...r,
@@ -1549,13 +1515,15 @@ serve(async (req) => {
       }
 
       console.log(`✓ ${cleaned.length} assignations personnel insérées`);
+    } else {
+      console.log("⚠️ Aucune assignation personnel à insérer (normal si MILP infaisable)");
     }
 
     // ============================================================
     // PHASE 2: OPTIMISATION SÉQUENTIELLE (HILL CLIMBING)
     // ============================================================
     console.log("\n========== PHASE 2 : OPTIMISATION SÉQUENTIELLE (HILL CLIMBING) ==========");
-    console.log("Sites ciblés : Clinique La Vallée Ophtalmo + Centre Esplanade Ophtalmo");
+    console.log(`FORCE EXECUTION: ${selected_dates.length} dates à optimiser`);
     
     // Identifier les sites cibles (Clinique La Vallée + Centre Esplanade Ophtalmologie)
     const cliniqueValleeSite = sites.find((s) => 
@@ -1568,9 +1536,15 @@ serve(async (req) => {
       s.nom.toLowerCase().includes("ophtalmologie")
     );
     
+    console.log(`Sites trouvés: Clinique=${!!cliniqueValleeSite}, Esplanade=${!!esplanadeSite}`);
+    
     if (!cliniqueValleeSite || !esplanadeSite) {
-      console.log("⚠️ Sites ophtalmo non trouvés, Phase 2 ignorée");
-    } else {
+      console.log("⚠️ Sites ophtalmo non trouvés, Phase 2 FORCÉE quand même pour diagnostic");
+    }
+    
+    // TOUJOURS exécuter la Phase 2 (retirer le else)
+    console.log(`Sites ciblés: ${cliniqueValleeSite?.nom || 'N/A'}, ${esplanadeSite?.nom || 'N/A'}`);
+    {
       console.log(`Sites ciblés: ${cliniqueValleeSite.nom}, ${esplanadeSite.nom}`);
       
       // Filtrer les secrétaires éligibles (celles avec préférences sur ces sites)
