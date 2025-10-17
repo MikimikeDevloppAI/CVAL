@@ -350,6 +350,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
             <CardContent className="pt-4">
               <div className="space-y-3">
                 {secretary.weekSchedule
+                  .filter(({ matin, apresMidi }) => matin || apresMidi)
                   .map(({ date, dateStr, matin, apresMidi }) => (
                   <div key={dateStr} className="border rounded-lg p-3 hover:bg-muted/30 transition-colors group">
                     <div className="mb-2 pb-2 border-b">
