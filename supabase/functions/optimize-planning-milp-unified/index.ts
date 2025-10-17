@@ -1283,15 +1283,10 @@ serve(async (req) => {
           // On crée la variable admin pour toutes les secrétaires ayant une capacité
           // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
-          // Calculer le score avec pénalité progressive
+          // Calculer le score avec pénalité progressive (identique pour toutes)
           let score = 100; // Base admin
-          
-          if (sec.prefered_admin) {
-            score += 50;
-          } else {
-            const count = adminAssignmentCount.get(sec.id) || 0;
-            score -= (count + 1) * 5;
-          }
+          const count = adminAssignmentCount.get(sec.id) || 0;
+          score -= (count + 1) * 5; // Pénalité progressive pour toutes
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1313,6 +1308,9 @@ serve(async (req) => {
             model.constraints[uniqueConstraint] = { max: 1 };
           }
           model.variables[varName][uniqueConstraint] = 1;
+
+          // Incrémenter le compteur pour la pénalité progressive
+          adminAssignmentCount.set(sec.id, (adminAssignmentCount.get(sec.id) || 0) + 1);
         }
       }
     }
@@ -1320,9 +1318,46 @@ serve(async (req) => {
     console.log(`✓ ${adminVariableCount} variables administratives créées`);
 
     // ============================================================
-    // PHASE 1D-BIS: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
+    // PHASE 1D-BIS: VARIABLES D'ACTIVATION "PRÉFÈRE ADMIN"
     // ============================================================
-    console.log("\n--- PHASE 1D-BIS: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
+    console.log("\n--- PHASE 1D-BIS: VARIABLES D'ACTIVATION PRÉFÈRE ADMIN ---");
+
+    let activationVariableCount = 0;
+    for (const sec of secretaires) {
+      if (!sec.prefered_admin) continue;
+
+      // Variable binaire : 1 si la secrétaire reçoit au moins une demi-journée admin
+      const activationVarName = `has_admin_${sec.id}`;
+      model.variables[activationVarName] = { 
+        score: 500  // Bonus unique de +500 points
+      };
+      model.ints[activationVarName] = 1;
+      variableCount++;
+      activationVariableCount++;
+
+      // Contrainte : has_admin_X <= sum(z_X_date_periode)
+      // Si aucune variable admin n'est activée, has_admin_X doit être 0
+      // Si au moins une variable admin est activée, has_admin_X peut être 1
+      const activationConstraint = `activation_admin_${sec.id}`;
+      model.constraints[activationConstraint] = { max: 0 };
+      
+      // La variable d'activation a un coefficient négatif
+      model.variables[activationVarName][activationConstraint] = -1;
+
+      // Toutes les variables admin de cette secrétaire ont un coefficient positif
+      for (const assign of assignments) {
+        if (assign.type === "admin" && assign.secretaire_id === sec.id) {
+          model.variables[assign.varName][activationConstraint] = 1;
+        }
+      }
+    }
+
+    console.log(`✓ ${activationVariableCount} variables d'activation créées`);
+
+    // ============================================================
+    // PHASE 1D-TER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
+    // ============================================================
+    console.log("\n--- PHASE 1D-TER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
     
     let mandatoryAssignmentCount = 0;
     for (const sec of secretaires) {
