@@ -60,6 +60,11 @@ serve(async (req) => {
     console.log(`📦 ${assignments.length} assignations à optimiser`);
     console.log(`📦 ${blocsMapArray.length} opérations bloc`);
     
+    // Helper: vérifier si une assignation est liée à un médecin (bloc opératoire)
+    const hasPhysicianLink = (assignment: any): boolean => {
+      return !!(assignment.besoin_operation_id || assignment.planning_genere_bloc_operatoire_id);
+    };
+    
     // Sites constants - FIXED IDs provided by user
     const PORT_EN_TRUIE_ID = sites.find(s => s.nom.toLowerCase().includes('port'))?.id || '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
     const BLOC_RESTRICTED_SITES = [
@@ -1057,8 +1062,8 @@ serve(async (req) => {
                 const baselineKey = `${site.id}|${date}`;
                 const baseScore = calculateTotalScore();
 
-                const mCandidates = matinSlots.filter((a: any) => a.secretaire_id !== adminId);
-                const aCandidates = apremSlots.filter((a: any) => a.secretaire_id !== adminId);
+                const mCandidates = matinSlots.filter((a: any) => a.secretaire_id !== adminId && !hasPhysicianLink(a));
+                const aCandidates = apremSlots.filter((a: any) => a.secretaire_id !== adminId && !hasPhysicianLink(a));
 
                 let bestDelta = 0;
                 let bestMode: 'matin' | 'apres_midi' | 'both' | null = null;
@@ -1272,21 +1277,21 @@ serve(async (req) => {
       
       console.log(`\n👤 ${sec.name || sec.first_name || sec.id}: ${adminCount} demi-journée(s) admin actuellement`);
       
-      // Objectif: au moins 2 demi-journées admin (3 si déjà 1 et swap journée entière possible)
-      const targetMin = 2;
-      const targetOptimal = 3;
-      
-      if (adminCount >= targetOptimal) {
+      // Objectif: exactement 2 demi-journées admin
+      // Accepter 3 si nécessaire (1 demi-journée + 1 journée entière)
+      if (adminCount >= 2) {
         console.log(`  ✓ Déjà ${adminCount} demi-journées admin (objectif atteint)`);
         continue;
       }
       
       // Compter les demi-journées nécessaires
-      const needed = Math.max(0, targetMin - adminCount);
-      console.log(`  🎯 Besoin de ${needed} demi-journée(s) supplémentaire(s) pour atteindre ${targetMin}`);
+      const needed = Math.max(0, 2 - adminCount);
+      console.log(`  🎯 Besoin de ${needed} demi-journée(s) supplémentaire(s) pour atteindre 2`);
       
-      // Collecter toutes les assignations site de cette secrétaire
-      const siteAssignments = secAssignments.filter((a: any) => a.type_assignation === 'site');
+      // Collecter toutes les assignations site de cette secrétaire (qui ne sont pas liées à un médecin)
+      const siteAssignments = secAssignments.filter((a: any) => 
+        a.type_assignation === 'site' && !hasPhysicianLink(a)
+      );
       
       // Vérifier pour chaque assignation si elle est bloquée par contrainte fermeture
       const blockedByClosureAssignments: any[] = [];
@@ -1335,7 +1340,8 @@ serve(async (req) => {
                 a.date === date &&
                 a.periode === 'matin' &&
                 a.type_assignation === 'administratif' &&
-                a.secretaire_id !== sec.id
+                a.secretaire_id !== sec.id &&
+                !hasPhysicianLink(a)
               )
             : [];
           
@@ -1344,7 +1350,8 @@ serve(async (req) => {
                 a.date === date &&
                 a.periode === 'apres_midi' &&
                 a.type_assignation === 'administratif' &&
-                a.secretaire_id !== sec.id
+                a.secretaire_id !== sec.id &&
+                !hasPhysicianLink(a)
               )
             : [];
           
@@ -1502,12 +1509,25 @@ serve(async (req) => {
       
       console.log(`  📊 ${allSwapCandidates.length} swap(s) candidat(s) trouvé(s)`);
       
-      // Appliquer les swaps tant qu'on n'a pas atteint l'objectif
+      // Appliquer les swaps pour atteindre exactement 2 demi-journées (accepter 3 si nécessaire)
       let currentAdminCount = adminCount;
       for (const candidate of allSwapCandidates) {
-        if (currentAdminCount >= targetOptimal) {
-          console.log(`  ✓ Objectif optimal atteint (${currentAdminCount} admin)`);
-          break;
+        // Si on a déjà 2, on s'arrête (sauf si on peut faire exactement 2 avec un swap)
+        if (currentAdminCount >= 2) {
+          // Vérifier si avec ce swap on dépasserait trop (plus de 3)
+          if (currentAdminCount + candidate.gainedAdmin > 3) {
+            console.log(`  ⏭️ Skip swap: dépasserait l'objectif (${currentAdminCount} + ${candidate.gainedAdmin} > 3)`);
+            continue;
+          }
+          // Si on a exactement 2 et que le swap amènerait à 3, on l'accepte seulement si c'est une journée entière
+          if (currentAdminCount === 2 && candidate.mode !== 'both') {
+            console.log(`  ⏭️ Skip swap: déjà 2 demi-journées, accepte seulement journée entière`);
+            continue;
+          }
+          if (currentAdminCount >= 3) {
+            console.log(`  ✓ Objectif atteint (${currentAdminCount} admin)`);
+            break;
+          }
         }
         
         // Appliquer ce swap
@@ -1543,10 +1563,10 @@ serve(async (req) => {
         a.secretaire_id === sec.id && a.type_assignation === 'administratif'
       ).length;
       
-      if (finalAdminCount >= targetMin) {
-        console.log(`  ✅ ${sec.name || sec.first_name} a maintenant ${finalAdminCount} demi-journée(s) admin (objectif ${targetMin} atteint)`);
+      if (finalAdminCount >= 2) {
+        console.log(`  ✅ ${sec.name || sec.first_name} a maintenant ${finalAdminCount} demi-journée(s) admin (objectif atteint)`);
       } else {
-        console.log(`  ⚠️ ${sec.name || sec.first_name} a ${finalAdminCount} demi-journée(s) admin (objectif ${targetMin} non atteint)`);
+        console.log(`  ⚠️ ${sec.name || sec.first_name} a ${finalAdminCount} demi-journée(s) admin (objectif 2 non atteint)`);
       }
     }
     
