@@ -136,7 +136,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaireFlexible: secretaire?.horaire_flexible || false,
       pourcentageTemps: secretaire?.pourcentage_temps || undefined,
-      preferedAdmin: secretaire?.prefered_admin || false,
+      preferedAdmin: secretaire?.prefered_admin === true || secretaire?.preferedAdmin === true || false,
       besoinsOperations: [],
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
