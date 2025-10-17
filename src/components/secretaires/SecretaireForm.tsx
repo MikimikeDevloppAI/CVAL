@@ -148,6 +148,12 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
     },
   });
 
+  useEffect(() => {
+    if (secretaire) {
+      form.setValue('preferedAdmin', !!secretaire.prefered_admin);
+    }
+  }, [secretaire, form]);
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'horaires',
