@@ -1179,8 +1179,8 @@ serve(async (req) => {
           // On crée la variable admin pour toutes les secrétaires ayant une capacité
           // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
-          // Score de base neutre - la pénalité sera appliquée via contrainte soft si > 2 demi-journées
-          let score = 0;
+          // Bonus de +100 pour encourager les assignations administratives
+          let score = 100;
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1247,45 +1247,6 @@ serve(async (req) => {
 
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
 
-    // ============================================================
-    // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
-    // ============================================================
-    console.log("\n--- PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
-    
-    let mandatoryAssignmentCount = 0;
-    for (const sec of secretaires) {
-      for (const date of selected_dates) {
-        for (const periode of ["matin", "apres_midi"]) {
-          const capKey = `${sec.id}_${date}_${periode}`;
-          if (!capacitesMap.has(capKey)) continue;
-
-          // Pour les secrétaires flexibles, on ne force PAS l'assignation obligatoire
-          if (sec.horaire_flexible) {
-            continue;
-          }
-
-          // Cette secrétaire a une capacité pour cette date/période
-          // Elle DOIT être assignée à au moins quelque chose (bloc, site ou admin)
-          const mandatoryConstraint = `mandatory_${sec.id}_${date}_${periode}`;
-          model.constraints[mandatoryConstraint] = { min: 1 };
-
-          // Trouver toutes les variables d'assignation pour cette secrétaire à cette date/période
-          for (const assign of assignments) {
-            if (
-              assign.secretaire_id === sec.id &&
-              assign.date === date &&
-              assign.periode === periode
-            ) {
-              model.variables[assign.varName][mandatoryConstraint] = 1;
-            }
-          }
-          
-          mandatoryAssignmentCount++;
-        }
-      }
-    }
-
-    console.log(`✓ ${mandatoryAssignmentCount} contraintes d'assignation obligatoire ajoutées`);
 
     // ============================================================
     // PHASE 1E: CONTRAINTES JOURS COMPLETS POUR FLEXIBLES
