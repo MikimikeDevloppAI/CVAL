@@ -1549,24 +1549,24 @@ serve(async (req) => {
     }
     
     console.log(`Sites ciblés: ${cliniqueValleeSite?.nom || 'CLINIQUE NON TROUVÉE'}, ${esplanadeSite?.nom || 'ESPLANADE NON TROUVÉE'}`);
-    {
-      // Filtrer les secrétaires éligibles (celles avec préférences sur ces sites)
-      const eligibleSecretaires = secretaires.filter((sec) => {
-        const sitesData = secretairesSitesMap.get(sec.id) || [];
-        return sitesData.some((s) => 
-          (cliniqueValleeSite && s.site_id === cliniqueValleeSite.id) || 
-          (esplanadeSite && s.site_id === esplanadeSite.id)
-        );
-      });
-      
-      console.log(`${eligibleSecretaires.length} secrétaires éligibles pour optimisation`);
-      
-      const MAX_ITERATIONS = 30;
-      let totalSwaps = 0;
-      let totalGain = 0;
-      
-      for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-        console.log(`\n[Itération ${iteration}]`);
+    
+    // Filtrer les secrétaires éligibles (celles avec préférences sur ces sites)
+    const eligibleSecretaires = secretaires.filter((sec) => {
+      const sitesData = secretairesSitesMap.get(sec.id) || [];
+      return sitesData.some((s) => 
+        (cliniqueValleeSite && s.site_id === cliniqueValleeSite.id) || 
+        (esplanadeSite && s.site_id === esplanadeSite.id)
+      );
+    });
+    
+    console.log(`${eligibleSecretaires.length} secrétaires éligibles pour optimisation`);
+    
+    const MAX_ITERATIONS = 30;
+    let totalSwaps = 0;
+    let totalGain = 0;
+    
+    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      console.log(`\n[Itération ${iteration}]`);
         
         // 1. Charger l'état actuel depuis la DB
         const { data: currentAssignments, error: loadError } = await supabase
@@ -2225,7 +2225,6 @@ serve(async (req) => {
       }
       
       console.log(`\n✅ Phase 2 terminée: ${totalSwaps} échanges appliqués, gain total: +${totalGain.toFixed(0)}`);
-    }
 
     // ============================================================
     // PHASE 4: ASSIGNATION DES RESPONSABLES DE FERMETURE (1R, 2F, 3F)
