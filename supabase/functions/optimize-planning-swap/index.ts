@@ -79,59 +79,54 @@ serve(async (req) => {
       return site?.nom || siteId.slice(0, 8);
     };
     
-    // Nouvelle fonction: Vérifie si la secrétaire ACTUELLE est assignée pour couvrir un médecin prioritaire (1 ou 2)
+    // Nouvelle fonction: Vérifie si la secrétaire ACTUELLE est assignée pour couvrir un médecin prioritaire (1 ou 2) sur ce créneau
     const isAssignedForPriorityDoctor = (assignment: any): boolean => {
       if (assignment.type_assignation !== 'site' || !assignment.site_id || !assignment.secretaire_id) return false;
-      
       const medecinsOnSite = besoinsEffectifs.filter(b =>
         b.site_id === assignment.site_id &&
         b.date === assignment.date &&
         b.demi_journee === assignment.periode &&
         b.type === 'medecin'
       );
-      
       for (const besoin of medecinsOnSite) {
         if (besoin.medecin_id) {
-          const medRelation = secretairesMedecinsMap.get(`${assignment.secretaire_id}_${besoin.medecin_id}`)?.[0];
-          if (medRelation) {
-            const prio = typeof medRelation.priorite === 'string' 
-              ? parseInt(medRelation.priorite, 10) 
-              : medRelation.priorite;
-            if (prio === 1 || prio === 2) return true;
+          const rel = secretairesMedecinsMap.get(`${assignment.secretaire_id}_${besoin.medecin_id}`)?.[0];
+          if (rel) {
+            const p = typeof rel.priorite === 'string' ? parseInt(rel.priorite, 10) : rel.priorite;
+            if (p === 1 || p === 2) return true;
           }
         }
       }
       return false;
     };
-    
-    // Nouvelle fonction: Vérifie si un candidat peut couvrir TOUS les médecins d'un créneau site
-    const canCandidateCoverDoctors = (candidateSecId: string, siteAssignment: any): boolean => {
+
+    // Vérifie si le candidat peut remplacer l'actuel sur TOUS les médecins prioritaires (1/2) de l'actuel
+    const canCandidateReplaceCurrentOnPriorityDoctors = (
+      currentSecId: string,
+      candidateSecId: string,
+      siteAssignment: any
+    ): boolean => {
       if (siteAssignment.type_assignation !== 'site' || !siteAssignment.site_id) return true;
-      
       const medecinsOnSite = besoinsEffectifs.filter(b =>
         b.site_id === siteAssignment.site_id &&
         b.date === siteAssignment.date &&
         b.demi_journee === siteAssignment.periode &&
         b.type === 'medecin'
       );
-      
-      // Si pas de médecins, OK
-      if (medecinsOnSite.length === 0) return true;
-      
-      // Vérifier que le candidat peut couvrir TOUS les médecins avec priorité <= 3
       for (const besoin of medecinsOnSite) {
-        if (besoin.medecin_id) {
-          const medRelation = secretairesMedecinsMap.get(`${candidateSecId}_${besoin.medecin_id}`)?.[0];
-          if (!medRelation) return false; // Pas de relation = ne peut pas couvrir
-          
-          const prio = typeof medRelation.priorite === 'string' 
-            ? parseInt(medRelation.priorite, 10) 
-            : medRelation.priorite;
-          
-          if (prio > 3) return false; // Priorité trop basse
+        if (!besoin.medecin_id) continue;
+        const relCurrent = secretairesMedecinsMap.get(`${currentSecId}_${besoin.medecin_id}`)?.[0];
+        // Seuls les médecins pour lesquels l'actuel a une priorité 1/2 nécessitent une couverture stricte
+        if (relCurrent) {
+          const pCurrent = typeof relCurrent.priorite === 'string' ? parseInt(relCurrent.priorite, 10) : relCurrent.priorite;
+          if (pCurrent === 1 || pCurrent === 2) {
+            const relCand = secretairesMedecinsMap.get(`${candidateSecId}_${besoin.medecin_id}`)?.[0];
+            if (!relCand) return false;
+            const pCand = typeof relCand.priorite === 'string' ? parseInt(relCand.priorite, 10) : relCand.priorite;
+            if (pCand > 3) return false; // candidat trop faible pour ce médecin prioritaire
+          }
         }
       }
-      
       return true;
     };
     
@@ -517,9 +512,13 @@ serve(async (req) => {
           if (candidate.date !== restrictedSiteAssignment.date || candidate.periode !== restrictedSiteAssignment.periode) return false;
           if (candidate.type_assignation === 'bloc') return false;
           
-          // Si l'assignation actuelle est pour un médecin prioritaire, vérifier couverture
+          // Si l'assignation actuelle est pour un médecin prioritaire, vérifier couverture ciblée
           if (isAssignedForPriorityDoctor(restrictedSiteAssignment)) {
-            return canCandidateCoverDoctors(candidate.secretaire_id, restrictedSiteAssignment);
+            return canCandidateReplaceCurrentOnPriorityDoctors(
+              restrictedSiteAssignment.secretaire_id,
+              candidate.secretaire_id,
+              restrictedSiteAssignment
+            );
           }
           
           return true;
@@ -736,9 +735,13 @@ serve(async (req) => {
               if (candidate.type_assignation !== 'site' || candidate.site_id !== site.id) return false;
               if (!canGoToSite(candidate.secretaire_id, site.id)) return false;
               
-              // Si le candidat est assigné pour un médecin prioritaire, on doit vérifier que la personne partielle peut couvrir
+              // Si le candidat est assigné pour un médecin prioritaire, vérifier que la personne partielle peut couvrir ces priorités
               if (isAssignedForPriorityDoctor(candidate)) {
-                return canCandidateCoverDoctors(candidateId, candidate);
+                return canCandidateReplaceCurrentOnPriorityDoctors(
+                  candidate.secretaire_id,
+                  candidateId,
+                  candidate
+                );
               }
               
               return true;
@@ -1067,9 +1070,13 @@ serve(async (req) => {
                 continue;
               }
               
-              // Si l'assignation site est pour un médecin prioritaire, vérifier couverture
+              // Si l'assignation site est pour un médecin prioritaire, vérifier couverture ciblée
               if (isAssignedForPriorityDoctor(siteAssignment)) {
-                if (!canCandidateCoverDoctors(candidate.secretaire_id, siteAssignment)) {
+                if (!canCandidateReplaceCurrentOnPriorityDoctors(
+                  siteAssignment.secretaire_id,
+                  candidate.secretaire_id,
+                  siteAssignment
+                )) {
                   continue;
                 }
               }
@@ -1159,14 +1166,20 @@ serve(async (req) => {
           // Priorité: candidats SITE uniquement
           if (candidate.type_assignation !== 'site') return false;
           
-          // Si change.matin est assigné pour médecin prioritaire, vérifier couverture candidat
           if (isAssignedForPriorityDoctor(change.matin)) {
-            if (!canCandidateCoverDoctors(candidate.secretaire_id, change.matin)) return false;
+            if (!canCandidateReplaceCurrentOnPriorityDoctors(
+              change.matin.secretaire_id,
+              candidate.secretaire_id,
+              change.matin
+            )) return false;
           }
           
-          // Si candidate est assigné pour médecin prioritaire, vérifier couverture change.secId
           if (isAssignedForPriorityDoctor(candidate)) {
-            if (!canCandidateCoverDoctors(change.secId, candidate)) return false;
+            if (!canCandidateReplaceCurrentOnPriorityDoctors(
+              candidate.secretaire_id,
+              change.secId,
+              candidate
+            )) return false;
           }
           
           return true;
@@ -1179,14 +1192,20 @@ serve(async (req) => {
           // Priorité: candidats SITE uniquement
           if (candidate.type_assignation !== 'site') return false;
           
-          // Si change.aprem est assigné pour médecin prioritaire, vérifier couverture candidat
           if (isAssignedForPriorityDoctor(change.aprem)) {
-            if (!canCandidateCoverDoctors(candidate.secretaire_id, change.aprem)) return false;
+            if (!canCandidateReplaceCurrentOnPriorityDoctors(
+              change.aprem.secretaire_id,
+              candidate.secretaire_id,
+              change.aprem
+            )) return false;
           }
           
-          // Si candidate est assigné pour médecin prioritaire, vérifier couverture change.secId
           if (isAssignedForPriorityDoctor(candidate)) {
-            if (!canCandidateCoverDoctors(change.secId, candidate)) return false;
+            if (!canCandidateReplaceCurrentOnPriorityDoctors(
+              candidate.secretaire_id,
+              change.secId,
+              candidate
+            )) return false;
           }
           
           return true;
@@ -1368,9 +1387,13 @@ serve(async (req) => {
             if (candidate.type_assignation !== 'site') return false;
             if (!canGoToSite(sec.id, candidate.site_id)) return false;
             
-            // Si le candidate est assigné pour un médecin prioritaire, vérifier que sec peut couvrir
+            // Si le candidat est assigné pour un médecin prioritaire, vérifier que sec peut couvrir ces priorités
             if (isAssignedForPriorityDoctor(candidate)) {
-              return canCandidateCoverDoctors(sec.id, candidate);
+              return canCandidateReplaceCurrentOnPriorityDoctors(
+                candidate.secretaire_id,
+                sec.id,
+                candidate
+              );
             }
             
             return true;
@@ -1499,9 +1522,13 @@ serve(async (req) => {
                 !(candidate.type_assignation === 'site' && candidate.site_id !== PORT_EN_TRUIE_ID)) return false;
             if (!canGoToSite(candidate.secretaire_id, PORT_EN_TRUIE_ID)) return false;
             
-            // Si candidate est assigné pour médecin prioritaire, vérifier que sec peut couvrir
+            // Si candidat est assigné pour médecin prioritaire, vérifier que sec peut couvrir ces priorités
             if (isAssignedForPriorityDoctor(candidate)) {
-              return canCandidateCoverDoctors(sec.id, candidate);
+              return canCandidateReplaceCurrentOnPriorityDoctors(
+                candidate.secretaire_id,
+                sec.id,
+                candidate
+              );
             }
             
             return true;
@@ -1590,10 +1617,20 @@ serve(async (req) => {
     const totalGain = phase1Result.gain + phase2Result.gain + phase3Result.gain + 
                       phase4Result.gain + phase5Result.gain + phase6Result.gain;
     
-    console.log("\n========================================");
-    console.log("✅ OPTIMISATION TERMINÉE");
-    console.log(`📊 Total: ${totalSwaps} swaps, gain: ${totalGain >= 0 ? '+' : ''}${totalGain.toFixed(0)} points`);
-    console.log("========================================");
+    // Contrôle final strict Phase 1/2 avant insertion
+    console.log("\n✅ Contrôle final Phase 1/2...");
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.warn("⚠️ Final validation failed — tentative de correction automatique (Phase 1 + Phase 2)...");
+      phase1_blockedOperations();
+      phase2_closingConstraint();
+    }
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.error("❌ Final validation toujours en échec. Annulation de l'insertion pour éviter un planning invalide.");
+      return new Response(
+        JSON.stringify({ success: false, error: "Final validation failed: phase 1/2 not satisfied" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     // Insertion finale
     console.log("\n💾 Insertion des assignations optimisées...");
