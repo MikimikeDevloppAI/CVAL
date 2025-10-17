@@ -403,12 +403,12 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                         return (
                           <>
                             {/* Morning */}
-                            <div className="flex gap-2 items-center">
-                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0">
+                            <div className="flex gap-2 items-start">
+                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0 pt-1">
                                 <Clock className="h-3 w-3" />
                                 Matin
                               </div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1">
                                 {matin ? (
                                   getAssignmentBadge(matin)
                                 ) : (
@@ -438,12 +438,12 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                             </div>
 
                             {/* Afternoon */}
-                            <div className="flex gap-2 items-center">
-                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0">
+                            <div className="flex gap-2 items-start">
+                              <div className="flex items-center gap-1 w-32 text-xs font-medium text-muted-foreground flex-shrink-0 pt-1">
                                 <Clock className="h-3 w-3" />
                                 Après-midi
                               </div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1">
                                 {apresMidi ? (
                                   getAssignmentBadge(apresMidi)
                                 ) : (
