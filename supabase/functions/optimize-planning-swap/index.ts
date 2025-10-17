@@ -362,13 +362,14 @@ serve(async (req) => {
     };
     
     const wouldBreakClosureConstraint = (assignA: any, assignB: any): boolean => {
-      const closingSites = sites.filter((s: any) => s.fermeture);
+      // Only care about closure sites, and ensure they still meet the constraint (>= 2 full days)
+      const closingSites = new Set((sites.filter((s: any) => s.fermeture)).map((s: any) => s.id));
       const affectedPairs: Array<{ siteId: string; date: string }> = [];
 
-      if (assignA.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignA.site_id)) {
+      if (assignA.type_assignation === 'site' && assignA.site_id && closingSites.has(assignA.site_id)) {
         affectedPairs.push({ siteId: assignA.site_id, date: assignA.date });
       }
-      if (assignB.type_assignation === 'site' && closingSites.some((s: any) => s.id === assignB.site_id)) {
+      if (assignB.type_assignation === 'site' && assignB.site_id && closingSites.has(assignB.site_id)) {
         affectedPairs.push({ siteId: assignB.site_id, date: assignB.date });
       }
 
@@ -389,22 +390,33 @@ serve(async (req) => {
         return Array.from(matinSecs).filter((secId: string) => apremSecs.has(secId)).length;
       };
 
-      const baseline = new Map<string, number>();
-      for (const p of uniquePairs) {
-        baseline.set(pairKey(p), countFullDays(p.siteId, p.date));
-      }
+      // Helper: does this site-date require closure (open matin and aprem for medecins)?
+      const requiresClosure = (siteId: string, date: string) => {
+        const medecinMatin = besoinsEffectifs.filter((b: any) =>
+          b.site_id === siteId && b.date === date &&
+          (b.demi_journee === 'matin' || b.demi_journee === 'toute_journee') &&
+          b.type === 'medecin'
+        );
+        const medecinAprem = besoinsEffectifs.filter((b: any) =>
+          b.site_id === siteId && b.date === date &&
+          (b.demi_journee === 'apres_midi' || b.demi_journee === 'toute_journee') &&
+          b.type === 'medecin'
+        );
+        return medecinMatin.length > 0 && medecinAprem.length > 0;
+      };
 
       const originalA = assignA.secretaire_id;
       const originalB = assignB.secretaire_id;
       assignA.secretaire_id = originalB;
       assignB.secretaire_id = originalA;
 
-      let regresses = false;
+      let breaks = false;
       for (const p of uniquePairs) {
+        // If the site isn't open full day, the closure constraint doesn't apply
+        if (!requiresClosure(p.siteId, p.date)) continue;
         const afterCount = countFullDays(p.siteId, p.date);
-        const beforeCount = baseline.get(pairKey(p)) ?? 0;
-        if (afterCount < beforeCount) {
-          regresses = true;
+        if (afterCount < 2) {
+          breaks = true; // would break the closure rule
           break;
         }
       }
@@ -412,7 +424,7 @@ serve(async (req) => {
       assignA.secretaire_id = originalA;
       assignB.secretaire_id = originalB;
 
-      return regresses;
+      return breaks;
     };
     
     const calculateTotalScore = (): number => {
@@ -822,6 +834,124 @@ serve(async (req) => {
               console.log(`  ✅ Swap même site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, improvement=+${improvement}`);
               phase2SwapsCount++;
               break;
+            }
+          }
+        }
+
+        // Fallback: si encore <2, tenter un équilibrage inter-site contrôlé (ne casse pas la fermeture ailleurs)
+        {
+          const matinSecsAfter = new Set<string>();
+          const apremSecsAfter = new Set<string>();
+          currentAssignments
+            .filter((a: any) => a.date === date && a.type_assignation === 'site' && a.site_id === site.id)
+            .forEach((a: any) => {
+              if (a.periode === 'matin') matinSecsAfter.add(a.secretaire_id);
+              else apremSecsAfter.add(a.secretaire_id);
+            });
+          const fullDaySecsAfter = Array.from(matinSecsAfter).filter((secId: string) => apremSecsAfter.has(secId));
+          if (fullDaySecsAfter.length < 2) {
+            // Recalcule des partiels
+            const partialMorning2 = Array.from(matinSecsAfter).filter((secId: string) => !apremSecsAfter.has(secId));
+            const partialAfternoon2 = Array.from(apremSecsAfter).filter((secId: string) => !matinSecsAfter.has(secId));
+
+            // 1) Donner un après-midi à ceux qui n'ont que le matin
+            for (const secId of partialMorning2) {
+              const missingPeriod = 'apres_midi';
+              const currentAssignment = currentAssignments.find((a: any) =>
+                a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
+              );
+              if (!currentAssignment) continue;
+
+              const interSiteCandidates = currentAssignments.filter((c: any) =>
+                c.date === date &&
+                c.periode === missingPeriod &&
+                c.type_assignation === 'site' &&
+                c.secretaire_id !== secId &&
+                c.site_id !== site.id
+              );
+
+              for (const candidate of interSiteCandidates) {
+                if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
+                if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
+
+                const scoreBefore = calculateTotalScore();
+                const baselineBefore = getClosureSnapshot();
+                const baselineKey = `${site.id}|${date}`;
+                const before = baselineBefore.get(baselineKey)?.fullDayCount || 0;
+
+                const tempA = currentAssignment.secretaire_id;
+                const tempB = candidate.secretaire_id;
+                currentAssignment.secretaire_id = tempB;
+                candidate.secretaire_id = tempA;
+
+                const scoreAfter = calculateTotalScore();
+                const baselineAfter = getClosureSnapshot();
+                const after = baselineAfter.get(baselineKey)?.fullDayCount || 0;
+
+                const delta = scoreAfter - scoreBefore;
+                const improvement = after - before;
+
+                currentAssignment.secretaire_id = tempA;
+                candidate.secretaire_id = tempB;
+
+                if (improvement > 0 && delta >= -150) {
+                  currentAssignment.secretaire_id = tempB;
+                  candidate.secretaire_id = tempA;
+                  console.log(`  ✅ Swap inter-site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, +${improvement}`);
+                  phase2SwapsCount++;
+                  break;
+                }
+              }
+            }
+
+            // 2) Donner un matin à ceux qui n'ont que l'après-midi
+            for (const secId of partialAfternoon2) {
+              const missingPeriod = 'matin';
+              const currentAssignment = currentAssignments.find((a: any) =>
+                a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
+              );
+              if (!currentAssignment) continue;
+
+              const interSiteCandidates = currentAssignments.filter((c: any) =>
+                c.date === date &&
+                c.periode === missingPeriod &&
+                c.type_assignation === 'site' &&
+                c.secretaire_id !== secId &&
+                c.site_id !== site.id
+              );
+
+              for (const candidate of interSiteCandidates) {
+                if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
+                if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
+
+                const scoreBefore = calculateTotalScore();
+                const baselineBefore = getClosureSnapshot();
+                const baselineKey = `${site.id}|${date}`;
+                const before = baselineBefore.get(baselineKey)?.fullDayCount || 0;
+
+                const tempA = currentAssignment.secretaire_id;
+                const tempB = candidate.secretaire_id;
+                currentAssignment.secretaire_id = tempB;
+                candidate.secretaire_id = tempA;
+
+                const scoreAfter = calculateTotalScore();
+                const baselineAfter = getClosureSnapshot();
+                const after = baselineAfter.get(baselineKey)?.fullDayCount || 0;
+
+                const delta = scoreAfter - scoreBefore;
+                const improvement = after - before;
+
+                currentAssignment.secretaire_id = tempA;
+                candidate.secretaire_id = tempB;
+
+                if (improvement > 0 && delta >= -150) {
+                  currentAssignment.secretaire_id = tempB;
+                  candidate.secretaire_id = tempA;
+                  console.log(`  ✅ Swap inter-site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, +${improvement}`);
+                  phase2SwapsCount++;
+                  break;
+                }
+              }
             }
           }
         }
