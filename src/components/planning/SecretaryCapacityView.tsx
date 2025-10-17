@@ -204,7 +204,6 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
               <thead className="border-b bg-muted/30">
                 <tr>
                   <th className="p-3 text-left font-semibold">Nom</th>
-                  <th className="p-3 text-left font-semibold">Sites assignés</th>
                   <th className="p-3 text-left font-semibold">
                     <div className="flex items-center gap-2">
                       Jours de présence
@@ -230,7 +229,7 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
               <tbody>
                 {secretariesGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={canManage ? 4 : 3} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={canManage ? 3 : 2} className="p-8 text-center text-muted-foreground">
                       Aucune capacité trouvée pour cette semaine
                     </td>
                   </tr>
@@ -300,19 +299,6 @@ export function SecretaryCapacityView({ capacites, weekDays, canManage, onRefres
                               <span className="text-xs text-muted-foreground">
                                 Assigné à: Dr {secretary.medecin_assigne.first_name} {secretary.medecin_assigne.name}
                               </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex flex-wrap gap-1">
-                            {secretary.sites_assignes.length > 0 ? (
-                              secretary.sites_assignes.map((siteId, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {sites.get(siteId) || siteId}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Aucun site assigné</span>
                             )}
                           </div>
                         </td>
