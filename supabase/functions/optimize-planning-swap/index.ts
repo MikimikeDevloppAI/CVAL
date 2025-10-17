@@ -131,6 +131,62 @@ serve(async (req) => {
       };
     };
     
+    const getAssignmentDetails = (assignment: any): string => {
+      const siteName = assignment.type_assignation === 'site' 
+        ? getSiteName(assignment.site_id)
+        : assignment.type_assignation === 'bloc' ? 'BLOC' : 'admin';
+      return `${assignment.date} ${assignment.periode} - ${siteName}`;
+    };
+    
+    // Validation functions
+    const validatePhase1Constraint = (): boolean => {
+      for (const assignment of currentAssignments) {
+        if (assignment.type_assignation !== 'bloc') continue;
+        
+        const otherPeriod = assignment.periode === 'matin' ? 'apres_midi' : 'matin';
+        const otherAssignment = currentAssignments.find((a: any) =>
+          a.secretaire_id === assignment.secretaire_id &&
+          a.date === assignment.date &&
+          a.periode === otherPeriod
+        );
+        
+        if (otherAssignment && 
+            otherAssignment.type_assignation === 'site' &&
+            BLOC_RESTRICTED_SITES.includes(otherAssignment.site_id)) {
+          console.error(`❌ VIOLATION Phase 1: ${getSecretaryName(assignment.secretaire_id)} le ${assignment.date} a bloc + site restreint`);
+          return false;
+        }
+      }
+      return true;
+    };
+    
+    const validatePhase2Constraint = (): boolean => {
+      const sitesWithClosure = sites.filter((s: any) => s.fermeture);
+      const dates = Array.from(new Set(currentAssignments.map((a: any) => a.date))) as string[];
+      
+      for (const site of sitesWithClosure) {
+        for (const date of dates) {
+          const matinSecs = new Set<string>();
+          const apremSecs = new Set<string>();
+          
+          currentAssignments
+            .filter((a: any) => a.date === date && a.site_id === site.id && a.type_assignation === 'site')
+            .forEach((a: any) => {
+              if (a.periode === 'matin') matinSecs.add(a.secretaire_id);
+              else apremSecs.add(a.secretaire_id);
+            });
+          
+          const fullDaySecs = Array.from(matinSecs).filter((secId: string) => apremSecs.has(secId));
+          
+          if (fullDaySecs.length < 2) {
+            console.error(`❌ VIOLATION Phase 2: ${site.nom} le ${date} a seulement ${fullDaySecs.length} personne(s) en journée complète`);
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+    
     // Helper: calculer score total (simplifié pour deltas)
     const calculateTotalScore = (): number => {
       let totalScore = 0;
@@ -328,31 +384,35 @@ serve(async (req) => {
         
         // Trier par delta
         const scoredCandidates = candidates.map((candidate: any) => {
+          const originalRestrictedSecId = restrictedSiteAssignment.secretaire_id;
+          const originalCandidateSecId = candidate.secretaire_id;
+          
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId1 = restrictedSiteAssignment.secretaire_id;
-          const tempSecId2 = candidate.secretaire_id;
-          
-          restrictedSiteAssignment.secretaire_id = tempSecId2;
-          candidate.secretaire_id = tempSecId1;
+          restrictedSiteAssignment.secretaire_id = originalCandidateSecId;
+          candidate.secretaire_id = originalRestrictedSecId;
           
           const scoreAfter = calculateTotalScore();
           
-          restrictedSiteAssignment.secretaire_id = tempSecId1;
-          candidate.secretaire_id = tempSecId2;
+          restrictedSiteAssignment.secretaire_id = originalRestrictedSecId;
+          candidate.secretaire_id = originalCandidateSecId;
           
-          return { candidate, delta: scoreAfter - scoreBefore };
+          return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
         }).sort((a: any, b: any) => b.delta - a.delta);
         
         if (scoredCandidates.length > 0) {
           const best = scoredCandidates[0];
+          
+          // Sauvegarder les noms AVANT le swap
+          const sec1Name = getSecretaryName(restrictedSiteAssignment.secretaire_id);
+          const sec2Name = getSecretaryName(best.originalCandidateSecId);
           
           // Appliquer le swap
           const tempSecId = restrictedSiteAssignment.secretaire_id;
           restrictedSiteAssignment.secretaire_id = best.candidate.secretaire_id;
           best.candidate.secretaire_id = tempSecId;
           
-          console.log(`      ✅ SWAP: ${getSecretaryName(best.candidate.secretaire_id)} ↔ ${getSecretaryName(tempSecId)}`);
+          console.log(`      ✅ SWAP: ${sec1Name} ↔ ${sec2Name}`);
           console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
           totalSwaps++;
           totalGain += best.delta;
@@ -442,31 +502,34 @@ serve(async (req) => {
             );
             
             const scoredSwaps = swapCandidates.map((candidate: any) => {
+              const originalOtherSecId = otherAssignment.secretaire_id;
+              const originalCandidateSecId = candidate.secretaire_id;
+              
               const scoreBefore = calculateTotalScore();
               
-              const tempSecId1 = otherAssignment.secretaire_id;
-              const tempSecId2 = candidate.secretaire_id;
-              
-              otherAssignment.secretaire_id = tempSecId2;
-              candidate.secretaire_id = tempSecId1;
+              otherAssignment.secretaire_id = originalCandidateSecId;
+              candidate.secretaire_id = originalOtherSecId;
               
               const scoreAfter = calculateTotalScore();
               
-              otherAssignment.secretaire_id = tempSecId1;
-              candidate.secretaire_id = tempSecId2;
+              otherAssignment.secretaire_id = originalOtherSecId;
+              candidate.secretaire_id = originalCandidateSecId;
               
-              return { candidate, delta: scoreAfter - scoreBefore };
+              return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
             }).sort((a: any, b: any) => b.delta - a.delta);
             
             if (scoredSwaps.length > 0) {
               const best = scoredSwaps[0];
               
+              const sec1Name = getSecretaryName(candidateId);
+              const sec2Name = getSecretaryName(best.originalCandidateSecId);
+              
               const tempSecId = otherAssignment.secretaire_id;
               otherAssignment.secretaire_id = best.candidate.secretaire_id;
               best.candidate.secretaire_id = tempSecId;
               
-              console.log(`      ✅ SWAP: ${getSecretaryName(candidateId)} obtient ${neededPeriod}`);
-              console.log(`         ↔ ${getSecretaryName(best.candidate.secretaire_id)}`);
+              console.log(`      ✅ SWAP: ${sec1Name} obtient ${neededPeriod}`);
+              console.log(`         ↔ ${sec2Name}`);
               console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
               totalSwaps++;
               totalGain += best.delta;
@@ -523,31 +586,34 @@ serve(async (req) => {
           );
           
           const scoredSwaps = adminCandidates.map((candidate: any) => {
+            const originalSiteSecId = siteAssignment.secretaire_id;
+            const originalCandidateSecId = candidate.secretaire_id;
+            
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId1 = siteAssignment.secretaire_id;
-            const tempSecId2 = candidate.secretaire_id;
-            
-            siteAssignment.secretaire_id = tempSecId2;
-            candidate.secretaire_id = tempSecId1;
+            siteAssignment.secretaire_id = originalCandidateSecId;
+            candidate.secretaire_id = originalSiteSecId;
             
             const scoreAfter = calculateTotalScore();
             
-            siteAssignment.secretaire_id = tempSecId1;
-            candidate.secretaire_id = tempSecId2;
+            siteAssignment.secretaire_id = originalSiteSecId;
+            candidate.secretaire_id = originalCandidateSecId;
             
-            return { candidate, delta: scoreAfter - scoreBefore };
+            return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
             
+            const sec1Name = getSecretaryName(sec.id);
+            const sec2Name = getSecretaryName(best.originalCandidateSecId);
+            
             const tempSecId = siteAssignment.secretaire_id;
             siteAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: obtient admin le ${siteAssignment.date} ${siteAssignment.periode}`);
-            console.log(`         ↔ ${getSecretaryName(best.candidate.secretaire_id)}`);
+            console.log(`      ✅ SWAP: ${sec1Name} obtient admin le ${siteAssignment.date} ${siteAssignment.periode}`);
+            console.log(`         ↔ ${sec2Name}`);
             console.log(`         Delta: +${best.delta.toFixed(0)} points`);
             totalSwaps++;
             totalGain += best.delta;
@@ -603,55 +669,59 @@ serve(async (req) => {
           !hasHighPriorityDoctor(candidate)
         );
         
-        let bestSwap: {period: 'matin' | 'apres_midi', candidate: any, delta: number} | null = null;
+        let bestSwap: {period: 'matin' | 'apres_midi', candidate: any, delta: number, originalCandidateSecId: string} | null = null;
         
         for (const candidate of matinCandidates) {
+          const originalMatinSecId = change.matin.secretaire_id;
+          const originalCandidateSecId = candidate.secretaire_id;
+          
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId1 = change.matin.secretaire_id;
-          const tempSecId2 = candidate.secretaire_id;
-          
-          change.matin.secretaire_id = tempSecId2;
-          candidate.secretaire_id = tempSecId1;
+          change.matin.secretaire_id = originalCandidateSecId;
+          candidate.secretaire_id = originalMatinSecId;
           
           const scoreAfter = calculateTotalScore();
           const delta = scoreAfter - scoreBefore;
           
-          change.matin.secretaire_id = tempSecId1;
-          candidate.secretaire_id = tempSecId2;
+          change.matin.secretaire_id = originalMatinSecId;
+          candidate.secretaire_id = originalCandidateSecId;
           
           if (delta > 0 && (!bestSwap || delta > bestSwap.delta)) {
-            bestSwap = { period: 'matin', candidate, delta };
+            bestSwap = { period: 'matin', candidate, delta, originalCandidateSecId };
           }
         }
         
         for (const candidate of apremCandidates) {
+          const originalApremSecId = change.aprem.secretaire_id;
+          const originalCandidateSecId = candidate.secretaire_id;
+          
           const scoreBefore = calculateTotalScore();
           
-          const tempSecId1 = change.aprem.secretaire_id;
-          const tempSecId2 = candidate.secretaire_id;
-          
-          change.aprem.secretaire_id = tempSecId2;
-          candidate.secretaire_id = tempSecId1;
+          change.aprem.secretaire_id = originalCandidateSecId;
+          candidate.secretaire_id = originalApremSecId;
           
           const scoreAfter = calculateTotalScore();
           const delta = scoreAfter - scoreBefore;
           
-          change.aprem.secretaire_id = tempSecId1;
-          candidate.secretaire_id = tempSecId2;
+          change.aprem.secretaire_id = originalApremSecId;
+          candidate.secretaire_id = originalCandidateSecId;
           
           if (delta > 0 && (!bestSwap || delta > bestSwap.delta)) {
-            bestSwap = { period: 'apres_midi', candidate, delta };
+            bestSwap = { period: 'apres_midi', candidate, delta, originalCandidateSecId };
           }
         }
         
         if (bestSwap) {
           const assignment = bestSwap.period === 'matin' ? change.matin : change.aprem;
+          
+          const sec1Name = getSecretaryName(change.secId);
+          const sec2Name = getSecretaryName(bestSwap.originalCandidateSecId);
+          
           const tempSecId = assignment.secretaire_id;
           assignment.secretaire_id = bestSwap.candidate.secretaire_id;
           bestSwap.candidate.secretaire_id = tempSecId;
           
-          console.log(`      ✅ SWAP ${bestSwap.period}: ${getSecretaryName(bestSwap.candidate.secretaire_id)} ↔ ${getSecretaryName(tempSecId)}`);
+          console.log(`      ✅ SWAP ${bestSwap.period}: ${sec1Name} ↔ ${sec2Name}`);
           console.log(`         Delta: +${bestSwap.delta.toFixed(0)} points`);
           totalSwaps++;
           totalGain += bestSwap.delta;
@@ -709,31 +779,33 @@ serve(async (req) => {
           );
           
           const scoredSwaps = siteCandidates.map((candidate: any) => {
+            const originalAdminSecId = adminAssignment.secretaire_id;
+            const originalCandidateSecId = candidate.secretaire_id;
+            
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId1 = adminAssignment.secretaire_id;
-            const tempSecId2 = candidate.secretaire_id;
-            
-            adminAssignment.secretaire_id = tempSecId2;
-            candidate.secretaire_id = tempSecId1;
+            adminAssignment.secretaire_id = originalCandidateSecId;
+            candidate.secretaire_id = originalAdminSecId;
             
             const scoreAfter = calculateTotalScore();
             
-            adminAssignment.secretaire_id = tempSecId1;
-            candidate.secretaire_id = tempSecId2;
+            adminAssignment.secretaire_id = originalAdminSecId;
+            candidate.secretaire_id = originalCandidateSecId;
             
-            return { candidate, delta: scoreAfter - scoreBefore };
+            return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
             
+            const sec1Name = getSecretaryName(sec.id);
+            const sec2Name = getSecretaryName(best.originalCandidateSecId);
+            
             const tempSecId = adminAssignment.secretaire_id;
             adminAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: admin → site le ${adminAssignment.date} ${adminAssignment.periode}`);
-            console.log(`         ↔ ${getSecretaryName(best.candidate.secretaire_id)}`);
+            console.log(`      ✅ SWAP: ${sec1Name} admin → ${sec2Name} site le ${adminAssignment.date} ${adminAssignment.periode}`);
             console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
             totalSwaps++;
             totalGain += best.delta;
@@ -806,31 +878,33 @@ serve(async (req) => {
           );
           
           const scoredSwaps = candidates.map((candidate: any) => {
+            const originalPortSecId = portAssignment.secretaire_id;
+            const originalCandidateSecId = candidate.secretaire_id;
+            
             const scoreBefore = calculateTotalScore();
             
-            const tempSecId1 = portAssignment.secretaire_id;
-            const tempSecId2 = candidate.secretaire_id;
-            
-            portAssignment.secretaire_id = tempSecId2;
-            candidate.secretaire_id = tempSecId1;
+            portAssignment.secretaire_id = originalCandidateSecId;
+            candidate.secretaire_id = originalPortSecId;
             
             const scoreAfter = calculateTotalScore();
             
-            portAssignment.secretaire_id = tempSecId1;
-            candidate.secretaire_id = tempSecId2;
+            portAssignment.secretaire_id = originalPortSecId;
+            candidate.secretaire_id = originalCandidateSecId;
             
-            return { candidate, delta: scoreAfter - scoreBefore };
+            return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
           }).filter((s: any) => s.delta >= 0).sort((a: any, b: any) => b.delta - a.delta);
           
           if (scoredSwaps.length > 0) {
             const best = scoredSwaps[0];
             
+            const sec1Name = getSecretaryName(sec.id);
+            const sec2Name = getSecretaryName(best.originalCandidateSecId);
+            
             const tempSecId = portAssignment.secretaire_id;
             portAssignment.secretaire_id = best.candidate.secretaire_id;
             best.candidate.secretaire_id = tempSecId;
             
-            console.log(`      ✅ SWAP: Port-en-Truie → autre le ${portAssignment.date} ${portAssignment.periode}`);
-            console.log(`         ↔ ${getSecretaryName(best.candidate.secretaire_id)}`);
+            console.log(`      ✅ SWAP: ${sec1Name} Port-en-Truie → ${sec2Name} le ${portAssignment.date} ${portAssignment.periode}`);
             console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
             totalSwaps++;
             totalGain += best.delta;
@@ -846,11 +920,34 @@ serve(async (req) => {
     // ========== EXÉCUTION DES PHASES ==========
     
     const phase1Result = phase1_blockedOperations();
+    if (!validatePhase1Constraint()) {
+      throw new Error("Phase 1 validation failed after execution");
+    }
+    
     const phase2Result = phase2_closingConstraint();
+    if (!validatePhase2Constraint()) {
+      throw new Error("Phase 2 validation failed after execution");
+    }
+    
     const phase3Result = phase3_adminForPreferred();
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.warn("⚠️ Phase 3 caused constraint violations, but continuing...");
+    }
+    
     const phase4Result = phase4_reduceSiteChanges();
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.warn("⚠️ Phase 4 caused constraint violations, but continuing...");
+    }
+    
     const phase5Result = phase5_balanceAdmin();
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.warn("⚠️ Phase 5 caused constraint violations, but continuing...");
+    }
+    
     const phase6Result = phase6_balancePortEnTruie();
+    if (!validatePhase1Constraint() || !validatePhase2Constraint()) {
+      console.warn("⚠️ Phase 6 caused constraint violations, but continuing...");
+    }
     
     const totalSwaps = phase1Result.swaps + phase2Result.swaps + phase3Result.swaps + 
                        phase4Result.swaps + phase5Result.swaps + phase6Result.swaps;
