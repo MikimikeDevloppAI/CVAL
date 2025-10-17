@@ -1283,9 +1283,16 @@ serve(async (req) => {
           // On crée la variable admin pour toutes les secrétaires ayant une capacité
           // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
-          // Score de base uniforme pour toutes les secrétaires
-          // La pénalité progressive sera appliquée via les contraintes soft
-          let score = 0;
+          // Pénalité progressive incrémentale : -2 points par demi-journée admin déjà assignée
+          // Compter combien de demi-journées admin cette secrétaire a déjà reçues chronologiquement
+          const previousAdminCount = assignments.filter(
+            a => a.type === "admin" && 
+                 a.secretaire_id === sec.id &&
+                 (a.date < date || (a.date === date && a.periode === "matin" && periode === "apres_midi"))
+          ).length;
+          
+          // Score avec pénalité progressive : 0, -2, -4, -6, -8, etc.
+          let score = -2 * previousAdminCount;
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1351,73 +1358,6 @@ serve(async (req) => {
     }
 
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
-
-    // ============================================================
-    // PHASE 1D-BIS-2: CONTRAINTES SOFT POUR PÉNALITÉS ADMIN
-    // ============================================================
-    console.log("\n--- PHASE 1D-BIS-2: CONTRAINTES SOFT PÉNALITÉS ADMIN ---");
-
-    let adminPenaltyVariableCount = 0;
-
-    for (const sec of secretaires) {
-      // Récupérer les variables admin de cette secrétaire
-      const adminVars = assignments.filter(
-        (a) => a.type === "admin" && a.secretaire_id === sec.id
-      );
-      if (adminVars.length === 0) continue;
-
-      // 1) Variable de comptage : combien de demi-journées admin sont assignées
-      const countVarName = `admin_count_${sec.id}`;
-      model.variables[countVarName] = { score: 0 }; // Pas de score direct
-      model.ints[countVarName] = 1;
-      variableCount++;
-
-      // Contrainte d'égalité : admin_count_X = sum(z_X_date_periode)
-      const countConstraint = `count_admin_${sec.id}`;
-      model.constraints[countConstraint] = { equal: 0 };
-      model.variables[countVarName][countConstraint] = 1;
-      for (const assign of adminVars) {
-        model.variables[assign.varName][countConstraint] = -1;
-      }
-
-      // 2) Variables continues non négatives t1..t4 (progression -5 / -10 / -15 / -20)
-      for (let k = 1; k <= 4; k++) {
-        const tVar = `admin_penalty_t${k}_${sec.id}`;
-        model.variables[tVar] = { score: -5 }; // chaque palier coûte -5
-        variableCount++;
-        adminPenaltyVariableCount++;
-
-        // Non-négativité: t_k >= 0
-        const nonneg = `nonneg_t_${sec.id}_${k}`;
-        model.constraints[nonneg] = { min: 0 };
-        model.variables[tVar][nonneg] = 1;
-
-        // Tiers-libre imposant t_k >= count - (k-1)  =>  t_k - count >= -(k-1)
-        const floorC = `admin_penalty_floor_${sec.id}_${k}`;
-        model.constraints[floorC] = { min: -(k - 1) };
-        model.variables[tVar][floorC] = 1;
-        model.variables[countVarName][floorC] = -1;
-      }
-
-      // 3) Variable w pour les demi-journées > 4, coût -20 par unité
-      const wVar = `admin_penalty_extra_${sec.id}`;
-      model.variables[wVar] = { score: -20 };
-      variableCount++;
-      adminPenaltyVariableCount++;
-
-      // Non-négativité: w >= 0
-      const nonnegW = `nonneg_w_${sec.id}`;
-      model.constraints[nonnegW] = { min: 0 };
-      model.variables[wVar][nonnegW] = 1;
-
-      // w >= count - 4  =>  w - count >= -4
-      const floorW = `admin_penalty_extra_floor_${sec.id}`;
-      model.constraints[floorW] = { min: -4 };
-      model.variables[wVar][floorW] = 1;
-      model.variables[countVarName][floorW] = -1;
-    }
-
-    console.log(`✓ ${adminPenaltyVariableCount} variables de pénalité admin créées`);
 
     // ============================================================
     // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
