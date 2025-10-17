@@ -1042,7 +1042,8 @@ serve(async (req) => {
                   const hasAfternoonAdmin = currentAssignments.some((a: any) =>
                     a.secretaire_id === secId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
                   );
-                  return hasMorningAdmin && hasAfternoonAdmin && canGoToSite(secId, site.id);
+                  // Accepter aussi les admins avec une demi-journée seulement
+                  return (hasMorningAdmin || hasAfternoonAdmin) && canGoToSite(secId, site.id);
                 });
 
               for (const adminId of adminDualCandidates) {
@@ -1053,60 +1054,130 @@ serve(async (req) => {
                   a.secretaire_id === adminId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
                 );
 
-                // Choisir en priorité un même secrétaire présent matin+après-midi pour un swap journée complète
-                const matinIds = new Set<string>(matinSlots.map((a: any) => a.secretaire_id as string));
-                const apremIds = new Set<string>(apremSlots.map((a: any) => a.secretaire_id as string));
-                const fullDayIds = Array.from(matinIds.values()).filter((id) => apremIds.has(id) && id !== adminId);
-                const morningOnlyIds = Array.from(matinIds.values()).filter((id) => !apremIds.has(id));
-                const afternoonOnlyIds = Array.from(apremIds.values()).filter((id) => !matinIds.has(id));
+                const baselineKey = `${site.id}|${date}`;
+                const baseScore = calculateTotalScore();
 
-                let mSite: any | undefined;
-                let aSite: any | undefined;
+                const mCandidates = matinSlots.filter((a: any) => a.secretaire_id !== adminId);
+                const aCandidates = apremSlots.filter((a: any) => a.secretaire_id !== adminId);
 
-                // 1) Privilégier un swap avec la même personne sur la journée
-                const samePersonId = fullDayIds[0];
-                if (samePersonId) {
-                  mSite = matinSlots.find((a: any) => a.secretaire_id === samePersonId);
-                  aSite = apremSlots.find((a: any) => a.secretaire_id === samePersonId);
+                let bestDelta = 0;
+                let bestMode: 'matin' | 'apres_midi' | 'both' | null = null;
+                let bestPair: { mSite?: any; aSite?: any } = {};
+
+                const logTry = (mode: string, msg: string) => {
+                  console.log(`  [Phase2][Try ${mode}] ${getSecretaryName(adminId)} @ ${getSiteName(site.id)} ${date}: ${msg}`);
+                };
+
+                const attempt = (mode: 'matin'|'apres_midi'|'both', mSite?: any, aSite?: any) => {
+                  // Presence checks
+                  if (mode !== 'apres_midi' && (!mAdmin || !mSite)) {
+                    logTry(mode, 'skip: no morning admin/site slot');
+                    return;
+                  }
+                  if (mode !== 'matin' && (!aAdmin || !aSite)) {
+                    logTry(mode, 'skip: no afternoon admin/site slot');
+                    return;
+                  }
+
+                  // Phase 1 checks
+                  if (mode !== 'apres_midi' && mSite && mAdmin && wouldCreatePhase1Violation(mSite, mAdmin)) {
+                    logTry(mode, 'rejected: Phase1 violation (morning)');
+                    return;
+                  }
+                  if (mode !== 'matin' && aSite && aAdmin && wouldCreatePhase1Violation(aSite, aAdmin)) {
+                    logTry(mode, 'rejected: Phase1 violation (afternoon)');
+                    return;
+                  }
+
+                  // Closure constraints
+                  if (mode !== 'apres_midi' && mSite && mAdmin && wouldBreakClosureConstraint(mSite, mAdmin)) {
+                    logTry(mode, 'rejected: closure break (morning)');
+                    return;
+                  }
+                  if (mode !== 'matin' && aSite && aAdmin && wouldBreakClosureConstraint(aSite, aAdmin)) {
+                    logTry(mode, 'rejected: closure break (afternoon)');
+                    return;
+                  }
+
+                  // Simulate
+                  const original = {
+                    mSiteId: mSite?.secretaire_id,
+                    mAdminId: mAdmin?.secretaire_id,
+                    aSiteId: aSite?.secretaire_id,
+                    aAdminId: aAdmin?.secretaire_id,
+                  };
+
+                  if (mode !== 'apres_midi' && mSite && mAdmin) {
+                    mSite.secretaire_id = original.mAdminId;
+                    mAdmin.secretaire_id = original.mSiteId;
+                  }
+                  if (mode !== 'matin' && aSite && aAdmin) {
+                    aSite.secretaire_id = original.aAdminId;
+                    aAdmin.secretaire_id = original.aSiteId;
+                  }
+
+                  const scoreAfter = calculateTotalScore();
+
+                  // Validate closure full-day requirement >= 2 after swap
+                  const closureAfter = getClosureSnapshot();
+                  const afterCount = closureAfter.get(baselineKey)?.fullDayCount || 0;
+
+                  // Revert
+                  if (mode !== 'apres_midi' && mSite && mAdmin) {
+                    mSite.secretaire_id = original.mSiteId;
+                    mAdmin.secretaire_id = original.mAdminId;
+                  }
+                  if (mode !== 'matin' && aSite && aAdmin) {
+                    aSite.secretaire_id = original.aSiteId;
+                    aAdmin.secretaire_id = original.aAdminId;
+                  }
+
+                  const delta = scoreAfter - baseScore;
+                  logTry(mode, `scoreBefore=${baseScore} scoreAfter=${scoreAfter} delta=${delta} fullDaysAfter=${afterCount}`);
+
+                  if (afterCount < 2) {
+                    logTry(mode, 'rejected: full-day closure < 2 after swap');
+                    return;
+                  }
+
+                  if (delta > bestDelta) {
+                    bestDelta = delta;
+                    bestMode = mode;
+                    bestPair = { mSite, aSite };
+                  }
+                };
+
+                // Try all modes and combinations
+                for (const ms of mCandidates) attempt('matin', ms, undefined);
+                for (const as of aCandidates) attempt('apres_midi', undefined, as);
+                for (const ms of mCandidates) {
+                  for (const as of aCandidates) attempt('both', ms, as);
                 }
 
-                // 2) Sinon, utiliser des partiels pour tenter de créer une journée complète
-                if (!mSite) mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId && morningOnlyIds.includes(a.secretaire_id));
-                if (!aSite) aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId && afternoonOnlyIds.includes(a.secretaire_id));
+                if (bestMode && bestDelta > 0) {
+                  // Apply the best swap
+                  const { mSite, aSite } = bestPair;
+                  const original = {
+                    mSiteId: mSite?.secretaire_id,
+                    mAdminId: mAdmin?.secretaire_id,
+                    aSiteId: aSite?.secretaire_id,
+                    aAdminId: aAdmin?.secretaire_id,
+                  };
 
-                // 3) En dernier recours, n'importe quel slot
-                if (!mSite) mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId);
-                if (!aSite) aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId);
+                  if (bestMode !== 'apres_midi' && mSite && mAdmin) {
+                    mSite.secretaire_id = original.mAdminId;
+                    mAdmin.secretaire_id = original.mSiteId;
+                  }
+                  if (bestMode !== 'matin' && aSite && aAdmin) {
+                    aSite.secretaire_id = original.aAdminId;
+                    aAdmin.secretaire_id = original.aSiteId;
+                  }
 
-                if (!mAdmin || !aAdmin || !mSite || !aSite) continue;
-
-                if (wouldCreatePhase1Violation(mSite, mAdmin)) continue;
-                if (wouldCreatePhase1Violation(aSite, aAdmin)) continue;
-                if (wouldBreakClosureConstraint(mSite, mAdmin)) continue;
-                if (wouldBreakClosureConstraint(aSite, aAdmin)) continue;
-
-                const baselineBefore = getClosureSnapshot();
-                const baselineKey = `${site.id}|${date}`;
-                const before = baselineBefore.get(baselineKey)?.fullDayCount || 0;
-
-                const t1A = mSite.secretaire_id, t1B = mAdmin.secretaire_id;
-                mSite.secretaire_id = t1B; mAdmin.secretaire_id = t1A;
-                const t2A = aSite.secretaire_id, t2B = aAdmin.secretaire_id;
-                aSite.secretaire_id = t2B; aAdmin.secretaire_id = t2A;
-
-                const baselineAfter = getClosureSnapshot();
-                const after = baselineAfter.get(baselineKey)?.fullDayCount || 0;
-
-                // revert
-                mSite.secretaire_id = t1A; mAdmin.secretaire_id = t1B;
-                aSite.secretaire_id = t2A; aAdmin.secretaire_id = t2B;
-
-                if (after > before && after >= 2) {
-                  mSite.secretaire_id = t1B; mAdmin.secretaire_id = t1A;
-                  aSite.secretaire_id = t2B; aAdmin.secretaire_id = t2A;
-                  console.log(`  ✅ Double-swap admin → site: ${getSecretaryName(adminId)} affectée matin+après-midi sur ${getSiteName(site.id)}`);
-                  phase2SwapsCount += 2;
-                  break;
+                  console.log(`  ✅ Selected swap (${bestMode}) for ${getSecretaryName(adminId)} on ${date} @ ${getSiteName(site.id)}. Δ=${bestDelta}`);
+                  phase2SwapsCount += bestMode === 'both' ? 2 : 1;
+                  break; // stop after first successful improvement for this site/date
+                } else {
+                  console.log(`  ℹ️ No improving swap found for ${getSecretaryName(adminId)} on ${date} @ ${getSiteName(site.id)} (best Δ=${bestDelta}).`);
                 }
               }
             }
