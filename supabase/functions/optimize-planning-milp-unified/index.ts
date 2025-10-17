@@ -1283,16 +1283,8 @@ serve(async (req) => {
           // On crée la variable admin pour toutes les secrétaires ayant une capacité
           // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
-          // Pénalité progressive incrémentale : -2 points par demi-journée admin déjà assignée
-          // Compter combien de demi-journées admin cette secrétaire a déjà reçues chronologiquement
-          const previousAdminCount = assignments.filter(
-            a => a.type === "admin" && 
-                 a.secretaire_id === sec.id &&
-                 (a.date < date || (a.date === date && a.periode === "matin" && periode === "apres_midi"))
-          ).length;
-          
-          // Score avec pénalité progressive : 0, -2, -4, -6, -8, etc.
-          let score = -2 * previousAdminCount;
+          // Score de base neutre - la pénalité sera appliquée via contrainte soft si > 2 demi-journées
+          let score = 0;
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1358,6 +1350,53 @@ serve(async (req) => {
     }
 
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
+
+    // ============================================================
+    // PHASE 1D-BIS-2: PÉNALITÉ SI PLUS DE 2 DEMI-JOURNÉES ADMIN
+    // ============================================================
+    console.log("\n--- PHASE 1D-BIS-2: PÉNALITÉ ADMIN > 2 DEMI-JOURNÉES ---");
+
+    let penaltyVariableCount = 0;
+    for (const sec of secretaires) {
+      // Récupérer les variables admin de cette secrétaire
+      const adminVars = assignments.filter(
+        (a) => a.type === "admin" && a.secretaire_id === sec.id
+      );
+      if (adminVars.length === 0) continue;
+
+      // 1) Variable de comptage : nombre de demi-journées admin assignées
+      const countVarName = `admin_count_${sec.id}`;
+      model.variables[countVarName] = { score: 0 };
+      model.ints[countVarName] = 1;
+      variableCount++;
+
+      // Contrainte d'égalité : admin_count_X = sum(z_X_date_periode)
+      const countConstraint = `count_admin_${sec.id}`;
+      model.constraints[countConstraint] = { equal: 0 };
+      model.variables[countVarName][countConstraint] = 1;
+      for (const assign of adminVars) {
+        model.variables[assign.varName][countConstraint] = -1;
+      }
+
+      // 2) Variable binaire : 1 si admin_count_X > 2
+      const penaltyVarName = `too_many_admin_${sec.id}`;
+      model.variables[penaltyVarName] = { score: -500 }; // Pénalité de -500 si activée
+      model.ints[penaltyVarName] = 1;
+      variableCount++;
+      penaltyVariableCount++;
+
+      // Contrainte : too_many_admin_X >= (admin_count_X - 2) / 10
+      // Si admin_count_X <= 2 : RHS <= 0, donc too_many_admin_X peut rester à 0
+      // Si admin_count_X > 2 : RHS > 0, donc too_many_admin_X doit être >= 1 (donc = 1 car binaire)
+      const penaltyConstraint = `penalty_threshold_${sec.id}`;
+      model.constraints[penaltyConstraint] = { min: 0 };
+      model.variables[penaltyVarName][penaltyConstraint] = 10; // Coefficient pour too_many_admin
+      model.variables[countVarName][penaltyConstraint] = -1; // Coefficient pour admin_count
+      // Donne : 10 * too_many_admin_X - admin_count_X >= -2
+      // Donc : too_many_admin_X >= (admin_count_X - 2) / 10
+    }
+
+    console.log(`✓ ${penaltyVariableCount} variables de pénalité admin créées`);
 
     // ============================================================
     // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
