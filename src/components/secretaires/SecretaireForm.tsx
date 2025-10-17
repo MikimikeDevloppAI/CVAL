@@ -53,6 +53,7 @@ const secretaireSchema = z.object({
   nombreJoursSupplementaires: z.number().min(1).max(7).optional(),
   horaireFlexible: z.boolean().default(false),
   pourcentageTemps: z.number().min(0.01).max(100).optional(),
+  preferedAdmin: z.boolean().default(false),
   besoinsOperations: z.array(z.object({
     besoinId: z.string(),
     preference: z.number().min(1).max(3).nullable(),
@@ -135,6 +136,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       nombreJoursSupplementaires: secretaire?.nombre_jours_supplementaires || 1,
       horaireFlexible: secretaire?.horaire_flexible || false,
       pourcentageTemps: secretaire?.pourcentage_temps || undefined,
+      preferedAdmin: secretaire?.prefered_admin || false,
       besoinsOperations: [],
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
@@ -167,6 +169,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
+            prefered_admin: data.preferedAdmin,
           })
           .eq('id', secretaire.id);
 
@@ -237,6 +240,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             nombre_jours_supplementaires: data.flexibleJoursSupplementaires ? data.nombreJoursSupplementaires : null,
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
+            prefered_admin: data.preferedAdmin,
           })
           .select()
           .single();
@@ -426,6 +430,24 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 )}
               />
             )}
+
+            <FormField
+              control={form.control}
+              name="preferedAdmin"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Préfère admin</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
           </div>
         </div>
         <Button type="submit" disabled={loading} className="w-full">
