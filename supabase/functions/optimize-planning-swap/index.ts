@@ -212,6 +212,28 @@ serve(async (req) => {
       return isBlocToRestrictedSite ? -5000 : 0;
     };
     
+    // Helper: pénalité si une secrétaire a 1 demi-journée en bloc + 1 demi-journée sur site restreint
+    const getSecretaryBlocRestrictedDayPenalty = (secId: string, date: string): number => {
+      const dayAssignments = currentAssignments.filter((a: any) => 
+        a.secretaire_id === secId && a.date === date
+      );
+      
+      if (dayAssignments.length !== 2) return 0;
+      
+      const matin = dayAssignments.find((a: any) => a.periode === 'matin');
+      const aprem = dayAssignments.find((a: any) => a.periode === 'apres_midi');
+      
+      if (!matin || !aprem) return 0;
+      
+      const hasBlocAndRestrictedSite = 
+        (matin.type_assignation === 'bloc' && aprem.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(aprem.site_id)) ||
+        (aprem.type_assignation === 'bloc' && matin.type_assignation === 'site' && 
+         BLOC_RESTRICTED_SITES.includes(matin.site_id));
+      
+      return hasBlocAndRestrictedSite ? -5000 : 0;
+    };
+    
     // Helper: vérifier si échange est éligible
     const isEligible = (a1: any, a2: any): boolean => {
       if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
@@ -314,7 +336,9 @@ serve(async (req) => {
             calculateScore(a1, a1.secretaire_id) + 
             calculateScore(a2, a2.secretaire_id) +
             calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
-            calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id);
+            calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id) +
+            getSecretaryBlocRestrictedDayPenalty(a1.secretaire_id, a1.date) +
+            getSecretaryBlocRestrictedDayPenalty(a2.secretaire_id, a2.date);
           
           // Simuler échange
           let newAdminCount1 = m1.adminCount;
@@ -381,7 +405,9 @@ serve(async (req) => {
               calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
               calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id) +
               calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
-              calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id);
+              calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id) +
+              getSecretaryBlocRestrictedDayPenalty(sec1.id, date) +
+              getSecretaryBlocRestrictedDayPenalty(sec2.id, date);
             
             const scoreAfter = 
               calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
