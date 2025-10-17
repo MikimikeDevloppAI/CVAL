@@ -1413,7 +1413,10 @@ serve(async (req) => {
       
       for (const assign of assignments) {
         if (assign.secretaire_id === sec.id && assign.periode === 'matin') {
-          model.variables[assign.varName][quotaConstraint] = 1;
+          // Ne compter que les jours ouvrables (lundi-vendredi) dans le quota
+          if (isWeekday(assign.date)) {
+            model.variables[assign.varName][quotaConstraint] = 1;
+          }
         }
       }
       
