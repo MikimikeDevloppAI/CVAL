@@ -1584,6 +1584,7 @@ serve(async (req) => {
         const secretaryMetrics = new Map<string, {
           adminCount: number,
           siteChanges: number,
+          esplanadeCount: number,
           assignments: typeof currentAssignments
         }>();
         
@@ -1592,6 +1593,13 @@ serve(async (req) => {
           
           // Compter admin
           const adminCount = secAssignments.filter(a => a.type_assignation === 'administratif').length;
+          
+          // Compter demi-journées au Centre Esplanade
+          const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+          const esplanadeCount = secAssignments.filter(a => 
+            a.type_assignation === 'site' && 
+            a.site_id === ESPLANADE_ID
+          ).length;
           
           // Détecter changements de site (journée)
           const byDate = new Map<string, typeof secAssignments>();
@@ -1613,7 +1621,7 @@ serve(async (req) => {
             }
           }
           
-          secretaryMetrics.set(sec.id, { adminCount, siteChanges, assignments: secAssignments });
+          secretaryMetrics.set(sec.id, { adminCount, siteChanges, esplanadeCount, assignments: secAssignments });
         }
         
         // 3. Détecter problèmes
@@ -1633,7 +1641,28 @@ serve(async (req) => {
           console.log(`\n📊 Secrétaires avec adminCount >= 2 :`);
           for (const [secId, metrics] of overloadedSecretaries) {
             const sec = secretaires.find(s => s.id === secId);
-            console.log(`  - ${sec?.first_name} ${sec?.name}: ${metrics.adminCount} admin, ${metrics.siteChanges} changements site`);
+            console.log(`  - ${sec?.first_name} ${sec?.name}: ${metrics.adminCount} admin, ${metrics.siteChanges} changements site, ${metrics.esplanadeCount} demi-j. Esplanade`);
+          }
+        }
+        
+        // Log pénalités "Port-en-Truie" (Centre Esplanade P2/P3 > 1 demi-j.)
+        const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+        const esplanadeOverload = Array.from(secretaryMetrics.entries())
+          .filter(([secId, m]) => {
+            const sitesData = secretairesSitesMap.get(secId) || [];
+            const esplanadePref = sitesData.find(s => s.site_id === ESPLANADE_ID);
+            if (!esplanadePref) return false;
+            const prio = typeof esplanadePref.priorite === 'string' ? parseInt(esplanadePref.priorite, 10) : esplanadePref.priorite;
+            return (prio === 2 || prio === 3) && m.esplanadeCount > 1;
+          })
+          .sort((a, b) => b[1].esplanadeCount - a[1].esplanadeCount);
+        
+        if (esplanadeOverload.length > 0) {
+          console.log(`\n⚠️ Pénalités "Port-en-Truie" (Centre Esplanade P2/P3 > 1 demi-j.) :`);
+          for (const [secId, metrics] of esplanadeOverload) {
+            const sec = secretaires.find(s => s.id === secId);
+            const penalty = (metrics.esplanadeCount - 1) * 150;
+            console.log(`  - ${sec?.first_name} ${sec?.name}: ${metrics.esplanadeCount} demi-j. → -${penalty} pts`);
           }
         }
         
@@ -1657,7 +1686,12 @@ serve(async (req) => {
         const regularCandidates: SwapCandidate[] = [];
         
         // Helper: calculer pénalités progressives d'une secrétaire
-        const calculatePenalties = (adminCount: number, siteChanges: number): number => {
+        const calculatePenalties = (
+          adminCount: number, 
+          siteChanges: number,
+          esplanadeCount: number,
+          secretaireId: string
+        ): number => {
           let penalty = 0;
           
           // Pénalités admin EXPONENTIELLES (plafonnées à 11+)
@@ -1674,6 +1708,23 @@ serve(async (req) => {
           
           // Pénalité changement de site (Site→Site uniquement)
           penalty -= siteChanges * 600;
+          
+          // Pénalité "Port-en-Truie" pour Centre Esplanade
+          const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+          const sitesData = secretairesSitesMap.get(secretaireId) || [];
+          const esplanadePref = sitesData.find(s => s.site_id === ESPLANADE_ID);
+          
+          if (esplanadePref) {
+            const prio = typeof esplanadePref.priorite === 'string' 
+              ? parseInt(esplanadePref.priorite, 10) 
+              : esplanadePref.priorite;
+            
+            // Si priorité 2 ou 3, pénaliser dès la 2e demi-journée (= 1+ journée entière)
+            if ((prio === 2 || prio === 3) && esplanadeCount > 1) {
+              const extraHalfDays = esplanadeCount - 1; // Au-delà de 1 demi-journée
+              penalty -= extraHalfDays * 150; // Pénalité progressive -150 par demi-journée supplémentaire
+            }
+          }
           
           return penalty;
         };
@@ -1789,14 +1840,16 @@ serve(async (req) => {
             const scoreBefore = 
               calculateScore(a1, a1.secretaire_id) + 
               calculateScore(a2, a2.secretaire_id) +
-              calculatePenalties(m1.adminCount, m1.siteChanges) +
-              calculatePenalties(m2.adminCount, m2.siteChanges);
+              calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
+              calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id);
             
             // SIMULER l'échange pour calculer APRÈS
             let newAdminCount1 = m1.adminCount;
             let newAdminCount2 = m2.adminCount;
             let newSiteChanges1 = m1.siteChanges;
             let newSiteChanges2 = m2.siteChanges;
+            let newEsplanadeCount1 = m1.esplanadeCount;
+            let newEsplanadeCount2 = m2.esplanadeCount;
             
             // Mise à jour admin count après échange
             if (a1.type_assignation === 'administratif' && a2.type_assignation !== 'administratif') {
@@ -1843,12 +1896,22 @@ serve(async (req) => {
               else if (!hadChange && willHaveChange) newSiteChanges2 += 1;
             }
             
+            // Simuler changement Centre Esplanade
+            const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+            if (a1.site_id === ESPLANADE_ID && a2.site_id !== ESPLANADE_ID) {
+              newEsplanadeCount1--;
+              newEsplanadeCount2++;
+            } else if (a2.site_id === ESPLANADE_ID && a1.site_id !== ESPLANADE_ID) {
+              newEsplanadeCount2--;
+              newEsplanadeCount1++;
+            }
+            
             // ÉTAT APRÈS l'échange
             const scoreAfter = 
               calculateScore(a1, a2.secretaire_id) + 
               calculateScore(a2, a1.secretaire_id) +
-              calculatePenalties(newAdminCount1, newSiteChanges1) +
-              calculatePenalties(newAdminCount2, newSiteChanges2);
+              calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, a1.secretaire_id) +
+              calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, a2.secretaire_id);
             
             const gain = scoreAfter - scoreBefore;
             
@@ -1905,12 +1968,14 @@ serve(async (req) => {
               const scoreBefore = 
                 calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
                 calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id) +
-                calculatePenalties(m1.adminCount, m1.siteChanges) +
-                calculatePenalties(m2.adminCount, m2.siteChanges);
+                calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
+                calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id);
               
               // SIMULER échange journée complète
               let newAdminCount1 = m1.adminCount;
               let newAdminCount2 = m2.adminCount;
+              let newEsplanadeCount1 = m1.esplanadeCount;
+              let newEsplanadeCount2 = m2.esplanadeCount;
               
               // Changement admin matin
               if (s1Matin.type_assignation === 'administratif' && s2Matin.type_assignation !== 'administratif') {
@@ -1958,12 +2023,24 @@ serve(async (req) => {
               if (hadChange2 && !willHaveChange2) newSiteChanges2 -= 1;
               else if (!hadChange2 && willHaveChange2) newSiteChanges2 += 1;
               
+              // Simuler changement Centre Esplanade pour journée complète
+              const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+              if (s1Matin.site_id === ESPLANADE_ID) newEsplanadeCount1--;
+              if (s1Aprem.site_id === ESPLANADE_ID) newEsplanadeCount1--;
+              if (s2Matin.site_id === ESPLANADE_ID) newEsplanadeCount2--;
+              if (s2Aprem.site_id === ESPLANADE_ID) newEsplanadeCount2--;
+              
+              if (s2Matin.site_id === ESPLANADE_ID) newEsplanadeCount1++;
+              if (s2Aprem.site_id === ESPLANADE_ID) newEsplanadeCount1++;
+              if (s1Matin.site_id === ESPLANADE_ID) newEsplanadeCount2++;
+              if (s1Aprem.site_id === ESPLANADE_ID) newEsplanadeCount2++;
+              
               // ÉTAT APRÈS l'échange
               const scoreAfter = 
                 calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
                 calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id) +
-                calculatePenalties(newAdminCount1, newSiteChanges1) +
-                calculatePenalties(newAdminCount2, newSiteChanges2);
+                calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, sec1.id) +
+                calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, sec2.id);
               
               const gain = scoreAfter - scoreBefore;
               
@@ -2011,12 +2088,14 @@ serve(async (req) => {
               const scoreBefore = 
                 calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
                 calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id) +
-                calculatePenalties(m1.adminCount, m1.siteChanges) +
-                calculatePenalties(m2.adminCount, m2.siteChanges);
+                calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
+                calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id);
               
               // SIMULER échange journée complète
               let newAdminCount1 = m1.adminCount;
               let newAdminCount2 = m2.adminCount;
+              let newEsplanadeCount1 = m1.esplanadeCount;
+              let newEsplanadeCount2 = m2.esplanadeCount;
               
               // Changement admin matin
               if (s1Matin.type_assignation === 'administratif' && s2Matin.type_assignation !== 'administratif') {
@@ -2064,12 +2143,24 @@ serve(async (req) => {
               if (hadChange2 && !willHaveChange2) newSiteChanges2 -= 1;
               else if (!hadChange2 && willHaveChange2) newSiteChanges2 += 1;
               
+              // Simuler changement Centre Esplanade pour journée complète
+              const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+              if (s1Matin.site_id === ESPLANADE_ID) newEsplanadeCount1--;
+              if (s1Aprem.site_id === ESPLANADE_ID) newEsplanadeCount1--;
+              if (s2Matin.site_id === ESPLANADE_ID) newEsplanadeCount2--;
+              if (s2Aprem.site_id === ESPLANADE_ID) newEsplanadeCount2--;
+              
+              if (s2Matin.site_id === ESPLANADE_ID) newEsplanadeCount1++;
+              if (s2Aprem.site_id === ESPLANADE_ID) newEsplanadeCount1++;
+              if (s1Matin.site_id === ESPLANADE_ID) newEsplanadeCount2++;
+              if (s1Aprem.site_id === ESPLANADE_ID) newEsplanadeCount2++;
+              
               // ÉTAT APRÈS l'échange
               const scoreAfter = 
                 calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
                 calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id) +
-                calculatePenalties(newAdminCount1, newSiteChanges1) +
-                calculatePenalties(newAdminCount2, newSiteChanges2);
+                calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, sec1.id) +
+                calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, sec2.id);
               
               const gain = scoreAfter - scoreBefore;
               
