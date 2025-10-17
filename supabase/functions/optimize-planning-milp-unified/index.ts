@@ -1113,6 +1113,57 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // PHASE 1B-BIS: CONTRAINTES D'EXCLUSION SITES EXTÉRIEURS POUR OPÉRATIONS
+    // ============================================================
+    console.log("\n--- PHASE 1B-BIS: CONTRAINTES D'EXCLUSION SITES EXTÉRIEURS ---");
+    
+    // Sites extérieurs exclus si opération le même jour
+    const sitesExterieursExclus = sites.filter((s) => 
+      s.nom.toLowerCase().includes("centre esplanade") ||
+      s.nom.toLowerCase().includes("vieille ville delémont")
+    );
+    
+    console.log(`Sites extérieurs exclus pour les journées avec opération: ${sitesExterieursExclus.map(s => s.nom).join(', ')}`);
+    
+    let exclusionConstraintCount = 0;
+    for (const date of selected_dates) {
+      for (const sec of secretaires) {
+        // Trouver toutes les variables bloc pour cette secrétaire ce jour-là (matin ET après-midi)
+        const varsBlocJour = assignments.filter(
+          (a) => a.type === "bloc" && a.secretaire_id === sec.id && a.date === date
+        );
+        
+        if (varsBlocJour.length === 0) continue;
+        
+        // Pour chaque variable bloc, ajouter une contrainte d'exclusion avec les sites extérieurs
+        for (const siteExclu of sitesExterieursExclus) {
+          // Exclure TOUTE la journée (matin ET après-midi) sur les sites extérieurs
+          for (const periode of ["matin", "apres_midi"]) {
+            const varSiteExclu = `y_${sec.id}_${siteExclu.id}_${date}_${periode}`;
+            
+            // Si cette variable site existe
+            if (model.variables[varSiteExclu]) {
+              // Pour chaque variable bloc de la journée, ajouter une contrainte
+              for (const assignBloc of varsBlocJour) {
+                const varBloc = assignBloc.varName;
+                
+                // Contrainte: var_bloc + var_site_exclu <= 1
+                // Si la secrétaire a un bloc ce jour-là, elle ne peut pas être sur un site extérieur
+                const constraintName = `exclusion_${varBloc}_${varSiteExclu}`;
+                model.constraints[constraintName] = { max: 1 };
+                model.variables[varBloc][constraintName] = 1;
+                model.variables[varSiteExclu][constraintName] = 1;
+                exclusionConstraintCount++;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`✓ ${exclusionConstraintCount} contraintes d'exclusion sites extérieurs ajoutées`);
+
+    // ============================================================
     // PHASE 1C: PÉNALITÉ CHANGEMENT DE SITE
     // ============================================================
     console.log("\n--- PHASE 1C: PÉNALITÉ CHANGEMENT DE SITE ---");
