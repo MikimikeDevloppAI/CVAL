@@ -1552,6 +1552,338 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // PHASE 2: OPTIMISATION SÉQUENTIELLE (HILL CLIMBING)
+    // ============================================================
+    console.log("\n--- PHASE 2: OPTIMISATION SÉQUENTIELLE CIBLÉE ---");
+    
+    // Identifier les sites cibles (Clinique La Vallée + Centre Esplanade Ophtalmologie)
+    const cliniqueValleeSite = sites.find((s) => 
+      s.nom.toLowerCase().includes("clinique") && 
+      s.nom.toLowerCase().includes("vallée") && 
+      s.nom.toLowerCase().includes("ophtalmologie")
+    );
+    const esplanadeSite = sites.find((s) => 
+      s.nom.toLowerCase().includes("centre esplanade") && 
+      s.nom.toLowerCase().includes("ophtalmologie")
+    );
+    
+    if (!cliniqueValleeSite || !esplanadeSite) {
+      console.log("⚠️ Sites ophtalmo non trouvés, Phase 2 ignorée");
+    } else {
+      console.log(`Sites ciblés: ${cliniqueValleeSite.nom}, ${esplanadeSite.nom}`);
+      
+      // Filtrer les secrétaires éligibles (celles avec préférences sur ces sites)
+      const eligibleSecretaires = secretaires.filter((sec) => {
+        const sitesData = secretairesSitesMap.get(sec.id) || [];
+        return sitesData.some((s) => 
+          s.site_id === cliniqueValleeSite.id || s.site_id === esplanadeSite.id
+        );
+      });
+      
+      console.log(`${eligibleSecretaires.length} secrétaires éligibles pour optimisation`);
+      
+      const MAX_ITERATIONS = 30;
+      let totalSwaps = 0;
+      let totalGain = 0;
+      
+      for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+        console.log(`\n[Itération ${iteration}]`);
+        
+        // 1. Charger l'état actuel depuis la DB
+        const { data: currentAssignments, error: loadError } = await supabase
+          .from("planning_genere_personnel")
+          .select(`
+            *,
+            secretaires!secretaire_id(id, name, first_name, prefered_admin),
+            sites!site_id(id, nom)
+          `)
+          .eq("planning_id", planning_id)
+          .in("date", selected_dates);
+        
+        if (loadError || !currentAssignments) {
+          console.error("Erreur chargement assignations:", loadError);
+          break;
+        }
+        
+        // 2. Calculer métriques par secrétaire
+        const secretaryMetrics = new Map<string, {
+          adminCount: number,
+          siteChanges: number,
+          assignments: typeof currentAssignments
+        }>();
+        
+        for (const sec of eligibleSecretaires) {
+          const secAssignments = currentAssignments.filter(a => a.secretaire_id === sec.id);
+          
+          // Compter admin
+          const adminCount = secAssignments.filter(a => a.type_assignation === 'administratif').length;
+          
+          // Détecter changements de site (journée)
+          const byDate = new Map<string, typeof secAssignments>();
+          for (const a of secAssignments) {
+            if (!byDate.has(a.date)) byDate.set(a.date, []);
+            byDate.get(a.date)!.push(a);
+          }
+          
+          let siteChanges = 0;
+          for (const [date, dateAssignments] of byDate.entries()) {
+            const matin = dateAssignments.find(a => a.periode === 'matin' && a.type_assignation === 'site');
+            const aprem = dateAssignments.find(a => a.periode === 'apres_midi' && a.type_assignation === 'site');
+            
+            if (matin && aprem && matin.site_id !== aprem.site_id) {
+              // Vérifier que c'est bien sur les sites ciblés
+              const involvesClinique = [matin.site_id, aprem.site_id].includes(cliniqueValleeSite.id);
+              const involvesEsplanade = [matin.site_id, aprem.site_id].includes(esplanadeSite.id);
+              if (involvesClinique || involvesEsplanade) siteChanges++;
+            }
+          }
+          
+          secretaryMetrics.set(sec.id, { adminCount, siteChanges, assignments: secAssignments });
+        }
+        
+        // 3. Détecter problèmes
+        const problemsDetected = {
+          siteChanges: Array.from(secretaryMetrics.entries()).filter(([_, m]) => m.siteChanges > 0).length,
+          adminOverload: Array.from(secretaryMetrics.entries()).filter(([_, m]) => m.adminCount >= 2).length
+        };
+        
+        console.log(`Problèmes détectés: ${problemsDetected.siteChanges} changements site, ${problemsDetected.adminOverload} surcharges admin`);
+        
+        if (problemsDetected.siteChanges === 0 && problemsDetected.adminOverload === 0) {
+          console.log("✓ Convergence atteinte");
+          break;
+        }
+        
+        // 4. Générer candidats d'échange
+        interface SwapCandidate {
+          id_1: string;
+          id_2: string;
+          type: 'half_day' | 'full_day';
+          gain: number;
+          secretaire_1: string;
+          secretaire_2: string;
+          date: string;
+        }
+        
+        const candidates: SwapCandidate[] = [];
+        
+        // Helper: calculer score d'une assignation
+        const calculateScore = (assignment: typeof currentAssignments[0], secId: string): number => {
+          let score = 0;
+          
+          if (assignment.type_assignation === 'administratif') {
+            score += 100;
+            const sec = secretaires.find(s => s.id === secId);
+            if (sec?.prefered_admin) {
+              const currentMetrics = secretaryMetrics.get(secId);
+              if (currentMetrics && currentMetrics.adminCount === 0) {
+                score += 500; // Bonus première admin
+              }
+            }
+            return score;
+          }
+          
+          if (assignment.type_assignation === 'site' && assignment.site_id) {
+            const sitesData = secretairesSitesMap.get(secId) || [];
+            const siteData = sitesData.find((s) => s.site_id === assignment.site_id);
+            
+            if (siteData) {
+              const prio = typeof siteData.priorite === 'string' 
+                ? parseInt(siteData.priorite, 10) 
+                : siteData.priorite;
+              
+              if (prio === 1) score += 1200;
+              else if (prio === 2) score += 1100;
+              else if (prio === 3) score += 1000;
+            }
+            
+            // Score médecins présents sur le site
+            const medecinsOnSite = besoinsEffectifs.filter(b =>
+              b.site_id === assignment.site_id &&
+              b.date === assignment.date &&
+              b.demi_journee === assignment.periode &&
+              b.type === 'medecin'
+            );
+            
+            for (const besoin of medecinsOnSite) {
+              if (besoin.medecin_id) {
+                const medRelation = secretairesMedecinsMap.get(`${secId}_${besoin.medecin_id}`)?.[0];
+                if (medRelation) {
+                  if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 1500;
+                  else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 1200;
+                }
+              }
+            }
+          }
+          
+          return score;
+        };
+        
+        // Helper: vérifier si échange est éligible
+        const isEligible = (a1: typeof currentAssignments[0], a2: typeof currentAssignments[0]): boolean => {
+          // Même date, même période
+          if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
+          
+          // Pas d'échange admin ↔ admin
+          if (a1.type_assignation === 'administratif' && a2.type_assignation === 'administratif') return false;
+          
+          // Pas toucher au bloc
+          if (a1.type_assignation === 'bloc' || a2.type_assignation === 'bloc') return false;
+          
+          // Vérifier compétences site
+          if (a1.type_assignation === 'site' && a1.site_id) {
+            const sitesData = secretairesSitesMap.get(a2.secretaire_id) || [];
+            if (!sitesData.some(s => s.site_id === a1.site_id)) return false;
+          }
+          
+          if (a2.type_assignation === 'site' && a2.site_id) {
+            const sitesData = secretairesSitesMap.get(a1.secretaire_id) || [];
+            if (!sitesData.some(s => s.site_id === a2.site_id)) return false;
+          }
+          
+          return true;
+        };
+        
+        // Évaluer échanges demi-journée
+        for (let i = 0; i < currentAssignments.length; i++) {
+          const a1 = currentAssignments[i];
+          if (!eligibleSecretaires.some(s => s.id === a1.secretaire_id)) continue;
+          
+          for (let j = i + 1; j < currentAssignments.length; j++) {
+            const a2 = currentAssignments[j];
+            if (!eligibleSecretaires.some(s => s.id === a2.secretaire_id)) continue;
+            if (a1.secretaire_id === a2.secretaire_id) continue;
+            
+            if (!isEligible(a1, a2)) continue;
+            
+            // Calculer gain
+            const currentScore = calculateScore(a1, a1.secretaire_id) + calculateScore(a2, a2.secretaire_id);
+            const newScore = calculateScore(a1, a2.secretaire_id) + calculateScore(a2, a1.secretaire_id);
+            
+            // Ajouter pénalités évitées
+            let penaltyAvoidance = 0;
+            
+            // Changement de site évité
+            const m1 = secretaryMetrics.get(a1.secretaire_id);
+            const m2 = secretaryMetrics.get(a2.secretaire_id);
+            
+            if (m1 && m1.siteChanges > 0) penaltyAvoidance += 600;
+            if (m2 && m2.siteChanges > 0) penaltyAvoidance += 600;
+            
+            // Admin évité (pénalité progressive)
+            if (m1 && m1.adminCount >= 2) {
+              if (m1.adminCount === 2) penaltyAvoidance += 50;
+              else if (m1.adminCount === 3) penaltyAvoidance += 150;
+              else if (m1.adminCount >= 4) penaltyAvoidance += 300;
+            }
+            if (m2 && m2.adminCount >= 2) {
+              if (m2.adminCount === 2) penaltyAvoidance += 50;
+              else if (m2.adminCount === 3) penaltyAvoidance += 150;
+              else if (m2.adminCount >= 4) penaltyAvoidance += 300;
+            }
+            
+            const gain = newScore - currentScore + penaltyAvoidance;
+            
+            if (gain > 0) {
+              candidates.push({
+                id_1: a1.id,
+                id_2: a2.id,
+                type: 'half_day',
+                gain,
+                secretaire_1: a1.secretaire_id,
+                secretaire_2: a2.secretaire_id,
+                date: a1.date
+              });
+            }
+          }
+        }
+        
+        // Évaluer échanges journée complète
+        for (const sec1 of eligibleSecretaires) {
+          for (const sec2 of eligibleSecretaires) {
+            if (sec1.id === sec2.id) continue;
+            
+            for (const date of selected_dates) {
+              const s1Assignments = currentAssignments.filter(a => 
+                a.secretaire_id === sec1.id && a.date === date
+              );
+              const s2Assignments = currentAssignments.filter(a => 
+                a.secretaire_id === sec2.id && a.date === date
+              );
+              
+              const s1Matin = s1Assignments.find(a => a.periode === 'matin');
+              const s1Aprem = s1Assignments.find(a => a.periode === 'apres_midi');
+              const s2Matin = s2Assignments.find(a => a.periode === 'matin');
+              const s2Aprem = s2Assignments.find(a => a.periode === 'apres_midi');
+              
+              if (!s1Matin || !s1Aprem || !s2Matin || !s2Aprem) continue;
+              
+              if (!isEligible(s1Matin, s2Matin) || !isEligible(s1Aprem, s2Aprem)) continue;
+              
+              // Calculer gain journée complète
+              const currentScore = 
+                calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
+                calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id);
+              
+              const newScore = 
+                calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
+                calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id);
+              
+              let penaltyAvoidance = 0;
+              const m1 = secretaryMetrics.get(sec1.id);
+              const m2 = secretaryMetrics.get(sec2.id);
+              
+              if (m1 && m1.siteChanges > 0) penaltyAvoidance += 600;
+              if (m2 && m2.siteChanges > 0) penaltyAvoidance += 600;
+              
+              const gain = newScore - currentScore + penaltyAvoidance;
+              
+              if (gain > 0) {
+                candidates.push({
+                  id_1: s1Matin.id,
+                  id_2: s2Matin.id,
+                  type: 'full_day',
+                  gain,
+                  secretaire_1: sec1.id,
+                  secretaire_2: sec2.id,
+                  date
+                });
+              }
+            }
+          }
+        }
+        
+        if (candidates.length === 0) {
+          console.log("✓ Aucun échange améliorant trouvé");
+          break;
+        }
+        
+        // 5. Trier et prendre le meilleur
+        candidates.sort((a, b) => b.gain - a.gain);
+        const best = candidates[0];
+        
+        console.log(`💡 Meilleur échange (${best.type}): gain +${best.gain.toFixed(0)}`);
+        
+        // 6. Appliquer l'échange
+        const { error: swapError } = await supabase.rpc('swap_secretaries_personnel', {
+          p_assignment_id_1: best.id_1,
+          p_assignment_id_2: best.id_2
+        });
+        
+        if (swapError) {
+          console.error("❌ Erreur échange:", swapError.message);
+          break;
+        }
+        
+        console.log("✓ Échange appliqué");
+        totalSwaps++;
+        totalGain += best.gain;
+      }
+      
+      console.log(`\n✅ Phase 2 terminée: ${totalSwaps} échanges appliqués, gain total: +${totalGain.toFixed(0)}`);
+    }
+
+    // ============================================================
     // PHASE 4: ASSIGNATION DES RESPONSABLES DE FERMETURE (1R, 2F, 3F)
     // ============================================================
     console.log("\n--- PHASE 4: ASSIGNATION DES RESPONSABLES DE FERMETURE ---");
