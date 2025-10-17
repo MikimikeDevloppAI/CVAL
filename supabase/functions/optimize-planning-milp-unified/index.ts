@@ -271,90 +271,303 @@ serve(async (req) => {
 
     const blocsOperatoireInserted: any[] = [];
 
+    // Helper: tracker des salles occupées par date/période
+    interface RoomSchedule {
+      [room: string]: {
+        [date: string]: {
+          [periode: string]: boolean; // true = occupée
+        };
+      };
+    }
+
+    const roomSchedules: RoomSchedule = {
+      rouge: {},
+      verte: {},
+      jaune: {},
+    };
+
+    // Initialize room schedules
+    for (const room of ['rouge', 'verte', 'jaune']) {
+      roomSchedules[room] = {};
+    }
+
+    const isRoomAvailable = (room: string, date: string, periode: string): boolean => {
+      if (!roomSchedules[room][date]) {
+        roomSchedules[room][date] = {};
+      }
+      return !roomSchedules[room][date][periode];
+    };
+
+    const markRoomOccupied = (room: string, date: string, periode: string) => {
+      if (!roomSchedules[room][date]) {
+        roomSchedules[room][date] = {};
+      }
+      roomSchedules[room][date][periode] = true;
+    };
+
+    // PHASE 1A: Grouper les besoins par date + période + type_intervention_id
+    interface GroupedOperation {
+      besoin: any;
+      date: string;
+      periode: string;
+    }
+
+    const groupedOps = new Map<string, GroupedOperation[]>();
+
     for (const besoin of besoinsBloc) {
       const date = besoin.date;
       const periodes = besoin.demi_journee === "toute_journee" ? ["matin", "apres_midi"] : [besoin.demi_journee];
 
       for (const periode of periodes) {
-        // Obtenir le type d'intervention et sa salle préférentielle
-        const typeIntervention = typesIntervention.find(t => t.id === besoin.type_intervention_id);
-        const sallePreferentielle = typeIntervention?.salle_preferentielle;
+        const key = `${date}_${periode}_${besoin.type_intervention_id}`;
+        if (!groupedOps.has(key)) {
+          groupedOps.set(key, []);
+        }
+        groupedOps.get(key)!.push({ besoin, date, periode });
+      }
+    }
 
-        console.log(`Opération ${typeIntervention?.nom} (${date} ${periode}) - Salle pref: ${sallePreferentielle || 'aucune'}`);
+    console.log(`📦 Grouped into ${groupedOps.size} groups for multi-flux detection`);
 
-        // Vérifier si la salle préférentielle est disponible
-        const sallesDisponibles = new Set(['rouge', 'verte', 'jaune']);
-        
-        // Retirer les salles déjà occupées
-        for (const blocInserted of blocsOperatoireInserted) {
-          if (blocInserted.date === date && blocInserted.periode === periode && blocInserted.salle_assignee) {
-            sallesDisponibles.delete(blocInserted.salle_assignee);
+    // PHASE 1B: Traiter chaque groupe et détecter les configs multi-flux
+    const processedOps = new Set<string>(); // Set de "besoin.id_periode"
+
+    for (const [groupKey, groupOps] of groupedOps.entries()) {
+      const [date, periode, type_intervention_id] = groupKey.split('_');
+      const count = groupOps.length;
+
+      console.log(`\n📦 Group ${groupKey}: ${count} operation(s)`);
+
+      if (count >= 2) {
+        // Chercher une configuration multi-flux
+        const targetType = count === 2 ? 'double_flux' : count === 3 ? 'triple_flux' : null;
+
+        if (targetType) {
+          const config = configurationsMultiFlux.find(c =>
+            c.type_flux === targetType &&
+            configurationsInterventions.some((ci: any) =>
+              ci.configuration_id === c.id && ci.type_intervention_id === type_intervention_id
+            )
+          );
+
+          if (config) {
+            console.log(`  ✓ Found ${targetType} config: ${config.nom}`);
+
+            // Récupérer les interventions avec leurs salles triées par ordre
+            const interventions = configurationsInterventions
+              .filter((ci: any) => ci.configuration_id === config.id && ci.type_intervention_id === type_intervention_id)
+              .sort((a: any, b: any) => a.ordre - b.ordre);
+
+            if (interventions.length === count) {
+              // Vérifier que toutes les salles sont disponibles
+              let allRoomsAvailable = true;
+              const roomsToAssign: string[] = [];
+
+              for (const intervention of interventions) {
+                const room = intervention.salle;
+                if (!isRoomAvailable(room, date, periode)) {
+                  allRoomsAvailable = false;
+                  console.warn(`  ⚠️ Room ${room} not available for ${config.nom}`);
+                  break;
+                }
+                roomsToAssign.push(room);
+              }
+
+              if (allRoomsAvailable) {
+                // Assigner les opérations aux salles selon l'ordre de la config
+                console.log(`  → Assigning using config order: ${roomsToAssign.join(', ')}`);
+
+                for (let i = 0; i < groupOps.length; i++) {
+                  const { besoin } = groupOps[i];
+                  const assignedRoom = roomsToAssign[i];
+
+                  // Insérer dans planning_genere_bloc_operatoire
+                  const { data: blocInserted, error: blocError } = await supabase
+                    .from("planning_genere_bloc_operatoire")
+                    .insert({
+                      planning_id,
+                      date,
+                      periode,
+                      type_intervention_id: besoin.type_intervention_id,
+                      medecin_id: besoin.medecin_id,
+                      salle_assignee: assignedRoom,
+                      statut: "planifie",
+                    })
+                    .select("*")
+                    .single();
+
+                  if (blocError) {
+                    console.error(`  ❌ Error inserting bloc:`, blocError);
+                    continue;
+                  }
+
+                  blocsOperatoireInserted.push(blocInserted);
+                  markRoomOccupied(assignedRoom, date, periode);
+                  processedOps.add(`${besoin.id}_${periode}`);
+                  console.log(`  ✓ Assigned to ${assignedRoom}: ${blocInserted.id}`);
+                }
+
+                continue; // Ce groupe est complètement traité
+              }
+            }
+          }
+        }
+      }
+
+      // PHASE 1C: Fallback pour opérations non traitées (pas de config multi-flux ou non applicable)
+      const remainingOps = groupOps.filter(({ besoin }) => !processedOps.has(`${besoin.id}_${periode}`));
+
+      if (remainingOps.length > 0) {
+        console.log(`  ℹ️ ${remainingOps.length} operation(s) without multi-flux config, using fallback`);
+
+        // Grouper par salle préférentielle
+        const byPreference = new Map<string, GroupedOperation[]>();
+        const noPreference: GroupedOperation[] = [];
+
+        for (const op of remainingOps) {
+          const typeIntervention = typesIntervention.find(t => t.id === op.besoin.type_intervention_id);
+          const pref = typeIntervention?.salle_preferentielle;
+
+          if (pref) {
+            if (!byPreference.has(pref)) byPreference.set(pref, []);
+            byPreference.get(pref)!.push(op);
+          } else {
+            noPreference.push(op);
           }
         }
 
-        let salleAssignee: string | null = null;
+        // Traiter les opérations avec préférence
+        for (const [preferredRoom, ops] of byPreference.entries()) {
+          if (isRoomAvailable(preferredRoom, date, periode) && ops.length === 1) {
+            // Une seule opération veut cette salle et elle est disponible
+            const { besoin } = ops[0];
 
-        // Si salle préférentielle disponible, l'utiliser
-        if (sallePreferentielle && sallesDisponibles.has(sallePreferentielle)) {
-          salleAssignee = sallePreferentielle;
-        } else {
-          // Chercher une configuration multi-flux compatible
-          const configurationsCompatibles = (configurationsMultiFlux || []).filter((config: any) => {
-            const interventions = (configurationsInterventions || []).filter((ci: any) => ci.configuration_id === config.id);
-            return interventions.some((ci: any) => ci.type_intervention_id === besoin.type_intervention_id);
-          });
+            const { data: blocInserted, error: blocError } = await supabase
+              .from("planning_genere_bloc_operatoire")
+              .insert({
+                planning_id,
+                date,
+                periode,
+                type_intervention_id: besoin.type_intervention_id,
+                medecin_id: besoin.medecin_id,
+                salle_assignee: preferredRoom,
+                statut: "planifie",
+              })
+              .select("*")
+              .single();
 
-          for (const config of configurationsCompatibles) {
-            const interventions = (configurationsInterventions || [])
-              .filter((ci: any) => ci.configuration_id === config.id)
-              .sort((a: any, b: any) => a.ordre - b.ordre);
-            
-            const interventionCourante = interventions.find((ci: any) => ci.type_intervention_id === besoin.type_intervention_id);
-            if (interventionCourante && sallesDisponibles.has(interventionCourante.salle)) {
-              salleAssignee = interventionCourante.salle;
+            if (blocError) {
+              console.error(`  ❌ Error inserting bloc:`, blocError);
+              continue;
+            }
+
+            blocsOperatoireInserted.push(blocInserted);
+            markRoomOccupied(preferredRoom, date, periode);
+            processedOps.add(`${besoin.id}_${periode}`);
+            console.log(`  ✓ Assigned to preferred ${preferredRoom}: ${blocInserted.id}`);
+          } else {
+            // Plusieurs ops veulent la même salle OU salle non disponible: distribuer aléatoirement
+            const shuffled = [...ops].sort(() => Math.random() - 0.5);
+
+            for (const { besoin } of shuffled) {
+              const opKey = `${besoin.id}_${periode}`;
+              if (processedOps.has(opKey)) continue;
+
+              let assignedRoom: string | null = null;
+
+              // Essayer la salle préférée d'abord
+              if (isRoomAvailable(preferredRoom, date, periode)) {
+                assignedRoom = preferredRoom;
+              } else {
+                // Fallback: première salle disponible
+                for (const room of ['rouge', 'verte', 'jaune']) {
+                  if (isRoomAvailable(room, date, periode)) {
+                    assignedRoom = room;
+                    break;
+                  }
+                }
+              }
+
+              if (!assignedRoom) {
+                console.warn(`  ⚠️ No room available for operation ${besoin.id}`);
+                continue;
+              }
+
+              const { data: blocInserted, error: blocError } = await supabase
+                .from("planning_genere_bloc_operatoire")
+                .insert({
+                  planning_id,
+                  date,
+                  periode,
+                  type_intervention_id: besoin.type_intervention_id,
+                  medecin_id: besoin.medecin_id,
+                  salle_assignee: assignedRoom,
+                  statut: "planifie",
+                })
+                .select("*")
+                .single();
+
+              if (blocError) {
+                console.error(`  ❌ Error inserting bloc:`, blocError);
+                continue;
+              }
+
+              blocsOperatoireInserted.push(blocInserted);
+              markRoomOccupied(assignedRoom, date, periode);
+              processedOps.add(opKey);
+              console.log(`  ✓ Assigned to ${assignedRoom}: ${blocInserted.id}`);
+            }
+          }
+        }
+
+        // Traiter les opérations sans préférence
+        for (const { besoin } of noPreference) {
+          const opKey = `${besoin.id}_${periode}`;
+          if (processedOps.has(opKey)) continue;
+
+          let assignedRoom: string | null = null;
+
+          // Première salle disponible
+          for (const room of ['rouge', 'verte', 'jaune']) {
+            if (isRoomAvailable(room, date, periode)) {
+              assignedRoom = room;
               break;
             }
           }
 
-          // Si pas de config multi-flux, prendre la première salle disponible
-          if (!salleAssignee && sallesDisponibles.size > 0) {
-            salleAssignee = Array.from(sallesDisponibles)[0];
+          if (!assignedRoom) {
+            console.warn(`  ⚠️ No room available for operation ${besoin.id}`);
+            continue;
           }
+
+          const { data: blocInserted, error: blocError } = await supabase
+            .from("planning_genere_bloc_operatoire")
+            .insert({
+              planning_id,
+              date,
+              periode,
+              type_intervention_id: besoin.type_intervention_id,
+              medecin_id: besoin.medecin_id,
+              salle_assignee: assignedRoom,
+              statut: "planifie",
+            })
+            .select("*")
+            .single();
+
+          if (blocError) {
+            console.error(`  ❌ Error inserting bloc:`, blocError);
+            continue;
+          }
+
+          blocsOperatoireInserted.push(blocInserted);
+          markRoomOccupied(assignedRoom, date, periode);
+          processedOps.add(opKey);
+          console.log(`  ✓ Assigned to ${assignedRoom}: ${blocInserted.id}`);
         }
-
-        if (!salleAssignee) {
-          console.error(`❌ Aucune salle disponible pour ${typeIntervention?.nom} le ${date} ${periode}`);
-          continue;
-        }
-
-        console.log(`  → Salle assignée: ${salleAssignee}`);
-
-        // Insérer dans planning_genere_bloc_operatoire
-        const { data: blocInserted, error: blocError } = await supabase
-          .from("planning_genere_bloc_operatoire")
-          .insert({
-            planning_id,
-            date,
-            periode,
-            type_intervention_id: besoin.type_intervention_id,
-            medecin_id: besoin.medecin_id,
-            salle_assignee: salleAssignee,
-            statut: "planifie",
-          })
-          .select("*")
-          .single();
-
-        if (blocError) {
-          console.error(`Erreur insertion bloc:`, blocError);
-          continue;
-        }
-
-        blocsOperatoireInserted.push(blocInserted);
-        console.log(`✓ Bloc inséré: ${blocInserted.id}`);
       }
     }
 
-    console.log(`${blocsOperatoireInserted.length} opérations bloc insérées avec salles assignées`);
+    console.log(`\n✓ ${blocsOperatoireInserted.length} bloc operations inserted with rooms assigned`);
 
     // ============================================================
     // PHASE 1.5: CRÉER LES LIGNES DE PERSONNEL POUR TOUS LES BLOCS
