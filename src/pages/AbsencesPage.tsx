@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, Trash2, CalendarOff } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -244,10 +244,11 @@ export default function AbsencesPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Gestion des Absences</h1>
-          
-          {canManage && (
+      <PageHeader 
+        title="Gestion des Absences" 
+        icon={CalendarOff}
+        action={
+          canManage ? (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2" onClick={() => setSelectedAbsence(null)}>
@@ -267,8 +268,9 @@ export default function AbsencesPage() {
               />
             </DialogContent>
           </Dialog>
-          )}
-        </div>
+          ) : undefined
+        }
+      />
 
         {/* Search */}
         <div className="relative max-w-md">
