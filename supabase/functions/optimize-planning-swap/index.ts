@@ -1053,8 +1053,17 @@ serve(async (req) => {
                   a.secretaire_id === adminId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
                 );
 
-                const mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId);
-                const aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId);
+                // Choisir en priorité des partiels pour créer une journée complète
+                const matinIds = new Set<string>(matinSlots.map((a: any) => a.secretaire_id as string));
+                const apremIds = new Set<string>(apremSlots.map((a: any) => a.secretaire_id as string));
+                const morningOnlyIds = Array.from(matinIds.values()).filter((id) => !apremIds.has(id));
+                const afternoonOnlyIds = Array.from(apremIds.values()).filter((id) => !matinIds.has(id));
+
+                let mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId && morningOnlyIds.includes(a.secretaire_id));
+                let aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId && afternoonOnlyIds.includes(a.secretaire_id));
+                // Si pas de partiels, prendre n'importe quel slot (mais le check d'amélioration refusera si pas bénéfique)
+                if (!mSite) mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId);
+                if (!aSite) aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId);
 
                 if (!mAdmin || !aAdmin || !mSite || !aSite) continue;
 
