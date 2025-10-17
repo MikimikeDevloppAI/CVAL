@@ -1285,7 +1285,7 @@ serve(async (req) => {
 
           // Score de base uniforme pour toutes les secrétaires
           // La pénalité progressive sera appliquée via les contraintes soft
-          let score = 100;
+          let score = 0;
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1360,59 +1360,61 @@ serve(async (req) => {
     let adminPenaltyVariableCount = 0;
 
     for (const sec of secretaires) {
-      // Compter combien de variables admin cette secrétaire a
+      // Récupérer les variables admin de cette secrétaire
       const adminVars = assignments.filter(
-        a => a.type === "admin" && a.secretaire_id === sec.id
+        (a) => a.type === "admin" && a.secretaire_id === sec.id
       );
-      
       if (adminVars.length === 0) continue;
 
-      // Variable de comptage : combien de demi-journées admin sont assignées
+      // 1) Variable de comptage : combien de demi-journées admin sont assignées
       const countVarName = `admin_count_${sec.id}`;
       model.variables[countVarName] = { score: 0 }; // Pas de score direct
       model.ints[countVarName] = 1;
       variableCount++;
 
-      // Contrainte : admin_count_X = sum(z_X_date_periode)
+      // Contrainte d'égalité : admin_count_X = sum(z_X_date_periode)
       const countConstraint = `count_admin_${sec.id}`;
       model.constraints[countConstraint] = { equal: 0 };
       model.variables[countVarName][countConstraint] = 1;
-      
       for (const assign of adminVars) {
         model.variables[assign.varName][countConstraint] = -1;
       }
 
-      // Créer des variables de pénalité par palier
-      // Palier 0 : 0 admin → pas de pénalité (0 points)
-      // Palier 1 : 1 admin → -5 points
-      // Palier 2 : 2 admin → -10 points supplémentaires (total -15)
-      // Palier 3 : 3 admin → -15 points supplémentaires (total -30)
-      // Palier 4+ : 4+ admin → -20 points par admin supplémentaire
-      
-      const maxLevels = 5;
-      for (let level = 1; level <= maxLevels; level++) {
-        const penaltyVarName = `admin_penalty_${sec.id}_${level}`;
-        
-        // Calculer la pénalité pour ce palier
-        let penalty;
-        if (level === 1) penalty = -5;
-        else if (level === 2) penalty = -10;
-        else if (level === 3) penalty = -15;
-        else penalty = -20;
-        
-        model.variables[penaltyVarName] = { score: penalty };
-        model.ints[penaltyVarName] = 1;
+      // 2) Variables continues non négatives t1..t4 (progression -5 / -10 / -15 / -20)
+      for (let k = 1; k <= 4; k++) {
+        const tVar = `admin_penalty_t${k}_${sec.id}`;
+        model.variables[tVar] = { score: -5 }; // chaque palier coûte -5
         variableCount++;
         adminPenaltyVariableCount++;
 
-        // Contrainte : penalty_X_level <= admin_count_X - (level - 1)
-        // Si admin_count_X >= level, alors penalty_X_level peut être 1
-        // Sinon, penalty_X_level doit être 0
-        const penaltyConstraint = `penalty_admin_${sec.id}_${level}`;
-        model.constraints[penaltyConstraint] = { max: -(level - 1) };
-        model.variables[penaltyVarName][penaltyConstraint] = 1;
-        model.variables[countVarName][penaltyConstraint] = -1;
+        // Non-négativité: t_k >= 0
+        const nonneg = `nonneg_t_${sec.id}_${k}`;
+        model.constraints[nonneg] = { min: 0 };
+        model.variables[tVar][nonneg] = 1;
+
+        // Tiers-libre imposant t_k >= count - (k-1)  =>  t_k - count >= -(k-1)
+        const floorC = `admin_penalty_floor_${sec.id}_${k}`;
+        model.constraints[floorC] = { min: -(k - 1) };
+        model.variables[tVar][floorC] = 1;
+        model.variables[countVarName][floorC] = -1;
       }
+
+      // 3) Variable w pour les demi-journées > 4, coût -20 par unité
+      const wVar = `admin_penalty_extra_${sec.id}`;
+      model.variables[wVar] = { score: -20 };
+      variableCount++;
+      adminPenaltyVariableCount++;
+
+      // Non-négativité: w >= 0
+      const nonnegW = `nonneg_w_${sec.id}`;
+      model.constraints[nonnegW] = { min: 0 };
+      model.variables[wVar][nonnegW] = 1;
+
+      // w >= count - 4  =>  w - count >= -4
+      const floorW = `admin_penalty_extra_floor_${sec.id}`;
+      model.constraints[floorW] = { min: -4 };
+      model.variables[wVar][floorW] = 1;
+      model.variables[countVarName][floorW] = -1;
     }
 
     console.log(`✓ ${adminPenaltyVariableCount} variables de pénalité admin créées`);
@@ -1850,6 +1852,29 @@ serve(async (req) => {
     console.log(`Assignations sites: ${personnelToInsert.filter((p) => p.type_assignation === "site").length}`);
     console.log(`Assignations admin: ${personnelToInsert.filter((p) => p.type_assignation === "administratif").length}`);
     console.log(`Assignations bloc personnel: ${personnelToInsert.filter((p) => p.type_assignation === "bloc").length}`);
+
+    // Diagnostics de répartition admin par secrétaire
+    try {
+      const adminCountMap = new Map<string, number>();
+      for (const p of personnelToInsert) {
+        if (p.type_assignation === 'administratif' && p.secretaire_id) {
+          adminCountMap.set(p.secretaire_id, (adminCountMap.get(p.secretaire_id) || 0) + 1);
+        }
+      }
+      const secCounts = secretaires.map((s: any) => ({
+        id: s.id,
+        name: `${s.first_name || ''} ${s.name || ''}`.trim(),
+        count: adminCountMap.get(s.id) || 0,
+      }));
+      const top = [...secCounts].sort((a, b) => b.count - a.count).slice(0, 5);
+      console.log('Top charges admin:', top.map(t => `${t.name || t.id}: ${t.count}`).join(', '));
+      const christine = secCounts.find(x => (x.name || '').toLowerCase().includes('christine') && (x.name || '').toLowerCase().includes('ribeaud'));
+      if (christine) {
+        console.log(`Christine Ribeaud - demi-journées admin: ${christine.count}`);
+      }
+    } catch (e) {
+      console.log('Diagnostics admin non disponibles:', e);
+    }
 
     return new Response(
       JSON.stringify({
