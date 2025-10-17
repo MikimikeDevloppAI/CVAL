@@ -1525,33 +1525,37 @@ serve(async (req) => {
     console.log("\n========== PHASE 2 : OPTIMISATION SÉQUENTIELLE (HILL CLIMBING) ==========");
     console.log(`FORCE EXECUTION: ${selected_dates.length} dates à optimiser`);
     
-    // Identifier les sites cibles (Clinique La Vallée + Centre Esplanade Ophtalmologie)
-    const cliniqueValleeSite = sites.find((s) => 
-      s.nom.toLowerCase().includes("clinique") && 
-      s.nom.toLowerCase().includes("vallée") && 
-      s.nom.toLowerCase().includes("ophtalmologie")
-    );
-    const esplanadeSite = sites.find((s) => 
-      s.nom.toLowerCase().includes("centre esplanade") && 
-      s.nom.toLowerCase().includes("ophtalmologie")
-    );
+    // IDs hardcodés pour identification fiable des sites ciblés
+    const CLINIQUE_VALLEE_ID = '7c8abe96-0a6b-44eb-857f-ad69036ebc88';
+    const CENTRE_ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
     
-    console.log(`Sites trouvés: Clinique=${!!cliniqueValleeSite}, Esplanade=${!!esplanadeSite}`);
+    console.log(`⏱️ ENTRÉE Phase 2 confirmée à ${new Date().toISOString()}`);
+    
+    // Identifier les sites par ID (plus fiable que par nom)
+    const cliniqueValleeSite = sites.find((s) => s.id === CLINIQUE_VALLEE_ID);
+    const esplanadeSite = sites.find((s) => s.id === CENTRE_ESPLANADE_ID);
+    
+    console.log(`\n🔍 DIAGNOSTIC SITES :`);
+    console.log(`  - cliniqueValleeSite : ${cliniqueValleeSite ? '✓ trouvé' : '❌ null'}`);
+    if (cliniqueValleeSite) console.log(`    → "${cliniqueValleeSite.nom}" (ID: ${cliniqueValleeSite.id})`);
+    console.log(`  - esplanadeSite : ${esplanadeSite ? '✓ trouvé' : '❌ null'}`);
+    if (esplanadeSite) console.log(`    → "${esplanadeSite.nom}" (ID: ${esplanadeSite.id})`);
     
     if (!cliniqueValleeSite || !esplanadeSite) {
-      console.log("⚠️ Sites ophtalmo non trouvés, Phase 2 FORCÉE quand même pour diagnostic");
+      console.log(`\n⚠️ Sites manquants détectés, liste complète des sites :`);
+      for (const site of sites) {
+        console.log(`  - "${site.nom}" (ID: ${site.id})`);
+      }
     }
     
-    // TOUJOURS exécuter la Phase 2 (retirer le else)
-    console.log(`Sites ciblés: ${cliniqueValleeSite?.nom || 'N/A'}, ${esplanadeSite?.nom || 'N/A'}`);
+    console.log(`Sites ciblés: ${cliniqueValleeSite?.nom || 'CLINIQUE NON TROUVÉE'}, ${esplanadeSite?.nom || 'ESPLANADE NON TROUVÉE'}`);
     {
-      console.log(`Sites ciblés: ${cliniqueValleeSite.nom}, ${esplanadeSite.nom}`);
-      
       // Filtrer les secrétaires éligibles (celles avec préférences sur ces sites)
       const eligibleSecretaires = secretaires.filter((sec) => {
         const sitesData = secretairesSitesMap.get(sec.id) || [];
         return sitesData.some((s) => 
-          s.site_id === cliniqueValleeSite.id || s.site_id === esplanadeSite.id
+          (cliniqueValleeSite && s.site_id === cliniqueValleeSite.id) || 
+          (esplanadeSite && s.site_id === esplanadeSite.id)
         );
       });
       
