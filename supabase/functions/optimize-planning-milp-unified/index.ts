@@ -1352,6 +1352,43 @@ serve(async (req) => {
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
 
     // ============================================================
+    // PHASE 1D-BIS-2: PÉNALITÉ ADMIN AU-DELÀ DE 2 DEMI-JOURNÉES
+    // ============================================================
+    console.log("\n--- PHASE 1D-BIS-2: PÉNALITÉ ADMIN > 2 DEMI-JOURNÉES ---");
+
+    let adminPenaltyVariableCount = 0;
+    for (const sec of secretaires) {
+      // Récupérer les variables admin de cette secrétaire
+      const adminVars = assignments.filter(
+        (a) => a.type === "admin" && a.secretaire_id === sec.id
+      );
+      if (adminVars.length === 0) continue;
+
+      // Variable de slack continue : pénalité -400 par demi-journée au-delà de 2
+      const slackVar = `admin_penalty_${sec.id}`;
+      model.variables[slackVar] = { score: -400 };
+      variableCount++;
+      adminPenaltyVariableCount++;
+
+      // Contrainte de non-négativité pour le slack
+      const nonNegConstraint = `admin_penalty_nonneg_${sec.id}`;
+      model.constraints[nonNegConstraint] = { min: 0 };
+      model.variables[slackVar][nonNegConstraint] = 1;
+
+      // Contrainte : sum(z_admin) - slack <= 2
+      // Si sum(z_admin) <= 2 : slack = 0 (pas de pénalité)
+      // Si sum(z_admin) > 2 : slack = sum(z_admin) - 2 (pénalité -400 par unité)
+      const capConstraint = `admin_cap_${sec.id}`;
+      model.constraints[capConstraint] = { max: 2 };
+      for (const assign of adminVars) {
+        model.variables[assign.varName][capConstraint] = 1;
+      }
+      model.variables[slackVar][capConstraint] = -1;
+    }
+
+    console.log(`✓ ${adminPenaltyVariableCount} variables de pénalité admin créées`);
+
+    // ============================================================
     // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
     // ============================================================
     console.log("\n--- PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
