@@ -1138,7 +1138,23 @@ serve(async (req) => {
                   }
 
                   const delta = scoreAfter - baseScore;
-                  logTry(mode, `scoreBefore=${baseScore} scoreAfter=${scoreAfter} delta=${delta} fullDaysAfter=${afterCount}`);
+                  
+                  // Log avec info préférence site
+                  let prefInfo = '';
+                  if (mode !== 'apres_midi' && mSite && original.mAdminId) {
+                    const sitesData = secretairesSitesMap.get(original.mAdminId) || [];
+                    const siteData = sitesData.find((s) => s.site_id === mSite.site_id);
+                    const prio = siteData ? (typeof siteData.priorite === 'string' ? parseInt(siteData.priorite, 10) : siteData.priorite) : 0;
+                    prefInfo += `AM→pref${prio} `;
+                  }
+                  if (mode !== 'matin' && aSite && original.aAdminId) {
+                    const sitesData = secretairesSitesMap.get(original.aAdminId) || [];
+                    const siteData = sitesData.find((s) => s.site_id === aSite.site_id);
+                    const prio = siteData ? (typeof siteData.priorite === 'string' ? parseInt(siteData.priorite, 10) : siteData.priorite) : 0;
+                    prefInfo += `PM→pref${prio}`;
+                  }
+                  
+                  logTry(mode, `${prefInfo}| score ${baseScore}→${scoreAfter} (Δ=${delta.toFixed(0)}) fullDays=${afterCount}`);
 
                   if (afterCount < 2) {
                     logTry(mode, 'rejected: full-day closure < 2 after swap');
@@ -1178,11 +1194,26 @@ serve(async (req) => {
                     aAdmin.secretaire_id = original.aSiteId;
                   }
 
-                  console.log(`  ✅ Selected swap (${bestMode}) for ${getSecretaryName(adminId)} on ${date} @ ${getSiteName(site.id)}. Δ=${bestDelta}`);
+                  // Log avec info préférence
+                  let prefInfo = '';
+                  if (bestMode !== 'apres_midi' && mSite) {
+                    const sitesData = secretairesSitesMap.get(original.mAdminId) || [];
+                    const siteData = sitesData.find((s) => s.site_id === mSite.site_id);
+                    const prio = siteData ? (typeof siteData.priorite === 'string' ? parseInt(siteData.priorite, 10) : siteData.priorite) : 0;
+                    prefInfo += `AM→pref${prio} `;
+                  }
+                  if (bestMode !== 'matin' && aSite) {
+                    const sitesData = secretairesSitesMap.get(original.aAdminId) || [];
+                    const siteData = sitesData.find((s) => s.site_id === aSite.site_id);
+                    const prio = siteData ? (typeof siteData.priorite === 'string' ? parseInt(siteData.priorite, 10) : siteData.priorite) : 0;
+                    prefInfo += `PM→pref${prio}`;
+                  }
+
+                  console.log(`  ✅ Swap (${bestMode}) pour ${getSecretaryName(adminId)} @ ${getSiteName(site.id)} ${date} ${prefInfo}| Δ=${bestDelta.toFixed(0)}`);
                   phase2SwapsCount += bestMode === 'both' ? 2 : 1;
                   break; // stop after first successful improvement for this site/date
                 } else {
-                  console.log(`  ℹ️ No improving swap found for ${getSecretaryName(adminId)} on ${date} @ ${getSiteName(site.id)} (best Δ=${bestDelta}).`);
+                  console.log(`  ℹ️ Aucun swap améliorant trouvé pour ${getSecretaryName(adminId)} @ ${getSiteName(site.id)} ${date} (meilleur Δ=${bestDelta.toFixed(0)})`);
                 }
               }
             }
@@ -1468,7 +1499,22 @@ serve(async (req) => {
                 adminPM.secretaire_id = original.pmAdmin;
               }
               
-              console.log(`${logPrefix} test: ${adminNames} | gain=${gainedAdmin} admin | Δ=${delta} | closure=${closureOK}`);
+              // Log détaillé avec info préférence site
+              let prefInfo = '';
+              if (mode !== 'apres_midi' && siteAM && adminAM) {
+                const adminSitesData = secretairesSitesMap.get(adminAM.secretaire_id) || [];
+                const adminSiteData = adminSitesData.find((s) => s.site_id === siteAM.site_id);
+                const prio = adminSiteData ? (typeof adminSiteData.priorite === 'string' ? parseInt(adminSiteData.priorite, 10) : adminSiteData.priorite) : 0;
+                prefInfo += `AM:pref${prio} `;
+              }
+              if (mode !== 'matin' && sitePM && adminPM) {
+                const adminSitesData = secretairesSitesMap.get(adminPM.secretaire_id) || [];
+                const adminSiteData = adminSitesData.find((s) => s.site_id === sitePM.site_id);
+                const prio = adminSiteData ? (typeof adminSiteData.priorite === 'string' ? parseInt(adminSiteData.priorite, 10) : adminSiteData.priorite) : 0;
+                prefInfo += `PM:pref${prio}`;
+              }
+              
+              console.log(`${logPrefix} test: ${adminNames} ${prefInfo}| gain=${gainedAdmin} admin | score ${baseScore}→${scoreAfter} (Δ=${delta.toFixed(0)}) | closure=${closureOK}`);
               
               if (!closureOK) {
                 console.log(`${logPrefix} reject: ${adminNames} casserait contrainte fermeture`);
@@ -1552,7 +1598,22 @@ serve(async (req) => {
           mode !== 'matin' ? getSecretaryName(adminPM?.secretaire_id) : null
         ].filter(Boolean).join(' + ');
         
-        console.log(`  ✅ Swap appliqué: ${date} ${mode} avec ${adminNames} | gain=${gainedAdmin} | Δ=${delta} | admin=${currentAdminCount}`);
+        // Log avec info préférence site
+        let prefInfo = '';
+        if (mode !== 'apres_midi' && siteAM && adminAM) {
+          const adminSitesData = secretairesSitesMap.get(adminAM.secretaire_id) || [];
+          const adminSiteData = adminSitesData.find((s) => s.site_id === siteAM.site_id);
+          const prio = adminSiteData ? (typeof adminSiteData.priorite === 'string' ? parseInt(adminSiteData.priorite, 10) : adminSiteData.priorite) : 0;
+          prefInfo += `AM→pref${prio} `;
+        }
+        if (mode !== 'matin' && sitePM && adminPM) {
+          const adminSitesData = secretairesSitesMap.get(adminPM.secretaire_id) || [];
+          const adminSiteData = adminSitesData.find((s) => s.site_id === sitePM.site_id);
+          const prio = adminSiteData ? (typeof adminSiteData.priorite === 'string' ? parseInt(adminSiteData.priorite, 10) : adminSiteData.priorite) : 0;
+          prefInfo += `PM→pref${prio}`;
+        }
+        
+        console.log(`  ✅ Swap appliqué: ${date} ${mode} avec ${adminNames} ${prefInfo}| gain=${gainedAdmin} | Δ=${delta.toFixed(0)} | admin=${currentAdminCount}`);
         
         // Recalculer la liste des candidats restants car l'état a changé
         // (les assignations ont changé, donc certains swaps ne sont plus valides)
