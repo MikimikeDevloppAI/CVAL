@@ -184,8 +184,8 @@ serve(async (req) => {
           if (besoin.medecin_id) {
             const medRelation = secretairesMedecinsMap.get(`${secId}_${besoin.medecin_id}`)?.[0];
             if (medRelation) {
-              if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 300;
-              else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 200;
+              if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 2000;
+              else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 1500;
               else if (medRelation.priorite === 3 || medRelation.priorite === '3') score += 100;
             }
           }
