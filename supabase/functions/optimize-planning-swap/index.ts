@@ -275,6 +275,12 @@ serve(async (req) => {
       if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
       if (a1.type_assignation === 'administratif' && a2.type_assignation === 'administratif') return false;
       
+      // Autoriser les swaps si l'une des deux assignations est admin
+      // (l'admin est neutre par rapport aux médecins assignés)
+      if (a1.type_assignation === 'administratif' || a2.type_assignation === 'administratif') {
+        return true;
+      }
+      
       // NOUVEAU: Bloquer si médecin assigné (priorité 1 ou 2)
       if (a1.type_assignation === 'site' && a1.site_id) {
         const medecinsOnSite = besoinsEffectifs.filter(b =>
@@ -362,9 +368,8 @@ serve(async (req) => {
           const matin = dayAssignments.find(a => a.periode === 'matin');
           const aprem = dayAssignments.find(a => a.periode === 'apres_midi');
           
-          if (matin && aprem && 
-              matin.type_assignation === 'site' && aprem.type_assignation === 'site' &&
-              matin.site_id !== aprem.site_id) {
+          // Utiliser hasSiteChangeForPair pour gérer correctement bloc↔site
+          if (matin && aprem && hasSiteChangeForPair(matin, aprem)) {
             siteChanges++;
           }
           
@@ -529,6 +534,25 @@ serve(async (req) => {
           
           // Appliquer pénalité bloc ↔ site restreint
           gain += getBlocSitePenalty(a1, a2);
+          
+          // Log spécial pour Sarah Bortolon et swaps admin
+          if ((sec1?.name === 'Bortolon' || sec2?.name === 'Bortolon') && 
+              (a1.type_assignation === 'administratif' || a2.type_assignation === 'administratif')) {
+            console.log(`\n🔍 SWAP ADMIN SARAH:`);
+            console.log(`   Sec1: ${sec1?.first_name} ${sec1?.name}, admin=${m1.adminCount}→${newAdminCount1}, prefered=${sec1?.prefered_admin}`);
+            console.log(`   Sec2: ${sec2?.first_name} ${sec2?.name}, admin=${m2.adminCount}→${newAdminCount2}, prefered=${sec2?.prefered_admin}`);
+            console.log(`   Type swap: ${a1.type_assignation} ↔ ${a2.type_assignation}`);
+            console.log(`   Score avant: ${scoreBefore.toFixed(0)}, après: ${scoreAfter.toFixed(0)}, gain: ${gain.toFixed(0)}`);
+            console.log(`   adminBonusBefore: ${adminBonusBefore}, adminBonusAfter: ${adminBonusAfter}`);
+          }
+
+          // Log spécial pour Laura Spring et changements de site
+          if ((sec1?.name === 'Spring' || sec2?.name === 'Spring') && a1.date === '2025-11-18') {
+            console.log(`\n🔍 SWAP LAURA SPRING 18/11:`);
+            console.log(`   Sec1: ${sec1?.first_name} ${sec1?.name}, siteChanges=${m1.siteChanges}→${newSiteChanges1}`);
+            console.log(`   Sec2: ${sec2?.first_name} ${sec2?.name}, siteChanges=${m2.siteChanges}→${newSiteChanges2}`);
+            console.log(`   Gain: ${gain.toFixed(0)}`);
+          }
           
           if (gain > 0) {
             regularCandidates.push({
