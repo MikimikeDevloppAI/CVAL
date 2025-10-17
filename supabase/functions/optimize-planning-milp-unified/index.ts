@@ -1697,6 +1697,20 @@ serve(async (req) => {
               else if (prio === 3) score += 1000;
             }
             
+            // BONUS CONTINUITÉ: même site matin + après-midi
+            const otherPeriod = assignment.periode === 'matin' ? 'apres_midi' : 'matin';
+            const otherAssignment = currentAssignments.find(a =>
+              a.secretaire_id === secId &&
+              a.date === assignment.date &&
+              a.periode === otherPeriod &&
+              a.type_assignation === 'site' &&
+              a.site_id === assignment.site_id
+            );
+            
+            if (otherAssignment) {
+              score += 300; // Bonus continuité
+            }
+            
             // Score médecins présents sur le site
             const medecinsOnSite = besoinsEffectifs.filter(b =>
               b.site_id === assignment.site_id &&
@@ -1763,12 +1777,45 @@ serve(async (req) => {
             // Ajouter pénalités évitées
             let penaltyAvoidance = 0;
             
-            // Changement de site évité
+            // Vérifier si l'échange RÉSOUT un changement site→site
             const m1 = secretaryMetrics.get(a1.secretaire_id);
             const m2 = secretaryMetrics.get(a2.secretaire_id);
             
-            if (m1 && m1.siteChanges > 0) penaltyAvoidance += 600;
-            if (m2 && m2.siteChanges > 0) penaltyAvoidance += 600;
+            // Pour sec1: vérifier si changement site et si échange le résout
+            if (m1 && m1.siteChanges > 0 && a1.type_assignation === 'site' && a1.site_id) {
+              const otherPeriod = a1.periode === 'matin' ? 'apres_midi' : 'matin';
+              const sec1OtherAssignment = m1.assignments.find(a => 
+                a.periode === otherPeriod && 
+                a.date === a1.date &&
+                a.type_assignation === 'site'
+              );
+              
+              // Après échange, sec2 prend place de sec1
+              // Si a2 est admin OU si a2 est site avec même site_id que l'autre période de sec1
+              if (a2.type_assignation === 'administratif') {
+                penaltyAvoidance += 600; // Admin résout le changement
+              } else if (a2.type_assignation === 'site' && sec1OtherAssignment && 
+                         a2.site_id === sec1OtherAssignment.site_id) {
+                penaltyAvoidance += 600; // Même site sur les 2 périodes
+              }
+            }
+            
+            // Pour sec2: vérifier si changement site et si échange le résout
+            if (m2 && m2.siteChanges > 0 && a2.type_assignation === 'site' && a2.site_id) {
+              const otherPeriod = a2.periode === 'matin' ? 'apres_midi' : 'matin';
+              const sec2OtherAssignment = m2.assignments.find(a => 
+                a.periode === otherPeriod && 
+                a.date === a2.date &&
+                a.type_assignation === 'site'
+              );
+              
+              if (a1.type_assignation === 'administratif') {
+                penaltyAvoidance += 600;
+              } else if (a1.type_assignation === 'site' && sec2OtherAssignment && 
+                         a1.site_id === sec2OtherAssignment.site_id) {
+                penaltyAvoidance += 600;
+              }
+            }
             
             // Admin évité (pénalité progressive)
             if (m1 && m1.adminCount >= 2) {
