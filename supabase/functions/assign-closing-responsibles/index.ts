@@ -9,7 +9,10 @@ const corsHeaders = {
 interface SecretaryScore {
   id: string;
   name: string;
-  score: number; // 1R = 1 point, 2F = 2 points
+  score: number; // 1R = 2 points, 2F = 10 points, 3F = 15 points
+  count_1r: number;
+  count_2f: number;
+  count_3f: number;
 }
 
 serve(async (req) => {
@@ -37,46 +40,37 @@ serve(async (req) => {
       console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
     }
 
-    // Step 1: Get the 4 previous weeks to calculate scores
+    // Step 1: Get the 4 previous weeks to calculate 3F history ONLY
     const fourWeeksAgo = new Date(week_start);
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
     const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
 
-    // Step 2: Calculate scores for each secretary based on past 4 weeks
+    // Step 2: Calculate 3F history (only for 3F assignments)
     const { data: pastAssignments, error: pastError } = await supabase
       .from('planning_genere_personnel')
-      .select('secretaire_id, is_1r, is_2f, is_3f')
+      .select('secretaire_id, is_3f')
       .eq('type_assignation', 'site')
       .gte('date', fourWeeksAgoStr)
       .lt('date', week_start)
+      .eq('is_3f', true)
       .not('secretaire_id', 'is', null);
 
     if (pastError) throw pastError;
 
-    // Calculate scores
-    const scores = new Map<string, number>();
+    // Calculate 3F historical scores (15 points per 3F)
+    const historical3FScores = new Map<string, number>();
     for (const assignment of pastAssignments || []) {
       const secId = assignment.secretaire_id;
       if (!secId) continue;
       
-      if (!scores.has(secId)) scores.set(secId, 0);
-      
-      // Count if this secretary was 1R, 2F, or 3F
-      if (assignment.is_1r) {
-        scores.set(secId, scores.get(secId)! + 1);
-      }
-      if (assignment.is_2f) {
-        scores.set(secId, scores.get(secId)! + 2);
-      }
-      if (assignment.is_3f) {
-        scores.set(secId, scores.get(secId)! + 2); // 3F also counts as 2 points
-      }
+      if (!historical3FScores.has(secId)) historical3FScores.set(secId, 0);
+      historical3FScores.set(secId, historical3FScores.get(secId)! + 15);
     }
 
-    console.log(`📊 Calculated scores for ${scores.size} secretaries`);
+    console.log(`📊 Calculated 3F historical scores for ${historical3FScores.size} secretaries`);
 
-    // Also track scores for current week to balance within the week (excluding selected dates)
-    const currentWeekScores = new Map<string, number>();
+    // Track scores for current week with new point system (1R=2pts, 2F=10pts, 3F=15pts)
+    const currentWeekScores = new Map<string, SecretaryScore>();
     
     // Get current week assignments to count scores (excluding selected dates being re-optimized)
     const { data: currentWeekAssignments, error: cwError } = await supabase
@@ -89,7 +83,7 @@ serve(async (req) => {
 
     if (cwError) throw cwError;
 
-    // Calculate current week scores (excluding selected dates)
+    // Calculate current week scores with new weights (excluding selected dates)
     for (const assignment of currentWeekAssignments || []) {
       // Skip dates being re-optimized
       if (selected_dates && selected_dates.includes(assignment.date)) {
@@ -99,20 +93,34 @@ serve(async (req) => {
       const secId = assignment.secretaire_id;
       if (!secId) continue;
       
-      if (!currentWeekScores.has(secId)) currentWeekScores.set(secId, 0);
+      if (!currentWeekScores.has(secId)) {
+        currentWeekScores.set(secId, { 
+          id: secId, 
+          name: '', 
+          score: 0, 
+          count_1r: 0, 
+          count_2f: 0, 
+          count_3f: 0 
+        });
+      }
+      
+      const secScore = currentWeekScores.get(secId)!;
       
       if (assignment.is_1r) {
-        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 1);
+        secScore.score += 2;
+        secScore.count_1r += 1;
       }
       if (assignment.is_2f) {
-        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 2);
+        secScore.score += 10;
+        secScore.count_2f += 1;
       }
       if (assignment.is_3f) {
-        currentWeekScores.set(secId, currentWeekScores.get(secId)! + 2);
+        secScore.score += 15;
+        secScore.count_3f += 1;
       }
     }
     
-    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries (excluding re-optimized dates)`);
+    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries (1R=2pts, 2F=10pts, 3F=15pts)`);
 
     // Step 3: Get all secretaries info
     const { data: secretaries, error: secError } = await supabase
@@ -291,72 +299,112 @@ serve(async (req) => {
       }).join(', ');
       console.log(`  👥 Candidates pour responsabilités: ${candidatesNames}`);
 
-      // Filter out Florence Bron on Tuesdays for 2F role
-      let candidates = bothPeriods;
       const isTuesday = dayOfWeek === 2;
       
-      // Sort candidates by combined score (historical + current week)
-      candidates.sort((a, b) => {
-        const historicalScoreA = scores.get(a) || 0;
-        const historicalScoreB = scores.get(b) || 0;
-        const currentWeekScoreA = currentWeekScores.get(a) || 0;
-        const currentWeekScoreB = currentWeekScores.get(b) || 0;
-        
-        // Total score = historical + current week (both weighted equally)
-        const totalScoreA = historicalScoreA + currentWeekScoreA;
-        const totalScoreB = historicalScoreB + currentWeekScoreB;
-        
-        return totalScoreA - totalScoreB;
-      });
-
-      // Assign 2F or 3F first (lowest combined score, but not Florence Bron on Tuesday for 2F)
-      let responsable2F3F = null;
-      for (const candidate of candidates) {
-        // If Tuesday and Florence Bron and assigning 2F (not 3F), skip
-        if (!needsThreeF && isTuesday && florenceBron && candidate === florenceBron.id) {
-          console.log(`🚫 Skipping Florence Bron for 2F on Tuesday ${date}`);
-          continue;
+      // Ensure all candidates have a score entry
+      for (const candidateId of bothPeriods) {
+        if (!currentWeekScores.has(candidateId)) {
+          currentWeekScores.set(candidateId, { 
+            id: candidateId, 
+            name: '', 
+            score: 0, 
+            count_1r: 0, 
+            count_2f: 0, 
+            count_3f: 0 
+          });
         }
-        
-        responsable2F3F = candidate;
-        break;
       }
-
-      // Fallback if no valid candidate found (e.g., only Florence Bron available on Tuesday)
-      if (!responsable2F3F) {
-        responsable2F3F = candidates[0];
-      }
-
-      // Update current week score for 2F/3F
-      const pointsFor2F3F = needsThreeF ? 2 : 2; // Both 2F and 3F worth 2 points
-      currentWeekScores.set(responsable2F3F, (currentWeekScores.get(responsable2F3F) || 0) + pointsFor2F3F);
       
-      // Assign 1R (lowest combined score, excluding the 2F/3F)
-      let responsable1R = null;
-      for (const candidate of candidates) {
-        if (candidate === responsable2F3F) continue;
+      // STEP 1: Assign 2F or 3F
+      // Priority: choose someone with lowest score who doesn't have 2F/3F already this week
+      // For 3F: also consider historical score
+      let responsable2F3F = null;
+      
+      if (needsThreeF) {
+        // For 3F: consider historical 3F assignments + current week score
+        const candidates3F = bothPeriods.map(id => {
+          const historical = historical3FScores.get(id) || 0;
+          const current = currentWeekScores.get(id)!;
+          return {
+            id,
+            totalScore: historical + current.score,
+            has2F3F: current.count_2f > 0 || current.count_3f > 0
+          };
+        }).sort((a, b) => {
+          // Prioritize those without 2F/3F this week
+          if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
+          return a.totalScore - b.totalScore;
+        });
         
-        responsable1R = candidate;
-        break;
+        responsable2F3F = candidates3F[0].id;
+      } else {
+        // For 2F: only current week score, avoid Florence Bron on Tuesday
+        const candidates2F = bothPeriods.map(id => {
+          const current = currentWeekScores.get(id)!;
+          return {
+            id,
+            score: current.score,
+            has2F3F: current.count_2f > 0 || current.count_3f > 0,
+            isFlorenceTuesday: isTuesday && florenceBron && id === florenceBron.id
+          };
+        }).sort((a, b) => {
+          // Skip Florence Bron on Tuesday for 2F
+          if (a.isFlorenceTuesday !== b.isFlorenceTuesday) return a.isFlorenceTuesday ? 1 : -1;
+          // Prioritize those without 2F/3F this week
+          if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
+          return a.score - b.score;
+        });
+        
+        responsable2F3F = candidates2F[0].id;
+        
+        if (candidates2F[0].isFlorenceTuesday) {
+          console.log(`⚠️ Florence Bron assigned 2F on Tuesday ${date} (no other option)`);
+        }
       }
-
-      // Fallback if no other candidate available (use same person for both roles)
-      if (!responsable1R) {
-        responsable1R = responsable2F3F;
+      
+      // Update score for 2F/3F
+      const score2F3F = currentWeekScores.get(responsable2F3F)!;
+      const pointsFor2F3F = needsThreeF ? 15 : 10;
+      score2F3F.score += pointsFor2F3F;
+      if (needsThreeF) {
+        score2F3F.count_3f += 1;
+      } else {
+        score2F3F.count_2f += 1;
       }
-
-      // Update current week score for 1R
-      currentWeekScores.set(responsable1R, (currentWeekScores.get(responsable1R) || 0) + 1);
-
+      
+      // STEP 2: Assign 1R
+      // Choose someone with lowest score, excluding 2F/3F
+      // If someone has 2 x 2F/3F this week, reduce their 1R priority (add virtual penalty)
+      const candidates1R = bothPeriods
+        .filter(id => id !== responsable2F3F)
+        .map(id => {
+          const current = currentWeekScores.get(id)!;
+          let adjustedScore = current.score;
+          
+          // If this person already has 2F or 3F twice this week, penalize heavily to avoid giving 1R
+          if ((current.count_2f + current.count_3f) >= 2) {
+            adjustedScore += 50; // Heavy penalty to avoid assigning 1R
+          }
+          
+          return {
+            id,
+            adjustedScore,
+            actualScore: current.score
+          };
+        })
+        .sort((a, b) => a.adjustedScore - b.adjustedScore);
+      
+      let responsable1R = candidates1R.length > 0 ? candidates1R[0].id : responsable2F3F;
+      
+      // Update score for 1R
+      const score1R = currentWeekScores.get(responsable1R)!;
+      score1R.score += 2;
+      score1R.count_1r += 1;
+      
       const secName1R = secretaries?.find(s => s.id === responsable1R);
       const secName2F3F = secretaries?.find(s => s.id === responsable2F3F);
       
-      const historicalScore1R = scores.get(responsable1R) || 0;
-      const historicalScore2F3F = scores.get(responsable2F3F) || 0;
-      const currentScore1R = currentWeekScores.get(responsable1R) || 0;
-      const currentScore2F3F = currentWeekScores.get(responsable2F3F) || 0;
-      
-      console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (hist: ${historicalScore1R}, week: ${currentScore1R}, total: ${historicalScore1R + currentScore1R}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (hist: ${historicalScore2F3F}, week: ${currentScore2F3F}, total: ${historicalScore2F3F + currentScore2F3F})`);
+      console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${score1R.score}, 1R:${score1R.count_1r}, 2F:${score1R.count_2f}, 3F:${score1R.count_3f}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${score2F3F.score}, 1R:${score2F3F.count_1r}, 2F:${score2F3F.count_2f}, 3F:${score2F3F.count_3f})`);
 
       // First, reset all responsable flags for this site/date
       const { error: resetError } = await supabase
