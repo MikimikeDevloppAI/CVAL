@@ -1053,15 +1053,28 @@ serve(async (req) => {
                   a.secretaire_id === adminId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
                 );
 
-                // Choisir en priorité des partiels pour créer une journée complète
+                // Choisir en priorité un même secrétaire présent matin+après-midi pour un swap journée complète
                 const matinIds = new Set<string>(matinSlots.map((a: any) => a.secretaire_id as string));
                 const apremIds = new Set<string>(apremSlots.map((a: any) => a.secretaire_id as string));
+                const fullDayIds = Array.from(matinIds.values()).filter((id) => apremIds.has(id) && id !== adminId);
                 const morningOnlyIds = Array.from(matinIds.values()).filter((id) => !apremIds.has(id));
                 const afternoonOnlyIds = Array.from(apremIds.values()).filter((id) => !matinIds.has(id));
 
-                let mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId && morningOnlyIds.includes(a.secretaire_id));
-                let aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId && afternoonOnlyIds.includes(a.secretaire_id));
-                // Si pas de partiels, prendre n'importe quel slot (mais le check d'amélioration refusera si pas bénéfique)
+                let mSite: any | undefined;
+                let aSite: any | undefined;
+
+                // 1) Privilégier un swap avec la même personne sur la journée
+                const samePersonId = fullDayIds[0];
+                if (samePersonId) {
+                  mSite = matinSlots.find((a: any) => a.secretaire_id === samePersonId);
+                  aSite = apremSlots.find((a: any) => a.secretaire_id === samePersonId);
+                }
+
+                // 2) Sinon, utiliser des partiels pour tenter de créer une journée complète
+                if (!mSite) mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId && morningOnlyIds.includes(a.secretaire_id));
+                if (!aSite) aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId && afternoonOnlyIds.includes(a.secretaire_id));
+
+                // 3) En dernier recours, n'importe quel slot
                 if (!mSite) mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId);
                 if (!aSite) aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId);
 
