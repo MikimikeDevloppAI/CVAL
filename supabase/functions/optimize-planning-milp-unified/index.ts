@@ -1515,8 +1515,8 @@ serve(async (req) => {
       const swapPayload = {
         planning_id,
         selected_dates,
-        week_start: formatDateUTC(startOfISOWeek(new Date(selected_dates[0]))),
-        week_end: formatDateUTC(endOfISOWeek(new Date(selected_dates[0]))),
+        week_start,
+        week_end,
         assignments: cleaned,
         blocsMap: Array.from(blocsMap.entries()).map(([key, value]) => ({ key, value })),
         sites,

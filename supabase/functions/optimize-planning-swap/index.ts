@@ -1,5 +1,5 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +21,7 @@ interface SwapPayload {
   capacitesMap: Array<{ key: string; value: any[] }>;
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
         score += 100;
         const sec = secretaires.find(s => s.id === secId);
         if (sec?.prefered_admin) {
-          const secAssignments = currentAssignments.filter(a => a.secretaire_id === secId);
-          const adminCount = secAssignments.filter(a => a.type_assignation === 'administratif').length;
+          const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === secId);
+          const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
           if (adminCount === 1) { // C'est le premier
             score += 500;
           }
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
         
         // BONUS CONTINUITÉ
         const otherPeriod = assignment.periode === 'matin' ? 'apres_midi' : 'matin';
-        const otherAssignment = currentAssignments.find(a =>
+        const otherAssignment = currentAssignments.find((a: any) =>
           a.secretaire_id === secId &&
           a.date === assignment.date &&
           a.periode === otherPeriod &&
@@ -227,9 +227,9 @@ Deno.serve(async (req) => {
       }>();
       
       for (const sec of eligibleSecretaires) {
-        const secAssignments = currentAssignments.filter(a => a.secretaire_id === sec.id);
+        const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
         
-        const adminCount = secAssignments.filter(a => a.type_assignation === 'administratif').length;
+        const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
         
         let siteChanges = 0;
         const dateGroups = new Map<string, any[]>();
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
         }
         
         const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-        const esplanadeCount = secAssignments.filter(a => 
+        const esplanadeCount = secAssignments.filter((a: any) =>
           a.type_assignation === 'site' && a.site_id === ESPLANADE_ID
         ).length;
         
@@ -338,17 +338,17 @@ Deno.serve(async (req) => {
           if (sec1.id === sec2.id) continue;
           
           for (const date of selected_dates) {
-            const s1Assignments = currentAssignments.filter(a => 
+            const s1Assignments = currentAssignments.filter((a: any) =>
               a.secretaire_id === sec1.id && a.date === date
             );
-            const s2Assignments = currentAssignments.filter(a => 
+            const s2Assignments = currentAssignments.filter((a: any) =>
               a.secretaire_id === sec2.id && a.date === date
             );
             
-            const s1Matin = s1Assignments.find(a => a.periode === 'matin');
-            const s1Aprem = s1Assignments.find(a => a.periode === 'apres_midi');
-            const s2Matin = s2Assignments.find(a => a.periode === 'matin');
-            const s2Aprem = s2Assignments.find(a => a.periode === 'apres_midi');
+            const s1Matin = s1Assignments.find((a: any) => a.periode === 'matin');
+            const s1Aprem = s1Assignments.find((a: any) => a.periode === 'apres_midi');
+            const s2Matin = s2Assignments.find((a: any) => a.periode === 'matin');
+            const s2Aprem = s2Assignments.find((a: any) => a.periode === 'apres_midi');
             
             if (!s1Matin || !s1Aprem || !s2Matin || !s2Aprem) continue;
             if (!isEligible(s1Matin, s2Matin) || !isEligible(s1Aprem, s2Aprem)) continue;
@@ -411,12 +411,12 @@ Deno.serve(async (req) => {
         const s1MatinIdx = best.idx_1;
         const s2MatinIdx = best.idx_2;
         
-        const s1ApremIdx = currentAssignments.findIndex(a =>
+        const s1ApremIdx = currentAssignments.findIndex((a: any) =>
           a.secretaire_id === best.secretaire_1 &&
           a.date === best.date &&
           a.periode === 'apres_midi'
         );
-        const s2ApremIdx = currentAssignments.findIndex(a =>
+        const s2ApremIdx = currentAssignments.findIndex((a: any) =>
           a.secretaire_id === best.secretaire_2 &&
           a.date === best.date &&
           a.periode === 'apres_midi'
@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error("❌ Erreur dans optimize-planning-swap:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
