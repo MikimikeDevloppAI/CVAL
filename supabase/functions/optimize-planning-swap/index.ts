@@ -277,11 +277,17 @@ serve(async (req) => {
     };
     
     // Helper: valider contrainte de fermeture (2 personnes en journée complète)
-    const validateClosingRequirement = (date: string, siteId: string): { isValid: boolean; penalty: number } => {
+    const validateClosingRequirement = (date: string, siteId: string): { isValid: boolean; penalty: number; fullDayCount: number } => {
       const site = sites.find(s => s.id === siteId);
-      if (!site?.fermeture) return { isValid: true, penalty: 0 };
+      if (!site?.fermeture) return { isValid: true, penalty: 0, fullDayCount: 0 };
       
       // Vérifier si médecin travaille matin ET après-midi
+      // CORRECTION: considérer aussi les besoins en toute_journee
+      const besoinsJourneeComplete = besoinsEffectifs.filter(b =>
+        b.site_id === siteId && b.date === date && 
+        b.demi_journee === 'toute_journee' && b.type === 'medecin'
+      );
+      
       const medecinMatin = besoinsEffectifs.filter(b =>
         b.site_id === siteId && b.date === date && 
         b.demi_journee === 'matin' && b.type === 'medecin'
@@ -291,8 +297,14 @@ serve(async (req) => {
         b.demi_journee === 'apres_midi' && b.type === 'medecin'
       );
       
-      if (medecinMatin.length === 0 || medecinAprem.length === 0) {
-        return { isValid: true, penalty: 0 }; // Pas de contrainte
+      // Contrainte s'applique si :
+      // - Au moins 1 médecin en toute_journee OU
+      // - Au moins 1 médecin le matin ET au moins 1 l'après-midi
+      const requiresFullDaySecretaries = besoinsJourneeComplete.length > 0 || 
+        (medecinMatin.length > 0 && medecinAprem.length > 0);
+      
+      if (!requiresFullDaySecretaries) {
+        return { isValid: true, penalty: 0, fullDayCount: 0 };
       }
       
       // Compter secrétaires en journée complète
@@ -313,10 +325,28 @@ serve(async (req) => {
         .length;
       
       if (fullDayCount < 2) {
-        return { isValid: false, penalty: -3000 * (2 - fullDayCount) };
+        return { isValid: false, penalty: -3000 * (2 - fullDayCount), fullDayCount };
       }
       
-      return { isValid: true, penalty: 0 };
+      return { isValid: true, penalty: 0, fullDayCount };
+    };
+    
+    // Helper: calculer la pénalité de fermeture totale pour l'état actuel
+    const calculateTotalClosingPenalty = (): number => {
+      let totalPenalty = 0;
+      const sitesWithClosure = sites.filter(s => s.fermeture);
+      
+      // Obtenir toutes les dates uniques
+      const dates = Array.from(new Set(currentAssignments.map((a: any) => a.date))) as string[];
+      
+      for (const site of sitesWithClosure) {
+        for (const date of dates) {
+          const result = validateClosingRequirement(date, site.id);
+          totalPenalty += result.penalty;
+        }
+      }
+      
+      return totalPenalty;
     };
     
     // Helper: vérifier si échange est éligible
@@ -381,6 +411,19 @@ serve(async (req) => {
       
       return true;
     };
+    
+    // Log initial des contraintes de fermeture
+    console.log('\n🔍 Validation initiale des contraintes de fermeture:');
+    const sitesWithClosure = sites.filter(s => s.fermeture);
+    const allDates = Array.from(new Set(currentAssignments.map((a: any) => a.date))) as string[];
+    for (const site of sitesWithClosure) {
+      for (const date of allDates) {
+        const result = validateClosingRequirement(date, site.id);
+        if (!result.isValid) {
+          console.log(`❌ ${site.nom} le ${date}: ${result.fullDayCount}/2 personnes en journée complète (pénalité: ${result.penalty})`);
+        }
+      }
+    }
     
     // BOUCLE D'OPTIMISATION
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -499,13 +542,11 @@ serve(async (req) => {
           const m1 = secretaryMetrics.get(a1.secretaire_id)!;
           const m2 = secretaryMetrics.get(a2.secretaire_id)!;
           
-          // Calculer pénalité fermeture AVANT swap
-          const closingPenaltyBefore = 
-            (a1.type_assignation === 'site' && a1.site_id ? validateClosingRequirement(a1.date, a1.site_id).penalty : 0) +
-            (a2.type_assignation === 'site' && a2.site_id ? validateClosingRequirement(a2.date, a2.site_id).penalty : 0);
+          // Calculer pénalité fermeture AVANT swap (pour TOUS les sites avec fermeture)
+          const closingPenaltyBefore = calculateTotalClosingPenalty();
           
           const scoreBefore = 
-            calculateScore(a1, a1.secretaire_id) + 
+            calculateScore(a1, a1.secretaire_id) +
             calculateScore(a2, a2.secretaire_id) +
             calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
             calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id) +
@@ -564,13 +605,21 @@ serve(async (req) => {
           const dayPenaltyAfter1 = computeDayPenaltyForPair(simulated1.matin, simulated1.aprem);
           const dayPenaltyAfter2 = computeDayPenaltyForPair(simulated2.matin, simulated2.aprem);
           
-          // Calculer pénalité fermeture APRÈS swap
-          const closingPenaltyAfter = 
-            (a2.type_assignation === 'site' && a2.site_id ? validateClosingRequirement(a1.date, a2.site_id).penalty : 0) +
-            (a1.type_assignation === 'site' && a1.site_id ? validateClosingRequirement(a2.date, a1.site_id).penalty : 0);
+          // Simuler le swap dans currentAssignments pour recalculer la pénalité totale
+          const originalA1SiteId = a1.site_id;
+          const originalA2SiteId = a2.site_id;
+          a1.site_id = a2.site_id;
+          a2.site_id = originalA1SiteId;
+          
+          // Calculer pénalité fermeture APRÈS swap (pour TOUS les sites avec fermeture)
+          const closingPenaltyAfter = calculateTotalClosingPenalty();
+          
+          // Restaurer les valeurs originales
+          a1.site_id = originalA1SiteId;
+          a2.site_id = originalA2SiteId;
           
           const scoreAfter = 
-            calculateScore(a1, a2.secretaire_id) + 
+            calculateScore(a1, a2.secretaire_id) +
             calculateScore(a2, a1.secretaire_id) +
             calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, a1.secretaire_id) +
             calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, a2.secretaire_id) +
@@ -642,10 +691,8 @@ serve(async (req) => {
             const m1 = secretaryMetrics.get(sec1.id)!;
             const m2 = secretaryMetrics.get(sec2.id)!;
             
-            // Calculer pénalité fermeture AVANT swap
-            const closingPenaltyBefore = 
-              (s1Matin.type_assignation === 'site' && s1Matin.site_id ? validateClosingRequirement(date, s1Matin.site_id).penalty : 0) +
-              (s2Matin.type_assignation === 'site' && s2Matin.site_id ? validateClosingRequirement(date, s2Matin.site_id).penalty : 0);
+            // Calculer pénalité fermeture AVANT swap (pour TOUS les sites avec fermeture)
+            const closingPenaltyBefore = calculateTotalClosingPenalty();
             
             const scoreBefore = 
               calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
@@ -700,10 +747,25 @@ serve(async (req) => {
               afterContinuityBonus += 600; // 300*2 pour sec2
             }
             
-            // Calculer pénalité fermeture APRÈS swap
-            const closingPenaltyAfter = 
-              (s2Matin.type_assignation === 'site' && s2Matin.site_id ? validateClosingRequirement(date, s2Matin.site_id).penalty : 0) +
-              (s1Matin.type_assignation === 'site' && s1Matin.site_id ? validateClosingRequirement(date, s1Matin.site_id).penalty : 0);
+            // Simuler le swap dans currentAssignments pour recalculer la pénalité totale
+            const originalS1MatinSiteId = s1Matin.site_id;
+            const originalS1ApremSiteId = s1Aprem.site_id;
+            const originalS2MatinSiteId = s2Matin.site_id;
+            const originalS2ApremSiteId = s2Aprem.site_id;
+            
+            s1Matin.site_id = s2Matin.site_id;
+            s1Aprem.site_id = s2Aprem.site_id;
+            s2Matin.site_id = originalS1MatinSiteId;
+            s2Aprem.site_id = originalS1ApremSiteId;
+            
+            // Calculer pénalité fermeture APRÈS swap (pour TOUS les sites avec fermeture)
+            const closingPenaltyAfter = calculateTotalClosingPenalty();
+            
+            // Restaurer les valeurs originales
+            s1Matin.site_id = originalS1MatinSiteId;
+            s1Aprem.site_id = originalS1ApremSiteId;
+            s2Matin.site_id = originalS2MatinSiteId;
+            s2Aprem.site_id = originalS2ApremSiteId;
             
             const scoreAfter = 
               calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
