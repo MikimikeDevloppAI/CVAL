@@ -107,9 +107,13 @@ serve(async (req) => {
       // BONUS admin pour prefered_admin=true (1ère et 2ème assignation)
       const sec = secretaires.find(s => s.id === secretaireId);
       if (sec?.prefered_admin) {
-        if (adminCount === 1) penalty += 1000;
-        else if (adminCount === 2) penalty += 1000;
+        if (adminCount === 1) penalty += 3000;
+        else if (adminCount === 2) penalty += 3000;
         // Au-delà de 2, pas de bonus = pénalité normale s'applique
+      } else {
+        // PÉNALITÉS pour non-prefered_admin (dès la 1ère admin)
+        if (adminCount === 1) penalty -= 800;
+        else if (adminCount === 2) penalty -= 1200;
       }
       
       // Pénalité changement de site (augmentée)
@@ -843,8 +847,24 @@ serve(async (req) => {
       // Afficher les métriques avant/après pour diagnostic
       const m1 = secretaryMetrics.get(best.secretaire_1)!;
       const m2 = secretaryMetrics.get(best.secretaire_2)!;
+      const sec1 = secretaires.find(s => s.id === best.secretaire_1);
+      const sec2 = secretaires.find(s => s.id === best.secretaire_2);
+      
       console.log(`   Avant - Sec1: admin=${m1.adminCount}, changes=${m1.siteChanges}, espl=${m1.esplanadeCount}`);
       console.log(`   Avant - Sec2: admin=${m2.adminCount}, changes=${m2.siteChanges}, espl=${m2.esplanadeCount}`);
+      
+      // Détection swap admin pour diagnostic
+      const a1 = currentAssignments[best.idx_1];
+      const a2 = currentAssignments[best.idx_2];
+      const isAdminSwap = (a1.type_assignation === 'administratif' || a2.type_assignation === 'administratif');
+      
+      if (isAdminSwap) {
+        console.log(`\n🔍 SWAP ADMIN DÉTECTÉ:`);
+        console.log(`   Sec1: ${sec1?.first_name} ${sec1?.name}, prefered_admin=${sec1?.prefered_admin}, admin=${m1.adminCount}→${a2.type_assignation === 'administratif' ? m1.adminCount + 1 : m1.adminCount - 1}`);
+        console.log(`   Sec2: ${sec2?.first_name} ${sec2?.name}, prefered_admin=${sec2?.prefered_admin}, admin=${m2.adminCount}→${a1.type_assignation === 'administratif' ? m2.adminCount + 1 : m2.adminCount - 1}`);
+        console.log(`   Type swap: ${a1.type_assignation} ↔ ${a2.type_assignation}`);
+        console.log(`   Gain: +${best.gain.toFixed(0)}`);
+      }
       
       // Appliquer l'échange EN MÉMOIRE
       if (best.type === 'half_day') {
@@ -879,6 +899,34 @@ serve(async (req) => {
     }
     
     console.log(`\n✅ Phase swap terminée: ${totalSwaps} échanges appliqués, gain total: +${totalGain.toFixed(0)}`);
+    
+    // DIAGNOSTIC FINAL: Recalculer les métriques finales
+    const finalSecretaryMetrics = new Map<string, {
+      adminCount: number,
+      prefered_admin: boolean,
+      name: string
+    }>();
+    
+    for (const sec of eligibleSecretaires) {
+      const assignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
+      const adminCount = assignments.filter((a: any) => a.type_assignation === 'administratif').length;
+      
+      finalSecretaryMetrics.set(sec.id, {
+        adminCount,
+        prefered_admin: sec.prefered_admin || false,
+        name: `${sec.first_name || ''} ${sec.name || ''}`.trim()
+      });
+    }
+    
+    // DIAGNOSTIC FINAL: Top 5 admin par secrétaire
+    console.log("\n📊 Top 5 secrétaires avec le plus d'admin:");
+    const adminCounts = Array.from(finalSecretaryMetrics.values())
+      .sort((a, b) => b.adminCount - a.adminCount)
+      .slice(0, 5);
+    
+    adminCounts.forEach((item, idx) => {
+      console.log(`   ${idx + 1}. ${item.name}: ${item.adminCount} admin (prefered_admin=${item.prefered_admin})`);
+    });
     
     // INSERTION FINALE dans la DB
     console.log("\n💾 Insertion des assignations optimisées...");
