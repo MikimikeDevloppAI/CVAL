@@ -1283,10 +1283,9 @@ serve(async (req) => {
           // On crée la variable admin pour toutes les secrétaires ayant une capacité
           // La contrainte unique_* garantira qu'elle ne peut être assignée qu'à un seul type (bloc/site/admin)
 
-          // Calculer le score avec pénalité progressive (identique pour toutes)
-          let score = 100; // Base admin
-          const count = adminAssignmentCount.get(sec.id) || 0;
-          score -= (count + 1) * 5; // Pénalité progressive pour toutes
+          // Score de base uniforme pour toutes les secrétaires
+          // La pénalité progressive sera appliquée via les contraintes soft
+          let score = 100;
 
           const varName = `z_${sec.id}_${date}_${periode}`;
           model.variables[varName] = { score };
@@ -1308,9 +1307,6 @@ serve(async (req) => {
             model.constraints[uniqueConstraint] = { max: 1 };
           }
           model.variables[varName][uniqueConstraint] = 1;
-
-          // Incrémenter le compteur pour la pénalité progressive
-          adminAssignmentCount.set(sec.id, (adminAssignmentCount.get(sec.id) || 0) + 1);
         }
       }
     }
@@ -1341,13 +1337,15 @@ serve(async (req) => {
       const activationConstraint = `activation_admin_${sec.id}`;
       model.constraints[activationConstraint] = { max: 0 };
       
-      // La variable d'activation a un coefficient négatif
-      model.variables[activationVarName][activationConstraint] = -1;
+      // La variable d'activation a un coefficient POSITIF
+      model.variables[activationVarName][activationConstraint] = 1;
 
-      // Toutes les variables admin de cette secrétaire ont un coefficient positif
+      // Toutes les variables admin de cette secrétaire ont un coefficient NÉGATIF
+      // Cela donne : has_admin_X - sum(z_X_date_periode) <= 0
+      // Donc : has_admin_X <= sum(z_X_date_periode)
       for (const assign of assignments) {
         if (assign.type === "admin" && assign.secretaire_id === sec.id) {
-          model.variables[assign.varName][activationConstraint] = 1;
+          model.variables[assign.varName][activationConstraint] = -1;
         }
       }
     }
@@ -1355,9 +1353,74 @@ serve(async (req) => {
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
 
     // ============================================================
-    // PHASE 1D-TER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
+    // PHASE 1D-BIS-2: CONTRAINTES SOFT POUR PÉNALITÉS ADMIN
     // ============================================================
-    console.log("\n--- PHASE 1D-TER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
+    console.log("\n--- PHASE 1D-BIS-2: CONTRAINTES SOFT PÉNALITÉS ADMIN ---");
+
+    let adminPenaltyVariableCount = 0;
+
+    for (const sec of secretaires) {
+      // Compter combien de variables admin cette secrétaire a
+      const adminVars = assignments.filter(
+        a => a.type === "admin" && a.secretaire_id === sec.id
+      );
+      
+      if (adminVars.length === 0) continue;
+
+      // Variable de comptage : combien de demi-journées admin sont assignées
+      const countVarName = `admin_count_${sec.id}`;
+      model.variables[countVarName] = { score: 0 }; // Pas de score direct
+      model.ints[countVarName] = 1;
+      variableCount++;
+
+      // Contrainte : admin_count_X = sum(z_X_date_periode)
+      const countConstraint = `count_admin_${sec.id}`;
+      model.constraints[countConstraint] = { equal: 0 };
+      model.variables[countVarName][countConstraint] = 1;
+      
+      for (const assign of adminVars) {
+        model.variables[assign.varName][countConstraint] = -1;
+      }
+
+      // Créer des variables de pénalité par palier
+      // Palier 0 : 0 admin → pas de pénalité (0 points)
+      // Palier 1 : 1 admin → -5 points
+      // Palier 2 : 2 admin → -10 points supplémentaires (total -15)
+      // Palier 3 : 3 admin → -15 points supplémentaires (total -30)
+      // Palier 4+ : 4+ admin → -20 points par admin supplémentaire
+      
+      const maxLevels = 5;
+      for (let level = 1; level <= maxLevels; level++) {
+        const penaltyVarName = `admin_penalty_${sec.id}_${level}`;
+        
+        // Calculer la pénalité pour ce palier
+        let penalty;
+        if (level === 1) penalty = -5;
+        else if (level === 2) penalty = -10;
+        else if (level === 3) penalty = -15;
+        else penalty = -20;
+        
+        model.variables[penaltyVarName] = { score: penalty };
+        model.ints[penaltyVarName] = 1;
+        variableCount++;
+        adminPenaltyVariableCount++;
+
+        // Contrainte : penalty_X_level <= admin_count_X - (level - 1)
+        // Si admin_count_X >= level, alors penalty_X_level peut être 1
+        // Sinon, penalty_X_level doit être 0
+        const penaltyConstraint = `penalty_admin_${sec.id}_${level}`;
+        model.constraints[penaltyConstraint] = { max: -(level - 1) };
+        model.variables[penaltyVarName][penaltyConstraint] = 1;
+        model.variables[countVarName][penaltyConstraint] = -1;
+      }
+    }
+
+    console.log(`✓ ${adminPenaltyVariableCount} variables de pénalité admin créées`);
+
+    // ============================================================
+    // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
+    // ============================================================
+    console.log("\n--- PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
     
     let mandatoryAssignmentCount = 0;
     for (const sec of secretaires) {
