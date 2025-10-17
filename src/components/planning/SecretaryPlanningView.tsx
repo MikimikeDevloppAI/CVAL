@@ -114,7 +114,8 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
           *,
           secretaire:secretaires(first_name, name),
           site:sites(nom),
-          bloc:planning_genere_bloc_operatoire(salle_assignee)
+          bloc:planning_genere_bloc_operatoire(salle_assignee),
+          besoin_operation:besoins_operations(nom)
         `)
         .gte('date', startDateStr)
         .lte('date', endDateStr)
@@ -200,7 +201,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
             is_3f: assignment.is_3f,
             ordre: assignment.ordre,
             besoin_operation_id: assignment.besoin_operation_id,
-            besoin_operation_nom: undefined,
+            besoin_operation_nom: assignment.besoin_operation?.nom,
             salle_assignee: assignment.bloc?.salle_assignee
           };
 

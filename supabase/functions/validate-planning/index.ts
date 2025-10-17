@@ -69,11 +69,12 @@ serve(async (req) => {
         is_1r,
         is_2f,
         is_3f,
-        type_besoin_bloc,
+        besoin_operation_id,
         planning_genere_bloc_operatoire_id,
         secretaire:secretaires!inner(first_name, name),
         site:sites(nom),
-        bloc:planning_genere_bloc_operatoire(salle_assignee)
+        bloc:planning_genere_bloc_operatoire(salle_assignee),
+        besoin_operation:besoins_operations(nom)
       `)
       .eq('planning_id', planning_id)
       .not('secretaire_id', 'is', null)
@@ -114,7 +115,7 @@ serve(async (req) => {
         is2F: a.is_2f || false,
         is3F: a.is_3f || false,
         type: a.type_assignation || 'site',
-        typeBesoinBloc: a.type_besoin_bloc,
+        typeBesoinBloc: a.besoin_operation?.nom,
         salle: a.bloc?.salle_assignee
       });
     });

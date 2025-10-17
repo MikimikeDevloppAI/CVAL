@@ -450,25 +450,9 @@ function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: bo
       parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${assignment.salle}</span>`);
     }
     
-    // Badge pour le type de besoin avec la même couleur que la salle
+    // Badge pour le type de besoin (nom récupéré depuis besoins_operations)
     if (assignment.typeBesoinBloc) {
-      const labels: Record<string, string> = {
-        'instrumentaliste': 'Instrumentaliste',
-        'aide_de_salle': 'Aide De Salle',
-        'bloc_dermato_accueil': 'Accueil Dermato',
-        'bloc_ophtalmo_accueil': 'Accueil Ophtalmo',
-        'anesthesiste': 'Anesthésiste'
-      };
-      
-      // Fonction de formatage générique si le type n'est pas dans le mapping
-      const formatLabel = (str: string) => {
-        return str.split('_')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
-      };
-      
-      const label = labels[assignment.typeBesoinBloc] || formatLabel(assignment.typeBesoinBloc);
-      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${label}</span>`);
+      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${assignment.typeBesoinBloc}</span>`);
     }
     
     return parts.join('');
