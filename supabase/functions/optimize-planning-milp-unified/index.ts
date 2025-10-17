@@ -1352,43 +1352,6 @@ serve(async (req) => {
     console.log(`✓ ${activationVariableCount} variables d'activation créées`);
 
     // ============================================================
-    // PHASE 1D-BIS-2: SOFT CAP ADMIN (2 DEMI-JOURNÉES MAX)
-    // ============================================================
-    console.log("\n--- PHASE 1D-BIS-2: SOFT CAP ADMIN PAR SECRÉTAIRE ---");
-
-    let slackVariableCount = 0;
-    for (const sec of secretaires) {
-      // Récupérer les variables admin de cette secrétaire
-      const adminVars = assignments.filter(
-        (a) => a.type === "admin" && a.secretaire_id === sec.id
-      );
-      if (adminVars.length === 0) continue;
-
-      // Variable de slack continue : pénalité -500 par demi-journée au-delà de 2
-      const slackVar = `admin_over2_${sec.id}`;
-      model.variables[slackVar] = { score: -500 };
-      variableCount++;
-      slackVariableCount++;
-
-      // Contrainte de non-négativité pour le slack
-      const nonNegConstraint = `admin_over2_nonneg_${sec.id}`;
-      model.constraints[nonNegConstraint] = { min: 0 };
-      model.variables[slackVar][nonNegConstraint] = 1;
-
-      // Contrainte soft cap : sum(z_admin) - slack <= 2
-      // Si sum(z_admin) <= 2 : slack peut rester à 0 (pas de pénalité)
-      // Si sum(z_admin) > 2 : slack = sum(z_admin) - 2 (pénalité -500 par unité)
-      const capConstraint = `admin_soft_cap_${sec.id}`;
-      model.constraints[capConstraint] = { max: 2 };
-      for (const assign of adminVars) {
-        model.variables[assign.varName][capConstraint] = 1;
-      }
-      model.variables[slackVar][capConstraint] = -1;
-    }
-
-    console.log(`✓ ${slackVariableCount} variables de slack admin créées`);
-
-    // ============================================================
     // PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE
     // ============================================================
     console.log("\n--- PHASE 1D-QUATER: CONTRAINTES D'ASSIGNATION OBLIGATOIRE ---");
@@ -1506,26 +1469,6 @@ serve(async (req) => {
       solution = solver.Solve(model);
       console.log(`Statut: ${solution.feasible ? "FAISABLE ✓" : "INFAISABLE ❌"}`);
       console.log(`Score optimal: ${solution.result || 0}`);
-
-      // Logging ciblé des pénalités admin pour validation
-      console.log("\n📊 Diagnostic Admin Assignments:");
-      const keySecs = secretaires.filter((s: any) => 
-        ['Christine', 'Lambelet'].some(name => 
-          s.first_name?.includes(name) || s.name?.includes(name)
-        )
-      ).slice(0, 3); // Max 3 secrétaires pour le logging
-      
-      for (const sec of keySecs) {
-        const adminVars = assignments.filter(
-          (a) => a.type === "admin" && a.secretaire_id === sec.id
-        );
-        const totalAdmin = adminVars.reduce((sum, a) => sum + (solution[a.varName] || 0), 0);
-        const slackVar = `admin_over2_${sec.id}`;
-        const slackValue = solution[slackVar] || 0;
-        const penalty = slackValue * 500;
-        
-        console.log(`  ${sec.first_name} ${sec.name}: ${totalAdmin.toFixed(1)} admin demi-journées, slack=${slackValue.toFixed(2)}, pénalité=${penalty}`);
-      }
     } catch (error: any) {
       console.error("❌ Erreur lors de la résolution MILP:", error);
       return new Response(
