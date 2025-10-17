@@ -1633,8 +1633,241 @@ serve(async (req) => {
     
     console.log(`\n✅ Phase 3: ${phase3SwapsCount} swap(s) pour préférence admin`);
     
-    // Phases 4-6 et équilibrage admin désactivés pour éviter les changements de site inutiles
-    const phase4SwapsCount = 0;
+    // ========== PHASE 4: OPTIMISATION PORT-EN-TRUIE ==========
+    console.log("\n🏥 ========== PHASE 4: OPTIMISATION PORT-EN-TRUIE ==========");
+    console.log("Objectif: Échanger celles à Port-en-Truie sans préférence 1 avec celles qui le préfèrent ou sont déjà 2x/semaine");
+    
+    let phase4SwapsCount = 0;
+    const allDatesPhase4 = Array.from(new Set(currentAssignments.map((a: any) => a.date))).sort() as string[];
+    
+    // Identifier toutes les secrétaires assignées à Port-en-Truie
+    const portAssignments = currentAssignments.filter((a: any) =>
+      a.type_assignation === 'site' &&
+      a.site_id === PORT_EN_TRUIE_ID &&
+      !hasPhysicianLink(a)
+    );
+    
+    console.log(`📊 ${portAssignments.length} assignation(s) à Port-en-Truie (sans lien médecin)`);
+    
+    // Compter combien de fois chaque secrétaire est à Port-en-Truie dans la semaine
+    const portCountByWeek = new Map<string, Map<string, number>>();
+    for (const pa of portAssignments) {
+      const secId = pa.secretaire_id;
+      // Calculer la semaine (on prend le lundi de la semaine)
+      const date = new Date(pa.date);
+      const dayOfWeek = date.getDay();
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      const weekKey = monday.toISOString().split('T')[0];
+      
+      if (!portCountByWeek.has(secId)) portCountByWeek.set(secId, new Map());
+      const weekMap = portCountByWeek.get(secId)!;
+      weekMap.set(weekKey, (weekMap.get(weekKey) || 0) + 1);
+    }
+    
+    // Pour chaque assignation Port-en-Truie, déterminer si elle devrait être échangée
+    for (const portAssignment of portAssignments) {
+      const secId = portAssignment.secretaire_id;
+      const sec = secretaires.find((s: any) => s.id === secId);
+      if (!sec) continue;
+      
+      // Vérifier la préférence pour Port-en-Truie
+      const sitesData = secretairesSitesMap.get(secId) || [];
+      const portSiteData = sitesData.find((s: any) => s.site_id === PORT_EN_TRUIE_ID);
+      const portPriority = portSiteData 
+        ? (typeof portSiteData.priorite === 'string' ? parseInt(portSiteData.priorite, 10) : portSiteData.priorite)
+        : 999;
+      
+      // Si préférence 1, garder cette assignation
+      if (portPriority === 1) {
+        console.log(`  ✓ ${getSecretaryName(secId)} ${portAssignment.date} ${portAssignment.periode}: préf 1, garder`);
+        continue;
+      }
+      
+      // Compter le nombre de fois à Port-en-Truie cette semaine
+      const date = new Date(portAssignment.date);
+      const dayOfWeek = date.getDay();
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      const weekKey = monday.toISOString().split('T')[0];
+      const portCountThisWeek = portCountByWeek.get(secId)?.get(weekKey) || 0;
+      
+      console.log(`\n👤 ${getSecretaryName(secId)} @ Port-en-Truie ${portAssignment.date} ${portAssignment.periode}`);
+      console.log(`  📊 Préférence: ${portPriority}, Présence semaine: ${portCountThisWeek}x`);
+      
+      // Si déjà 2 fois à Port-en-Truie cette semaine (4 demi-journées ou 2 journées), permettre l'échange
+      const shouldSwap = portPriority !== 1 || portCountThisWeek >= 4;
+      
+      if (!shouldSwap) {
+        console.log(`  ⏭️ Skip: préférence OK et pas 2x/semaine`);
+        continue;
+      }
+      
+      // Vérifier si cette assignation fait partie d'une journée bloquée par fermeture
+      const dayAssignments = getDayAssignments(secId, portAssignment.date);
+      const isFullDay = dayAssignments.matin && dayAssignments.aprem && 
+                        dayAssignments.matin.site_id === PORT_EN_TRUIE_ID &&
+                        dayAssignments.aprem.site_id === PORT_EN_TRUIE_ID;
+      const isProtected = portAssignment.protectedForClosure;
+      
+      // Chercher des candidats pour l'échange
+      // Candidat type 1: secrétaire avec préférence 1 pour Port-en-Truie
+      // Candidat type 2: autre secrétaire (si la personne actuelle est déjà 2x/semaine)
+      
+      const candidateAssignments = currentAssignments.filter((c: any) =>
+        c.date === portAssignment.date &&
+        c.periode === portAssignment.periode &&
+        c.type_assignation === 'site' &&
+        c.secretaire_id !== secId &&
+        c.site_id !== PORT_EN_TRUIE_ID &&
+        !hasPhysicianLink(c) &&
+        !c.protectedForClosure // Ne pas toucher aux assignations protégées par fermeture
+      );
+      
+      console.log(`  🔍 ${candidateAssignments.length} candidat(s) potentiel(s) pour échange`);
+      
+      let bestCandidate: any = null;
+      let bestDelta = -Infinity;
+      let bestReason = '';
+      
+      for (const candidate of candidateAssignments) {
+        const candSecId = candidate.secretaire_id;
+        const candSec = secretaires.find((s: any) => s.id === candSecId);
+        if (!candSec) continue;
+        
+        // Vérifier si le candidat préfère Port-en-Truie
+        const candSitesData = secretairesSitesMap.get(candSecId) || [];
+        const candPortSiteData = candSitesData.find((s: any) => s.site_id === PORT_EN_TRUIE_ID);
+        const candPortPriority = candPortSiteData
+          ? (typeof candPortSiteData.priorite === 'string' ? parseInt(candPortSiteData.priorite, 10) : candPortSiteData.priorite)
+          : 999;
+        
+        // Vérifier si la secrétaire actuelle peut aller sur le site du candidat
+        const currentCanGoToCandSite = canGoToSite(secId, candidate.site_id);
+        if (!currentCanGoToCandSite) {
+          console.log(`  ❌ ${getSecretaryName(candSecId)}: ${getSecretaryName(secId)} ne peut pas aller sur ${getSiteName(candidate.site_id)}`);
+          continue;
+        }
+        
+        // Critère d'échange
+        // 1. Si le candidat préfère Port-en-Truie (priorité 1), c'est un bon échange
+        // 2. Si la personne actuelle est déjà 2x/semaine à Port-en-Truie, on peut échanger avec n'importe qui
+        const isGoodSwap = candPortPriority === 1 || portCountThisWeek >= 4;
+        
+        if (!isGoodSwap) {
+          console.log(`  ⏭️ ${getSecretaryName(candSecId)}: pas préf 1 Port-en-Truie et secrétaire actuelle <2x/semaine`);
+          continue;
+        }
+        
+        // Vérifier les contraintes Phase 1
+        if (wouldCreatePhase1Violation(portAssignment, candidate)) {
+          console.log(`  ❌ ${getSecretaryName(candSecId)}: violerait Phase 1`);
+          continue;
+        }
+        
+        // Vérifier les contraintes Phase 2 (fermeture)
+        if (wouldBreakClosureConstraint(portAssignment, candidate)) {
+          console.log(`  ❌ ${getSecretaryName(candSecId)}: casserait contrainte fermeture`);
+          continue;
+        }
+        
+        // Vérifier qu'on ne casse pas les préférences admin (Phase 3)
+        // Si le candidat a prefered_admin, on ne veut pas lui enlever de l'admin
+        if (candSec.prefered_admin) {
+          const candAdminCount = currentAssignments.filter((a: any) =>
+            a.secretaire_id === candSecId && a.type_assignation === 'administratif'
+          ).length;
+          if (candAdminCount >= 2 && candidate.type_assignation !== 'administratif') {
+            console.log(`  ❌ ${getSecretaryName(candSecId)}: prefered_admin avec ${candAdminCount} admin, ne pas toucher`);
+            continue;
+          }
+        }
+        
+        // Vérifier les médecins prioritaires
+        if (!canCandidateReplaceCurrentOnPriorityDoctors(secId, candSecId, portAssignment)) {
+          console.log(`  ❌ ${getSecretaryName(candSecId)}: ne peut pas remplacer sur médecins prioritaires (Port-en-Truie)`);
+          continue;
+        }
+        if (!canCandidateReplaceCurrentOnPriorityDoctors(candSecId, secId, candidate)) {
+          console.log(`  ❌ ${getSecretaryName(candSecId)}: ne peut pas remplacer sur médecins prioritaires (site candidat)`);
+          continue;
+        }
+        
+        // Simuler le swap pour calculer le score
+        const scoreBefore = calculateTotalScore();
+        
+        const tempSec = portAssignment.secretaire_id;
+        const tempCand = candidate.secretaire_id;
+        portAssignment.secretaire_id = tempCand;
+        candidate.secretaire_id = tempSec;
+        
+        const scoreAfter = calculateTotalScore();
+        const delta = scoreAfter - scoreBefore;
+        
+        // Revert
+        portAssignment.secretaire_id = tempSec;
+        candidate.secretaire_id = tempCand;
+        
+        // Calculer une raison pour ce swap
+        let reason = '';
+        if (candPortPriority === 1) {
+          reason = `préf1 Port-en-Truie`;
+        } else if (portCountThisWeek >= 4) {
+          reason = `déjà ${portCountThisWeek}x/semaine Port-en-Truie`;
+        }
+        
+        // Log avec info préférences
+        const currentSitePref = sitesData.find((s: any) => s.site_id === candidate.site_id);
+        const currentSitePrio = currentSitePref
+          ? (typeof currentSitePref.priorite === 'string' ? parseInt(currentSitePref.priorite, 10) : currentSitePref.priorite)
+          : 999;
+        
+        console.log(`  🔄 ${getSecretaryName(candSecId)}: ${reason} | Port→pref${candPortPriority} vs ${getSiteName(candidate.site_id)}→pref${currentSitePrio} | Δ=${delta.toFixed(0)}`);
+        
+        if (delta > bestDelta) {
+          bestDelta = delta;
+          bestCandidate = candidate;
+          bestReason = reason;
+        }
+      }
+      
+      // Appliquer le meilleur swap si trouvé et qu'il améliore le score
+      if (bestCandidate && bestDelta > 0) {
+        const tempSec = portAssignment.secretaire_id;
+        const tempCand = bestCandidate.secretaire_id;
+        portAssignment.secretaire_id = tempCand;
+        bestCandidate.secretaire_id = tempSec;
+        
+        console.log(`  ✅ Swap appliqué avec ${getSecretaryName(tempCand)}: ${bestReason} | Δ=${bestDelta.toFixed(0)}`);
+        phase4SwapsCount++;
+        
+        // Mettre à jour le compteur de Port-en-Truie pour la semaine
+        const date = new Date(portAssignment.date);
+        const dayOfWeek = date.getDay();
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        const weekKey = monday.toISOString().split('T')[0];
+        
+        // Décrémenter pour l'ancienne secrétaire
+        if (portCountByWeek.has(tempSec)) {
+          const weekMap = portCountByWeek.get(tempSec)!;
+          weekMap.set(weekKey, (weekMap.get(weekKey) || 1) - 1);
+        }
+        
+        // Incrémenter pour la nouvelle secrétaire
+        if (!portCountByWeek.has(tempCand)) portCountByWeek.set(tempCand, new Map());
+        const candWeekMap = portCountByWeek.get(tempCand)!;
+        candWeekMap.set(weekKey, (candWeekMap.get(weekKey) || 0) + 1);
+      } else if (bestCandidate) {
+        console.log(`  ⏭️ Meilleur swap trouvé mais Δ=${bestDelta.toFixed(0)} ≤ 0, skip`);
+      } else {
+        console.log(`  ℹ️ Aucun candidat valide trouvé pour échange`);
+      }
+    }
+    
+    console.log(`\n✅ Phase 4: ${phase4SwapsCount} swap(s) Port-en-Truie appliqué(s)`);
+    
+    // Phases 5-6 et équilibrage admin désactivés pour éviter les changements de site inutiles
     const phase5SwapsCount = 0;
     const phase6SwapsCount = 0;
     const adminPhaseSwapsCount = 0;
