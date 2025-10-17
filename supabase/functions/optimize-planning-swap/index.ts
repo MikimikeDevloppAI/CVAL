@@ -796,8 +796,16 @@ serve(async (req) => {
             c.site_id === site.id &&
             c.secretaire_id !== secId
           );
+          const adminCandidates = currentAssignments.filter((c: any) =>
+            c.date === date &&
+            c.periode === missingPeriod &&
+            c.type_assignation === 'administratif' &&
+            c.secretaire_id !== secId &&
+            canGoToSite(c.secretaire_id, site.id)
+          );
+          const candidates = [...siteCandidates, ...adminCandidates];
           
-          for (const candidate of siteCandidates) {
+          for (const candidate of candidates) {
             const currentAssignment = currentAssignments.find((a: any) =>
               a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
             );
@@ -827,10 +835,70 @@ serve(async (req) => {
             currentAssignment.secretaire_id = tempA;
             candidate.secretaire_id = tempB;
             
-            if (improvement > 0 && delta >= -150) {
+            if (improvement > 0) {
               currentAssignment.secretaire_id = tempB;
               candidate.secretaire_id = tempA;
               
+              console.log(`  ✅ Swap même site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, improvement=+${improvement}`);
+              phase2SwapsCount++;
+              break;
+            }
+          }
+        }
+
+        // Tentative de swaps simples sur le même site (cas aprem only)
+        for (const secId of partialAfternoon) {
+          const missingPeriod = 'matin';
+          const siteCandidates = currentAssignments.filter((c: any) =>
+            c.date === date &&
+            c.periode === missingPeriod &&
+            c.type_assignation === 'site' &&
+            c.site_id === site.id &&
+            c.secretaire_id !== secId
+          );
+          const adminCandidates = currentAssignments.filter((c: any) =>
+            c.date === date &&
+            c.periode === missingPeriod &&
+            c.type_assignation === 'administratif' &&
+            c.secretaire_id !== secId &&
+            canGoToSite(c.secretaire_id, site.id)
+          );
+          const candidates = [...siteCandidates, ...adminCandidates];
+
+          for (const candidate of candidates) {
+            const currentAssignment = currentAssignments.find((a: any) =>
+              a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
+            );
+
+            if (!currentAssignment) continue;
+
+            if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
+            if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
+
+            const scoreBefore = calculateTotalScore();
+            const baselineBefore = getClosureSnapshot();
+            const baselineKey = `${site.id}|${date}`;
+            const baselineFullDaysBefore = baselineBefore.get(baselineKey)?.fullDayCount || 0;
+
+            const tempA = currentAssignment.secretaire_id;
+            const tempB = candidate.secretaire_id;
+            currentAssignment.secretaire_id = tempB;
+            candidate.secretaire_id = tempA;
+
+            const scoreAfter = calculateTotalScore();
+            const baselineAfter = getClosureSnapshot();
+            const baselineFullDaysAfter = baselineAfter.get(baselineKey)?.fullDayCount || 0;
+
+            const delta = scoreAfter - scoreBefore;
+            const improvement = baselineFullDaysAfter - baselineFullDaysBefore;
+
+            currentAssignment.secretaire_id = tempA;
+            candidate.secretaire_id = tempB;
+
+            if (improvement > 0) {
+              currentAssignment.secretaire_id = tempB;
+              candidate.secretaire_id = tempA;
+
               console.log(`  ✅ Swap même site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, improvement=+${improvement}`);
               phase2SwapsCount++;
               break;
@@ -894,7 +962,7 @@ serve(async (req) => {
                 currentAssignment.secretaire_id = tempA;
                 candidate.secretaire_id = tempB;
 
-                if (improvement > 0 && delta >= -150) {
+                if (improvement > 0) {
                   currentAssignment.secretaire_id = tempB;
                   candidate.secretaire_id = tempA;
                   console.log(`  ✅ Swap inter-site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, +${improvement}`);
@@ -944,11 +1012,78 @@ serve(async (req) => {
                 currentAssignment.secretaire_id = tempA;
                 candidate.secretaire_id = tempB;
 
-                if (improvement > 0 && delta >= -150) {
+                if (improvement > 0) {
                   currentAssignment.secretaire_id = tempB;
                   candidate.secretaire_id = tempA;
                   console.log(`  ✅ Swap inter-site: ${getSecretaryName(tempA)} ↔ ${getSecretaryName(tempB)} (${missingPeriod}), Δ=${delta.toFixed(0)}, +${improvement}`);
                   phase2SwapsCount++;
+                  break;
+                }
+              }
+            }
+          }
+
+          // 3) Dernier recours: injecter une secrétaire admin sur les deux périodes
+          {
+            const matinSlots = currentAssignments.filter((a: any) =>
+              a.date === date && a.periode === 'matin' && a.type_assignation === 'site' && a.site_id === site.id
+            );
+            const apremSlots = currentAssignments.filter((a: any) =>
+              a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'site' && a.site_id === site.id
+            );
+
+            if (matinSlots.length > 0 && apremSlots.length > 0) {
+              const adminDualCandidates = secretaires
+                .map((s: any) => s.id)
+                .filter((secId: string) => {
+                  const hasMorningAdmin = currentAssignments.some((a: any) =>
+                    a.secretaire_id === secId && a.date === date && a.periode === 'matin' && a.type_assignation === 'administratif'
+                  );
+                  const hasAfternoonAdmin = currentAssignments.some((a: any) =>
+                    a.secretaire_id === secId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
+                  );
+                  return hasMorningAdmin && hasAfternoonAdmin && canGoToSite(secId, site.id);
+                });
+
+              for (const adminId of adminDualCandidates) {
+                const mAdmin = currentAssignments.find((a: any) =>
+                  a.secretaire_id === adminId && a.date === date && a.periode === 'matin' && a.type_assignation === 'administratif'
+                );
+                const aAdmin = currentAssignments.find((a: any) =>
+                  a.secretaire_id === adminId && a.date === date && a.periode === 'apres_midi' && a.type_assignation === 'administratif'
+                );
+
+                const mSite = matinSlots.find((a: any) => a.secretaire_id !== adminId);
+                const aSite = apremSlots.find((a: any) => a.secretaire_id !== adminId);
+
+                if (!mAdmin || !aAdmin || !mSite || !aSite) continue;
+
+                if (wouldCreatePhase1Violation(mSite, mAdmin)) continue;
+                if (wouldCreatePhase1Violation(aSite, aAdmin)) continue;
+                if (wouldBreakClosureConstraint(mSite, mAdmin)) continue;
+                if (wouldBreakClosureConstraint(aSite, aAdmin)) continue;
+
+                const baselineBefore = getClosureSnapshot();
+                const baselineKey = `${site.id}|${date}`;
+                const before = baselineBefore.get(baselineKey)?.fullDayCount || 0;
+
+                const t1A = mSite.secretaire_id, t1B = mAdmin.secretaire_id;
+                mSite.secretaire_id = t1B; mAdmin.secretaire_id = t1A;
+                const t2A = aSite.secretaire_id, t2B = aAdmin.secretaire_id;
+                aSite.secretaire_id = t2B; aAdmin.secretaire_id = t2A;
+
+                const baselineAfter = getClosureSnapshot();
+                const after = baselineAfter.get(baselineKey)?.fullDayCount || 0;
+
+                // revert
+                mSite.secretaire_id = t1A; mAdmin.secretaire_id = t1B;
+                aSite.secretaire_id = t2A; aAdmin.secretaire_id = t2B;
+
+                if (after > before && after >= 2) {
+                  mSite.secretaire_id = t1B; mAdmin.secretaire_id = t1A;
+                  aSite.secretaire_id = t2B; aAdmin.secretaire_id = t2A;
+                  console.log(`  ✅ Double-swap admin → site: ${getSecretaryName(adminId)} affectée matin+après-midi sur ${getSiteName(site.id)}`);
+                  phase2SwapsCount += 2;
                   break;
                 }
               }
