@@ -25,6 +25,7 @@ interface Secretaire {
   name?: string;
   email?: string;
   phone_number?: string;
+  prefered_admin?: boolean;
   sites_assignes_details?: { nom: string; priorite?: string }[];
   medecins_assignes_details?: { first_name: string; name: string; priorite?: string }[];
   horaires_base_secretaires?: { 
@@ -84,6 +85,7 @@ export default function SecretairesPage() {
           name,
           email,
           phone_number,
+          prefered_admin,
           profile_id,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
