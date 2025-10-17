@@ -925,46 +925,49 @@ serve(async (req) => {
         let bestCandidate: any = null;
         let bestDelta = -Infinity;
         
-        for (const candidate of adminCandidates) {
-          if (wouldCreatePhase1Violation(nonAdmin, candidate)) continue;
-          if (wouldBreakClosureConstraint(nonAdmin, candidate)) continue;
-          
-          // Ne pas toucher aux assignations protégées Phase 2
-          if (nonAdmin.protectedForClosure || candidate.protectedForClosure) continue;
-          
-          const scoreBefore = calculateTotalScore();
-          
-          // Pénalité -4000 pour changement de site dans la même journée
-          let siteChangePenalty = 0;
-          const { matin: nonAdminMatin, aprem: nonAdminAprem } = getDayAssignments(sec.id, nonAdmin.date);
-          
-          if (nonAdmin.periode === 'matin' && nonAdminAprem) {
-            if (nonAdminAprem.type_assignation === 'site' && candidate.site_id !== nonAdminAprem.site_id) {
-              siteChangePenalty -= 4000;
+            for (const candidate of adminCandidates) {
+              if (wouldCreatePhase1Violation(nonAdmin, candidate)) continue;
+              if (wouldBreakClosureConstraint(nonAdmin, candidate)) continue;
+              
+              // Ne pas toucher aux assignations protégées Phase 2
+              if (nonAdmin.protectedForClosure || candidate.protectedForClosure) continue;
+              
+              const scoreBefore = calculateTotalScore();
+              
+              // Pénalité -4000 pour changement de site dans la même journée
+              let siteChangePenalty = 0;
+              const { matin: nonAdminMatin, aprem: nonAdminAprem } = getDayAssignments(sec.id, nonAdmin.date);
+              
+              if (nonAdmin.periode === 'matin' && nonAdminAprem) {
+                if (nonAdminAprem.type_assignation === 'site' && candidate.site_id !== nonAdminAprem.site_id) {
+                  siteChangePenalty -= 4000;
+                }
+              } else if (nonAdmin.periode === 'apres_midi' && nonAdminMatin) {
+                if (nonAdminMatin.type_assignation === 'site' && candidate.site_id !== nonAdminMatin.site_id) {
+                  siteChangePenalty -= 4000;
+                }
+              }
+              
+              const tempA = nonAdmin.secretaire_id;
+              const tempB = candidate.secretaire_id;
+              nonAdmin.secretaire_id = tempB;
+              candidate.secretaire_id = tempA;
+              
+              // Vérification globale: ne pas casser Phase 2
+              const closureOK = validatePhase2Constraint();
+              
+              const scoreAfter = calculateTotalScore();
+              const baseDelta = scoreAfter - scoreBefore;
+              const delta = (closureOK ? baseDelta : -Infinity) + siteChangePenalty;
+              
+              nonAdmin.secretaire_id = tempA;
+              candidate.secretaire_id = tempB;
+              
+              if (delta > bestDelta) {
+                bestDelta = delta;
+                bestCandidate = candidate;
+              }
             }
-          } else if (nonAdmin.periode === 'apres_midi' && nonAdminMatin) {
-            if (nonAdminMatin.type_assignation === 'site' && candidate.site_id !== nonAdminMatin.site_id) {
-              siteChangePenalty -= 4000;
-            }
-          }
-          
-          const tempA = nonAdmin.secretaire_id;
-          const tempB = candidate.secretaire_id;
-          nonAdmin.secretaire_id = tempB;
-          candidate.secretaire_id = tempA;
-          
-          const scoreAfter = calculateTotalScore();
-          const baseDelta = scoreAfter - scoreBefore;
-          const delta = baseDelta + siteChangePenalty;
-          
-          nonAdmin.secretaire_id = tempA;
-          candidate.secretaire_id = tempB;
-          
-          if (delta > bestDelta) {
-            bestDelta = delta;
-            bestCandidate = candidate;
-          }
-        }
         
         if (bestCandidate && bestDelta >= -150) {
           const tempA = nonAdmin.secretaire_id;
