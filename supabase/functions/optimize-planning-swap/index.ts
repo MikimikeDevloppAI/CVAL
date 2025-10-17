@@ -352,17 +352,7 @@ serve(async (req) => {
             else if (prio === 3) totalScore += 1000;
           }
           
-          // Bonus continuité
-          const otherPeriod = assignment.periode === 'matin' ? 'apres_midi' : 'matin';
-          const otherAssignment = currentAssignments.find((a: any) =>
-            a.secretaire_id === assignment.secretaire_id &&
-            a.date === assignment.date &&
-            a.periode === otherPeriod &&
-            a.type_assignation === 'site' &&
-            a.site_id === assignment.site_id
-          );
-          
-          if (otherAssignment) totalScore += 300;
+          // Bonus continuité supprimé (comme demandé)
           
           // Score médecins
           const medecinsOnSite = besoinsEffectifs.filter(b =>
@@ -897,109 +887,103 @@ serve(async (req) => {
       return { swaps: totalSwaps, gain: totalGain, resolved: allResolved };
     };
     
-    // ========== PHASE 3: Admin pour prefered_admin ==========
+    // ========== PHASE 3: Admin pour prefered_admin (SYSTÈME DE SCORING) ==========
     
     const phase3_adminForPreferred = (): { swaps: number; gain: number } => {
-      console.log("\n🟡 PHASE 3 : Attribution admin pour prefered_admin");
+      console.log("\n🟡 PHASE 3 : Attribution admin pour prefered_admin (2 demi-journées GARANTIES)");
       
       const preferredAdminSecs = secretaires.filter((s: any) => s.prefered_admin);
       
       let totalSwaps = 0;
       let totalGain = 0;
       
-      // Helper pour tenter des swaps
-      const trySwapsForSecretary = (sec: any, minDelta: number, passName: string): number => {
-        const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
-        const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
+      // Fonction de scoring composite pour choisir le meilleur candidat
+      const calculateSwapScore = (
+        prefAdminId: string,
+        candidateAssignment: any,
+        siteAssignmentToSwap: any
+      ): number => {
+        let score = 0;
         
-        let swaps = 0;
-        let needed = 2 - adminCount;
+        // 1. Préférence site (le candidat va vers le site du prefered_admin)
+        const targetSiteId = siteAssignmentToSwap.site_id;
+        const candidateSitesData = secretairesSitesMap.get(candidateAssignment.secretaire_id) || [];
+        const candidateSitePref = candidateSitesData.find((s: any) => s.site_id === targetSiteId);
         
-        const swappableSiteAssignments = secAssignments.filter((a: any) =>
-          a.type_assignation === 'site' && !hasHighPriorityDoctor(a)
-        );
-        
-        for (const siteAssignment of swappableSiteAssignments) {
-          if (needed <= 0) break;
+        if (candidateSitePref) {
+          const prio = typeof candidateSitePref.priorite === 'string' 
+            ? parseInt(candidateSitePref.priorite, 10) 
+            : candidateSitePref.priorite;
           
-          const adminCandidates = currentAssignments.filter((candidate: any) =>
-            candidate.secretaire_id && // Pas de null
-            candidate.secretaire_id !== sec.id &&
-            candidate.date === siteAssignment.date &&
-            candidate.periode === siteAssignment.periode &&
-            candidate.type_assignation === 'administratif' &&
-            canGoToSite(candidate.secretaire_id, siteAssignment.site_id)
-          );
-          
-          const scoredSwaps = adminCandidates.map((candidate: any) => {
-            const originalSiteSecId = siteAssignment.secretaire_id;
-            const originalCandidateSecId = candidate.secretaire_id;
-            
-            // Check constraints
-            if (wouldCreatePhase1Violation(siteAssignment, candidate) ||
-                wouldBreakClosureConstraint(siteAssignment, candidate)) {
-              return { candidate, delta: -Infinity, originalCandidateSecId };
-            }
-            
-            // Check site changes: prevent if would increase for prefered_admin
-            const countSiteChangesBefore = (secId: string) => {
-              const dts = Array.from(new Set(currentAssignments.filter((a: any) => a.secretaire_id === secId).map((a: any) => a.date))) as string[];
-              let count = 0;
-              for (const d of dts) {
-                const { matin, aprem } = getDayAssignments(secId, d);
-                if (hasSiteChangeForPair(matin, aprem)) count++;
-              }
-              return count;
-            };
-            
-            const before1 = countSiteChangesBefore(sec.id);
-            const before2 = countSiteChangesBefore(originalCandidateSecId);
-            
-            const scoreBefore = calculateTotalScore();
-            
-            siteAssignment.secretaire_id = originalCandidateSecId;
-            candidate.secretaire_id = originalSiteSecId;
-            
-            const after1 = countSiteChangesBefore(sec.id);
-            const after2 = countSiteChangesBefore(originalCandidateSecId);
-            const scoreAfter = calculateTotalScore();
-            
-            siteAssignment.secretaire_id = originalSiteSecId;
-            candidate.secretaire_id = originalCandidateSecId;
-            
-            // Reject if increases total site changes
-            if ((after1 + after2) > (before1 + before2)) {
-              return { candidate, delta: -Infinity, originalCandidateSecId };
-            }
-            
-            return { candidate, delta: scoreAfter - scoreBefore, originalCandidateSecId };
-          }).filter((s: any) => s.delta >= minDelta && s.delta > -Infinity).sort((a: any, b: any) => b.delta - a.delta);
-          
-          if (scoredSwaps.length > 0) {
-            const best = scoredSwaps[0];
-            
-            const sec1Name = getSecretaryName(sec.id);
-            const sec2Name = getSecretaryName(best.originalCandidateSecId);
-            
-            const tempSecId = siteAssignment.secretaire_id;
-            siteAssignment.secretaire_id = best.candidate.secretaire_id;
-            best.candidate.secretaire_id = tempSecId;
-            
-            console.log(`      ✅ ${passName}: ${sec1Name} obtient admin le ${siteAssignment.date} ${siteAssignment.periode}`);
-            console.log(`         ↔ ${sec2Name}`);
-            console.log(`         Delta: ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(0)} points`);
-            swaps++;
-            totalGain += best.delta;
-            needed--;
-          }
+          if (prio === 1) score += 500;
+          else if (prio === 2) score += 200;
+          else if (prio === 3) score += 50;
         }
         
-        return swaps;
+        // 2. Changements de site (avant vs après swap)
+        const countSiteChanges = (secId: string) => {
+          const dts = Array.from(new Set(currentAssignments.filter((a: any) => a.secretaire_id === secId).map((a: any) => a.date))) as string[];
+          let count = 0;
+          for (const d of dts) {
+            const { matin, aprem } = getDayAssignments(secId, d);
+            if (hasSiteChangeForPair(matin, aprem)) count++;
+          }
+          return count;
+        };
+        
+        const before1 = countSiteChanges(prefAdminId);
+        const before2 = countSiteChanges(candidateAssignment.secretaire_id);
+        
+        // Simuler le swap
+        const originalSiteSecId = siteAssignmentToSwap.secretaire_id;
+        const originalCandidateSecId = candidateAssignment.secretaire_id;
+        
+        siteAssignmentToSwap.secretaire_id = originalCandidateSecId;
+        candidateAssignment.secretaire_id = originalSiteSecId;
+        
+        const after1 = countSiteChanges(prefAdminId);
+        const after2 = countSiteChanges(candidateAssignment.secretaire_id);
+        
+        // Restaurer
+        siteAssignmentToSwap.secretaire_id = originalSiteSecId;
+        candidateAssignment.secretaire_id = originalCandidateSecId;
+        
+        const deltaChanges = (after1 + after2) - (before1 + before2);
+        if (deltaChanges > 0) score -= 300 * deltaChanges;
+        else if (deltaChanges < 0) score += 200 * Math.abs(deltaChanges);
+        
+        // 3. Continuité (bonus si crée une journée complète)
+        const checkFullDay = (secId: string, date: string) => {
+          const { matin, aprem } = getDayAssignments(secId, date);
+          if (!matin || !aprem) return false;
+          
+          // Journée complète = même site matin et après-midi
+          if (matin.type_assignation === 'site' && aprem.type_assignation === 'site') {
+            return matin.site_id === aprem.site_id;
+          }
+          return false;
+        };
+        
+        // Simuler à nouveau pour vérifier la continuité
+        siteAssignmentToSwap.secretaire_id = originalCandidateSecId;
+        candidateAssignment.secretaire_id = originalSiteSecId;
+        
+        const createsFullDay1 = checkFullDay(prefAdminId, siteAssignmentToSwap.date);
+        const createsFullDay2 = checkFullDay(candidateAssignment.secretaire_id, candidateAssignment.date);
+        
+        // Restaurer
+        siteAssignmentToSwap.secretaire_id = originalSiteSecId;
+        candidateAssignment.secretaire_id = originalCandidateSecId;
+        
+        if (createsFullDay1 || createsFullDay2) score += 400;
+        
+        return score;
       };
       
+      // Pour chaque secrétaire prefered_admin
       for (const sec of preferredAdminSecs) {
         const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === sec.id);
-        const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
+        let adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
         
         console.log(`\n   👤 ${getSecretaryName(sec.id)}: ${adminCount}/2 admin`);
         
@@ -1008,31 +992,84 @@ serve(async (req) => {
           continue;
         }
         
-        // PASSE 3A: Delta >= 0
-        const swaps3A = trySwapsForSecretary(sec, 0, "PASSE 3A");
-        totalSwaps += swaps3A;
-        
-        const currentAdminCount = currentAssignments
-          .filter((a: any) => a.secretaire_id === sec.id && a.type_assignation === 'administratif')
-          .length;
-        
-        // PASSE 3B: Si toujours 0 admin, autoriser delta >= -300 pour 1er admin
-        if (currentAdminCount === 0) {
-          console.log(`      🔸 PASSE 3B: forcer 1er admin (delta >= -300)`);
-          const swaps3B = trySwapsForSecretary(sec, -300, "PASSE 3B");
-          totalSwaps += swaps3B;
+        // Boucle pour obtenir 2 admin
+        while (adminCount < 2) {
+          // Trouver les assignations site swappables
+          const swappableSiteAssignments = secAssignments.filter((a: any) =>
+            a.type_assignation === 'site' && !hasHighPriorityDoctor(a)
+          );
+          
+          if (swappableSiteAssignments.length === 0) {
+            console.log(`      ❌ Plus d'assignations site swappables`);
+            break;
+          }
+          
+          let bestScore = -Infinity;
+          let bestSwap: { siteAssignment: any; candidate: any; score: number } | null = null;
+          
+          // Pour chaque assignation site du prefered_admin
+          for (const siteAssignment of swappableSiteAssignments) {
+            // Trouver tous les candidats admin à la même date/période
+            const adminCandidates = currentAssignments.filter((candidate: any) =>
+              candidate.secretaire_id &&
+              candidate.secretaire_id !== sec.id &&
+              candidate.date === siteAssignment.date &&
+              candidate.periode === siteAssignment.periode &&
+              candidate.type_assignation === 'administratif'
+            );
+            
+            // Scorer chaque candidat
+            for (const candidate of adminCandidates) {
+              // Vérifier Phase 1 et Phase 2 (contraintes obligatoires)
+              if (wouldCreatePhase1Violation(siteAssignment, candidate) ||
+                  wouldBreakClosureConstraint(siteAssignment, candidate)) {
+                continue;
+              }
+              
+              // Calculer le score composite
+              const score = calculateSwapScore(sec.id, candidate, siteAssignment);
+              
+              if (score > bestScore) {
+                bestScore = score;
+                bestSwap = { siteAssignment, candidate, score };
+              }
+            }
+          }
+          
+          // Appliquer le meilleur swap trouvé (même si score négatif)
+          if (bestSwap) {
+            const sec1Name = getSecretaryName(sec.id);
+            const sec2Name = getSecretaryName(bestSwap.candidate.secretaire_id);
+            
+            const tempSecId = bestSwap.siteAssignment.secretaire_id;
+            bestSwap.siteAssignment.secretaire_id = bestSwap.candidate.secretaire_id;
+            bestSwap.candidate.secretaire_id = tempSecId;
+            
+            console.log(`      ✅ SWAP: ${sec1Name} obtient admin le ${bestSwap.siteAssignment.date} ${bestSwap.siteAssignment.periode}`);
+            console.log(`         ↔ ${sec2Name}`);
+            console.log(`         Score: ${bestSwap.score >= 0 ? '+' : ''}${bestSwap.score.toFixed(0)}`);
+            
+            totalSwaps++;
+            adminCount++;
+            
+            // Recalculer delta pour le gain
+            const deltaGain = 0; // On se concentre sur le score, pas le delta
+            totalGain += deltaGain;
+          } else {
+            console.log(`      ⚠️ Impossible de donner admin - aucun candidat valide (contraintes Phase 1/2)`);
+            break;
+          }
+          
+          // Refresh secAssignments
+          secAssignments.length = 0;
+          secAssignments.push(...currentAssignments.filter((a: any) => a.secretaire_id === sec.id));
         }
         
         const finalAdminCount = currentAssignments
           .filter((a: any) => a.secretaire_id === sec.id && a.type_assignation === 'administratif')
           .length;
         
-        // PASSE 3C: Si seulement 1 admin, autoriser delta >= -100 pour 2ème admin
-        if (finalAdminCount === 1) {
-          console.log(`      🔸 PASSE 3C: forcer 2ème admin (delta >= -100)`);
-          const swaps3C = trySwapsForSecretary(sec, -100, "PASSE 3C");
-          totalSwaps += swaps3C;
-        }
+        console.log(`      📋 Admin final: ${finalAdminCount}/2`);
       }
       
       console.log(`\n   📊 Phase 3: ${totalSwaps} swap(s), gain total: ${totalGain >= 0 ? '+' : ''}${totalGain.toFixed(0)}`);
