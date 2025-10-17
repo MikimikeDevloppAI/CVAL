@@ -1667,6 +1667,21 @@ serve(async (req) => {
         
         const candidates: SwapCandidate[] = [];
         
+        // Helper: calculer pénalités progressives d'une secrétaire
+        const calculatePenalties = (adminCount: number, siteChanges: number): number => {
+          let penalty = 0;
+          
+          // Pénalité admin PROGRESSIVE et PLAFONNÉE
+          if (adminCount === 2) penalty -= 50;
+          else if (adminCount === 3) penalty -= 200; // Plus forte
+          else if (adminCount >= 4) penalty -= 500; // Plafonnée
+          
+          // Pénalité changement de site
+          penalty -= siteChanges * 600;
+          
+          return penalty;
+        };
+        
         // Helper: calculer score d'une assignation
         const calculateScore = (assignment: typeof currentAssignments[0], secId: string): number => {
           let score = 0;
@@ -1723,8 +1738,9 @@ serve(async (req) => {
               if (besoin.medecin_id) {
                 const medRelation = secretairesMedecinsMap.get(`${secId}_${besoin.medecin_id}`)?.[0];
                 if (medRelation) {
-                  if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 1500;
-                  else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 1200;
+                  if (medRelation.priorite === 1 || medRelation.priorite === '1') score += 300;
+                  else if (medRelation.priorite === 2 || medRelation.priorite === '2') score += 200;
+                  else if (medRelation.priorite === 3 || medRelation.priorite === '3') score += 100;
                 }
               }
             }
@@ -1770,66 +1786,75 @@ serve(async (req) => {
             
             if (!isEligible(a1, a2)) continue;
             
-            // Calculer gain
-            const currentScore = calculateScore(a1, a1.secretaire_id) + calculateScore(a2, a2.secretaire_id);
-            const newScore = calculateScore(a1, a2.secretaire_id) + calculateScore(a2, a1.secretaire_id);
+            // ÉTAT AVANT l'échange
+            const m1 = secretaryMetrics.get(a1.secretaire_id)!;
+            const m2 = secretaryMetrics.get(a2.secretaire_id)!;
             
-            // Ajouter pénalités évitées
-            let penaltyAvoidance = 0;
+            const scoreBefore = 
+              calculateScore(a1, a1.secretaire_id) + 
+              calculateScore(a2, a2.secretaire_id) +
+              calculatePenalties(m1.adminCount, m1.siteChanges) +
+              calculatePenalties(m2.adminCount, m2.siteChanges);
             
-            // Vérifier si l'échange RÉSOUT un changement site→site
-            const m1 = secretaryMetrics.get(a1.secretaire_id);
-            const m2 = secretaryMetrics.get(a2.secretaire_id);
+            // SIMULER l'échange pour calculer APRÈS
+            let newAdminCount1 = m1.adminCount;
+            let newAdminCount2 = m2.adminCount;
+            let newSiteChanges1 = m1.siteChanges;
+            let newSiteChanges2 = m2.siteChanges;
             
-            // Pour sec1: vérifier si changement site et si échange le résout
-            if (m1 && m1.siteChanges > 0 && a1.type_assignation === 'site' && a1.site_id) {
-              const otherPeriod = a1.periode === 'matin' ? 'apres_midi' : 'matin';
-              const sec1OtherAssignment = m1.assignments.find(a => 
-                a.periode === otherPeriod && 
-                a.date === a1.date &&
-                a.type_assignation === 'site'
-              );
+            // Mise à jour admin count après échange
+            if (a1.type_assignation === 'administratif' && a2.type_assignation !== 'administratif') {
+              newAdminCount1 -= 1; // sec1 perd un admin
+              newAdminCount2 += 1; // sec2 gagne un admin
+            } else if (a1.type_assignation !== 'administratif' && a2.type_assignation === 'administratif') {
+              newAdminCount1 += 1;
+              newAdminCount2 -= 1;
+            }
+            
+            // Recalculer changements de site après échange
+            // Pour sec1 : elle prend l'assignation de sec2
+            const otherPeriod = a1.periode === 'matin' ? 'apres_midi' : 'matin';
+            const sec1OtherAssignment = m1.assignments.find(a => 
+              a.periode === otherPeriod && a.date === a1.date
+            );
+            const sec2OtherAssignment = m2.assignments.find(a => 
+              a.periode === otherPeriod && a.date === a2.date
+            );
+            
+            // Sec1 aura l'assignation de a2 + son autre période existante
+            if (sec1OtherAssignment) {
+              const hadChange = sec1OtherAssignment.type_assignation === 'site' && 
+                                a1.type_assignation === 'site' &&
+                                sec1OtherAssignment.site_id !== a1.site_id;
+              const willHaveChange = sec1OtherAssignment.type_assignation === 'site' && 
+                                     a2.type_assignation === 'site' &&
+                                     sec1OtherAssignment.site_id !== a2.site_id;
               
-              // Après échange, sec2 prend place de sec1
-              // Si a2 est admin OU si a2 est site avec même site_id que l'autre période de sec1
-              if (a2.type_assignation === 'administratif') {
-                penaltyAvoidance += 600; // Admin résout le changement
-              } else if (a2.type_assignation === 'site' && sec1OtherAssignment && 
-                         a2.site_id === sec1OtherAssignment.site_id) {
-                penaltyAvoidance += 600; // Même site sur les 2 périodes
-              }
+              if (hadChange && !willHaveChange) newSiteChanges1 -= 1;
+              else if (!hadChange && willHaveChange) newSiteChanges1 += 1;
             }
             
-            // Pour sec2: vérifier si changement site et si échange le résout
-            if (m2 && m2.siteChanges > 0 && a2.type_assignation === 'site' && a2.site_id) {
-              const otherPeriod = a2.periode === 'matin' ? 'apres_midi' : 'matin';
-              const sec2OtherAssignment = m2.assignments.find(a => 
-                a.periode === otherPeriod && 
-                a.date === a2.date &&
-                a.type_assignation === 'site'
-              );
+            // Sec2 aura l'assignation de a1 + son autre période existante
+            if (sec2OtherAssignment) {
+              const hadChange = sec2OtherAssignment.type_assignation === 'site' && 
+                                a2.type_assignation === 'site' &&
+                                sec2OtherAssignment.site_id !== a2.site_id;
+              const willHaveChange = sec2OtherAssignment.type_assignation === 'site' && 
+                                     a1.type_assignation === 'site' &&
+                                     sec2OtherAssignment.site_id !== a1.site_id;
               
-              if (a1.type_assignation === 'administratif') {
-                penaltyAvoidance += 600;
-              } else if (a1.type_assignation === 'site' && sec2OtherAssignment && 
-                         a1.site_id === sec2OtherAssignment.site_id) {
-                penaltyAvoidance += 600;
-              }
+              if (hadChange && !willHaveChange) newSiteChanges2 -= 1;
+              else if (!hadChange && willHaveChange) newSiteChanges2 += 1;
             }
             
-            // Admin évité (pénalité progressive)
-            if (m1 && m1.adminCount >= 2) {
-              if (m1.adminCount === 2) penaltyAvoidance += 50;
-              else if (m1.adminCount === 3) penaltyAvoidance += 150;
-              else if (m1.adminCount >= 4) penaltyAvoidance += 300;
-            }
-            if (m2 && m2.adminCount >= 2) {
-              if (m2.adminCount === 2) penaltyAvoidance += 50;
-              else if (m2.adminCount === 3) penaltyAvoidance += 150;
-              else if (m2.adminCount >= 4) penaltyAvoidance += 300;
-            }
+            // ÉTAT APRÈS l'échange
+            const scoreAfter = 
+              calculateScore(a1, a2.secretaire_id) + 
+              calculateScore(a2, a1.secretaire_id) +
+              calculatePenalties(newAdminCount1, newSiteChanges1) +
+              calculatePenalties(newAdminCount2, newSiteChanges2);
             
-            const gain = newScore - currentScore + penaltyAvoidance;
+            const gain = scoreAfter - scoreBefore;
             
             if (gain > 0) {
               candidates.push({
@@ -1867,23 +1892,74 @@ serve(async (req) => {
               
               if (!isEligible(s1Matin, s2Matin) || !isEligible(s1Aprem, s2Aprem)) continue;
               
-              // Calculer gain journée complète
-              const currentScore = 
+              // ÉTAT AVANT l'échange
+              const m1 = secretaryMetrics.get(sec1.id)!;
+              const m2 = secretaryMetrics.get(sec2.id)!;
+              
+              const scoreBefore = 
                 calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
-                calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id);
+                calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id) +
+                calculatePenalties(m1.adminCount, m1.siteChanges) +
+                calculatePenalties(m2.adminCount, m2.siteChanges);
               
-              const newScore = 
+              // SIMULER échange journée complète
+              let newAdminCount1 = m1.adminCount;
+              let newAdminCount2 = m2.adminCount;
+              
+              // Changement admin matin
+              if (s1Matin.type_assignation === 'administratif' && s2Matin.type_assignation !== 'administratif') {
+                newAdminCount1 -= 1;
+                newAdminCount2 += 1;
+              } else if (s1Matin.type_assignation !== 'administratif' && s2Matin.type_assignation === 'administratif') {
+                newAdminCount1 += 1;
+                newAdminCount2 -= 1;
+              }
+              
+              // Changement admin après-midi
+              if (s1Aprem.type_assignation === 'administratif' && s2Aprem.type_assignation !== 'administratif') {
+                newAdminCount1 -= 1;
+                newAdminCount2 += 1;
+              } else if (s1Aprem.type_assignation !== 'administratif' && s2Aprem.type_assignation === 'administratif') {
+                newAdminCount1 += 1;
+                newAdminCount2 -= 1;
+              }
+              
+              // Recalculer changements de site pour journée complète
+              let newSiteChanges1 = m1.siteChanges;
+              let newSiteChanges2 = m2.siteChanges;
+              
+              // Sec1 avant : s1Matin + s1Aprem
+              const hadChange1 = s1Matin.type_assignation === 'site' && 
+                                 s1Aprem.type_assignation === 'site' &&
+                                 s1Matin.site_id !== s1Aprem.site_id;
+              // Sec1 après : s2Matin + s2Aprem
+              const willHaveChange1 = s2Matin.type_assignation === 'site' && 
+                                      s2Aprem.type_assignation === 'site' &&
+                                      s2Matin.site_id !== s2Aprem.site_id;
+              
+              if (hadChange1 && !willHaveChange1) newSiteChanges1 -= 1;
+              else if (!hadChange1 && willHaveChange1) newSiteChanges1 += 1;
+              
+              // Sec2 avant : s2Matin + s2Aprem
+              const hadChange2 = s2Matin.type_assignation === 'site' && 
+                                 s2Aprem.type_assignation === 'site' &&
+                                 s2Matin.site_id !== s2Aprem.site_id;
+              // Sec2 après : s1Matin + s1Aprem
+              const willHaveChange2 = s1Matin.type_assignation === 'site' && 
+                                      s1Aprem.type_assignation === 'site' &&
+                                      s1Matin.site_id !== s1Aprem.site_id;
+              
+              if (hadChange2 && !willHaveChange2) newSiteChanges2 -= 1;
+              else if (!hadChange2 && willHaveChange2) newSiteChanges2 += 1;
+              
+              // ÉTAT APRÈS l'échange
+              const scoreAfter = 
                 calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
-                calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id);
+                calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id) +
+                calculatePenalties(newAdminCount1, newSiteChanges1) +
+                calculatePenalties(newAdminCount2, newSiteChanges2);
               
-              let penaltyAvoidance = 0;
-              const m1 = secretaryMetrics.get(sec1.id);
-              const m2 = secretaryMetrics.get(sec2.id);
-              
-              if (m1 && m1.siteChanges > 0) penaltyAvoidance += 600;
-              if (m2 && m2.siteChanges > 0) penaltyAvoidance += 600;
-              
-              const gain = newScore - currentScore + penaltyAvoidance;
+              const gain = scoreAfter - scoreBefore;
               
               if (gain > 0) {
                 candidates.push({
