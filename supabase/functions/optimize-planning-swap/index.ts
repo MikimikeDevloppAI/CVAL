@@ -93,20 +93,21 @@ serve(async (req) => {
     const calculatePenalties = (adminCount: number, siteChanges: number, esplanadeCount: number, secretaireId: string): number => {
       let penalty = 0;
       
-      // Pénalités admin EXPONENTIELLES
-      if (adminCount === 2) penalty -= 50;
-      else if (adminCount === 3) penalty -= 120;
-      else if (adminCount === 4) penalty -= 200;
-      else if (adminCount === 5) penalty -= 300;
-      else if (adminCount === 6) penalty -= 420;
-      else if (adminCount === 7) penalty -= 550;
-      else if (adminCount === 8) penalty -= 700;
-      else if (adminCount === 9) penalty -= 900;
+      // Pénalités admin PROGRESSIVES (dès la 1ère demi-journée)
+      if (adminCount === 1) penalty -= 50;
+      else if (adminCount === 2) penalty -= 110;
+      else if (adminCount === 3) penalty -= 180;
+      else if (adminCount === 4) penalty -= 260;
+      else if (adminCount === 5) penalty -= 350;
+      else if (adminCount === 6) penalty -= 450;
+      else if (adminCount === 7) penalty -= 670;
+      else if (adminCount === 8) penalty -= 800;
+      else if (adminCount === 9) penalty -= 1000;
       else if (adminCount === 10) penalty -= 1200;
       else if (adminCount >= 11) penalty -= 1500;
       
-      // Pénalité changement de site
-      penalty -= siteChanges * 600;
+      // Pénalité changement de site (augmentée)
+      penalty -= siteChanges * 1000;
       
       // Pénalité "Port-en-Truie" pour Centre Esplanade
       const ESPLANADE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
@@ -133,14 +134,6 @@ serve(async (req) => {
       
       if (assignment.type_assignation === 'administratif') {
         score += 100;
-        const sec = secretaires.find(s => s.id === secId);
-        if (sec?.prefered_admin) {
-          const secAssignments = currentAssignments.filter((a: any) => a.secretaire_id === secId);
-          const adminCount = secAssignments.filter((a: any) => a.type_assignation === 'administratif').length;
-          if (adminCount === 1) { // C'est le premier
-            score += 500;
-          }
-        }
         return score;
       }
       
@@ -249,9 +242,19 @@ serve(async (req) => {
     // Helper: vérifier si une paire matin/aprem crée un changement de site
     const hasSiteChangeForPair = (matin?: any, aprem?: any): boolean => {
       if (!matin || !aprem) return false;
-      return matin.type_assignation === 'site' && 
-             aprem.type_assignation === 'site' &&
-             matin.site_id !== aprem.site_id;
+      
+      // Cas 1: site → site différent
+      if (matin.type_assignation === 'site' && aprem.type_assignation === 'site') {
+        return matin.site_id !== aprem.site_id;
+      }
+      
+      // Cas 2: bloc ↔ site (n'importe quel site)
+      if ((matin.type_assignation === 'bloc' && aprem.type_assignation === 'site') ||
+          (matin.type_assignation === 'site' && aprem.type_assignation === 'bloc')) {
+        return true;
+      }
+      
+      return false;
     };
     
     // Helper: calculer la pénalité "bloc + site restreint" pour une paire matin/aprem
@@ -272,14 +275,51 @@ serve(async (req) => {
       if (a1.date !== a2.date || a1.periode !== a2.periode) return false;
       if (a1.type_assignation === 'administratif' && a2.type_assignation === 'administratif') return false;
       
-      // Permettre les swaps avec le bloc (la pénalité gérera les sites restreints)
-      
+      // NOUVEAU: Bloquer si médecin assigné (priorité 1 ou 2)
       if (a1.type_assignation === 'site' && a1.site_id) {
+        const medecinsOnSite = besoinsEffectifs.filter(b =>
+          b.site_id === a1.site_id &&
+          b.date === a1.date &&
+          b.demi_journee === a1.periode &&
+          b.type === 'medecin'
+        );
+        
+        for (const besoin of medecinsOnSite) {
+          if (besoin.medecin_id) {
+            const medRelation = secretairesMedecinsMap.get(`${a1.secretaire_id}_${besoin.medecin_id}`)?.[0];
+            if (medRelation && (medRelation.priorite === 1 || medRelation.priorite === '1' || 
+                               medRelation.priorite === 2 || medRelation.priorite === '2')) {
+              console.log(`🚫 Swap bloqué: ${a1.secretaire_id} est assignée à son médecin priorité ${medRelation.priorite}`);
+              return false;
+            }
+          }
+        }
+        
+        // Vérifier que a2 peut aller sur le site de a1
         const sitesData = secretairesSitesMap.get(a2.secretaire_id) || [];
         if (!sitesData.some(s => s.site_id === a1.site_id)) return false;
       }
       
       if (a2.type_assignation === 'site' && a2.site_id) {
+        const medecinsOnSite = besoinsEffectifs.filter(b =>
+          b.site_id === a2.site_id &&
+          b.date === a2.date &&
+          b.demi_journee === a2.periode &&
+          b.type === 'medecin'
+        );
+        
+        for (const besoin of medecinsOnSite) {
+          if (besoin.medecin_id) {
+            const medRelation = secretairesMedecinsMap.get(`${a2.secretaire_id}_${besoin.medecin_id}`)?.[0];
+            if (medRelation && (medRelation.priorite === 1 || medRelation.priorite === '1' || 
+                               medRelation.priorite === 2 || medRelation.priorite === '2')) {
+              console.log(`🚫 Swap bloqué: ${a2.secretaire_id} est assignée à son médecin priorité ${medRelation.priorite}`);
+              return false;
+            }
+          }
+        }
+        
+        // Vérifier que a1 peut aller sur le site de a2
         const sitesData = secretairesSitesMap.get(a1.secretaire_id) || [];
         if (!sitesData.some(s => s.site_id === a2.site_id)) return false;
       }
@@ -405,13 +445,21 @@ serve(async (req) => {
           const m1 = secretaryMetrics.get(a1.secretaire_id)!;
           const m2 = secretaryMetrics.get(a2.secretaire_id)!;
           
+          // Bonus global admin pour prefered_admin=true
+          let adminBonusBefore = 0;
+          const sec1 = secretaires.find(s => s.id === a1.secretaire_id);
+          const sec2 = secretaires.find(s => s.id === a2.secretaire_id);
+          if (sec1?.prefered_admin && m1.adminCount >= 1) adminBonusBefore += 2000;
+          if (sec2?.prefered_admin && m2.adminCount >= 1) adminBonusBefore += 2000;
+          
           const scoreBefore = 
             calculateScore(a1, a1.secretaire_id) + 
             calculateScore(a2, a2.secretaire_id) +
             calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, a1.secretaire_id) +
             calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, a2.secretaire_id) +
             getSecretaryBlocRestrictedDayPenalty(a1.secretaire_id, a1.date) +
-            getSecretaryBlocRestrictedDayPenalty(a2.secretaire_id, a2.date);
+            getSecretaryBlocRestrictedDayPenalty(a2.secretaire_id, a2.date) +
+            adminBonusBefore;
           
           // Simuler échange - recalculer adminCount
           let newAdminCount1 = m1.adminCount;
@@ -464,12 +512,18 @@ serve(async (req) => {
           const dayPenaltyAfter1 = computeDayPenaltyForPair(simulated1.matin, simulated1.aprem);
           const dayPenaltyAfter2 = computeDayPenaltyForPair(simulated2.matin, simulated2.aprem);
           
+          // Recalculer bonus admin après swap
+          let adminBonusAfter = 0;
+          if (sec1?.prefered_admin && newAdminCount1 >= 1) adminBonusAfter += 2000;
+          if (sec2?.prefered_admin && newAdminCount2 >= 1) adminBonusAfter += 2000;
+          
           const scoreAfter = 
             calculateScore(a1, a2.secretaire_id) + 
             calculateScore(a2, a1.secretaire_id) +
             calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, a1.secretaire_id) +
             calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, a2.secretaire_id) +
-            dayPenaltyAfter1 + dayPenaltyAfter2;
+            dayPenaltyAfter1 + dayPenaltyAfter2 +
+            adminBonusAfter;
           
           let gain = scoreAfter - scoreBefore;
           
@@ -514,13 +568,21 @@ serve(async (req) => {
             const m1 = secretaryMetrics.get(sec1.id)!;
             const m2 = secretaryMetrics.get(sec2.id)!;
             
+            // Bonus global admin pour prefered_admin=true
+            let adminBonusBefore = 0;
+            const fullDaySec1 = secretaires.find(s => s.id === sec1.id);
+            const fullDaySec2 = secretaires.find(s => s.id === sec2.id);
+            if (fullDaySec1?.prefered_admin && m1.adminCount >= 1) adminBonusBefore += 2000;
+            if (fullDaySec2?.prefered_admin && m2.adminCount >= 1) adminBonusBefore += 2000;
+            
             const scoreBefore = 
               calculateScore(s1Matin, sec1.id) + calculateScore(s1Aprem, sec1.id) +
               calculateScore(s2Matin, sec2.id) + calculateScore(s2Aprem, sec2.id) +
               calculatePenalties(m1.adminCount, m1.siteChanges, m1.esplanadeCount, sec1.id) +
               calculatePenalties(m2.adminCount, m2.siteChanges, m2.esplanadeCount, sec2.id) +
               getSecretaryBlocRestrictedDayPenalty(sec1.id, date) +
-              getSecretaryBlocRestrictedDayPenalty(sec2.id, date);
+              getSecretaryBlocRestrictedDayPenalty(sec2.id, date) +
+              adminBonusBefore;
             
             // Recalculer adminCount (généralement inchangé pour journée complète site↔site)
             let newAdminCount1 = m1.adminCount;
@@ -566,12 +628,18 @@ serve(async (req) => {
               afterContinuityBonus += 600; // 300*2 pour sec2
             }
             
+            // Recalculer bonus admin après swap
+            let adminBonusAfter = 0;
+            if (fullDaySec1?.prefered_admin && newAdminCount1 >= 1) adminBonusAfter += 2000;
+            if (fullDaySec2?.prefered_admin && newAdminCount2 >= 1) adminBonusAfter += 2000;
+            
             const scoreAfter = 
               calculateScore(s1Matin, sec2.id) + calculateScore(s1Aprem, sec2.id) +
               calculateScore(s2Matin, sec1.id) + calculateScore(s2Aprem, sec1.id) +
               calculatePenalties(newAdminCount1, newSiteChanges1, newEsplanadeCount1, sec1.id) +
               calculatePenalties(newAdminCount2, newSiteChanges2, newEsplanadeCount2, sec2.id) +
-              dayPenaltyAfter1 + dayPenaltyAfter2 + afterContinuityBonus;
+              dayPenaltyAfter1 + dayPenaltyAfter2 + afterContinuityBonus +
+              adminBonusAfter;
             
             let gain = scoreAfter - scoreBefore;
             
