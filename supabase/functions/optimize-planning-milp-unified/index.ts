@@ -319,7 +319,7 @@ serve(async (req) => {
       const periodes = besoin.demi_journee === "toute_journee" ? ["matin", "apres_midi"] : [besoin.demi_journee];
 
       for (const periode of periodes) {
-        const key = `${date}_${periode}_${besoin.type_intervention_id}`;
+        const key = `${date}|${periode}|${besoin.type_intervention_id}`;
         if (!groupedOps.has(key)) {
           groupedOps.set(key, []);
         }
@@ -330,10 +330,10 @@ serve(async (req) => {
     console.log(`📦 Grouped into ${groupedOps.size} groups for multi-flux detection`);
 
     // PHASE 1B: Traiter chaque groupe et détecter les configs multi-flux
-    const processedOps = new Set<string>(); // Set de "besoin.id_periode"
+    const processedOps = new Set<string>(); // Set de "besoin.id|periode"
 
     for (const [groupKey, groupOps] of groupedOps.entries()) {
-      const [date, periode, type_intervention_id] = groupKey.split('_');
+      const [date, periode, type_intervention_id] = groupKey.split('|');
       const count = groupOps.length;
 
       console.log(`\n📦 Group ${groupKey}: ${count} operation(s)`);
@@ -403,7 +403,7 @@ serve(async (req) => {
 
                   blocsOperatoireInserted.push(blocInserted);
                   markRoomOccupied(assignedRoom, date, periode);
-                  processedOps.add(`${besoin.id}_${periode}`);
+                  processedOps.add(`${besoin.id}|${periode}`);
                   console.log(`  ✓ Assigned to ${assignedRoom}: ${blocInserted.id}`);
                 }
 
@@ -415,7 +415,7 @@ serve(async (req) => {
       }
 
       // PHASE 1C: Fallback pour opérations non traitées (pas de config multi-flux ou non applicable)
-      const remainingOps = groupOps.filter(({ besoin }) => !processedOps.has(`${besoin.id}_${periode}`));
+      const remainingOps = groupOps.filter(({ besoin }) => !processedOps.has(`${besoin.id}|${periode}`));
 
       if (remainingOps.length > 0) {
         console.log(`  ℹ️ ${remainingOps.length} operation(s) without multi-flux config, using fallback`);
@@ -463,14 +463,14 @@ serve(async (req) => {
 
             blocsOperatoireInserted.push(blocInserted);
             markRoomOccupied(preferredRoom, date, periode);
-            processedOps.add(`${besoin.id}_${periode}`);
+            processedOps.add(`${besoin.id}|${periode}`);
             console.log(`  ✓ Assigned to preferred ${preferredRoom}: ${blocInserted.id}`);
           } else {
             // Plusieurs ops veulent la même salle OU salle non disponible: distribuer aléatoirement
             const shuffled = [...ops].sort(() => Math.random() - 0.5);
 
             for (const { besoin } of shuffled) {
-              const opKey = `${besoin.id}_${periode}`;
+              const opKey = `${besoin.id}|${periode}`;
               if (processedOps.has(opKey)) continue;
 
               let assignedRoom: string | null = null;
@@ -522,7 +522,7 @@ serve(async (req) => {
 
         // Traiter les opérations sans préférence
         for (const { besoin } of noPreference) {
-          const opKey = `${besoin.id}_${periode}`;
+          const opKey = `${besoin.id}|${periode}`;
           if (processedOps.has(opKey)) continue;
 
           let assignedRoom: string | null = null;
