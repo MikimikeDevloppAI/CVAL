@@ -572,7 +572,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
-                                      <span className="font-medium text-xs line-clamp-2">{p.secretaire_nom}</span>
+                                      <span className="font-medium text-xs">{p.secretaire_nom}</span>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button
