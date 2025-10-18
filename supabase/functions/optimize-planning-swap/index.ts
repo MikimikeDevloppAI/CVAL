@@ -1637,6 +1637,10 @@ serve(async (req) => {
     console.log("\n🏥 ========== PHASE 4: OPTIMISATION PORT-EN-TRUIE ==========");
     console.log("Objectif: Échanger celles à Port-en-Truie sans préférence 1 avec celles qui le préfèrent ou sont déjà 2x/semaine");
     
+    // Port-en-Truie = Centre Esplanade - Ophtalmologie
+    const portSite = sites.find((s: any) => s.id === PORT_EN_TRUIE_ID);
+    console.log(`🏥 Site ciblé: ${portSite?.nom || 'INCONNU'} (ID: ${PORT_EN_TRUIE_ID})`);
+    
     let phase4SwapsCount = 0;
     const allDatesPhase4 = Array.from(new Set(currentAssignments.map((a: any) => a.date))).sort() as string[];
     
@@ -1695,11 +1699,11 @@ serve(async (req) => {
       console.log(`\n👤 ${getSecretaryName(secId)} @ Port-en-Truie ${portAssignment.date} ${portAssignment.periode}`);
       console.log(`  📊 Préférence: ${portPriority}, Présence semaine: ${portCountThisWeek}x`);
       
-      // Si déjà 2 fois à Port-en-Truie cette semaine (4 demi-journées ou 2 journées), permettre l'échange
-      const shouldSwap = portPriority !== 1 || portCountThisWeek >= 4;
+      // Si pas préférence 1, on cherche à échanger
+      const shouldSwap = portPriority !== 1;
       
       if (!shouldSwap) {
-        console.log(`  ⏭️ Skip: préférence OK et pas 2x/semaine`);
+        console.log(`  ⏭️ Skip: préférence 1 pour Port-en-Truie`);
         continue;
       }
       
@@ -1710,19 +1714,31 @@ serve(async (req) => {
                         dayAssignments.aprem.site_id === PORT_EN_TRUIE_ID;
       const isProtected = portAssignment.protectedForClosure;
       
-      // Chercher des candidats pour l'échange
-      // Candidat type 1: secrétaire avec préférence 1 pour Port-en-Truie
-      // Candidat type 2: autre secrétaire (si la personne actuelle est déjà 2x/semaine)
+      if (isProtected && isFullDay) {
+        console.log(`  🔒 Assignation protégée par fermeture (journée complète)`);
+      }
       
-      const candidateAssignments = currentAssignments.filter((c: any) =>
-        c.date === portAssignment.date &&
-        c.periode === portAssignment.periode &&
-        c.type_assignation === 'site' &&
-        c.secretaire_id !== secId &&
-        c.site_id !== PORT_EN_TRUIE_ID &&
-        !hasPhysicianLink(c) &&
-        !c.protectedForClosure // Ne pas toucher aux assignations protégées par fermeture
-      );
+      // Chercher des candidats pour l'échange
+      // Si l'assignation est protégée par fermeture, on doit chercher quelqu'un qui peut aussi faire la journée complète
+      const candidateAssignments = currentAssignments.filter((c: any) => {
+        if (c.date !== portAssignment.date) return false;
+        if (c.type_assignation !== 'site') return false;
+        if (c.secretaire_id === secId) return false;
+        if (c.site_id === PORT_EN_TRUIE_ID) return false;
+        if (hasPhysicianLink(c)) return false;
+        
+        // Si l'assignation actuelle est protégée et journée complète, on doit trouver quelqu'un aussi en journée complète
+        if (isProtected && isFullDay) {
+          const candDayAssignments = getDayAssignments(c.secretaire_id, c.date);
+          const candIsFullDay = candDayAssignments.matin && candDayAssignments.aprem &&
+                                candDayAssignments.matin.site_id === c.site_id &&
+                                candDayAssignments.aprem.site_id === c.site_id;
+          return candIsFullDay && !c.protectedForClosure;
+        }
+        
+        // Sinon, critères normaux
+        return c.periode === portAssignment.periode && !c.protectedForClosure;
+      });
       
       console.log(`  🔍 ${candidateAssignments.length} candidat(s) potentiel(s) pour échange`);
       
@@ -1835,11 +1851,58 @@ serve(async (req) => {
       if (bestCandidate && bestDelta > 0) {
         const tempSec = portAssignment.secretaire_id;
         const tempCand = bestCandidate.secretaire_id;
-        portAssignment.secretaire_id = tempCand;
-        bestCandidate.secretaire_id = tempSec;
         
-        console.log(`  ✅ Swap appliqué avec ${getSecretaryName(tempCand)}: ${bestReason} | Δ=${bestDelta.toFixed(0)}`);
-        phase4SwapsCount++;
+        // Si c'est un échange de journées complètes protégées
+        if (isProtected && isFullDay) {
+          // Échanger les deux demi-journées (matin + après-midi)
+          const morningPort = currentAssignments.find((a: any) => 
+            a.secretaire_id === secId && a.date === portAssignment.date && a.periode === 'matin'
+          );
+          const afternoonPort = currentAssignments.find((a: any) => 
+            a.secretaire_id === secId && a.date === portAssignment.date && a.periode === 'apres_midi'
+          );
+          const morningCand = currentAssignments.find((a: any) => 
+            a.secretaire_id === tempCand && a.date === bestCandidate.date && a.periode === 'matin'
+          );
+          const afternoonCand = currentAssignments.find((a: any) => 
+            a.secretaire_id === tempCand && a.date === bestCandidate.date && a.periode === 'apres_midi'
+          );
+          
+          if (morningPort && afternoonPort && morningCand && afternoonCand) {
+            // Échanger les secrétaires
+            morningPort.secretaire_id = tempCand;
+            afternoonPort.secretaire_id = tempCand;
+            morningCand.secretaire_id = tempSec;
+            afternoonCand.secretaire_id = tempSec;
+            
+            // Transférer les responsabilités de fermeture
+            if (morningPort.is_1r || afternoonPort.is_1r) {
+              morningCand.is_1r = true;
+              morningPort.is_1r = false;
+              afternoonPort.is_1r = false;
+            }
+            if (morningPort.is_2f || afternoonPort.is_2f) {
+              afternoonCand.is_2f = true;
+              morningPort.is_2f = false;
+              afternoonPort.is_2f = false;
+            }
+            if (morningPort.is_3f || afternoonPort.is_3f) {
+              morningCand.is_3f = true;
+              morningPort.is_3f = false;
+              afternoonPort.is_3f = false;
+            }
+            
+            console.log(`  ✅ Swap journée complète avec ${getSecretaryName(tempCand)}: ${bestReason} | Δ=${bestDelta.toFixed(0)}`);
+            phase4SwapsCount += 2; // Compter comme 2 swaps (matin + après-midi)
+          }
+        } else {
+          // Swap normal d'une demi-journée
+          portAssignment.secretaire_id = tempCand;
+          bestCandidate.secretaire_id = tempSec;
+          
+          console.log(`  ✅ Swap appliqué avec ${getSecretaryName(tempCand)}: ${bestReason} | Δ=${bestDelta.toFixed(0)}`);
+          phase4SwapsCount++;
+        }
         
         // Mettre à jour le compteur de Port-en-Truie pour la semaine
         const date = new Date(portAssignment.date);
