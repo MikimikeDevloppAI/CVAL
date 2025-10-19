@@ -69,7 +69,7 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
           </DialogHeader>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
             {showForm ? (
               <MedecinFormDialog
                 medecin={selectedMedecin}
