@@ -1,0 +1,193 @@
+import { Edit, CalendarDays, Mail, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Medecin } from './useMedecins';
+
+interface MedecinCardProps {
+  medecin: Medecin;
+  index: number;
+  onEdit: (medecin: Medecin) => void;
+  onToggleStatus: (id: string, status: boolean) => void;
+  onOpenCalendar: (medecin: { id: string; nom: string }) => void;
+  canManage: boolean;
+}
+
+export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCalendar, canManage }: MedecinCardProps) {
+  const alternanceLabels = {
+    'hebdomadaire': 'Hebdo',
+    'une_sur_deux': '1/2',
+    'une_sur_trois': '1/3',
+    'une_sur_quatre': '1/4'
+  };
+
+  return (
+    <div 
+      className={`
+        backdrop-blur-xl bg-card/95 rounded-xl border border-cyan-200/50 dark:border-cyan-800/50
+        shadow-lg hover:shadow-xl hover:shadow-cyan-500/20 transition-all duration-300 
+        hover:scale-[1.02] hover:-translate-y-1
+        group relative overflow-hidden
+        ${medecin.actif === false ? 'opacity-60' : ''}
+      `}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      
+      <div className="relative p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-lg font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                {medecin.first_name} {medecin.name}
+              </h3>
+              {medecin.actif === false && (
+                <Badge variant="secondary" className="text-xs">
+                  Inactif
+                </Badge>
+              )}
+            </div>
+            <Badge className="bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 border-teal-500/20">
+              {medecin.specialites?.nom}
+            </Badge>
+          </div>
+          
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(medecin)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-cyan-500/10 hover:text-cyan-600"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenCalendar({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
+                className="hover:bg-cyan-500/10 hover:text-cyan-600 hover:border-cyan-500/50"
+              >
+                <CalendarDays className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Contact Info */}
+        <div className="space-y-3 mb-4">
+          {medecin.email && (
+            <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+                <Mail className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <span className="truncate">{medecin.email}</span>
+            </div>
+          )}
+          
+          {medecin.phone_number && (
+            <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
+                <Phone className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+              </div>
+              <span className="truncate">{medecin.phone_number}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Jours de travail */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+            Jours de travail
+          </p>
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((jour) => {
+              const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+              const horairesJour = (medecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [])
+                .sort((a, b) => {
+                  const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+                  return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
+                });
+              
+              return (
+                <div key={jour}>
+                  {horairesJour.length > 0 ? (
+                    <div className="space-y-1">
+                      {horairesJour.map((h, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs">
+                          <Badge variant="outline" className="w-10 justify-center bg-cyan-500/5 border-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                            {jours[jour]}
+                          </Badge>
+                          <Badge variant="secondary" className="flex-1 justify-center bg-teal-500/10 text-teal-700 dark:text-teal-300">
+                            {h.demi_journee === 'toute_journee' ? 'Journée' : 
+                             h.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
+                          </Badge>
+                          <span className="text-muted-foreground truncate flex-1">
+                            {h.sites?.nom}
+                            {h.types_intervention && ` (${h.types_intervention.nom})`}
+                          </span>
+                          {h.alternance_type && h.alternance_type !== 'hebdomadaire' && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                              {alternanceLabels[h.alternance_type]}
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Status Toggle */}
+        {canManage && (
+          <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Statut</span>
+            {medecin.actif !== false ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={true}
+                      className="data-[state=checked]:bg-cyan-600"
+                    />
+                  </div>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Êtes-vous sûr de vouloir passer ce médecin en inactif ?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => onToggleStatus(medecin.id, true)}
+                      className="bg-muted text-muted-foreground hover:bg-muted/90"
+                    >
+                      Passer en inactif
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={false}
+                  onCheckedChange={() => onToggleStatus(medecin.id, false)}
+                  className="data-[state=unchecked]:bg-muted"
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -5,17 +5,26 @@ import { cn } from '@/lib/utils';
 interface QuickActionButtonProps {
   label: string;
   icon: React.ReactNode;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   gradient: string;
   count?: number;
 }
 
-export const QuickActionButton = ({ label, icon, href, gradient, count }: QuickActionButtonProps) => {
+export const QuickActionButton = ({ label, icon, href, onClick, gradient, count }: QuickActionButtonProps) => {
   const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (href) {
+      navigate(href);
+    }
+  };
 
   return (
     <button
-      onClick={() => navigate(href)}
+      onClick={handleClick}
       className={cn(
         "group relative overflow-hidden rounded-xl p-6",
         "bg-card/50 backdrop-blur-xl border border-border/50",
