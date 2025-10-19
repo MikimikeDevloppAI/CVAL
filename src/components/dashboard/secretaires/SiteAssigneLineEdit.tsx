@@ -116,11 +116,13 @@ export function SiteAssigneLineEdit({ assignment, sites, onUpdate, onDelete, isN
               <SelectValue placeholder="Sélectionner un site" />
             </SelectTrigger>
             <SelectContent>
-              {sites.map((site) => (
-                <SelectItem key={site.id} value={site.id}>
-                  {site.nom}
-                </SelectItem>
-              ))}
+              {sites
+                .filter((site) => !site.nom.toLowerCase().includes('admin'))
+                .map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.nom}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
 
