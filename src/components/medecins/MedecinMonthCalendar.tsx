@@ -508,58 +508,57 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             );
           })}
         </div>
+      </DialogContent>
 
-        {/* Dialog de sélection de site */}
-        <Dialog open={addBesoinDialog?.open || false} onOpenChange={(open) => !open && setAddBesoinDialog(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {addBesoinDialog?.step === 'intervention' 
-                  ? "Sélectionner un type d'intervention"
-                  : addBesoinDialog?.besoinId ? "Changer de site" : "Sélectionner un site"
-                }
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 py-4">
-              {addBesoinDialog?.step === 'intervention' ? (
-                <>
+      {/* Dialog de sélection site/intervention - rendu comme frère pour éviter les problèmes d'imbrication */}
+      <Dialog open={addBesoinDialog?.open} onOpenChange={() => setAddBesoinDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {addBesoinDialog?.step === 'site' 
+                ? 'Choisir un site' 
+                : 'Type d\'intervention'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            {addBesoinDialog?.step === 'intervention' ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddBesoinDialog({ ...addBesoinDialog, step: 'site', selectedSiteId: undefined })}
+                  className="mb-2"
+                >
+                  ← Retour aux sites
+                </Button>
+                {typesIntervention.map(type => (
                   <Button
+                    key={type.id}
                     variant="outline"
-                    size="sm"
-                    onClick={() => setAddBesoinDialog({ ...addBesoinDialog, step: 'site', selectedSiteId: undefined })}
-                    className="mb-2"
-                  >
-                    ← Retour
-                  </Button>
-                  {typesIntervention.map(type => (
-                    <Button
-                      key={type.id}
-                      variant="outline"
-                      className="w-full justify-start text-left h-auto py-3 whitespace-normal"
-                      onClick={() => handleInterventionSelect(type.id)}
-                      disabled={loading}
-                    >
-                      {type.nom}
-                    </Button>
-                  ))}
-                </>
-              ) : (
-                sites.map(site => (
-                  <Button
-                    key={site.id}
-                    variant="outline"
-                    className="w-full justify-start text-left h-auto py-3 whitespace-normal"
-                    onClick={() => handleSiteSelect(site.id)}
+                    className="w-full justify-start"
+                    onClick={() => handleInterventionSelect(type.id)}
                     disabled={loading}
                   >
-                    {site.nom}
+                    {type.nom}
                   </Button>
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </DialogContent>
+                ))}
+              </>
+            ) : (
+              sites.map(site => (
+                <Button
+                  key={site.id}
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleSiteSelect(site.id)}
+                  disabled={loading}
+                >
+                  {site.nom}
+                </Button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AddMultipleCreneauxDialog
         open={multipleCreneauxDialogOpen}
