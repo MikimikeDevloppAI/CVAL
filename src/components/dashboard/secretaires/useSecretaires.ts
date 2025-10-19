@@ -9,8 +9,8 @@ export interface Secretaire {
   email?: string;
   phone_number?: string;
   prefered_admin?: boolean;
-  sites_assignes_details?: { nom: string; priorite?: string }[];
-  medecins_assignes_details?: { first_name: string; name: string; priorite?: string }[];
+  sites_assignes_details?: { id: string; site_id: string; nom: string; priorite?: string }[];
+  medecins_assignes_details?: { id: string; medecin_id: string; first_name: string; name: string; priorite?: string }[];
   horaires_base_secretaires?: { 
     id: string;
     jour_semaine: number; 
@@ -31,6 +31,8 @@ export interface Secretaire {
   pourcentage_temps?: number;
   actif?: boolean;
   besoins_operations?: Array<{
+    id: string;
+    besoin_operation_id: string;
     besoins_operations: {
       nom: string;
       code: string;
@@ -75,6 +77,8 @@ export function useSecretaires() {
             alternance_semaine_modulo
           ),
           besoins_operations:secretaires_besoins_operations(
+            id,
+            besoin_operation_id,
             preference,
             besoins_operations(nom, code, categorie)
           )
@@ -89,11 +93,13 @@ export function useSecretaires() {
             
             const { data: secretairesSitesData } = await supabase
               .from('secretaires_sites')
-              .select('site_id, priorite, sites(nom)')
+              .select('id, site_id, priorite, sites(nom)')
               .eq('secretaire_id', secretaire.id);
             
             if (secretairesSitesData && secretairesSitesData.length > 0) {
               sites_assignes_details = secretairesSitesData.map((ss: any) => ({
+                id: ss.id,
+                site_id: ss.site_id,
                 nom: ss.sites?.nom || '',
                 priorite: ss.priorite
               }));
@@ -102,7 +108,7 @@ export function useSecretaires() {
             let medecins_assignes_details = [];
             const { data: secretairesMedecinsData } = await supabase
               .from('secretaires_medecins')
-              .select('medecin_id, priorite')
+              .select('id, medecin_id, priorite')
               .eq('secretaire_id', secretaire.id);
             
             if (secretairesMedecinsData && secretairesMedecinsData.length > 0) {
@@ -123,6 +129,8 @@ export function useSecretaires() {
               }
 
               medecins_assignes_details = secretairesMedecinsData.map((sm: any) => ({
+                id: sm.id,
+                medecin_id: sm.medecin_id,
                 first_name: medecinsMap[sm.medecin_id]?.first_name || '',
                 name: medecinsMap[sm.medecin_id]?.name || '',
                 priorite: sm.priorite

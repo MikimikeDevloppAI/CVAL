@@ -6,8 +6,9 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { HoraireSecretaireLineEdit } from './HoraireSecretaireLineEdit';
 import { AddHoraireSecretaireDialog } from './AddHoraireSecretaireDialog';
-import { QuickEditSitesDialog } from '@/components/secretaires/QuickEditSitesDialog';
-import { QuickEditMedecinDialog } from '@/components/secretaires/QuickEditMedecinDialog';
+import { SiteAssigneLineEdit } from './SiteAssigneLineEdit';
+import { MedecinAssigneLineEdit } from './MedecinAssigneLineEdit';
+import { BesoinOperationnelLineEdit } from './BesoinOperationnelLineEdit';
 import type { Secretaire } from './useSecretaires';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -32,8 +33,13 @@ export function SecretaireCard({
   canManage 
 }: SecretaireCardProps) {
   const [sites, setSites] = useState<any[]>([]);
+  const [medecins, setMedecins] = useState<any[]>([]);
+  const [besoins, setBesoins] = useState<any[]>([]);
   const [localSecretaire, setLocalSecretaire] = useState(secretaire);
   const [newHoraire, setNewHoraire] = useState<any>(null);
+  const [newSite, setNewSite] = useState<any>(null);
+  const [newMedecin, setNewMedecin] = useState<any>(null);
+  const [newBesoin, setNewBesoin] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,14 +51,28 @@ export function SecretaireCard({
   }, []);
 
   const fetchData = async () => {
-    const { data: sitesData } = await supabase
-      .from('sites')
-      .select('id, nom')
-      .eq('actif', true)
-      .not('nom', 'ilike', '%bloc opératoire%')
-      .order('nom');
+    const [sitesData, medecinsData, besoinsData] = await Promise.all([
+      supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('actif', true)
+        .not('nom', 'ilike', '%bloc opératoire%')
+        .order('nom'),
+      supabase
+        .from('medecins')
+        .select('id, first_name, name')
+        .eq('actif', true)
+        .order('first_name'),
+      supabase
+        .from('besoins_operations')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom')
+    ]);
 
-    if (sitesData) setSites(sitesData);
+    if (sitesData.data) setSites(sitesData.data);
+    if (medecinsData.data) setMedecins(medecinsData.data);
+    if (besoinsData.data) setBesoins(besoinsData.data);
   };
 
   const handleDeleteHoraire = async (horaireId: string) => {
@@ -130,6 +150,123 @@ export function SecretaireCard({
 
   const handleCancelNew = () => {
     setNewHoraire(null);
+  };
+
+  const handleDeleteSite = async (assignmentId: string) => {
+    if (assignmentId === 'new') {
+      setNewSite(null);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('secretaires_sites')
+        .delete()
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Site supprimé",
+      });
+
+      onSuccess();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le site",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddNewSite = () => {
+    setNewSite({
+      id: 'new',
+      site_id: sites[0]?.id || '',
+      priorite: '1',
+      secretaire_id: secretaire.id
+    });
+  };
+
+  const handleDeleteMedecin = async (assignmentId: string) => {
+    if (assignmentId === 'new') {
+      setNewMedecin(null);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('secretaires_medecins')
+        .delete()
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Médecin supprimé",
+      });
+
+      onSuccess();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le médecin",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddNewMedecin = () => {
+    setNewMedecin({
+      id: 'new',
+      medecin_id: medecins[0]?.id || '',
+      priorite: '1',
+      secretaire_id: secretaire.id
+    });
+  };
+
+  const handleDeleteBesoin = async (assignmentId: string) => {
+    if (assignmentId === 'new') {
+      setNewBesoin(null);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('secretaires_besoins_operations')
+        .delete()
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Besoin supprimé",
+      });
+
+      onSuccess();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le besoin",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddNewBesoin = () => {
+    setNewBesoin({
+      id: 'new',
+      besoin_operation_id: besoins[0]?.id || '',
+      preference: 1,
+      secretaire_id: secretaire.id
+    });
   };
 
   const nomComplet = `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim() || 
@@ -216,153 +353,133 @@ export function SecretaireCard({
         </div>
 
         {/* Sites assignés */}
-        <div 
-          className="mb-4 group/section cursor-pointer hover:bg-teal-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-teal-200/30"
-          onClick={() => document.getElementById(`edit-sites-${secretaire.id}`)?.click()}
-        >
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <MapPin className="h-3 w-3 text-teal-600 dark:text-teal-400" />
               Sites assignés
             </p>
-            {canManage && (
-              <div id={`edit-sites-${secretaire.id}`}>
-                <QuickEditSitesDialog 
-                  secretaireId={secretaire.id}
-                  sitesActuelsDetails={secretaire.sites_assignes_details || []}
-                  onSuccess={onSuccess}
-                />
-              </div>
+          </div>
+          <div className="space-y-1">
+            {secretaire.sites_assignes_details?.map((site) => (
+              <SiteAssigneLineEdit
+                key={site.id}
+                assignment={site}
+                sites={sites}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteSite}
+              />
+            ))}
+
+            {newSite && (
+              <SiteAssigneLineEdit
+                assignment={newSite}
+                sites={sites}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteSite}
+                isNew={true}
+              />
+            )}
+
+            {canManage && !newSite && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddNewSite}
+                className="w-full border-dashed border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/5 text-teal-600 dark:text-teal-400 mt-1"
+              >
+                <Plus className="h-3 w-3 mr-2" />
+                Ajouter un site
+              </Button>
             )}
           </div>
-          {secretaire.sites_assignes_details && secretaire.sites_assignes_details.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {secretaire.sites_assignes_details.map((site, idx) => (
-                <Badge key={idx} variant="outline" className="text-xs bg-teal-50 dark:bg-teal-950/20 border-teal-200 dark:border-teal-900">
-                  {site.nom}
-                  {site.priorite && site.priorite !== '1' && (
-                    <span className="ml-1 text-muted-foreground">
-                      (P{site.priorite})
-                    </span>
-                  )}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">Aucun site assigné</p>
-          )}
         </div>
 
         {/* Médecins assignés */}
-        <div 
-          className="mb-4 group/section cursor-pointer hover:bg-cyan-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-cyan-200/30"
-          onClick={() => document.getElementById(`edit-medecins-${secretaire.id}`)?.click()}
-        >
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <Stethoscope className="h-3 w-3 text-cyan-600 dark:text-cyan-400" />
               Médecins assignés
             </p>
-            {canManage && (
-              <div id={`edit-medecins-${secretaire.id}`}>
-                <QuickEditMedecinDialog 
-                  secretaireId={secretaire.id}
-                  medecinsActuelsDetails={secretaire.medecins_assignes_details || []}
-                  onSuccess={onSuccess}
-                />
-              </div>
+          </div>
+          <div className="space-y-1">
+            {secretaire.medecins_assignes_details?.map((medecin) => (
+              <MedecinAssigneLineEdit
+                key={medecin.id}
+                assignment={medecin}
+                medecins={medecins}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteMedecin}
+              />
+            ))}
+
+            {newMedecin && (
+              <MedecinAssigneLineEdit
+                assignment={newMedecin}
+                medecins={medecins}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteMedecin}
+                isNew={true}
+              />
+            )}
+
+            {canManage && !newMedecin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddNewMedecin}
+                className="w-full border-dashed border-cyan-500/30 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-cyan-600 dark:text-cyan-400 mt-1"
+              >
+                <Plus className="h-3 w-3 mr-2" />
+                Ajouter un médecin
+              </Button>
             )}
           </div>
-          {secretaire.medecins_assignes_details && secretaire.medecins_assignes_details.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {secretaire.medecins_assignes_details.map((medecin, idx) => (
-                <Badge key={idx} variant="outline" className="text-xs bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-900">
-                  {medecin.first_name} {medecin.name}
-                  {medecin.priorite && medecin.priorite !== '1' && (
-                    <span className="ml-1 text-muted-foreground">
-                      (P{medecin.priorite})
-                    </span>
-                  )}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">Aucun médecin assigné</p>
-          )}
         </div>
 
         {/* Besoins opérationnels */}
-        {canManage ? (
-          <div 
-            className="mb-4 group/section cursor-pointer hover:bg-emerald-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-emerald-200/30"
-            onClick={() => document.getElementById(`edit-besoins-${secretaire.id}`)?.click()}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                Besoins opérationnels
-              </p>
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              Besoins opérationnels
+            </p>
+          </div>
+          <div className="space-y-1">
+            {secretaire.besoins_operations?.map((besoin) => (
+              <BesoinOperationnelLineEdit
+                key={besoin.id}
+                assignment={besoin}
+                besoins={besoins}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteBesoin}
+              />
+            ))}
+
+            {newBesoin && (
+              <BesoinOperationnelLineEdit
+                assignment={newBesoin}
+                besoins={besoins}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteBesoin}
+                isNew={true}
+              />
+            )}
+
+            {canManage && !newBesoin && (
               <Button
-                id={`edit-besoins-${secretaire.id}`}
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-6 px-2 text-xs hover:bg-emerald-500/10 hover:text-emerald-600 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(secretaire);
-                }}
+                onClick={handleAddNewBesoin}
+                className="w-full border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 mt-1"
               >
-                <Plus className="h-3 w-3 mr-1" />
-                Modifier
+                <Plus className="h-3 w-3 mr-2" />
+                Ajouter un besoin
               </Button>
-            </div>
-            {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {secretaire.besoins_operations.map((besoin, idx) => (
-                  <Badge 
-                    key={idx} 
-                    variant="outline" 
-                    className="text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
-                  >
-                    {besoin.besoins_operations.nom}
-                    {besoin.preference && (
-                      <span className="ml-1 text-muted-foreground">
-                        (Pref: {besoin.preference})
-                      </span>
-                    )}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Aucun besoin opérationnel</p>
             )}
           </div>
-        ) : (
-          secretaire.besoins_operations && secretaire.besoins_operations.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-                <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                Besoins opérationnels
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {secretaire.besoins_operations.map((besoin, idx) => (
-                  <Badge 
-                    key={idx} 
-                    variant="outline" 
-                    className="text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
-                  >
-                    {besoin.besoins_operations.nom}
-                    {besoin.preference && (
-                      <span className="ml-1 text-muted-foreground">
-                        (Pref: {besoin.preference})
-                      </span>
-                    )}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )
-        )}
+        </div>
 
         {/* Horaires de base */}
         <div>
