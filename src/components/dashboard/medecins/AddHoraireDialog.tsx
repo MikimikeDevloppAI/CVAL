@@ -74,6 +74,7 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
         jour_semaine: parseInt(formData.jour_semaine),
         demi_journee: formData.demi_journee,
         site_id: formData.site_id,
+        type_intervention_id: formData.type_intervention_id || null,
         alternance_type: formData.alternance_type,
         alternance_semaine_modulo: formData.alternance_semaine_modulo,
         actif: true
@@ -186,7 +187,6 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
                 <SelectValue placeholder="Aucun" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Aucun</SelectItem>
                 {typesIntervention.map((type) => (
                   <SelectItem key={type.id} value={type.id}>
                     {type.nom}
