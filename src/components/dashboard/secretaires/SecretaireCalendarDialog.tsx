@@ -1,5 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { SecretaireMonthCalendar } from '@/components/secretaires/SecretaireMonthCalendar';
+import { SecretaireWeekCalendar } from '@/components/secretaires/SecretaireWeekCalendar';
 
 interface SecretaireCalendarDialogProps {
   open: boolean;
@@ -15,7 +14,7 @@ export function SecretaireCalendarDialog({
   secretaireNom 
 }: SecretaireCalendarDialogProps) {
   return (
-    <SecretaireMonthCalendar
+    <SecretaireWeekCalendar
       open={open}
       onOpenChange={onOpenChange}
       secretaireId={secretaireId}
