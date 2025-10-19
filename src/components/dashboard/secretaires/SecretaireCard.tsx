@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, CalendarDays, Mail, Phone, MapPin, Stethoscope, Briefcase } from 'lucide-react';
+import { Edit, CalendarDays, Mail, Phone, MapPin, Stethoscope, Briefcase, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -193,18 +193,23 @@ export function SecretaireCard({
         </div>
 
         {/* Sites assignés */}
-        <div className="mb-4">
+        <div 
+          className="mb-4 group/section cursor-pointer hover:bg-teal-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-teal-200/30"
+          onClick={() => document.getElementById(`edit-sites-${secretaire.id}`)?.click()}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <MapPin className="h-3 w-3 text-teal-600 dark:text-teal-400" />
               Sites assignés
             </p>
             {canManage && (
-              <QuickEditSitesDialog 
-                secretaireId={secretaire.id}
-                sitesActuelsDetails={secretaire.sites_assignes_details || []}
-                onSuccess={onSuccess}
-              />
+              <div id={`edit-sites-${secretaire.id}`}>
+                <QuickEditSitesDialog 
+                  secretaireId={secretaire.id}
+                  sitesActuelsDetails={secretaire.sites_assignes_details || []}
+                  onSuccess={onSuccess}
+                />
+              </div>
             )}
           </div>
           {secretaire.sites_assignes_details && secretaire.sites_assignes_details.length > 0 ? (
@@ -226,18 +231,23 @@ export function SecretaireCard({
         </div>
 
         {/* Médecins assignés */}
-        <div className="mb-4">
+        <div 
+          className="mb-4 group/section cursor-pointer hover:bg-cyan-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-cyan-200/30"
+          onClick={() => document.getElementById(`edit-medecins-${secretaire.id}`)?.click()}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <Stethoscope className="h-3 w-3 text-cyan-600 dark:text-cyan-400" />
               Médecins assignés
             </p>
             {canManage && (
-              <QuickEditMedecinDialog 
-                secretaireId={secretaire.id}
-                medecinsActuelsDetails={secretaire.medecins_assignes_details || []}
-                onSuccess={onSuccess}
-              />
+              <div id={`edit-medecins-${secretaire.id}`}>
+                <QuickEditMedecinDialog 
+                  secretaireId={secretaire.id}
+                  medecinsActuelsDetails={secretaire.medecins_assignes_details || []}
+                  onSuccess={onSuccess}
+                />
+              </div>
             )}
           </div>
           {secretaire.medecins_assignes_details && secretaire.medecins_assignes_details.length > 0 ? (
@@ -259,29 +269,76 @@ export function SecretaireCard({
         </div>
 
         {/* Besoins opérationnels */}
-        {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-              <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              Besoins opérationnels
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {secretaire.besoins_operations.map((besoin, idx) => (
-                <Badge 
-                  key={idx} 
-                  variant="outline" 
-                  className="text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
-                >
-                  {besoin.besoins_operations.nom}
-                  {besoin.preference && (
-                    <span className="ml-1 text-muted-foreground">
-                      (Pref: {besoin.preference})
-                    </span>
-                  )}
-                </Badge>
-              ))}
+        {canManage ? (
+          <div 
+            className="mb-4 group/section cursor-pointer hover:bg-emerald-500/5 p-3 rounded-lg transition-colors border border-transparent hover:border-emerald-200/30"
+            onClick={() => document.getElementById(`edit-besoins-${secretaire.id}`)?.click()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                Besoins opérationnels
+              </p>
+              <Button
+                id={`edit-besoins-${secretaire.id}`}
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs hover:bg-emerald-500/10 hover:text-emerald-600 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(secretaire);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Modifier
+              </Button>
             </div>
+            {secretaire.besoins_operations && secretaire.besoins_operations.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {secretaire.besoins_operations.map((besoin, idx) => (
+                  <Badge 
+                    key={idx} 
+                    variant="outline" 
+                    className="text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
+                  >
+                    {besoin.besoins_operations.nom}
+                    {besoin.preference && (
+                      <span className="ml-1 text-muted-foreground">
+                        (Pref: {besoin.preference})
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Aucun besoin opérationnel</p>
+            )}
           </div>
+        ) : (
+          secretaire.besoins_operations && secretaire.besoins_operations.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                Besoins opérationnels
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {secretaire.besoins_operations.map((besoin, idx) => (
+                  <Badge 
+                    key={idx} 
+                    variant="outline" 
+                    className="text-xs bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
+                  >
+                    {besoin.besoins_operations.nom}
+                    {besoin.preference && (
+                      <span className="ml-1 text-muted-foreground">
+                        (Pref: {besoin.preference})
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )
         )}
 
         {/* Horaires de base */}
