@@ -218,30 +218,22 @@ export const Sidebar = () => {
   );
 
   return (
-    <>
-      {/* Mobile Header with Burger Menu */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-sidebar border-b border-sidebar-border flex items-center px-4">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="sm" className="mr-2">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar">
-            <SidebarContent onLinkClick={() => setOpen(false)} />
-          </SheetContent>
-        </Sheet>
-        <img 
-          src={cliniqueLogoImg} 
-          alt="Clinique La Vallée" 
-          className="h-8 w-auto"
-        />
-      </div>
-
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
-        <SidebarContent />
-      </div>
-    </>
+    <div className="fixed top-0 left-0 right-0 z-50 h-16 bg-sidebar border-b border-sidebar-border flex items-center px-4">
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="sm" className="mr-2">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-64 p-0 bg-sidebar">
+          <SidebarContent onLinkClick={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+      <img 
+        src={cliniqueLogoImg} 
+        alt="Clinique La Vallée" 
+        className="h-8 w-auto"
+      />
+    </div>
   );
 };
