@@ -152,7 +152,7 @@ export function QuickEditMedecinDialog({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+          className="h-6 px-2 text-xs hover:bg-cyan-500/10 hover:text-cyan-600 transition-colors"
         >
           <Plus className="h-3 w-3 mr-1" />
           Modifier
@@ -160,7 +160,9 @@ export function QuickEditMedecinDialog({
       </DialogTrigger>
       <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Modifier les médecins assignés</DialogTitle>
+          <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-transparent">
+            Modifier les médecins assignés
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -288,7 +290,11 @@ export function QuickEditMedecinDialog({
             >
               Annuler
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
+            <Button 
+              onClick={handleSave} 
+              disabled={loading}
+              className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600"
+            >
               {loading ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </div>

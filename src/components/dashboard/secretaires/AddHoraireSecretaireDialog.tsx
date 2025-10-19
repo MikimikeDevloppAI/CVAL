@@ -100,18 +100,20 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="w-full gap-2 hover:bg-teal-500/10 hover:text-teal-600 hover:border-teal-500/50"
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full border-dashed border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/5 text-teal-600 dark:text-teal-400"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3 w-3 mr-2" />
           Ajouter un jour
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Ajouter un horaire</DialogTitle>
+          <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+            Ajouter un horaire
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
@@ -121,7 +123,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
               value={formData.jour_semaine.toString()} 
               onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="border-teal-200/50 focus:border-teal-500">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -140,7 +142,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
               value={formData.demi_journee} 
               onValueChange={(value: any) => setFormData({ ...formData, demi_journee: value })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="border-teal-200/50 focus:border-teal-500">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -157,7 +159,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
               value={formData.site_id} 
               onValueChange={(value) => setFormData({ ...formData, site_id: value })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="border-teal-200/50 focus:border-teal-500">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -176,7 +178,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
               value={formData.alternance_type} 
               onValueChange={(value: any) => setFormData({ ...formData, alternance_type: value, alternance_semaine_modulo: 0 })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="border-teal-200/50 focus:border-teal-500">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -195,7 +197,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
                 value={formData.alternance_semaine_modulo.toString()} 
                 onValueChange={(value) => setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-teal-200/50 focus:border-teal-500">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,10 +229,14 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
             Annuler
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading}
+            className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+          >
             {loading ? 'Ajout...' : 'Ajouter'}
           </Button>
         </div>

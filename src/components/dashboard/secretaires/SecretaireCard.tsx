@@ -136,11 +136,6 @@ export function SecretaireCard({
                   Inactif
                 </Badge>
               )}
-              {secretaire.prefered_admin && (
-                <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 border-purple-500/20 text-xs">
-                  Préfère admin
-                </Badge>
-              )}
               {secretaire.horaire_flexible && (
                 <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 border-blue-500/20 text-xs">
                   Flexible {secretaire.pourcentage_temps && `(${secretaire.pourcentage_temps}%)`}

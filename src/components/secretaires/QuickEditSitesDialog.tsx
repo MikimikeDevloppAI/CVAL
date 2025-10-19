@@ -178,7 +178,7 @@ export function QuickEditSitesDialog({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+          className="h-6 px-2 text-xs hover:bg-teal-500/10 hover:text-teal-600 transition-colors"
         >
           <Plus className="h-3 w-3 mr-1" />
           Modifier
@@ -186,7 +186,9 @@ export function QuickEditSitesDialog({
       </DialogTrigger>
       <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Modifier les sites assignés</DialogTitle>
+          <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+            Modifier les sites assignés
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -372,7 +374,11 @@ export function QuickEditSitesDialog({
             >
               Annuler
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
+            <Button 
+              onClick={handleSave} 
+              disabled={loading}
+              className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+            >
               {loading ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </div>
