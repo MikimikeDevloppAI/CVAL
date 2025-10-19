@@ -62,10 +62,11 @@ export function SecretairesList({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredSecretaires.map((secretaire) => (
+      {filteredSecretaires.map((secretaire, index) => (
         <SecretaireCard
           key={secretaire.id}
           secretaire={secretaire}
+          index={index}
           onEdit={onEdit}
           onToggleStatus={onToggleStatus}
           onOpenCalendar={onOpenCalendar}
