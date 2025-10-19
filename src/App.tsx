@@ -20,6 +20,7 @@ import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
 import StatistiquesPage from "./pages/StatistiquesPage";
 import HomePage from "./pages/HomePage";
+import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import UpdatePasswordPage from "./pages/UpdatePasswordPage";
@@ -42,6 +43,11 @@ const App = () => (
               <ProtectedRoute>
                 <Layout>
                   <Routes>
+                    <Route path="/dashboard" element={
+                      <PlanningProtectedRoute>
+                        <DashboardPage />
+                      </PlanningProtectedRoute>
+                    } />
                     <Route path="/planning" element={<PlanningPage />} />
                     <Route path="/" element={<HomePage />} />
                     <Route path="/absences" element={
