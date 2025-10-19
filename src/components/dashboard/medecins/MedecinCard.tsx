@@ -1,9 +1,14 @@
+import { useState, useEffect } from 'react';
 import { Edit, CalendarDays, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { HoraireLineEdit } from './HoraireLineEdit';
+import { AddHoraireDialog } from './AddHoraireDialog';
 import { Medecin } from './useMedecins';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface MedecinCardProps {
   medecin: Medecin;
@@ -15,11 +20,109 @@ interface MedecinCardProps {
 }
 
 export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCalendar, canManage }: MedecinCardProps) {
-  const alternanceLabels = {
-    'hebdomadaire': 'Hebdo',
-    'une_sur_deux': '1/2',
-    'une_sur_trois': '1/3',
-    'une_sur_quatre': '1/4'
+  const [sites, setSites] = useState<any[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
+  const [localMedecin, setLocalMedecin] = useState(medecin);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setLocalMedecin(medecin);
+  }, [medecin]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    const { data: sitesData } = await supabase
+      .from('sites')
+      .select('id, nom')
+      .eq('actif', true)
+      .order('nom');
+
+    const { data: typesData } = await supabase
+      .from('types_intervention')
+      .select('id, nom')
+      .eq('actif', true)
+      .order('nom');
+
+    if (sitesData) setSites(sitesData);
+    if (typesData) setTypesIntervention(typesData);
+  };
+
+  const handleDeleteHoraire = async (horaireId: string) => {
+    try {
+      const { error } = await supabase
+        .from('horaires_base_medecins')
+        .delete()
+        .eq('id', horaireId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Horaire supprimé",
+      });
+
+      // Refresh medecin data
+      const { data: updatedMedecin } = await supabase
+        .from('medecins')
+        .select(`
+          *,
+          specialites!medecins_specialite_id_fkey (nom, code),
+          horaires_base_medecins (
+            id,
+            jour_semaine,
+            demi_journee,
+            site_id,
+            actif,
+            alternance_type,
+            alternance_semaine_modulo,
+            sites!horaires_base_medecins_site_id_fkey (nom),
+            types_intervention (nom)
+          )
+        `)
+        .eq('id', medecin.id)
+        .single();
+
+      if (updatedMedecin) {
+        setLocalMedecin(updatedMedecin);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'horaire",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleHoraireUpdate = async () => {
+    // Refresh medecin data
+    const { data: updatedMedecin } = await supabase
+      .from('medecins')
+      .select(`
+        *,
+        specialites!medecins_specialite_id_fkey (nom, code),
+        horaires_base_medecins (
+          id,
+          jour_semaine,
+          demi_journee,
+          site_id,
+          actif,
+          alternance_type,
+          alternance_semaine_modulo,
+          sites!horaires_base_medecins_site_id_fkey (nom),
+          types_intervention (nom)
+        )
+      `)
+      .eq('id', medecin.id)
+      .single();
+
+    if (updatedMedecin) {
+      setLocalMedecin(updatedMedecin);
+    }
   };
 
   return (
@@ -106,7 +209,7 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((jour) => {
               const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-              const horairesJour = (medecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [])
+              const horairesJour = (localMedecin.horaires_base_medecins?.filter(h => h.jour_semaine === jour) || [])
                 .sort((a, b) => {
                   const ordre = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
                   return (ordre[a.demi_journee] || 4) - (ordre[b.demi_journee] || 4);
@@ -114,33 +217,34 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
               
               return (
                 <div key={jour}>
-                  {horairesJour.length > 0 ? (
+                  {horairesJour.length > 0 && (
                     <div className="space-y-1">
                       {horairesJour.map((h, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" className="w-10 justify-center bg-cyan-500/5 border-cyan-500/20 text-cyan-700 dark:text-cyan-300">
-                            {jours[jour]}
-                          </Badge>
-                          <Badge variant="secondary" className="flex-1 justify-center bg-teal-500/10 text-teal-700 dark:text-teal-300">
-                            {h.demi_journee === 'toute_journee' ? 'Journée' : 
-                             h.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
-                          </Badge>
-                          <span className="text-muted-foreground truncate flex-1">
-                            {h.sites?.nom}
-                            {h.types_intervention && ` (${h.types_intervention.nom})`}
-                          </span>
-                          {h.alternance_type && h.alternance_type !== 'hebdomadaire' && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-                              {alternanceLabels[h.alternance_type]}
-                            </Badge>
-                          )}
-                        </div>
+                        <HoraireLineEdit
+                          key={idx}
+                          horaire={h}
+                          jour={jours[jour]}
+                          sites={sites}
+                          typesIntervention={typesIntervention}
+                          onUpdate={handleHoraireUpdate}
+                          onDelete={handleDeleteHoraire}
+                        />
                       ))}
                     </div>
-                  ) : null}
+                  )}
                 </div>
               );
             })}
+
+            {/* Add Button */}
+            {canManage && (
+              <div className="pt-2 mt-2 border-t border-border/30">
+                <AddHoraireDialog
+                  medecinId={medecin.id}
+                  onSuccess={handleHoraireUpdate}
+                />
+              </div>
+            )}
           </div>
         </div>
 
