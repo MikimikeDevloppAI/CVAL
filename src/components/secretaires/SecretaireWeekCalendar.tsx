@@ -39,13 +39,12 @@ interface CapaciteEffective {
   date: string;
   site_id: string;
   demi_journee: 'matin' | 'apres_midi';
-  sites?: { nom: string; couleur?: string };
+  sites?: { nom: string };
 }
 
 interface Site {
   id: string;
   nom: string;
-  couleur?: string;
 }
 
 const SITE_COLORS = [
@@ -96,7 +95,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
   const fetchSites = async () => {
     const { data } = await supabase
       .from('sites')
-      .select('id, nom, couleur')
+      .select('id, nom')
       .eq('actif', true)
       .order('nom');
     if (data) setSites(data);
@@ -114,7 +113,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
         date,
         site_id,
         demi_journee,
-        sites(nom, couleur)
+        sites(nom)
       `)
       .eq('secretaire_id', secretaireId)
       .gte('date', format(weekStart, 'yyyy-MM-dd'))

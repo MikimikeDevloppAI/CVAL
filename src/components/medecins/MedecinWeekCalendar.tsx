@@ -40,7 +40,7 @@ interface BesoinEffectif {
   site_id: string;
   demi_journee: 'matin' | 'apres_midi';
   type_intervention_id: string | null;
-  sites?: { nom: string; est_bloc_operatoire: boolean };
+  sites?: { nom: string };
   types_intervention?: { nom: string };
 }
 
@@ -85,7 +85,7 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
   const fetchSites = async () => {
     const { data } = await supabase
       .from('sites')
-      .select('id, nom, est_bloc_operatoire')
+      .select('id, nom')
       .eq('actif', true)
       .order('nom');
     if (data) setSites(data);
@@ -111,7 +111,7 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
         site_id,
         demi_journee,
         type_intervention_id,
-        sites(nom, est_bloc_operatoire),
+        sites(nom),
         types_intervention(nom)
       `)
       .eq('medecin_id', medecinId)
@@ -159,19 +159,14 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
       return;
     }
 
-    const selectedSite = sites.find((s) => s.id === selectedSiteId);
-    if (selectedSite?.est_bloc_operatoire && !selectedTypeInterventionId) {
-      toast.error('Veuillez sélectionner un type d\'intervention');
-      return;
-    }
-
     setLoading(true);
     const { error } = await supabase.from('besoin_effectif').insert({
+      type: 'medecin',
       medecin_id: medecinId,
       date: format(selectedDate, 'yyyy-MM-dd'),
       site_id: selectedSiteId,
       demi_journee: selectedPeriod,
-      type_intervention_id: selectedSite?.est_bloc_operatoire ? selectedTypeInterventionId : null,
+      type_intervention_id: selectedTypeInterventionId || null,
     });
 
     if (error) {
@@ -208,8 +203,6 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
     setDeleteDialogOpen(false);
     setBesoinToDelete(null);
   };
-
-  const selectedSite = sites.find((s) => s.id === selectedSiteId);
 
   return (
     <>
@@ -402,23 +395,21 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
               </Select>
             </div>
 
-            {selectedSite?.est_bloc_operatoire && (
-              <div>
-                <label className="text-sm font-medium">Type d'intervention</label>
-                <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {typesIntervention.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div>
+              <label className="text-sm font-medium">Type d'intervention (optionnel)</label>
+              <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
