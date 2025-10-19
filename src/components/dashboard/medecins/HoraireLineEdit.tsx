@@ -139,151 +139,159 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-2 p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30">
-        <Select 
-          value={formData.jour_semaine.toString()} 
-          onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
-        >
-          <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[1, 2, 3, 4, 5].map((j) => (
-              <SelectItem key={j} value={j.toString()}>
-                {jours[j]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select 
-          value={formData.demi_journee} 
-          onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}
-        >
-          <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="matin">Matin</SelectItem>
-            <SelectItem value="apres_midi">Après-midi</SelectItem>
-            <SelectItem value="toute_journee">Journée complète</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select 
-          value={formData.site_id} 
-          onValueChange={(value) => {
-            setFormData({ 
-              ...formData, 
-              site_id: value,
-              type_intervention_id: value !== blocOperatoireSiteId ? 'none' : formData.type_intervention_id
-            });
-          }}
-        >
-          <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {sites.filter(site => !site.nom.toLowerCase().includes('administratif')).map((site) => (
-              <SelectItem key={site.id} value={site.id}>
-                {site.nom}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {formData.site_id === blocOperatoireSiteId && (
+      <div className="p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30">
+        {/* Première ligne: Jour, Période, Alternance, Boutons */}
+        <div className="flex items-center gap-2 mb-2">
           <Select 
-            value={formData.type_intervention_id} 
-            onValueChange={(value) => setFormData({ ...formData, type_intervention_id: value })}
+            value={formData.jour_semaine.toString()} 
+            onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
           >
-            <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
-              <SelectValue placeholder="Type intervention" />
+            <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Aucun</SelectItem>
-              {typesIntervention.map((type) => (
-                <SelectItem key={type.id} value={type.id}>
-                  {type.nom}
+              {[1, 2, 3, 4, 5].map((j) => (
+                <SelectItem key={j} value={j.toString()}>
+                  {jours[j]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
 
-        <Select
-          value={formData.alternance_type}
-          onValueChange={(value: any) => 
-            setFormData({ 
-              ...formData, 
-              alternance_type: value,
-              alternance_semaine_modulo: 0 
-            })
-          }
-        >
-          <SelectTrigger className="w-24 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="hebdomadaire">Hebdo</SelectItem>
-            <SelectItem value="une_sur_deux">1/2</SelectItem>
-            <SelectItem value="une_sur_trois">1/3</SelectItem>
-            <SelectItem value="une_sur_quatre">1/4</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {formData.alternance_type !== 'hebdomadaire' && (
-          <Select
-            value={formData.alternance_semaine_modulo.toString()}
-            onValueChange={(value) => 
-              setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })
-            }
+          <Select 
+            value={formData.demi_journee} 
+            onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}
           >
-            <SelectTrigger className="w-20 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+            <SelectTrigger className="h-8 w-32 text-xs border-cyan-200/50">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {formData.alternance_type === 'une_sur_deux' ? (
-                <>
-                  <SelectItem value="0">Pair</SelectItem>
-                  <SelectItem value="1">Impair</SelectItem>
-                </>
-              ) : formData.alternance_type === 'une_sur_trois' ? (
-                <>
-                  <SelectItem value="0">S1</SelectItem>
-                  <SelectItem value="1">S2</SelectItem>
-                  <SelectItem value="2">S3</SelectItem>
-                </>
-              ) : (
-                <>
-                  <SelectItem value="0">S1</SelectItem>
-                  <SelectItem value="1">S2</SelectItem>
-                  <SelectItem value="2">S3</SelectItem>
-                  <SelectItem value="3">S4</SelectItem>
-                </>
-              )}
+              <SelectItem value="matin">Matin</SelectItem>
+              <SelectItem value="apres_midi">Après-midi</SelectItem>
+              <SelectItem value="toute_journee">Journée</SelectItem>
             </SelectContent>
           </Select>
-        )}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSave}
-          disabled={loading}
-          className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
-        >
-          <Check className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCancel}
-          disabled={loading}
-          className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
-        >
-          <X className="h-3 w-3" />
-        </Button>
+          <Select
+            value={formData.alternance_type}
+            onValueChange={(value: any) => 
+              setFormData({ 
+                ...formData, 
+                alternance_type: value,
+                alternance_semaine_modulo: 0 
+              })
+            }
+          >
+            <SelectTrigger className="w-24 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hebdomadaire">Hebdo</SelectItem>
+              <SelectItem value="une_sur_deux">1/2</SelectItem>
+              <SelectItem value="une_sur_trois">1/3</SelectItem>
+              <SelectItem value="une_sur_quatre">1/4</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {formData.alternance_type !== 'hebdomadaire' && (
+            <Select
+              value={formData.alternance_semaine_modulo.toString()}
+              onValueChange={(value) => 
+                setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })
+              }
+            >
+              <SelectTrigger className="w-20 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {formData.alternance_type === 'une_sur_deux' ? (
+                  <>
+                    <SelectItem value="0">Pair</SelectItem>
+                    <SelectItem value="1">Impair</SelectItem>
+                  </>
+                ) : formData.alternance_type === 'une_sur_trois' ? (
+                  <>
+                    <SelectItem value="0">S1</SelectItem>
+                    <SelectItem value="1">S2</SelectItem>
+                    <SelectItem value="2">S3</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="0">S1</SelectItem>
+                    <SelectItem value="1">S2</SelectItem>
+                    <SelectItem value="2">S3</SelectItem>
+                    <SelectItem value="3">S4</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          )}
+
+          <div className="flex gap-1 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Deuxième ligne: Site, Type d'intervention */}
+        <div className="flex items-center gap-2 pl-14">
+          <Select 
+            value={formData.site_id} 
+            onValueChange={(value) => {
+              setFormData({ 
+                ...formData, 
+                site_id: value,
+                type_intervention_id: value !== blocOperatoireSiteId ? 'none' : formData.type_intervention_id
+              });
+            }}
+          >
+            <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.filter(site => !site.nom.toLowerCase().includes('administratif')).map((site) => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.nom}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {formData.site_id === blocOperatoireSiteId && (
+            <Select 
+              value={formData.type_intervention_id} 
+              onValueChange={(value) => setFormData({ ...formData, type_intervention_id: value })}
+            >
+              <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
+                <SelectValue placeholder="Type intervention" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucun</SelectItem>
+                {typesIntervention.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
     );
   }
