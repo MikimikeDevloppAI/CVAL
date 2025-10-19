@@ -57,6 +57,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   const [respAssignment, setRespAssignment] = useState<any>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; nom: string } | null>(null);
   const [assignmentNeed, setAssignmentNeed] = useState<any>(null);
+  const [optimisticValidations, setOptimisticValidations] = useState<Map<string, boolean>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,9 +81,17 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
           schema: 'public',
           table: 'planning_genere_personnel'
         },
-        () => {
+        (payload) => {
           if (mounted) {
             fetchSitePlanning();
+            // Clear optimistic state for updated assignment
+            if (payload.eventType === 'UPDATE' && payload.new?.id) {
+              setOptimisticValidations(prev => {
+                const next = new Map(prev);
+                next.delete(payload.new.id);
+                return next;
+              });
+            }
           }
         }
       )
@@ -388,6 +397,13 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
+    // Optimistic update
+    setOptimisticValidations(prev => {
+      const next = new Map(prev);
+      next.set(assignmentId, validated);
+      return next;
+    });
+
     try {
       const { error } = await supabase
         .from('planning_genere_personnel')
@@ -397,11 +413,19 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
       if (error) throw error;
       
       toast({
-        title: validated ? "Assignation validée" : "Validation retirée",
-        description: "Le changement a été enregistré",
+        title: validated ? "✓" : "○",
+        description: validated ? "Validée" : "Dévalidée",
+        duration: 1500,
       });
     } catch (error) {
-      console.error('Error updating validation:', error);
+      // Rollback optimistic update
+      setOptimisticValidations(prev => {
+        const next = new Map(prev);
+        next.delete(assignmentId);
+        return next;
+      });
+      
+      console.error('Error toggling validation:', error);
       toast({
         title: "Erreur",
         description: "Impossible de modifier la validation",
@@ -411,58 +435,114 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   };
 
   const handleValidateDay = async (date: string, siteId: string) => {
-    const assignmentsToValidate = siteBesoins
+    const assignments = siteBesoins
       .filter(b => b.date === date && b.site_id === siteId)
-      .flatMap(b => b.personnel.map(p => p.id));
+      .flatMap(b => b.personnel);
 
-    if (assignmentsToValidate.length === 0) return;
+    if (assignments.length === 0) return;
+
+    // Check if all are already validated
+    const allValidated = assignments.every(p => {
+      const optimistic = optimisticValidations.get(p.id);
+      return optimistic !== undefined ? optimistic : p.validated;
+    });
+    
+    const newValidatedState = !allValidated;
+    const assignmentIds = assignments.map(p => p.id);
+
+    // Optimistic updates
+    assignmentIds.forEach(id => {
+      setOptimisticValidations(prev => {
+        const next = new Map(prev);
+        next.set(id, newValidatedState);
+        return next;
+      });
+    });
 
     try {
       const { error } = await supabase
         .from('planning_genere_personnel')
-        .update({ validated: true })
-        .in('id', assignmentsToValidate);
+        .update({ validated: newValidatedState })
+        .in('id', assignmentIds);
 
       if (error) throw error;
       
       toast({
-        title: "Journée validée",
-        description: `${assignmentsToValidate.length} assignation(s) validée(s)`,
+        title: newValidatedState ? "Journée validée" : "Journée dévalidée",
+        description: `${assignmentIds.length} assignation(s) ${newValidatedState ? 'validée(s)' : 'dévalidée(s)'}`,
+        duration: 1500,
       });
     } catch (error) {
-      console.error('Error validating day:', error);
+      // Rollback all optimistic updates
+      assignmentIds.forEach(id => {
+        setOptimisticValidations(prev => {
+          const next = new Map(prev);
+          next.delete(id);
+          return next;
+        });
+      });
+      
+      console.error('Error toggling day validation:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de valider la journée",
+        description: "Impossible de modifier la validation",
         variant: "destructive",
       });
     }
   };
 
   const handleValidateSite = async (siteId: string) => {
-    const assignmentsToValidate = siteBesoins
+    const assignments = siteBesoins
       .filter(b => b.site_id === siteId)
-      .flatMap(b => b.personnel.map(p => p.id));
+      .flatMap(b => b.personnel);
 
-    if (assignmentsToValidate.length === 0) return;
+    if (assignments.length === 0) return;
+
+    // Check if all are already validated
+    const allValidated = assignments.every(p => {
+      const optimistic = optimisticValidations.get(p.id);
+      return optimistic !== undefined ? optimistic : p.validated;
+    });
+    
+    const newValidatedState = !allValidated;
+    const assignmentIds = assignments.map(p => p.id);
+
+    // Optimistic updates
+    assignmentIds.forEach(id => {
+      setOptimisticValidations(prev => {
+        const next = new Map(prev);
+        next.set(id, newValidatedState);
+        return next;
+      });
+    });
 
     try {
       const { error } = await supabase
         .from('planning_genere_personnel')
-        .update({ validated: true })
-        .in('id', assignmentsToValidate);
+        .update({ validated: newValidatedState })
+        .in('id', assignmentIds);
 
       if (error) throw error;
       
       toast({
-        title: "Site validé",
-        description: `${assignmentsToValidate.length} assignation(s) validée(s) pour toute la semaine`,
+        title: newValidatedState ? "Site validé" : "Site dévalidé",
+        description: `${assignmentIds.length} assignation(s) ${newValidatedState ? 'validée(s)' : 'dévalidée(s)'}`,
+        duration: 1500,
       });
     } catch (error) {
-      console.error('Error validating site:', error);
+      // Rollback all optimistic updates
+      assignmentIds.forEach(id => {
+        setOptimisticValidations(prev => {
+          const next = new Map(prev);
+          next.delete(id);
+          return next;
+        });
+      });
+      
+      console.error('Error toggling site validation:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de valider le site",
+        description: "Impossible de modifier la validation",
         variant: "destructive",
       });
     }
@@ -581,7 +661,11 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
                                       <Checkbox
-                                        checked={p.validated || false}
+                                        checked={
+                                          optimisticValidations.has(p.id)
+                                            ? optimisticValidations.get(p.id)!
+                                            : p.validated || false
+                                        }
                                         onCheckedChange={(checked) => handleValidationToggle(p.id, checked as boolean)}
                                         onClick={(e) => e.stopPropagation()}
                                         className="mr-1"
@@ -688,7 +772,11 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
                                       <Checkbox
-                                        checked={p.validated || false}
+                                        checked={
+                                          optimisticValidations.has(p.id)
+                                            ? optimisticValidations.get(p.id)!
+                                            : p.validated || false
+                                        }
                                         onCheckedChange={(checked) => handleValidationToggle(p.id, checked as boolean)}
                                         onClick={(e) => e.stopPropagation()}
                                         className="mr-1"

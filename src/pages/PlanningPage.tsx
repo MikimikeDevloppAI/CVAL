@@ -553,8 +553,8 @@ export default function PlanningPage() {
       // No need to update planning_genere_site_besoin as it no longer exists
       // All assignments are now in planning_genere_personnel
       
-      // Call validate-planning which will generate PDF and validate
-      const { error: validateError } = await supabase.functions.invoke('validate-planning', {
+      // Call validate-planning which will generate PDF and validate all assignments
+      const { data, error: validateError } = await supabase.functions.invoke('validate-planning', {
         body: {
           planning_id: currentPlanningId,
         },
@@ -565,9 +565,16 @@ export default function PlanningPage() {
         throw validateError;
       }
 
+      // Optimistic UI update
+      setCurrentPlanningStatus('valide');
+      setValidatedAt(new Date().toISOString());
+      if (data?.pdf_url) {
+        setGeneratedPdfUrl(data.pdf_url);
+      }
+
       toast({
         title: "Succès",
-        description: "Planning validé et PDF généré avec succès !",
+        description: "Planning validé, toutes les assignations validées, et PDF généré avec succès !",
       });
 
       await Promise.all([fetchPlanningGenere(), fetchCurrentPlanning()]);

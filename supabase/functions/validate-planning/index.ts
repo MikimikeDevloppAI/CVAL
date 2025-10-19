@@ -166,7 +166,31 @@ serve(async (req) => {
       throw planningUpdateError;
     }
 
-    console.log(`✓ Planning ${planning_id} marked as validated`);
+    // Validate all personnel assignments
+    console.log('✓ Validating all personnel assignments');
+    const { error: validatePersonnelError } = await supabaseServiceRole
+      .from('planning_genere_personnel')
+      .update({ validated: true })
+      .eq('planning_id', planning_id);
+
+    if (validatePersonnelError) {
+      console.error('❌ Error validating personnel:', validatePersonnelError);
+      throw validatePersonnelError;
+    }
+
+    // Validate all bloc operations
+    console.log('✓ Validating all bloc operations');
+    const { error: validateBlocError } = await supabaseServiceRole
+      .from('planning_genere_bloc_operatoire')
+      .update({ validated: true })
+      .eq('planning_id', planning_id);
+
+    if (validateBlocError) {
+      console.error('❌ Error validating bloc operations:', validateBlocError);
+      throw validateBlocError;
+    }
+
+    console.log(`✓ Planning ${planning_id} marked as validated (with all assignments)`);
 
     return new Response(JSON.stringify({
       success: true,

@@ -68,6 +68,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
   const [selectedSecretary, setSelectedSecretary] = useState<{ id: string; name: string; weekSchedule: any[] } | null>(null);
+  const [optimisticValidations, setOptimisticValidations] = useState<Map<string, boolean>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,9 +92,17 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
           schema: 'public',
           table: 'planning_genere_personnel'
         },
-        () => {
+        (payload) => {
           if (mounted) {
             fetchSecretaryPlanning();
+            // Clear optimistic state for updated assignment
+            if (payload.eventType === 'UPDATE' && payload.new?.id) {
+              setOptimisticValidations(prev => {
+                const next = new Map(prev);
+                next.delete(payload.new.id);
+                return next;
+              });
+            }
           }
         }
       )
@@ -255,6 +264,13 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
+    // Optimistic update
+    setOptimisticValidations(prev => {
+      const next = new Map(prev);
+      next.set(assignmentId, validated);
+      return next;
+    });
+
     try {
       const { error } = await supabase
         .from('planning_genere_personnel')
@@ -264,11 +280,19 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
       if (error) throw error;
       
       toast({
-        title: validated ? "Assignation validée" : "Validation retirée",
-        description: "Le changement a été enregistré",
+        title: validated ? "✓" : "○",
+        description: validated ? "Validée" : "Dévalidée",
+        duration: 1500,
       });
     } catch (error) {
-      console.error('Error updating validation:', error);
+      // Rollback optimistic update
+      setOptimisticValidations(prev => {
+        const next = new Map(prev);
+        next.delete(assignmentId);
+        return next;
+      });
+      
+      console.error('Error toggling validation:', error);
       toast({
         title: "Erreur",
         description: "Impossible de modifier la validation",
@@ -281,7 +305,11 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
     return (
       <div className="flex items-center gap-2">
         <Checkbox
-          checked={assignment.validated}
+          checked={
+            optimisticValidations.has(assignment.id)
+              ? optimisticValidations.get(assignment.id)!
+              : assignment.validated
+          }
           onCheckedChange={(checked) => handleValidationToggle(assignment.id, checked as boolean)}
           onClick={(e) => e.stopPropagation()}
         />

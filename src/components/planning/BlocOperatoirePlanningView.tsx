@@ -68,6 +68,7 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
   const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
+  const [optimisticValidations, setOptimisticValidations] = useState<Map<string, boolean>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -103,28 +104,57 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
   };
 
   const handleValidateOperation = async (operationId: string) => {
+    // Check if operation is already fully validated
+    const operation = operations.find(op => op.id === operationId);
+    if (!operation) return;
+
+    const allPersonnelIds = operation.personnel.map(p => p.id);
+    const allValidated = (optimisticValidations.get(operationId) ?? operation.validated) &&
+      allPersonnelIds.every(id => optimisticValidations.get(id) ?? true);
+    
+    const newValidatedState = !allValidated;
+
+    // Optimistic updates
+    setOptimisticValidations(prev => {
+      const next = new Map(prev);
+      next.set(operationId, newValidatedState);
+      allPersonnelIds.forEach(id => next.set(id, newValidatedState));
+      return next;
+    });
+
     try {
-      // Valider l'opération bloc
+      // Valider/dévalider l'opération bloc
       await supabase
         .from('planning_genere_bloc_operatoire')
-        .update({ validated: true })
+        .update({ validated: newValidatedState })
         .eq('id', operationId);
 
-      // Valider tout le personnel associé
+      // Valider/dévalider tout le personnel associé
       await supabase
         .from('planning_genere_personnel')
-        .update({ validated: true })
+        .update({ validated: newValidatedState })
         .eq('planning_genere_bloc_operatoire_id', operationId);
 
       toast({
-        title: "Opération validée",
-        description: "L'opération et son personnel ont été validés",
+        title: newValidatedState ? "Opération validée" : "Opération dévalidée",
+        description: newValidatedState 
+          ? "L'opération et son personnel ont été validés"
+          : "L'opération et son personnel ont été dévalidés",
+        duration: 1500,
       });
     } catch (error) {
-      console.error('Error validating operation:', error);
+      // Rollback optimistic updates
+      setOptimisticValidations(prev => {
+        const next = new Map(prev);
+        next.delete(operationId);
+        allPersonnelIds.forEach(id => next.delete(id));
+        return next;
+      });
+      
+      console.error('Error toggling operation validation:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de valider l'opération",
+        description: "Impossible de modifier la validation",
         variant: "destructive",
       });
     }
@@ -253,7 +283,11 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
                           <Checkbox
-                            checked={operation.validated || false}
+                            checked={
+                              optimisticValidations.has(operation.id)
+                                ? optimisticValidations.get(operation.id)!
+                                : operation.validated || false
+                            }
                             onCheckedChange={(checked) => handleValidateOperation(operation.id)}
                           />
                           <Badge variant="outline" className="text-base px-3 py-1">
