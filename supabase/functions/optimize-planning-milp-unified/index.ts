@@ -39,6 +39,9 @@ const corsHeaders = {
 interface OptimizationRequest {
   selected_dates: string[];
   planning_id?: string;
+  flexible_secretaries_days?: {
+    [secretaire_id: string]: number;
+  };
 }
 
 serve(async (req) => {
@@ -53,7 +56,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { selected_dates, planning_id: input_planning_id }: OptimizationRequest = await req.json();
+    const { selected_dates, planning_id: input_planning_id, flexible_secretaries_days }: OptimizationRequest = await req.json();
     console.log(`Dates sélectionnées: ${selected_dates.join(", ")}`);
 
     // ============================================================
@@ -729,16 +732,29 @@ serve(async (req) => {
         d => !selected_dates.includes(d)
       ).length;
       
-      const quotaRestant = Math.max(0, joursCompletsTotal - joursDejaHorsPeriode);
+      // Calculer quota suggéré
+      const quotaSuggere = Math.max(0, joursCompletsTotal - joursDejaHorsPeriode);
+      
+      // UTILISER LA VALEUR FOURNIE PAR L'UTILISATEUR si disponible
+      let quotaUtilise: number;
+      if (flexible_secretaries_days && flexible_secretaries_days[sec.id] !== undefined) {
+        quotaUtilise = flexible_secretaries_days[sec.id];
+        console.log(`  ${sec.name}: quota utilisateur = ${quotaUtilise} jours (suggéré: ${quotaSuggere})`);
+      } else {
+        // Fallback sur le calcul automatique si pas fourni
+        quotaUtilise = quotaSuggere;
+        console.log(`  ${sec.name}: quota auto = ${quotaUtilise} jours`);
+      }
       
       console.log(`  ${sec.name} (${pourcentage}%):`);
       console.log(`    • Quota total: ${joursCompletsTotal} jours/semaine`);
       console.log(`    • Déjà travaillé: ${joursDejaHorsPeriode} jours cette semaine (hors période opt.)`);
-      console.log(`    • Quota restant: ${quotaRestant} jours`);
+      console.log(`    • Quota suggéré: ${quotaSuggere} jours`);
+      console.log(`    • Quota utilisé: ${quotaUtilise} jours`);
       
-      // Si quota déjà atteint, ne pas générer de capacités
-      if (quotaRestant === 0) {
-        console.log(`    ⚠️ Quota atteint, pas de nouvelles assignations possibles`);
+      // Si quota = 0, ne pas générer de capacités
+      if (quotaUtilise === 0) {
+        console.log(`    ⚠️ Quota = 0, pas de nouvelles assignations possibles`);
         (sec as any).quotaJoursComplets = 0;
         continue;
       }
@@ -778,8 +794,8 @@ serve(async (req) => {
       
       console.log(`    • Capacités générées: ${capsGenerated} demi-journées (${capsGenerated/2} jours max)`);
       
-      // Stocker le quota RESTANT (pas le total)
-      (sec as any).quotaJoursComplets = quotaRestant;
+      // Stocker le quota UTILISÉ (pas le total ni le suggéré)
+      (sec as any).quotaJoursComplets = quotaUtilise;
     }
     
     console.log(`✓ Capacités flexibles générées`);

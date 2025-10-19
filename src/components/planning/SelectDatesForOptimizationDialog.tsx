@@ -13,7 +13,7 @@ interface SelectDatesForOptimizationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   weekDays: Date[];
-  onOptimize: (selectedDates: string[]) => Promise<void>;
+  onOptimize: (selectedDates: string[]) => void;
   isOptimizing: boolean;
 }
 
@@ -60,12 +60,10 @@ export function SelectDatesForOptimizationDialog({
     }
   };
 
-  const handleOptimize = async () => {
+  const handleNext = () => {
     if (selectedDates.length === 0) return;
-    await onOptimize(selectedDates);
-    onOpenChange(false);
-    setSelectedDates([]);
-    setSelectAll(true);
+    // Ne pas fermer le dialog, laisser le parent gérer la transition
+    onOptimize(selectedDates);
   };
 
   return (
@@ -141,17 +139,10 @@ export function SelectDatesForOptimizationDialog({
             Annuler
           </Button>
           <Button
-            onClick={handleOptimize}
+            onClick={handleNext}
             disabled={selectedDates.length === 0 || isOptimizing}
           >
-            {isOptimizing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Optimisation en cours...
-              </>
-            ) : (
-              `Optimiser ${selectedDates.length} jour${selectedDates.length > 1 ? 's' : ''}`
-            )}
+            Suivant ({selectedDates.length} jour{selectedDates.length > 1 ? 's' : ''})
           </Button>
         </DialogFooter>
       </DialogContent>

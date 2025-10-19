@@ -21,6 +21,7 @@ import { SitePlanningView } from '@/components/planning/SitePlanningView';
 import { AddPlanningCreneauDialog } from '@/components/planning/AddPlanningCreneauDialog';
 import { SecretaryCapacityView } from '@/components/planning/SecretaryCapacityView';
 import { SelectDatesForOptimizationDialog } from '@/components/planning/SelectDatesForOptimizationDialog';
+import { FlexibleSecretariesConfigDialog } from '@/components/planning/FlexibleSecretariesConfigDialog';
 import { OptimizationProgressDialog } from '@/components/planning/OptimizationProgressDialog';
 import { SecretaryOptimizationHelpDialog } from '@/components/secretaires/SecretaryOptimizationHelpDialog';
 import { OptimizationResult } from '@/types/planning';
@@ -101,6 +102,8 @@ export default function PlanningPage() {
   const [validatedAt, setValidatedAt] = useState<string | null>(null);
   const [isValidatingPlanning, setIsValidatingPlanning] = useState(false);
   const [selectDatesDialogOpen, setSelectDatesDialogOpen] = useState(false);
+  const [flexibleConfigDialogOpen, setFlexibleConfigDialogOpen] = useState(false);
+  const [selectedDatesForOptimization, setSelectedDatesForOptimization] = useState<string[]>([]);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [isLoadingOptimizationResults, setIsLoadingOptimizationResults] = useState(false);
   const [optimizationProgress, setOptimizationProgress] = useState({
@@ -603,11 +606,24 @@ export default function PlanningPage() {
   };
 
   const handleOptimizeMILP = async () => {
-    // Toujours ouvrir le dialogue de sélection
+    // Étape 1: Ouvrir le dialogue de sélection des dates
     setSelectDatesDialogOpen(true);
   };
 
-  const executeOptimizeMILP = async (selectedDates?: string[]) => {
+  const handleDatesSelected = (dates: string[]) => {
+    // Étape 2: Ouvrir le dialogue de configuration des flexibles
+    setSelectedDatesForOptimization(dates);
+    setSelectDatesDialogOpen(false);
+    setFlexibleConfigDialogOpen(true);
+  };
+
+  const handleFlexibleConfigConfirm = async (configuration: { [id: string]: number }) => {
+    // Étape 3: Lancer l'optimisation avec la configuration
+    setFlexibleConfigDialogOpen(false);
+    await executeOptimizeMILP(selectedDatesForOptimization, configuration);
+  };
+
+  const executeOptimizeMILP = async (selectedDates: string[], flexibleConfig?: { [id: string]: number }) => {
     setIsOptimizingMILP(true);
     setIsLoadingOptimizationResults(true);
     setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
@@ -659,6 +675,7 @@ export default function PlanningPage() {
       const { data, error } = await supabase.functions.invoke('optimize-planning-milp-unified', {
         body: {
           selected_dates: daysToOptimize,
+          flexible_secretaries_days: flexibleConfig,
         },
       });
 
@@ -1337,7 +1354,8 @@ export default function PlanningPage() {
             <AlertDialogAction 
               onClick={() => {
                 setConfirmRegenerateDialogOpen(false);
-                executeOptimizeMILP();
+                // Ouvrir le flow de sélection des dates
+                setSelectDatesDialogOpen(true);
               }}
               className="bg-primary"
             >
@@ -1351,9 +1369,15 @@ export default function PlanningPage() {
         open={selectDatesDialogOpen}
         onOpenChange={setSelectDatesDialogOpen}
         weekDays={weekDays}
-        onOptimize={async (dates) => {
-          await executeOptimizeMILP(dates);
-        }}
+        onOptimize={handleDatesSelected}
+        isOptimizing={isOptimizingMILP}
+      />
+
+      <FlexibleSecretariesConfigDialog
+        open={flexibleConfigDialogOpen}
+        onOpenChange={setFlexibleConfigDialogOpen}
+        selectedDates={selectedDatesForOptimization}
+        onConfirm={handleFlexibleConfigConfirm}
         isOptimizing={isOptimizingMILP}
       />
 
