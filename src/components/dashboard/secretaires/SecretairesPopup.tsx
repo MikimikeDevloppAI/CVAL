@@ -9,7 +9,6 @@ import { SecretairesList } from './SecretairesList';
 import { SecretaireFormDialog } from './SecretaireFormDialog';
 import { SecretaireCalendarDialog } from './SecretaireCalendarDialog';
 import { GlobalCalendarView } from '@/components/secretaires/GlobalCalendarView';
-import { SecretaryOptimizationHelpDialog } from '@/components/secretaires/SecretaryOptimizationHelpDialog';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface SecretairesPopupProps {
@@ -105,8 +104,6 @@ export function SecretairesPopup({ open, onOpenChange }: SecretairesPopupProps) 
                         Montrer inactifs
                       </label>
                     </div>
-
-                    <SecretaryOptimizationHelpDialog />
 
                     {canManage && (
                       <>
