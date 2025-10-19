@@ -166,14 +166,14 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
 
   if (isEditing) {
     return (
-      <div className="p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30">
+      <div className="p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         {/* Première ligne: Jour, Période, Alternance, Boutons */}
         <div className="flex items-center gap-2 mb-2">
           <Select 
             value={formData.jour_semaine.toString()} 
             onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
           >
-            <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50">
+            <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -209,7 +209,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               })
             }
           >
-            <SelectTrigger className="w-24 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+            <SelectTrigger className="w-24 h-8 text-xs border-cyan-200/50 bg-cyan-500/5" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -228,7 +228,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
                 setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })
               }
             >
-              <SelectTrigger className="w-20 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+              <SelectTrigger className="w-20 h-8 text-xs border-cyan-200/50 bg-cyan-500/5" type="button">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -326,6 +326,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           
           <div className="flex gap-1 ml-2">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleSave}
@@ -335,6 +336,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               <Check className="h-3 w-3" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleCancel}
@@ -385,6 +387,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         </span>
 
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={(e) => {

@@ -105,13 +105,13 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
 
   if (isEditing) {
     return (
-      <div className="p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30">
+      <div className="p-2 bg-cyan-500/5 rounded-lg border border-cyan-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         <div className="flex items-center gap-2">
           <Select 
             value={formData.medecin_id} 
             onValueChange={(value) => setFormData({ ...formData, medecin_id: value })}
           >
-            <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50">
+            <SelectTrigger className="h-8 flex-1 text-xs border-cyan-200/50" type="button">
               <SelectValue placeholder="Sélectionner un médecin" />
             </SelectTrigger>
             <SelectContent>
@@ -127,7 +127,7 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
             value={formData.priorite} 
             onValueChange={(value) => setFormData({ ...formData, priorite: value })}
           >
-            <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50">
+            <SelectTrigger className="h-8 w-24 text-xs border-cyan-200/50" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -138,6 +138,7 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
 
           <div className="flex gap-1 ml-2">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleSave}
@@ -147,6 +148,7 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
               <Check className="h-3 w-3" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleCancel}
@@ -179,6 +181,7 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
         </span>
 
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={(e) => {

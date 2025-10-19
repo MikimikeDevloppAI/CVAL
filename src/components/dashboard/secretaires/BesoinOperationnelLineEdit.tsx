@@ -100,13 +100,13 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
 
   if (isEditing) {
     return (
-      <div className="p-2 bg-emerald-500/5 rounded-lg border border-emerald-200/30">
+      <div className="p-2 bg-emerald-500/5 rounded-lg border border-emerald-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         <div className="flex items-center gap-2">
           <Select 
             value={formData.besoin_operation_id} 
             onValueChange={(value) => setFormData({ ...formData, besoin_operation_id: value })}
           >
-            <SelectTrigger className="h-8 flex-1 text-xs border-emerald-200/50">
+            <SelectTrigger className="h-8 flex-1 text-xs border-emerald-200/50" type="button">
               <SelectValue placeholder="Sélectionner un besoin" />
             </SelectTrigger>
             <SelectContent>
@@ -122,7 +122,7 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
             value={formData.preference.toString()} 
             onValueChange={(value) => setFormData({ ...formData, preference: parseInt(value) })}
           >
-            <SelectTrigger className="h-8 w-24 text-xs border-emerald-200/50">
+            <SelectTrigger className="h-8 w-24 text-xs border-emerald-200/50" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -134,6 +134,7 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
 
           <div className="flex gap-1 ml-2">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleSave}
@@ -143,6 +144,7 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
               <Check className="h-3 w-3" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleCancel}
@@ -177,6 +179,7 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
         </span>
 
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={(e) => {

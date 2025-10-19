@@ -150,7 +150,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
 
   if (isEditing) {
     return (
-      <div className="p-2 bg-teal-500/5 rounded-lg border border-teal-200/30">
+      <div className="p-2 bg-teal-500/5 rounded-lg border border-teal-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         {/* Première ligne: Jour, Période, Alternance */}
         <div className="flex items-center gap-2 mb-2">
           <Select 
@@ -173,7 +173,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
             value={formData.demi_journee} 
             onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}
           >
-            <SelectTrigger className="h-8 w-32 text-xs border-teal-200/50">
+            <SelectTrigger className="h-8 w-32 text-xs border-teal-200/50" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -193,7 +193,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
               })
             }
           >
-            <SelectTrigger className="w-24 h-8 text-xs border-teal-200/50 bg-teal-500/5">
+            <SelectTrigger className="w-24 h-8 text-xs border-teal-200/50 bg-teal-500/5" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -212,7 +212,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
                 setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })
               }
             >
-              <SelectTrigger className="w-20 h-8 text-xs border-teal-200/50 bg-teal-500/5">
+              <SelectTrigger className="w-20 h-8 text-xs border-teal-200/50 bg-teal-500/5" type="button">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -285,6 +285,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
           
           <div className="flex gap-1 ml-2">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleSave}
@@ -294,6 +295,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
               <Check className="h-3 w-3" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={handleCancel}
@@ -344,6 +346,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         </span>
 
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={(e) => {
