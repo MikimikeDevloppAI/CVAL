@@ -6,6 +6,7 @@ import { QuickActionButton } from '@/components/dashboard/QuickActionButton';
 import { SiteCalendarCard } from '@/components/dashboard/SiteCalendarCard';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
+import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ const DashboardPage = () => {
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
+  const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -242,13 +244,13 @@ const DashboardPage = () => {
           gradient="from-cyan-500 to-blue-500"
           count={0}
         />
-        <QuickActionButton
-          label="Assistants médicaux"
-          icon={<Users className="h-6 w-6" />}
-          href="/secretaires"
-          gradient="from-teal-500 to-cyan-500"
-          count={stats.totalSecretary}
-        />
+          <QuickActionButton
+            label="Assistants médicaux"
+            icon={<Users className="h-6 w-6" />}
+            onClick={() => setSecretairesPopupOpen(true)}
+            gradient="from-teal-500 to-cyan-500"
+            count={stats.totalSecretary}
+          />
         <QuickActionButton
           label="Opérations"
           icon={<ClipboardPlus className="h-6 w-6" />}
@@ -325,6 +327,11 @@ const DashboardPage = () => {
       <MedecinsPopup 
         open={medecinsPopupOpen} 
         onOpenChange={setMedecinsPopupOpen}
+      />
+      
+      <SecretairesPopup 
+        open={secretairesPopupOpen} 
+        onOpenChange={setSecretairesPopupOpen}
       />
     </div>
   );
