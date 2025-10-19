@@ -366,6 +366,14 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
         </span>
 
+        {(horaire.date_debut || horaire.date_fin) && (
+          <span className="text-xs text-muted-foreground shrink-0">
+            {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR')}`}
+            {horaire.date_debut && horaire.date_fin && ' '}
+            {horaire.date_fin && `au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR')}`}
+          </span>
+        )}
+
         <Button
           variant="ghost"
           size="sm"
