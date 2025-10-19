@@ -232,50 +232,37 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 p-6 space-y-8">
-      {/* Header */}
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Vue d'ensemble de votre planning
-          </p>
-        </div>
-
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <QuickActionButton
-            label="Médecins"
-            icon={<Stethoscope className="h-6 w-6" />}
-            onClick={() => setMedecinsPopupOpen(true)}
-            gradient="from-cyan-500 to-blue-500"
-            count={0}
-          />
-          <QuickActionButton
-            label="Assistants médicaux"
-            icon={<Users className="h-6 w-6" />}
-            href="/secretaires"
-            gradient="from-teal-500 to-cyan-500"
-            count={stats.totalSecretary}
-          />
-          <QuickActionButton
-            label="Opérations"
-            icon={<ClipboardPlus className="h-6 w-6" />}
-            href="/bloc-operatoire"
-            gradient="from-emerald-500 to-teal-500"
-            count={stats.todayOperations}
-          />
-          <QuickActionButton
-            label="Absences"
-            icon={<CalendarX className="h-6 w-6" />}
-            href="/absences"
-            gradient="from-green-500 to-emerald-500"
-            count={stats.pendingAbsences}
-          />
-        </div>
+    <div className="w-full space-y-6">
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <QuickActionButton
+          label="Médecins"
+          icon={<Stethoscope className="h-6 w-6" />}
+          onClick={() => setMedecinsPopupOpen(true)}
+          gradient="from-cyan-500 to-blue-500"
+          count={0}
+        />
+        <QuickActionButton
+          label="Assistants médicaux"
+          icon={<Users className="h-6 w-6" />}
+          href="/secretaires"
+          gradient="from-teal-500 to-cyan-500"
+          count={stats.totalSecretary}
+        />
+        <QuickActionButton
+          label="Opérations"
+          icon={<ClipboardPlus className="h-6 w-6" />}
+          href="/bloc-operatoire"
+          gradient="from-emerald-500 to-teal-500"
+          count={stats.todayOperations}
+        />
+        <QuickActionButton
+          label="Absences"
+          icon={<CalendarX className="h-6 w-6" />}
+          href="/absences"
+          gradient="from-green-500 to-emerald-500"
+          count={stats.pendingAbsences}
+        />
       </div>
 
       {/* Week Selector */}
