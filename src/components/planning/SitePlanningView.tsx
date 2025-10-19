@@ -70,36 +70,9 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     };
     
     fetchData();
-
-    // Real-time subscription for personnel assignments
-    const personnelChannel = supabase
-      .channel('site-personnel-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planning_genere_personnel'
-        },
-        (payload) => {
-          if (mounted) {
-            fetchSitePlanning();
-            // Clear optimistic state for updated assignment
-            if (payload.eventType === 'UPDATE' && payload.new?.id) {
-              setOptimisticValidations(prev => {
-                const next = new Map(prev);
-                next.delete(payload.new.id);
-                return next;
-              });
-            }
-          }
-        }
-      )
-      .subscribe();
     
     return () => {
       mounted = false;
-      supabase.removeChannel(personnelChannel);
     };
   }, [startDate, endDate]);
 
@@ -397,7 +370,7 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
-    // Optimistic update
+    // Optimistic update - keep forever, no rollback
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(assignmentId, validated);
@@ -418,13 +391,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         duration: 1500,
       });
     } catch (error) {
-      // Rollback optimistic update
-      setOptimisticValidations(prev => {
-        const next = new Map(prev);
-        next.delete(assignmentId);
-        return next;
-      });
-      
       console.error('Error toggling validation:', error);
       toast({
         title: "Erreur",
@@ -450,13 +416,11 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     const newValidatedState = !allValidated;
     const assignmentIds = assignments.map(p => p.id);
 
-    // Optimistic updates
-    assignmentIds.forEach(id => {
-      setOptimisticValidations(prev => {
-        const next = new Map(prev);
-        next.set(id, newValidatedState);
-        return next;
-      });
+    // Optimistic updates - keep forever
+    setOptimisticValidations(prev => {
+      const next = new Map(prev);
+      assignmentIds.forEach(id => next.set(id, newValidatedState));
+      return next;
     });
 
     try {
@@ -473,15 +437,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         duration: 1500,
       });
     } catch (error) {
-      // Rollback all optimistic updates
-      assignmentIds.forEach(id => {
-        setOptimisticValidations(prev => {
-          const next = new Map(prev);
-          next.delete(id);
-          return next;
-        });
-      });
-      
       console.error('Error toggling day validation:', error);
       toast({
         title: "Erreur",
@@ -507,13 +462,11 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     const newValidatedState = !allValidated;
     const assignmentIds = assignments.map(p => p.id);
 
-    // Optimistic updates
-    assignmentIds.forEach(id => {
-      setOptimisticValidations(prev => {
-        const next = new Map(prev);
-        next.set(id, newValidatedState);
-        return next;
-      });
+    // Optimistic updates - keep forever
+    setOptimisticValidations(prev => {
+      const next = new Map(prev);
+      assignmentIds.forEach(id => next.set(id, newValidatedState));
+      return next;
     });
 
     try {
@@ -530,15 +483,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
         duration: 1500,
       });
     } catch (error) {
-      // Rollback all optimistic updates
-      assignmentIds.forEach(id => {
-        setOptimisticValidations(prev => {
-          const next = new Map(prev);
-          next.delete(id);
-          return next;
-        });
-      });
-      
       console.error('Error toggling site validation:', error);
       toast({
         title: "Erreur",

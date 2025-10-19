@@ -82,35 +82,8 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
     
     fetchData();
 
-    // Real-time updates
-    const channel = supabase
-      .channel('secretary-planning-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planning_genere_personnel'
-        },
-        (payload) => {
-          if (mounted) {
-            fetchSecretaryPlanning();
-            // Clear optimistic state for updated assignment
-            if (payload.eventType === 'UPDATE' && payload.new?.id) {
-              setOptimisticValidations(prev => {
-                const next = new Map(prev);
-                next.delete(payload.new.id);
-                return next;
-              });
-            }
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
     };
   }, [startDate, endDate]);
 
@@ -264,7 +237,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
-    // Optimistic update
+    // Optimistic update - keep forever, no rollback
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(assignmentId, validated);
@@ -285,13 +258,6 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
         duration: 1500,
       });
     } catch (error) {
-      // Rollback optimistic update
-      setOptimisticValidations(prev => {
-        const next = new Map(prev);
-        next.delete(assignmentId);
-        return next;
-      });
-      
       console.error('Error toggling validation:', error);
       toast({
         title: "Erreur",

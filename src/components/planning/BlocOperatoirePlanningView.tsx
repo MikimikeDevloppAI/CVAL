@@ -114,7 +114,7 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
     
     const newValidatedState = !allValidated;
 
-    // Optimistic updates
+    // Optimistic updates - keep forever
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(operationId, newValidatedState);
@@ -143,14 +143,6 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
         duration: 1500,
       });
     } catch (error) {
-      // Rollback optimistic updates
-      setOptimisticValidations(prev => {
-        const next = new Map(prev);
-        next.delete(operationId);
-        allPersonnelIds.forEach(id => next.delete(id));
-        return next;
-      });
-      
       console.error('Error toggling operation validation:', error);
       toast({
         title: "Erreur",
