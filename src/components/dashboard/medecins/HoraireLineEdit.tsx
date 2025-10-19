@@ -250,7 +250,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         </div>
 
         {/* Deuxième ligne: Site, Type d'intervention */}
-        <div className="flex items-center gap-2 pl-14">
+        <div className="flex items-center gap-2">
           <Select 
             value={formData.site_id} 
             onValueChange={(value) => {
@@ -340,7 +340,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       </div>
 
       {/* Deuxième ligne: Site et Type d'intervention */}
-      <div className="flex items-center gap-2 pl-14">
+      <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground truncate">
           {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
         </span>
