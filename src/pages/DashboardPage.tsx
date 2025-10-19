@@ -234,7 +234,7 @@ const DashboardPage = () => {
       {/* Header */}
       <div className="space-y-6">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
             Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">
@@ -242,33 +242,6 @@ const DashboardPage = () => {
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard
-            icon={<Stethoscope className="h-5 w-5" />}
-            value={stats.activeSites}
-            label="Sites actifs"
-            gradient="from-blue-500 to-purple-600"
-          />
-          <StatsCard
-            icon={<Users className="h-5 w-5" />}
-            value={stats.totalSecretary}
-            label="Secrétaires"
-            gradient="from-green-500 to-emerald-600"
-          />
-          <StatsCard
-            icon={<ClipboardPlus className="h-5 w-5" />}
-            value={stats.todayOperations}
-            label="Opérations du jour"
-            gradient="from-orange-500 to-pink-600"
-          />
-          <StatsCard
-            icon={<CalendarX className="h-5 w-5" />}
-            value={stats.pendingAbsences}
-            label="Absences en attente"
-            gradient="from-red-500 to-rose-600"
-          />
-        </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -276,28 +249,28 @@ const DashboardPage = () => {
             label="Médecins"
             icon={<Stethoscope className="h-6 w-6" />}
             href="/medecins"
-            gradient="from-blue-500 to-purple-600"
+            gradient="from-cyan-500 to-blue-500"
             count={0}
           />
           <QuickActionButton
             label="Assistants médicaux"
             icon={<Users className="h-6 w-6" />}
             href="/secretaires"
-            gradient="from-green-500 to-emerald-600"
+            gradient="from-teal-500 to-cyan-500"
             count={stats.totalSecretary}
           />
           <QuickActionButton
             label="Opérations"
             icon={<ClipboardPlus className="h-6 w-6" />}
             href="/bloc-operatoire"
-            gradient="from-orange-500 to-pink-600"
+            gradient="from-emerald-500 to-teal-500"
             count={stats.todayOperations}
           />
           <QuickActionButton
             label="Absences"
             icon={<CalendarX className="h-6 w-6" />}
             href="/absences"
-            gradient="from-red-500 to-rose-600"
+            gradient="from-green-500 to-emerald-500"
             count={stats.pendingAbsences}
           />
         </div>

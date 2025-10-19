@@ -71,7 +71,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
             )}
           </div>
           {hasIssues && (
-            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+            <Badge variant="outline" className="bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
               Besoins non satisfaits
             </Badge>
           )}

@@ -38,15 +38,15 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
   }
 
   const statusColors = {
-    satisfait: 'border-green-500/50 bg-green-500/5',
-    partiel: 'border-orange-500/50 bg-orange-500/5',
-    non_satisfait: 'border-red-500/50 bg-red-500/5'
+    satisfait: 'border-emerald-500/50 bg-emerald-500/5',
+    partiel: 'border-cyan-500/50 bg-cyan-500/5',
+    non_satisfait: 'border-teal-500/50 bg-teal-500/5'
   };
 
   const statusDotColors = {
-    satisfait: 'bg-green-500',
-    partiel: 'bg-orange-500',
-    non_satisfait: 'bg-red-500'
+    satisfait: 'bg-emerald-500',
+    partiel: 'bg-cyan-500',
+    non_satisfait: 'bg-teal-500'
   };
 
   const allValidated = data.secretaires.every(s => s.validated);
@@ -77,7 +77,7 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
                 />
                 {/* Validation Check */}
                 {allValidated && data.secretaires.length > 0 && (
-                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                 )}
               </div>
             </div>
@@ -86,7 +86,7 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
             {data.medecins.length > 0 && (
               <div className="mb-2">
                 <div className="flex items-center gap-1 mb-1">
-                  <Stethoscope className="h-3 w-3 text-blue-600" />
+                  <Stethoscope className="h-3 w-3 text-cyan-600" />
                   <span className="text-[10px] font-medium text-muted-foreground">
                     {data.medecins.length}
                   </span>
@@ -98,7 +98,7 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
             {data.secretaires.length > 0 && (
               <div>
                 <div className="flex items-center gap-1 mb-1">
-                  <Users className="h-3 w-3 text-green-600" />
+                  <Users className="h-3 w-3 text-emerald-600" />
                   <span className="text-[10px] font-medium text-muted-foreground">
                     {data.secretaires.length}/{Math.ceil(data.besoin_secretaires)}
                   </span>
@@ -106,12 +106,12 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
                 {/* Responsibilities Badges */}
                 <div className="flex flex-wrap gap-1">
                   {data.secretaires.some(s => s.is_1r) && (
-                    <span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-700 font-medium">
+                    <span className="text-[8px] px-1 py-0.5 rounded bg-cyan-500/20 text-cyan-700 font-medium">
                       1R
                     </span>
                   )}
                   {data.secretaires.some(s => s.is_2f) && (
-                    <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-700 font-medium">
+                    <span className="text-[8px] px-1 py-0.5 rounded bg-teal-500/20 text-teal-700 font-medium">
                       2F
                     </span>
                   )}
@@ -148,9 +148,9 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
                   {data.secretaires.map(s => (
                     <li key={s.id} className="flex items-center gap-1">
                       • {s.nom}
-                      {s.is_1r && <span className="text-[10px] text-blue-600">(1R)</span>}
-                      {s.is_2f && <span className="text-[10px] text-purple-600">(2F)</span>}
-                      {s.validated && <CheckCircle2 className="h-3 w-3 text-green-600 ml-1" />}
+                      {s.is_1r && <span className="text-[10px] text-cyan-600">(1R)</span>}
+                      {s.is_2f && <span className="text-[10px] text-teal-600">(2F)</span>}
+                      {s.validated && <CheckCircle2 className="h-3 w-3 text-emerald-600 ml-1" />}
                     </li>
                   ))}
                 </ul>
@@ -160,9 +160,9 @@ export const DayCell = ({ date, periode, data }: DayCellProps) => {
             <div className="pt-2 border-t border-border/50">
               <p className={cn(
                 "text-xs font-medium",
-                data.status === 'satisfait' && "text-green-600",
-                data.status === 'partiel' && "text-orange-600",
-                data.status === 'non_satisfait' && "text-red-600"
+                data.status === 'satisfait' && "text-emerald-600",
+                data.status === 'partiel' && "text-cyan-600",
+                data.status === 'non_satisfait' && "text-teal-600"
               )}>
                 {data.status === 'satisfait' && '✓ Besoin satisfait'}
                 {data.status === 'partiel' && '⚠ Partiellement satisfait'}
