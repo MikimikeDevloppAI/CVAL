@@ -25,6 +25,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     type_intervention_id: horaire.type_intervention_id || 'none',
     alternance_type: horaire.alternance_type || 'hebdomadaire',
     alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
+    date_debut: horaire.date_debut || '',
+    date_fin: horaire.date_fin || '',
   });
   const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -42,6 +44,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       type_intervention_id: horaire.type_intervention_id || 'none',
       alternance_type: horaire.alternance_type || 'hebdomadaire',
       alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
+      date_debut: horaire.date_debut || '',
+      date_fin: horaire.date_fin || '',
     });
   }, [horaire]);
 
@@ -99,6 +103,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         type_intervention_id: formData.type_intervention_id === 'none' ? null : formData.type_intervention_id,
         alternance_type: formData.alternance_type,
         alternance_semaine_modulo: formData.alternance_semaine_modulo,
+        date_debut: formData.date_debut || null,
+        date_fin: formData.date_fin || null,
       };
 
       const { error } = await supabase
@@ -134,6 +140,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       type_intervention_id: horaire.type_intervention_id || 'none',
       alternance_type: horaire.alternance_type || 'hebdomadaire',
       alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
+      date_debut: horaire.date_debut || '',
+      date_fin: horaire.date_fin || '',
     });
     setIsEditing(false);
   };
@@ -259,7 +267,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         </div>
 
         {/* Deuxième ligne: Site, Type d'intervention */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-2">
           <Select 
             value={formData.site_id} 
             onValueChange={(value) => {
@@ -300,6 +308,24 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               </SelectContent>
             </Select>
           )}
+        </div>
+
+        {/* Troisième ligne: Dates */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground w-8 shrink-0">Du</label>
+          <input
+            type="date"
+            value={formData.date_debut}
+            onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
+            className="h-8 flex-1 text-xs rounded-md border border-cyan-200/50 bg-background px-2"
+          />
+          <label className="text-xs text-muted-foreground w-8 shrink-0">Au</label>
+          <input
+            type="date"
+            value={formData.date_fin}
+            onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
+            className="h-8 flex-1 text-xs rounded-md border border-cyan-200/50 bg-background px-2"
+          />
         </div>
       </div>
     );
