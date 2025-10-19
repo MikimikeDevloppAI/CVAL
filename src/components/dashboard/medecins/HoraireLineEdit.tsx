@@ -78,7 +78,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     if (siteName.toLowerCase().startsWith('clinique la vallée')) {
       const parts = siteName.split('-');
       if (parts.length > 1) {
-        return 'CLIVAL' + parts.slice(1).join('-').trim();
+        return 'CLIVAL - ' + parts.slice(1).join('-').trim() + ' -';
       }
       return siteName;
     }
