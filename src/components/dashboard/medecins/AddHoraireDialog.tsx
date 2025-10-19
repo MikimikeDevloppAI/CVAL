@@ -217,6 +217,47 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
               </SelectContent>
             </Select>
           </div>
+
+          {formData.alternance_type !== 'hebdomadaire' && (
+            <div className="space-y-2">
+              <Label>
+                {formData.alternance_type === 'une_sur_deux' && 'Semaine'}
+                {formData.alternance_type === 'une_sur_trois' && 'Semaine dans le cycle'}
+                {formData.alternance_type === 'une_sur_quatre' && 'Semaine dans le cycle'}
+              </Label>
+              <Select 
+                value={formData.alternance_semaine_modulo.toString()} 
+                onValueChange={(value) => setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })}
+              >
+                <SelectTrigger className="border-cyan-200/50 focus:border-cyan-500">
+                  <SelectValue placeholder="Sélectionner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {formData.alternance_type === 'une_sur_deux' && (
+                    <>
+                      <SelectItem value="0">Paire (2, 4, 6...)</SelectItem>
+                      <SelectItem value="1">Impaire (1, 3, 5...)</SelectItem>
+                    </>
+                  )}
+                  {formData.alternance_type === 'une_sur_trois' && (
+                    <>
+                      <SelectItem value="0">Semaine 1 (1, 4, 7...)</SelectItem>
+                      <SelectItem value="1">Semaine 2 (2, 5, 8...)</SelectItem>
+                      <SelectItem value="2">Semaine 3 (3, 6, 9...)</SelectItem>
+                    </>
+                  )}
+                  {formData.alternance_type === 'une_sur_quatre' && (
+                    <>
+                      <SelectItem value="0">Semaine 1 (1, 5, 9...)</SelectItem>
+                      <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
+                      <SelectItem value="2">Semaine 3 (3, 7, 11...)</SelectItem>
+                      <SelectItem value="3">Semaine 4 (4, 8, 12...)</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2">
