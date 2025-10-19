@@ -366,14 +366,6 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
         </span>
 
-        {(horaire.date_debut || horaire.date_fin) && (
-          <span className="text-xs text-muted-foreground shrink-0">
-            {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR')}`}
-            {horaire.date_debut && horaire.date_fin && ' '}
-            {horaire.date_fin && `au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR')}`}
-          </span>
-        )}
-
         <Button
           variant="ghost"
           size="sm"
@@ -386,6 +378,15 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
+
+      {/* Deuxième ligne: Dates (si présentes) */}
+      {(horaire.date_debut || horaire.date_fin) && (
+        <div className="text-[10px] text-muted-foreground/60 ml-14">
+          {horaire.date_debut && `Du ${new Date(horaire.date_debut).toLocaleDateString('fr-FR')}`}
+          {horaire.date_debut && horaire.date_fin && ' '}
+          {horaire.date_fin && `au ${new Date(horaire.date_fin).toLocaleDateString('fr-FR')}`}
+        </div>
+      )}
     </div>
   );
 }
