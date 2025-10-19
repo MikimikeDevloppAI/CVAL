@@ -128,16 +128,14 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
   return (
     <div 
       className={`
-        backdrop-blur-xl bg-card/95 rounded-xl border border-cyan-200/50 dark:border-cyan-800/50
+        backdrop-blur-xl bg-card/95 rounded-xl border-2 border-cyan-200/50 dark:border-cyan-800/50
         shadow-lg hover:shadow-xl hover:shadow-cyan-500/20 transition-all duration-300 
-        hover:scale-[1.02] hover:-translate-y-1
+        hover:scale-[1.02] hover:-translate-y-1 hover:border-cyan-400/70 dark:hover:border-cyan-600/70
         group relative overflow-hidden
         ${medecin.actif === false ? 'opacity-60' : ''}
       `}
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       
       <div className="relative p-6">
         {/* Header */}

@@ -60,7 +60,7 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
           {/* Header */}
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-transparent">
