@@ -78,8 +78,8 @@ export function SiteAssigneLineEdit({ assignment, sites, onUpdate, onDelete, isN
         });
       }
       
-      onUpdate();
       setIsEditing(false);
+      onUpdate();
     } catch (error) {
       console.error('Erreur:', error);
       toast({

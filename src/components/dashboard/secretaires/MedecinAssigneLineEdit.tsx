@@ -77,8 +77,8 @@ export function MedecinAssigneLineEdit({ assignment, medecins, onUpdate, onDelet
         });
       }
       
-      onUpdate();
       setIsEditing(false);
+      onUpdate();
     } catch (error) {
       console.error('Erreur:', error);
       toast({

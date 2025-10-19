@@ -121,8 +121,8 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         });
       }
       
-      onUpdate();
       setIsEditing(false);
+      onUpdate();
     } catch (error) {
       console.error('Erreur:', error);
       toast({

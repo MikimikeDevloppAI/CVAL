@@ -72,8 +72,8 @@ export function BesoinOperationnelLineEdit({ assignment, besoins, onUpdate, onDe
         });
       }
       
-      onUpdate();
       setIsEditing(false);
+      onUpdate();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
