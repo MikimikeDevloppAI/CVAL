@@ -33,6 +33,7 @@ export function SecretaireCard({
 }: SecretaireCardProps) {
   const [sites, setSites] = useState<any[]>([]);
   const [localSecretaire, setLocalSecretaire] = useState(secretaire);
+  const [newHoraire, setNewHoraire] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export function SecretaireCard({
   };
 
   const handleHoraireUpdate = async () => {
+    setNewHoraire(null);
     onSuccess();
     
     // Refresh local secretaire data
@@ -95,11 +97,13 @@ export function SecretaireCard({
           actif,
           alternance_type,
           alternance_semaine_modulo,
+          date_debut,
+          date_fin,
           sites (nom)
         )
       `)
       .eq('id', secretaire.id)
-      .single();
+      .maybeSingle();
 
     if (updatedSecretaire) {
       setLocalSecretaire(prev => ({
@@ -107,6 +111,25 @@ export function SecretaireCard({
         horaires_base_secretaires: updatedSecretaire.horaires_base_secretaires
       }));
     }
+  };
+
+  const handleAddNewHoraire = () => {
+    setNewHoraire({
+      id: 'new',
+      jour_semaine: 1,
+      demi_journee: 'matin',
+      site_id: sites[0]?.id || '',
+      alternance_type: 'hebdomadaire',
+      alternance_semaine_modulo: 0,
+      date_debut: '',
+      date_fin: '',
+      secretaire_id: secretaire.id,
+      actif: true
+    });
+  };
+
+  const handleCancelNew = () => {
+    setNewHoraire(null);
   };
 
   const nomComplet = `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim() || 
@@ -375,13 +398,22 @@ export function SecretaireCard({
               );
             })}
 
+            {/* New horaire line in edit mode */}
+            {newHoraire && (
+              <HoraireSecretaireLineEdit
+                horaire={newHoraire}
+                jour="Nouveau"
+                sites={sites}
+                onUpdate={handleHoraireUpdate}
+                onDelete={handleCancelNew}
+                isNew={true}
+              />
+            )}
+
             {/* Add Button */}
-            {canManage && (
+            {canManage && !newHoraire && (
               <div className="pt-2 mt-2 border-t border-border/30">
-                <AddHoraireSecretaireDialog
-                  secretaireId={secretaire.id}
-                  onSuccess={handleHoraireUpdate}
-                />
+                <AddHoraireSecretaireDialog onAddNew={handleAddNewHoraire} />
               </div>
             )}
           </div>
