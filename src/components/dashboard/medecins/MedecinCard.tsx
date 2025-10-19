@@ -23,6 +23,7 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
   const [sites, setSites] = useState<any[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
   const [localMedecin, setLocalMedecin] = useState(medecin);
+  const [newHoraire, setNewHoraire] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -78,6 +79,8 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
             actif,
             alternance_type,
             alternance_semaine_modulo,
+            date_debut,
+            date_fin,
             sites!horaires_base_medecins_site_id_fkey (nom),
             types_intervention (nom)
           )
@@ -99,6 +102,7 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
   };
 
   const handleHoraireUpdate = async () => {
+    setNewHoraire(null);
     // Refresh medecin data
     const { data: updatedMedecin } = await supabase
       .from('medecins')
@@ -113,6 +117,8 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
           actif,
           alternance_type,
           alternance_semaine_modulo,
+          date_debut,
+          date_fin,
           sites!horaires_base_medecins_site_id_fkey (nom),
           types_intervention (nom)
         )
@@ -123,6 +129,26 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
     if (updatedMedecin) {
       setLocalMedecin(updatedMedecin);
     }
+  };
+
+  const handleAddNewHoraire = () => {
+    setNewHoraire({
+      id: 'new',
+      jour_semaine: 1,
+      demi_journee: 'matin',
+      site_id: sites[0]?.id || '',
+      type_intervention_id: null,
+      alternance_type: 'hebdomadaire',
+      alternance_semaine_modulo: 0,
+      date_debut: '',
+      date_fin: '',
+      medecin_id: medecin.id,
+      actif: true
+    });
+  };
+
+  const handleCancelNew = () => {
+    setNewHoraire(null);
   };
 
   return (
@@ -234,13 +260,23 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
               );
             })}
 
+            {/* New horaire line in edit mode */}
+            {newHoraire && (
+              <HoraireLineEdit
+                horaire={newHoraire}
+                jour="Nouveau"
+                sites={sites}
+                typesIntervention={typesIntervention}
+                onUpdate={handleHoraireUpdate}
+                onDelete={handleCancelNew}
+                isNew={true}
+              />
+            )}
+
             {/* Add Button */}
-            {canManage && (
+            {canManage && !newHoraire && (
               <div className="pt-2 mt-2 border-t border-border/30">
-                <AddHoraireDialog
-                  medecinId={medecin.id}
-                  onSuccess={handleHoraireUpdate}
-                />
+                <AddHoraireDialog onAddNew={handleAddNewHoraire} />
               </div>
             )}
           </div>

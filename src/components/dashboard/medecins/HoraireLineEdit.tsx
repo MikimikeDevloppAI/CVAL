@@ -13,10 +13,11 @@ interface HoraireLineEditProps {
   typesIntervention: any[];
   onUpdate: () => void;
   onDelete: (horaireId: string) => void;
+  isNew?: boolean;
 }
 
-export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpdate, onDelete }: HoraireLineEditProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpdate, onDelete, isNew = false }: HoraireLineEditProps) {
+  const [isEditing, setIsEditing] = useState(isNew);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     jour_semaine: horaire.jour_semaine,
@@ -96,7 +97,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
   const handleSave = async () => {
     setLoading(true);
     try {
-      const updateData: any = {
+      const saveData: any = {
         jour_semaine: formData.jour_semaine,
         demi_journee: formData.demi_journee,
         site_id: formData.site_id,
@@ -105,26 +106,43 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         alternance_semaine_modulo: formData.alternance_semaine_modulo,
         date_debut: formData.date_debut || null,
         date_fin: formData.date_fin || null,
+        actif: true
       };
 
-      const { error } = await supabase
-        .from('horaires_base_medecins')
-        .update(updateData)
-        .eq('id', horaire.id);
+      if (isNew) {
+        // Insert new horaire
+        const { error } = await supabase
+          .from('horaires_base_medecins')
+          .insert([{ ...saveData, medecin_id: horaire.medecin_id }]);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Succès",
-        description: "Horaire mis à jour",
-      });
+        toast({
+          title: "Succès",
+          description: "Horaire ajouté",
+        });
+      } else {
+        // Update existing horaire
+        const { error } = await supabase
+          .from('horaires_base_medecins')
+          .update(saveData)
+          .eq('id', horaire.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Succès",
+          description: "Horaire mis à jour",
+        });
+      }
+      
       onUpdate();
       setIsEditing(false);
     } catch (error) {
       console.error('Erreur:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour l'horaire",
+        description: isNew ? "Impossible d'ajouter l'horaire" : "Impossible de mettre à jour l'horaire",
         variant: "destructive",
       });
     } finally {
