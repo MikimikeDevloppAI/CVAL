@@ -78,7 +78,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     if (siteName.toLowerCase().startsWith('clinique la vallée')) {
       const parts = siteName.split('-');
       if (parts.length > 1) {
-        return 'CLIVAL - ' + parts.slice(1).join('-').trim() + ' -';
+        return 'CLIVAL - ' + parts.slice(1).join('-').trim();
       }
       return siteName;
     }
@@ -301,7 +301,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       className="group/line p-2 rounded-lg hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
       onClick={() => setIsEditing(true)}
     >
-      {/* Première ligne: Jour, Créneau, Alternance */}
+      {/* Première ligne: Jour, Créneau, Alternance, Site */}
       <div className="flex items-center gap-2 mb-1">
         <Badge variant="outline" className="w-12 justify-center bg-muted/30 shrink-0">
           {jour}
@@ -326,6 +326,10 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           </>
         )}
 
+        <span className="text-sm text-muted-foreground truncate flex-1">
+          {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
+        </span>
+
         <Button
           variant="ghost"
           size="sm"
@@ -333,17 +337,10 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             e.stopPropagation();
             onDelete(horaire.id);
           }}
-          className="opacity-0 group-hover/line:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0 ml-auto"
+          className="opacity-0 group-hover/line:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0"
         >
           <Trash2 className="h-3 w-3" />
         </Button>
-      </div>
-
-      {/* Deuxième ligne: Site et Type d'intervention */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground truncate">
-          {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
-        </span>
       </div>
     </div>
   );
