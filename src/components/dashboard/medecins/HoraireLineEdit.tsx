@@ -54,13 +54,35 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
   };
 
   const alternanceLabels = {
-    'hebdomadaire': 'Hebdo',
-    'une_sur_deux': '1/2',
+    'hebdomadaire': '',
+    'une_sur_deux': horaire.alternance_semaine_modulo === 0 ? 'Pair' : 'Impair',
     'une_sur_trois': '1/3',
     'une_sur_quatre': '1/4'
   };
 
   const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+
+  const formatSiteName = (siteName: string, typeIntervention?: string) => {
+    if (!siteName) return '';
+    
+    // Si c'est le bloc opératoire, afficher uniquement l'intervention
+    if (siteName.toLowerCase().includes('bloc') && typeIntervention) {
+      return typeIntervention;
+    }
+    
+    // Si ça commence par "Clinique La Vallée"
+    if (siteName.toLowerCase().startsWith('clinique la vallée')) {
+      const parts = siteName.split('-');
+      if (parts.length > 1) {
+        return 'CLIVAL' + parts.slice(1).join('-').trim();
+      }
+      return siteName;
+    }
+    
+    // Sinon afficher ce qui est avant le "-"
+    const parts = siteName.split('-');
+    return parts[0].trim();
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -154,7 +176,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {sites.map((site) => (
+            {sites.filter(site => !site.nom.toLowerCase().includes('administratif')).map((site) => (
               <SelectItem key={site.id} value={site.id}>
                 {site.nom}
               </SelectItem>
@@ -210,6 +232,9 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     >
       <Badge variant="outline" className="w-12 justify-center bg-muted/30 shrink-0">
         {jour}
+        {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && alternanceLabels[horaire.alternance_type] && (
+          <span className="text-[9px] ml-0.5">({alternanceLabels[horaire.alternance_type]})</span>
+        )}
       </Badge>
 
       <Badge 
@@ -220,17 +245,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       </Badge>
 
       <span className="flex-1 text-sm text-muted-foreground truncate">
-        {horaire.sites?.nom}
-        {horaire.types_intervention && (
-          <span className="text-xs ml-1">({horaire.types_intervention.nom})</span>
-        )}
+        {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
       </span>
-
-      {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 shrink-0">
-          {alternanceLabels[horaire.alternance_type]}
-        </Badge>
-      )}
 
       <Button
         variant="ghost"
