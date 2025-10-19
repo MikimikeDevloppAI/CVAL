@@ -104,6 +104,10 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
       return ` (S${(horaire.alternance_semaine_modulo || 0) + 1}/4)`;
     }
     
+    if (horaire.alternance_type === 'trois_sur_quatre') {
+      return ` (Sauf S${(horaire.alternance_semaine_modulo || 0) + 1}/4)`;
+    }
+    
     return '';
   };
 
@@ -177,6 +181,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
             <SelectItem value="une_sur_deux">1/2</SelectItem>
             <SelectItem value="une_sur_trois">1/3</SelectItem>
             <SelectItem value="une_sur_quatre">1/4</SelectItem>
+            <SelectItem value="trois_sur_quatre">3/4</SelectItem>
           </SelectContent>
         </Select>
 
@@ -208,6 +213,14 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
                   <SelectItem value="1">S2</SelectItem>
                   <SelectItem value="2">S3</SelectItem>
                   <SelectItem value="3">S4</SelectItem>
+                </>
+              )}
+              {formData.alternance_type === 'trois_sur_quatre' && (
+                <>
+                  <SelectItem value="0">Sauf S1</SelectItem>
+                  <SelectItem value="1">Sauf S2</SelectItem>
+                  <SelectItem value="2">Sauf S3</SelectItem>
+                  <SelectItem value="3">Sauf S4</SelectItem>
                 </>
               )}
             </SelectContent>

@@ -60,8 +60,9 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
   const alternanceLabels = {
     'hebdomadaire': '',
     'une_sur_deux': horaire.alternance_semaine_modulo === 0 ? 'Pair' : 'Impair',
-    'une_sur_trois': '1/3',
-    'une_sur_quatre': '1/4'
+    'une_sur_trois': `S${horaire.alternance_semaine_modulo + 1}`,
+    'une_sur_quatre': `S${horaire.alternance_semaine_modulo + 1}`,
+    'trois_sur_quatre': `Sauf S${horaire.alternance_semaine_modulo + 1}`
   };
 
   const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
@@ -190,6 +191,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               <SelectItem value="une_sur_deux">1/2</SelectItem>
               <SelectItem value="une_sur_trois">1/3</SelectItem>
               <SelectItem value="une_sur_quatre">1/4</SelectItem>
+              <SelectItem value="trois_sur_quatre">3/4</SelectItem>
             </SelectContent>
           </Select>
 
@@ -215,12 +217,19 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
                     <SelectItem value="1">S2</SelectItem>
                     <SelectItem value="2">S3</SelectItem>
                   </>
-                ) : (
+                ) : formData.alternance_type === 'une_sur_quatre' ? (
                   <>
                     <SelectItem value="0">S1</SelectItem>
                     <SelectItem value="1">S2</SelectItem>
                     <SelectItem value="2">S3</SelectItem>
                     <SelectItem value="3">S4</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="0">Sauf S1</SelectItem>
+                    <SelectItem value="1">Sauf S2</SelectItem>
+                    <SelectItem value="2">Sauf S3</SelectItem>
+                    <SelectItem value="3">Sauf S4</SelectItem>
                   </>
                 )}
               </SelectContent>
@@ -318,7 +327,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           <>
             <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 shrink-0">
               {horaire.alternance_type === 'une_sur_deux' ? '1/2' : 
-               horaire.alternance_type === 'une_sur_trois' ? '1/3' : '1/4'}
+               horaire.alternance_type === 'une_sur_trois' ? '1/3' : 
+               horaire.alternance_type === 'une_sur_quatre' ? '1/4' : '3/4'}
             </Badge>
             <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20 shrink-0">
               {alternanceLabels[horaire.alternance_type]}

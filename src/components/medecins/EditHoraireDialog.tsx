@@ -14,7 +14,7 @@ const horaireSchema = z.object({
   demiJournee: z.enum(['matin', 'apres_midi', 'toute_journee']),
   siteId: z.string().min(1, 'Site requis'),
   typeInterventionId: z.string().optional(),
-  alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre']).default('hebdomadaire'),
+  alternanceType: z.enum(['hebdomadaire', 'une_sur_deux', 'une_sur_trois', 'une_sur_quatre', 'trois_sur_quatre']).default('hebdomadaire'),
   alternanceSemaineModulo: z.number().int().min(0).max(3),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
@@ -339,6 +339,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
                       <SelectItem value="une_sur_deux">Une semaine sur deux</SelectItem>
                       <SelectItem value="une_sur_trois">Une semaine sur trois</SelectItem>
                       <SelectItem value="une_sur_quatre">Une semaine sur quatre</SelectItem>
+                      <SelectItem value="trois_sur_quatre">Trois semaines sur quatre</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -356,6 +357,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
                       {alternanceType === 'une_sur_deux' && 'Semaine'}
                       {alternanceType === 'une_sur_trois' && 'Semaine dans le cycle'}
                       {alternanceType === 'une_sur_quatre' && 'Semaine dans le cycle'}
+                      {alternanceType === 'trois_sur_quatre' && 'Semaine absente dans le cycle'}
                     </FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(parseInt(value))} 
@@ -386,6 +388,14 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
                             <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
                             <SelectItem value="2">Semaine 3 (3, 7, 11...)</SelectItem>
                             <SelectItem value="3">Semaine 4 (4, 8, 12...)</SelectItem>
+                          </>
+                        )}
+                        {alternanceType === 'trois_sur_quatre' && (
+                          <>
+                            <SelectItem value="0">Sauf Semaine 1 (pas 1, 5, 9...)</SelectItem>
+                            <SelectItem value="1">Sauf Semaine 2 (pas 2, 6, 10...)</SelectItem>
+                            <SelectItem value="2">Sauf Semaine 3 (pas 3, 7, 11...)</SelectItem>
+                            <SelectItem value="3">Sauf Semaine 4 (pas 4, 8, 12...)</SelectItem>
                           </>
                         )}
                       </SelectContent>

@@ -19,7 +19,7 @@ export interface Secretaire {
     site_id?: string;
     date_debut?: string;
     date_fin?: string;
-    alternance_type?: 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre';
+    alternance_type?: 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre' | 'trois_sur_quatre';
     alternance_semaine_modulo?: number;
     sites?: { nom: string } | null;
   }[];

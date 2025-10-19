@@ -20,7 +20,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
     jour_semaine: 1,
     demi_journee: 'matin' as 'matin' | 'apres_midi' | 'toute_journee',
     site_id: '',
-    alternance_type: 'hebdomadaire' as 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre',
+    alternance_type: 'hebdomadaire' as 'hebdomadaire' | 'une_sur_deux' | 'une_sur_trois' | 'une_sur_quatre' | 'trois_sur_quatre',
     alternance_semaine_modulo: 0,
   });
   const { toast } = useToast();
@@ -186,6 +186,7 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
                 <SelectItem value="une_sur_deux">1 semaine sur 2</SelectItem>
                 <SelectItem value="une_sur_trois">1 semaine sur 3</SelectItem>
                 <SelectItem value="une_sur_quatre">1 semaine sur 4</SelectItem>
+                <SelectItem value="trois_sur_quatre">3 semaines sur 4</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -220,6 +221,14 @@ export function AddHoraireSecretaireDialog({ secretaireId, onSuccess }: AddHorai
                       <SelectItem value="1">Semaine 2 (2, 6, 10...)</SelectItem>
                       <SelectItem value="2">Semaine 3 (3, 7, 11...)</SelectItem>
                       <SelectItem value="3">Semaine 4 (4, 8, 12...)</SelectItem>
+                    </>
+                  )}
+                  {formData.alternance_type === 'trois_sur_quatre' && (
+                    <>
+                      <SelectItem value="0">Sauf Semaine 1 (pas 1, 5, 9...)</SelectItem>
+                      <SelectItem value="1">Sauf Semaine 2 (pas 2, 6, 10...)</SelectItem>
+                      <SelectItem value="2">Sauf Semaine 3 (pas 3, 7, 11...)</SelectItem>
+                      <SelectItem value="3">Sauf Semaine 4 (pas 4, 8, 12...)</SelectItem>
                     </>
                   )}
                 </SelectContent>

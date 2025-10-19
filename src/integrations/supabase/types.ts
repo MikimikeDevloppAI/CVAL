@@ -1303,6 +1303,7 @@ export type Database = {
         | "une_sur_deux"
         | "une_sur_trois"
         | "une_sur_quatre"
+        | "trois_sur_quatre"
       type_besoin: "medecin" | "bloc_operatoire"
       type_besoin_personnel:
         | "anesthesiste"
@@ -1458,6 +1459,7 @@ export const Constants = {
         "une_sur_deux",
         "une_sur_trois",
         "une_sur_quatre",
+        "trois_sur_quatre",
       ],
       type_besoin: ["medecin", "bloc_operatoire"],
       type_besoin_personnel: [
