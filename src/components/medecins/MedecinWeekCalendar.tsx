@@ -3,7 +3,7 @@ import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, X, Sunrise, Sunset, Calendar as CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -47,7 +47,6 @@ interface BesoinEffectif {
 interface Site {
   id: string;
   nom: string;
-  est_bloc_operatoire: boolean;
 }
 
 interface TypeIntervention {
@@ -220,6 +219,7 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent">
               Calendrier de {medecinNom}
             </DialogTitle>
+            <DialogDescription className="sr-only">Calendrier hebdomadaire du médecin {medecinNom}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -383,6 +383,7 @@ export function MedecinWeekCalendar({ open, onOpenChange, medecinId, medecinNom 
         <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-cyan-200/50 dark:border-cyan-800/50">
           <DialogHeader>
             <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogDescription className="sr-only">Ajouter un créneau pour {medecinNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

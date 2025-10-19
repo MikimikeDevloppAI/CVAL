@@ -3,7 +3,7 @@ import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, X, Sunrise, Sunset, Calendar as CalendarIcon, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -211,6 +211,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
               Calendrier de {secretaireNom}
             </DialogTitle>
+            <DialogDescription className="sr-only">Calendrier hebdomadaire de la secrétaire {secretaireNom}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -372,6 +373,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
         <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-teal-200/50 dark:border-teal-800/50">
           <DialogHeader>
             <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogDescription className="sr-only">Ajouter un créneau pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
