@@ -63,19 +63,9 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
         <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           {/* Header */}
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-transparent">
-                Gestion des Médecins
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCloseDialog}
-                className="hover:bg-cyan-500/10"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-transparent">
+              Gestion des Médecins
+            </DialogTitle>
           </DialogHeader>
 
           {/* Content */}
