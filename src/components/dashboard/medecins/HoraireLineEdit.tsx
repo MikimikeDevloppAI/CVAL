@@ -290,38 +290,53 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
 
   return (
     <div 
-      className="group/line flex items-center gap-2 p-2 rounded-lg hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
+      className="group/line p-2 rounded-lg hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
       onClick={() => setIsEditing(true)}
     >
-      <Badge variant="outline" className="w-12 justify-center bg-muted/30 shrink-0">
-        {jour}
-        {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && alternanceLabels[horaire.alternance_type] && (
-          <span className="text-[9px] ml-0.5">({alternanceLabels[horaire.alternance_type]})</span>
+      {/* Première ligne: Jour, Créneau, Alternance */}
+      <div className="flex items-center gap-2 mb-1">
+        <Badge variant="outline" className="w-12 justify-center bg-muted/30 shrink-0">
+          {jour}
+        </Badge>
+
+        <Badge 
+          variant="secondary" 
+          className={`${periodColors[horaire.demi_journee]} shrink-0`}
+        >
+          {periodLabels[horaire.demi_journee]}
+        </Badge>
+
+        {horaire.alternance_type && horaire.alternance_type !== 'hebdomadaire' && (
+          <>
+            <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 shrink-0">
+              {horaire.alternance_type === 'une_sur_deux' ? '1/2' : 
+               horaire.alternance_type === 'une_sur_trois' ? '1/3' : '1/4'}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20 shrink-0">
+              {alternanceLabels[horaire.alternance_type]}
+            </Badge>
+          </>
         )}
-      </Badge>
 
-      <Badge 
-        variant="secondary" 
-        className={`${periodColors[horaire.demi_journee]} shrink-0`}
-      >
-        {periodLabels[horaire.demi_journee]}
-      </Badge>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(horaire.id);
+          }}
+          className="opacity-0 group-hover/line:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0 ml-auto"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
 
-      <span className="flex-1 text-sm text-muted-foreground truncate">
-        {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
-      </span>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(horaire.id);
-        }}
-        className="opacity-0 group-hover/line:opacity-100 transition-opacity h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0"
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
+      {/* Deuxième ligne: Site et Type d'intervention */}
+      <div className="flex items-center gap-2 pl-14">
+        <span className="text-sm text-muted-foreground truncate">
+          {formatSiteName(horaire.sites?.nom, horaire.types_intervention?.nom)}
+        </span>
+      </div>
     </div>
   );
 }
