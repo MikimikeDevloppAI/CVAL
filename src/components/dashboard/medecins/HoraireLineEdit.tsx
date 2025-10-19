@@ -22,7 +22,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     jour_semaine: horaire.jour_semaine,
     demi_journee: horaire.demi_journee,
     site_id: horaire.site_id,
-    type_intervention_id: horaire.type_intervention_id || '',
+    type_intervention_id: horaire.type_intervention_id || 'none',
   });
   const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -37,7 +37,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       jour_semaine: horaire.jour_semaine,
       demi_journee: horaire.demi_journee,
       site_id: horaire.site_id,
-      type_intervention_id: horaire.type_intervention_id || '',
+      type_intervention_id: horaire.type_intervention_id || 'none',
     });
   }, [horaire]);
 
@@ -69,7 +69,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         jour_semaine: formData.jour_semaine,
         demi_journee: formData.demi_journee,
         site_id: formData.site_id,
-        type_intervention_id: formData.type_intervention_id || null,
+        type_intervention_id: formData.type_intervention_id === 'none' ? null : formData.type_intervention_id,
       };
 
       const { error } = await supabase
@@ -102,7 +102,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       jour_semaine: horaire.jour_semaine,
       demi_journee: horaire.demi_journee,
       site_id: horaire.site_id,
-      type_intervention_id: horaire.type_intervention_id || '',
+      type_intervention_id: horaire.type_intervention_id || 'none',
     });
     setIsEditing(false);
   };
@@ -146,7 +146,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             setFormData({ 
               ...formData, 
               site_id: value,
-              type_intervention_id: value !== blocOperatoireSiteId ? '' : formData.type_intervention_id
+              type_intervention_id: value !== blocOperatoireSiteId ? 'none' : formData.type_intervention_id
             });
           }}
         >
@@ -171,7 +171,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               <SelectValue placeholder="Type intervention" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Aucun</SelectItem>
+              <SelectItem value="none">Aucun</SelectItem>
               {typesIntervention.map((type) => (
                 <SelectItem key={type.id} value={type.id}>
                   {type.nom}
