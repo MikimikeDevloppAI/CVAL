@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Scissors, Users, Clock, MapPin } from 'lucide-react';
+import { Loader2, Scissors, Users, Clock, MapPin, CheckCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { ChangeSalleDialog } from './ChangeSalleDialog';
 import ChangePersonnelDialog from './ChangePersonnelDialog';
+import { useToast } from '@/hooks/use-toast';
 
 interface BlocOperation {
   id: string;
@@ -17,6 +19,7 @@ interface BlocOperation {
   type_intervention_id: string;
   medecin_id: string;
   statut: string;
+  validated: boolean;
   type_intervention?: {
     nom: string;
     code: string;
@@ -65,6 +68,7 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
   const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchBlocOperations();
@@ -96,6 +100,34 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
       planning_genere_bloc_operatoire_id: operation.id,
     });
     setChangePersonnelDialogOpen(true);
+  };
+
+  const handleValidateOperation = async (operationId: string) => {
+    try {
+      // Valider l'opération bloc
+      await supabase
+        .from('planning_genere_bloc_operatoire')
+        .update({ validated: true })
+        .eq('id', operationId);
+
+      // Valider tout le personnel associé
+      await supabase
+        .from('planning_genere_personnel')
+        .update({ validated: true })
+        .eq('planning_genere_bloc_operatoire_id', operationId);
+
+      toast({
+        title: "Opération validée",
+        description: "L'opération et son personnel ont été validés",
+      });
+    } catch (error) {
+      console.error('Error validating operation:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider l'opération",
+        variant: "destructive",
+      });
+    }
   };
 
   const fetchBlocOperations = async () => {
@@ -220,6 +252,10 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                     <div className="flex items-start justify-between">
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={operation.validated || false}
+                            onCheckedChange={(checked) => handleValidateOperation(operation.id)}
+                          />
                           <Badge variant="outline" className="text-base px-3 py-1">
                             {PERIODE_LABELS[operation.periode]}
                           </Badge>
@@ -232,6 +268,9 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
                               Salle {operation.salle_assignee}
                             </Badge>
                           </button>
+                          {operation.validated && (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          )}
                         </div>
                         
                         <div className="flex items-center gap-2">

@@ -42,6 +42,7 @@ interface OptimizationRequest {
   flexible_secretaries_days?: {
     [secretaire_id: string]: number;
   };
+  preserve_validated?: boolean;
 }
 
 serve(async (req) => {
@@ -56,8 +57,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { selected_dates, planning_id: input_planning_id, flexible_secretaries_days }: OptimizationRequest = await req.json();
+    const { selected_dates, planning_id: input_planning_id, flexible_secretaries_days, preserve_validated = true }: OptimizationRequest = await req.json();
     console.log(`Dates sélectionnées: ${selected_dates.join(", ")}`);
+    console.log(`🔒 Mode préservation: ${preserve_validated ? 'Préserver validées' : 'Tout régénérer'}`);
 
     // ============================================================
     // PHASE 0: PRÉPARATION
@@ -109,19 +111,74 @@ serve(async (req) => {
 
     // Nettoyer les assignations existantes pour les dates sélectionnées
     console.log("Nettoyage des assignations existantes...");
-    await supabase
-      .from("planning_genere_personnel")
-      .delete()
-      .eq("planning_id", planning_id)
-      .in("date", selected_dates);
+    
+    if (preserve_validated) {
+      // Mode préservation: supprimer uniquement les NON validées
+      const { error: deletePersonnelError } = await supabase
+        .from("planning_genere_personnel")
+        .delete()
+        .eq("planning_id", planning_id)
+        .in("date", selected_dates)
+        .eq("validated", false);
 
-    await supabase
-      .from("planning_genere_bloc_operatoire")
-      .delete()
-      .eq("planning_id", planning_id)
-      .in("date", selected_dates);
+      if (deletePersonnelError) throw deletePersonnelError;
 
-    console.log("Nettoyage terminé");
+      const { error: deleteBlocError } = await supabase
+        .from("planning_genere_bloc_operatoire")
+        .delete()
+        .eq("planning_id", planning_id)
+        .in("date", selected_dates)
+        .eq("validated", false);
+
+      if (deleteBlocError) throw deleteBlocError;
+
+      console.log("✓ Assignations non-validées supprimées");
+    } else {
+      // Mode régénération: tout supprimer
+      await supabase
+        .from("planning_genere_personnel")
+        .delete()
+        .eq("planning_id", planning_id)
+        .in("date", selected_dates);
+
+      await supabase
+        .from("planning_genere_bloc_operatoire")
+        .delete()
+        .eq("planning_id", planning_id)
+        .in("date", selected_dates);
+
+      console.log("✓ Toutes les assignations supprimées");
+    }
+
+    // Récupérer les assignations validées à préserver
+    let validatedAssignments: any[] = [];
+    const validatedSecretariesByDate = new Map<string, Set<string>>();
+
+    if (preserve_validated) {
+      const { data: validated, error: validatedError } = await supabase
+        .from('planning_genere_personnel')
+        .select('secretaire_id, date, periode')
+        .eq('planning_id', planning_id)
+        .in('date', selected_dates)
+        .eq('validated', true);
+
+      if (validatedError) throw validatedError;
+
+      validatedAssignments = validated || [];
+      
+      // Construire la map des secrétaires validées par date
+      for (const va of validatedAssignments) {
+        if (!va.secretaire_id) continue;
+        const dateKey = va.date;
+        if (!validatedSecretariesByDate.has(dateKey)) {
+          validatedSecretariesByDate.set(dateKey, new Set());
+        }
+        validatedSecretariesByDate.get(dateKey)!.add(va.secretaire_id);
+      }
+
+      console.log(`🔒 ${validatedAssignments.length} assignation(s) validée(s) à préserver`);
+      console.log(`🔒 ${validatedSecretariesByDate.size} date(s) avec secrétaires validées`);
+    }
 
     // ============================================================
     // CHARGEMENT DES DONNÉES
@@ -765,6 +822,13 @@ serve(async (req) => {
         const dow = new Date(date).getDay();
         // Lundi-vendredi uniquement
         if (dow < 1 || dow > 5) continue;
+        
+        // Skip si secrétaire déjà validée pour ce jour
+        const validatedSecsToday = validatedSecretariesByDate.get(date) || new Set();
+        if (validatedSecsToday.has(sec.id)) {
+          console.log(`  ⏭️ ${sec.name} ignorée (déjà validée pour ${date})`);
+          continue;
+        }
         
         // Vérifier si absence complète ce jour
         const hasFullDayAbsence = absences.some(

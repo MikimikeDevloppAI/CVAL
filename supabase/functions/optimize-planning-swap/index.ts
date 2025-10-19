@@ -81,6 +81,15 @@ serve(async (req) => {
       protectedForClosure: false
     }));
     
+    // ========== PROTECTION DES ASSIGNATIONS VALIDÉES ==========
+    const validatedAssignmentIds = new Set(
+      currentAssignments
+        .filter((a: any) => a.validated === true)
+        .map((a: any) => a.id)
+    );
+    
+    console.log(`🔒 ${validatedAssignmentIds.size} assignation(s) validée(s) protégées`);
+    
     // ========== CONSOLIDATION PRÉSENCE BLOC ==========
     // Consolider dayBlocPresence depuis TOUTES les sources (assignments + blocsMap)
     const dayBlocPresence = new Map<string, Set<'matin' | 'apres_midi'>>();

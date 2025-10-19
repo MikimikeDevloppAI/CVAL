@@ -3,12 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { User, Clock, MapPin, Loader2, X, Edit2, Plus } from 'lucide-react';
+import { User, Clock, MapPin, Loader2, X, Edit2, Plus, CheckCircle } from 'lucide-react';
 import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { ManagePersonnelDialog } from './ManagePersonnelDialog';
 import { AddSecretaryAssignmentsDialog } from './AddSecretaryAssignmentsDialog';
+import { useToast } from '@/hooks/use-toast';
 
 const SALLE_COLORS: Record<string, string> = {
   rouge: 'bg-red-100 text-red-700 border-red-300',
@@ -35,6 +37,7 @@ interface SecretaryAssignment {
   besoin_operation_id?: string;
   besoin_operation_nom?: string;
   salle_assignee?: string;
+  validated: boolean;
 }
 
 interface SecretaryData {
@@ -65,6 +68,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [dialogContext, setDialogContext] = useState<any>(null);
   const [selectedSecretary, setSelectedSecretary] = useState<{ id: string; name: string; weekSchedule: any[] } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -202,7 +206,8 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
             ordre: assignment.ordre,
             besoin_operation_id: assignment.besoin_operation_id,
             besoin_operation_nom: assignment.besoin_operation?.nom,
-            salle_assignee: assignment.bloc?.salle_assignee
+            salle_assignee: assignment.bloc?.salle_assignee,
+            validated: assignment.validated || false
           };
 
           if (assignment.periode === 'matin') {
@@ -247,6 +252,45 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   const handleAddClick = (secretary: SecretaryData) => {
     setSelectedSecretary(secretary);
     setAddDialogOpen(true);
+  };
+
+  const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('planning_genere_personnel')
+        .update({ validated })
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+      
+      toast({
+        title: validated ? "Assignation validée" : "Validation retirée",
+        description: "Le changement a été enregistré",
+      });
+    } catch (error) {
+      console.error('Error updating validation:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier la validation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getAssignmentDisplay = (assignment: SecretaryAssignment) => {
+    return (
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={assignment.validated}
+          onCheckedChange={(checked) => handleValidationToggle(assignment.id, checked as boolean)}
+          onClick={(e) => e.stopPropagation()}
+        />
+        {getAssignmentBadge(assignment)}
+        {assignment.validated && (
+          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+        )}
+      </div>
+    );
   };
 
   const getAssignmentBadge = (assignment: SecretaryAssignment) => {
@@ -375,7 +419,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                                 Toute la journée
                               </div>
                               <div className="flex-1 min-w-0">
-                                {getAssignmentBadge(matin)}
+                                {getAssignmentDisplay(matin)}
                               </div>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
@@ -410,7 +454,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                               </div>
                               <div className="flex-1">
                                 {matin ? (
-                                  getAssignmentBadge(matin)
+                                  getAssignmentDisplay(matin)
                                 ) : (
                                   <span className="text-xs text-muted-foreground italic">-</span>
                                 )}
@@ -445,7 +489,7 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
                               </div>
                               <div className="flex-1">
                                 {apresMidi ? (
-                                  getAssignmentBadge(apresMidi)
+                                  getAssignmentDisplay(apresMidi)
                                 ) : (
                                   <span className="text-xs text-muted-foreground italic">-</span>
                                 )}

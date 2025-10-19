@@ -610,20 +610,26 @@ export default function PlanningPage() {
     setSelectDatesDialogOpen(true);
   };
 
-  const handleDatesSelected = (dates: string[]) => {
-    // Étape 2: Ouvrir le dialogue de configuration des flexibles
+  const handleDatesSelected = (dates: string[], regenerateAll: boolean) => {
     setSelectedDatesForOptimization(dates);
     setSelectDatesDialogOpen(false);
-    setFlexibleConfigDialogOpen(true);
+    
+    if (regenerateAll) {
+      // Mode régénération complète: lancer directement sans préserver les validations
+      executeOptimizeMILP(dates, false);
+    } else {
+      // Mode préservation: ouvrir le dialog de configuration flexible
+      setFlexibleConfigDialogOpen(true);
+    }
   };
 
   const handleFlexibleConfigConfirm = async (configuration: { [id: string]: number }) => {
-    // Étape 3: Lancer l'optimisation avec la configuration
+    // Étape 3: Lancer l'optimisation avec la configuration ET en préservant les validations
     setFlexibleConfigDialogOpen(false);
-    await executeOptimizeMILP(selectedDatesForOptimization, configuration);
+    await executeOptimizeMILP(selectedDatesForOptimization, true, configuration);
   };
 
-  const executeOptimizeMILP = async (selectedDates: string[], flexibleConfig?: { [id: string]: number }) => {
+  const executeOptimizeMILP = async (selectedDates: string[], preserveValidated: boolean = true, flexibleConfig?: { [id: string]: number }) => {
     setIsOptimizingMILP(true);
     setIsLoadingOptimizationResults(true);
     setGeneratedPdfUrl(null); // Reset PDF URL when regenerating
@@ -675,6 +681,7 @@ export default function PlanningPage() {
       const { data, error } = await supabase.functions.invoke('optimize-planning-milp-unified', {
         body: {
           selected_dates: daysToOptimize,
+          preserve_validated: preserveValidated,
           flexible_secretaries_days: flexibleConfig,
         },
       });

@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, User, ChevronDown, Loader2, Plus, Edit2, X } from 'lucide-react';
+import { Building2, User, ChevronDown, Loader2, Plus, Edit2, X, CheckCircle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { CompactBlocOperatoirePlanningView } from './CompactBlocOperatoirePlanningView';
@@ -14,6 +14,7 @@ import { EditResponsibilitesDialog } from './EditResponsibilitesDialog';
 import { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
 import { AssignToUnsatisfiedNeedDialog } from './AssignToUnsatisfiedNeedDialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface SitePlanningViewProps {
   startDate: Date;
@@ -39,6 +40,7 @@ interface SiteBesoinsData {
     is_1r?: boolean;
     is_2f?: boolean;
     is_3f?: boolean;
+    validated?: boolean;
   }[];
   type_assignation?: 'site' | 'administratif';
 }
@@ -222,7 +224,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             type_assignation: 'site',
             is_1r: assignment.is_1r || false,
             is_2f: assignment.is_2f || false,
-            is_3f: assignment.is_3f || false
+            is_3f: assignment.is_3f || false,
+            validated: assignment.validated || false
           });
         }
       }
@@ -273,7 +276,8 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
             type_assignation: 'administratif',
             is_1r: assignment.is_1r || false,
             is_2f: assignment.is_2f || false,
-            is_3f: assignment.is_3f || false
+            is_3f: assignment.is_3f || false,
+            validated: assignment.validated || false
           });
         }
       }
@@ -383,6 +387,87 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     setDeleteDialogOpen(true);
   };
 
+  const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('planning_genere_personnel')
+        .update({ validated })
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+      
+      toast({
+        title: validated ? "Assignation validée" : "Validation retirée",
+        description: "Le changement a été enregistré",
+      });
+    } catch (error) {
+      console.error('Error updating validation:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier la validation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleValidateDay = async (date: string, siteId: string) => {
+    const assignmentsToValidate = siteBesoins
+      .filter(b => b.date === date && b.site_id === siteId)
+      .flatMap(b => b.personnel.map(p => p.id));
+
+    if (assignmentsToValidate.length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('planning_genere_personnel')
+        .update({ validated: true })
+        .in('id', assignmentsToValidate);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Journée validée",
+        description: `${assignmentsToValidate.length} assignation(s) validée(s)`,
+      });
+    } catch (error) {
+      console.error('Error validating day:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider la journée",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleValidateSite = async (siteId: string) => {
+    const assignmentsToValidate = siteBesoins
+      .filter(b => b.site_id === siteId)
+      .flatMap(b => b.personnel.map(p => p.id));
+
+    if (assignmentsToValidate.length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('planning_genere_personnel')
+        .update({ validated: true })
+        .in('id', assignmentsToValidate);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Site validé",
+        description: `${assignmentsToValidate.length} assignation(s) validée(s) pour toute la semaine`,
+      });
+    } catch (error) {
+      console.error('Error validating site:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider le site",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Unsatisfied Needs Report */}
@@ -407,7 +492,16 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                     <Building2 className="h-5 w-5 text-primary" />
                     <CardTitle className="text-lg">{siteName}</CardTitle>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleValidateSite(siteId)}
+                      className="h-8"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                      Valider site
+                    </Button>
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground">Secrétaires semaine</div>
                       <div className="font-semibold text-sm">
@@ -428,15 +522,31 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                     return (
                       <div key={date} className="border rounded-lg overflow-hidden flex flex-col">
                         {/* En-tête du jour */}
-                        <div className="bg-muted/30 px-3 py-2 text-center border-b">
-                          <div className="font-medium text-xs">
-                            {format(dateObj, 'EEE', { locale: fr })}
-                          </div>
-                          <div className="text-lg font-semibold">
-                            {format(dateObj, 'd', { locale: fr })}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {format(dateObj, 'MMM', { locale: fr })}
+                        <div className="bg-muted/30 px-3 py-2 border-b">
+                          <div className="flex items-center justify-between">
+                            <div className="text-center">
+                              <div className="font-medium text-xs">
+                                {format(dateObj, 'EEE', { locale: fr })}
+                              </div>
+                              <div className="text-lg font-semibold">
+                                {format(dateObj, 'd', { locale: fr })}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(dateObj, 'MMM', { locale: fr })}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleValidateDay(date, siteId);
+                              }}
+                              className="h-7 w-7 p-0"
+                              title="Valider toute la journée"
+                            >
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            </Button>
                           </div>
                         </div>
                         
@@ -470,8 +580,17 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                 <div key={idx} className="border rounded-lg p-2 bg-card group">
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <Checkbox
+                                        checked={p.validated || false}
+                                        onCheckedChange={(checked) => handleValidationToggle(p.id, checked as boolean)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="mr-1"
+                                      />
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs">{p.secretaire_nom}</span>
+                                      {p.validated && (
+                                        <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
+                                      )}
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button
@@ -571,8 +690,17 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                 <div key={idx} className="border rounded-lg p-2 bg-card group">
                                   <div className="flex items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 flex-1 min-w-0">
+                                      <Checkbox
+                                        checked={p.validated || false}
+                                        onCheckedChange={(checked) => handleValidationToggle(p.id, checked as boolean)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="mr-1"
+                                      />
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs">{p.secretaire_nom}</span>
+                                      {p.validated && (
+                                        <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
+                                      )}
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button

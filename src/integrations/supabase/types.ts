@@ -659,6 +659,7 @@ export type Database = {
           statut: Database["public"]["Enums"]["statut_planning"]
           type_intervention_id: string
           updated_at: string
+          validated: boolean
         }
         Insert: {
           created_at?: string
@@ -671,6 +672,7 @@ export type Database = {
           statut?: Database["public"]["Enums"]["statut_planning"]
           type_intervention_id: string
           updated_at?: string
+          validated?: boolean
         }
         Update: {
           created_at?: string
@@ -683,6 +685,7 @@ export type Database = {
           statut?: Database["public"]["Enums"]["statut_planning"]
           type_intervention_id?: string
           updated_at?: string
+          validated?: boolean
         }
         Relationships: [
           {
@@ -725,6 +728,7 @@ export type Database = {
           site_id: string | null
           type_assignation: string
           updated_at: string | null
+          validated: boolean
         }
         Insert: {
           besoin_operation_id?: string | null
@@ -742,6 +746,7 @@ export type Database = {
           site_id?: string | null
           type_assignation: string
           updated_at?: string | null
+          validated?: boolean
         }
         Update: {
           besoin_operation_id?: string | null
@@ -759,6 +764,7 @@ export type Database = {
           site_id?: string | null
           type_assignation?: string
           updated_at?: string | null
+          validated?: boolean
         }
         Relationships: [
           {
