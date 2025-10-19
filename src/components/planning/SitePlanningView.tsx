@@ -70,11 +70,50 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     };
     
     fetchData();
+
+    // Real-time listener for targeted updates
+    const channel = supabase
+      .channel('personnel-live-site')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'planning_genere_personnel',
+        },
+        (payload) => {
+          if (mounted && payload.new) {
+            updateLocalValidation(new Set([payload.new.id]), payload.new.validated);
+          }
+        }
+      )
+      .subscribe();
     
     return () => {
       mounted = false;
+      supabase.removeChannel(channel);
     };
   }, [startDate, endDate]);
+
+  // Helper to patch siteBesoins in memory without re-fetching
+  const updateLocalValidation = (ids: Set<string>, validated: boolean) => {
+    setSiteBesoins(prev => {
+      return prev.map(besoin => {
+        const updatedPersonnel = besoin.personnel.map(p => {
+          if (ids.has(p.id)) {
+            return { ...p, validated };
+          }
+          return p;
+        });
+        
+        // Only create new object if something changed
+        if (updatedPersonnel.some((p, i) => p !== besoin.personnel[i])) {
+          return { ...besoin, personnel: updatedPersonnel };
+        }
+        return besoin;
+      });
+    });
+  };
 
   const fetchSitePlanning = async () => {
     try {
@@ -370,20 +409,22 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
-    // Optimistic update - keep forever, no rollback
+    // Update local state immediately
+    updateLocalValidation(new Set([assignmentId]), validated);
+    
+    // Keep optimistic state for UI consistency
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(assignmentId, validated);
       return next;
     });
 
+    // Background update - silent
     try {
-      const { error } = await supabase
+      await supabase
         .from('planning_genere_personnel')
         .update({ validated })
         .eq('id', assignmentId);
-
-      if (error) throw error;
       
       toast({
         title: validated ? "✓" : "○",
@@ -416,20 +457,22 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     const newValidatedState = !allValidated;
     const assignmentIds = assignments.map(p => p.id);
 
-    // Optimistic updates - keep forever
+    // Update local state immediately
+    updateLocalValidation(new Set(assignmentIds), newValidatedState);
+    
+    // Keep optimistic state for UI consistency
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       assignmentIds.forEach(id => next.set(id, newValidatedState));
       return next;
     });
 
+    // Background update - silent
     try {
-      const { error } = await supabase
+      await supabase
         .from('planning_genere_personnel')
         .update({ validated: newValidatedState })
         .in('id', assignmentIds);
-
-      if (error) throw error;
       
       toast({
         title: newValidatedState ? "Journée validée" : "Journée dévalidée",
@@ -462,20 +505,22 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
     const newValidatedState = !allValidated;
     const assignmentIds = assignments.map(p => p.id);
 
-    // Optimistic updates - keep forever
+    // Update local state immediately
+    updateLocalValidation(new Set(assignmentIds), newValidatedState);
+    
+    // Keep optimistic state for UI consistency
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       assignmentIds.forEach(id => next.set(id, newValidatedState));
       return next;
     });
 
+    // Background update - silent
     try {
-      const { error } = await supabase
+      await supabase
         .from('planning_genere_personnel')
         .update({ validated: newValidatedState })
         .in('id', assignmentIds);
-
-      if (error) throw error;
       
       toast({
         title: newValidatedState ? "Site validé" : "Site dévalidé",

@@ -114,7 +114,16 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
     
     const newValidatedState = !allValidated;
 
-    // Optimistic updates - keep forever
+    // Update local state immediately
+    setOperations(prev => 
+      prev.map(op => 
+        op.id === operationId 
+          ? { ...op, validated: newValidatedState }
+          : op
+      )
+    );
+    
+    // Keep optimistic state for UI consistency
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(operationId, newValidatedState);
@@ -122,14 +131,13 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
       return next;
     });
 
+    // Background update - silent
     try {
-      // Valider/dévalider l'opération bloc
       await supabase
         .from('planning_genere_bloc_operatoire')
         .update({ validated: newValidatedState })
         .eq('id', operationId);
 
-      // Valider/dévalider tout le personnel associé
       await supabase
         .from('planning_genere_personnel')
         .update({ validated: newValidatedState })
@@ -376,8 +384,23 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
           open={changeSalleDialogOpen}
           onOpenChange={setChangeSalleDialogOpen}
           operation={selectedOperation}
-          onSuccess={() => {
-            fetchBlocOperations();
+          onSuccess={async () => {
+            // Refetch only this operation's data instead of all
+            const { data } = await supabase
+              .from('planning_genere_bloc_operatoire')
+              .select('salle_assignee')
+              .eq('id', selectedOperation.id)
+              .single();
+            
+            if (data) {
+              setOperations(prev =>
+                prev.map(op =>
+                  op.id === selectedOperation.id
+                    ? { ...op, salle_assignee: data.salle_assignee }
+                    : op
+                )
+              );
+            }
             setSelectedOperation(null);
           }}
         />
@@ -388,8 +411,38 @@ export function BlocOperatoirePlanningView({ startDate, endDate }: BlocOperatoir
           open={changePersonnelDialogOpen}
           onOpenChange={setChangePersonnelDialogOpen}
           assignment={selectedPersonnel}
-          onSuccess={() => {
-            fetchBlocOperations();
+          onSuccess={async () => {
+            // Refetch only this personnel's data
+            const { data } = await supabase
+              .from('planning_genere_personnel')
+              .select(`
+                id,
+                secretaire_id,
+                secretaire:secretaires!secretaire_id(first_name, name)
+              `)
+              .eq('id', selectedPersonnel.id)
+              .single();
+            
+            if (data) {
+              setOperations(prev =>
+                prev.map(op =>
+                  op.id === selectedPersonnel.planning_genere_bloc_operatoire_id
+                    ? {
+                        ...op,
+                        personnel: op.personnel.map(p =>
+                          p.id === selectedPersonnel.id
+                            ? {
+                                ...p,
+                                secretaire_id: data.secretaire_id,
+                                secretaire: data.secretaire,
+                              }
+                            : p
+                        ),
+                      }
+                    : op
+                )
+              );
+            }
             setSelectedPersonnel(null);
           }}
         />

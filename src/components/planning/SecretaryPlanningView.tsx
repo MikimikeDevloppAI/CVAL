@@ -82,10 +82,58 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
     
     fetchData();
 
+    // Real-time listener for targeted updates
+    const channel = supabase
+      .channel('personnel-live-secretary')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'planning_genere_personnel',
+        },
+        (payload) => {
+          if (mounted && payload.new) {
+            updateLocalValidation(new Set([payload.new.id]), payload.new.validated);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       mounted = false;
+      supabase.removeChannel(channel);
     };
   }, [startDate, endDate]);
+
+  // Helper to patch secretaries in memory without re-fetching
+  const updateLocalValidation = (ids: Set<string>, validated: boolean) => {
+    setSecretaries(prev => {
+      return prev.map(secretary => {
+        const updatedSchedule = secretary.weekSchedule.map(day => {
+          let changed = false;
+          const newDay = { ...day };
+          
+          if (day.matin && ids.has(day.matin.id)) {
+            newDay.matin = { ...day.matin, validated };
+            changed = true;
+          }
+          if (day.apresMidi && ids.has(day.apresMidi.id)) {
+            newDay.apresMidi = { ...day.apresMidi, validated };
+            changed = true;
+          }
+          
+          return changed ? newDay : day;
+        });
+        
+        // Only create new object if something changed
+        if (updatedSchedule.some((d, i) => d !== secretary.weekSchedule[i])) {
+          return { ...secretary, weekSchedule: updatedSchedule };
+        }
+        return secretary;
+      });
+    });
+  };
 
   const fetchSecretaryPlanning = async () => {
     try {
@@ -237,20 +285,22 @@ export const SecretaryPlanningView = memo(function SecretaryPlanningView({ start
   };
 
   const handleValidationToggle = async (assignmentId: string, validated: boolean) => {
-    // Optimistic update - keep forever, no rollback
+    // Update local state immediately
+    updateLocalValidation(new Set([assignmentId]), validated);
+    
+    // Keep optimistic state for UI consistency
     setOptimisticValidations(prev => {
       const next = new Map(prev);
       next.set(assignmentId, validated);
       return next;
     });
 
+    // Background update - silent
     try {
-      const { error } = await supabase
+      await supabase
         .from('planning_genere_personnel')
         .update({ validated })
         .eq('id', assignmentId);
-
-      if (error) throw error;
       
       toast({
         title: validated ? "✓" : "○",
