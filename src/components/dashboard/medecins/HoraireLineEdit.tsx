@@ -261,27 +261,6 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
               </SelectContent>
             </Select>
           )}
-
-          <div className="flex gap-1 ml-auto">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSave}
-              disabled={loading}
-              className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
-            >
-              <Check className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCancel}
-              disabled={loading}
-              className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
         </div>
 
         {/* Deuxième ligne: Site, Type d'intervention */}
@@ -328,7 +307,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
           )}
         </div>
 
-        {/* Troisième ligne: Dates */}
+        {/* Troisième ligne: Dates + Boutons */}
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted-foreground w-8 shrink-0">Du</label>
           <input
@@ -344,6 +323,27 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
             className="h-8 flex-1 text-xs rounded-md border border-cyan-200/50 bg-background px-2"
           />
+          
+          <div className="flex gap-1 ml-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
     );
