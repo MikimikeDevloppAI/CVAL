@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,18 +10,14 @@ interface HoraireSecretaireLineEditProps {
   jour: string;
   sites: any[];
   onUpdate: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (horaireId: string) => void;
 }
 
-export function HoraireSecretaireLineEdit({ 
-  horaire, 
-  jour, 
-  sites, 
-  onUpdate, 
-  onDelete 
-}: HoraireSecretaireLineEditProps) {
-  const [editing, setEditing] = useState(false);
+export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDelete }: HoraireSecretaireLineEditProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    jour_semaine: horaire.jour_semaine,
     demi_journee: horaire.demi_journee,
     site_id: horaire.site_id,
     alternance_type: horaire.alternance_type || 'hebdomadaire',
@@ -29,11 +25,31 @@ export function HoraireSecretaireLineEdit({
   });
   const { toast } = useToast();
 
+  useEffect(() => {
+    setFormData({
+      jour_semaine: horaire.jour_semaine,
+      demi_journee: horaire.demi_journee,
+      site_id: horaire.site_id,
+      alternance_type: horaire.alternance_type || 'hebdomadaire',
+      alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
+    });
+  }, [horaire]);
+
+  const demiJournees = {
+    'matin': 'Matin',
+    'apres_midi': 'Après-midi',
+    'toute_journee': 'Toute la journée'
+  };
+
+  const jours = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+
   const handleSave = async () => {
+    setLoading(true);
     try {
       const { error } = await supabase
         .from('horaires_base_secretaires')
         .update({
+          jour_semaine: formData.jour_semaine,
           demi_journee: formData.demi_journee,
           site_id: formData.site_id,
           alternance_type: formData.alternance_type,
@@ -48,7 +64,7 @@ export function HoraireSecretaireLineEdit({
         description: "Horaire modifié",
       });
 
-      setEditing(false);
+      setIsEditing(false);
       onUpdate();
     } catch (error) {
       console.error('Erreur:', error);
@@ -57,7 +73,20 @@ export function HoraireSecretaireLineEdit({
         description: "Impossible de modifier l'horaire",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      jour_semaine: horaire.jour_semaine,
+      demi_journee: horaire.demi_journee,
+      site_id: horaire.site_id,
+      alternance_type: horaire.alternance_type || 'hebdomadaire',
+      alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
+    });
+    setIsEditing(false);
   };
 
   const getAlternanceLabel = () => {
@@ -87,15 +116,30 @@ export function HoraireSecretaireLineEdit({
     return labels[periode] || periode;
   };
 
-  if (editing) {
+  if (isEditing) {
     return (
-      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border border-border/50">
-        <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400 min-w-[35px]">
-          {jour}
-        </span>
-        
-        <Select value={formData.demi_journee} onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}>
-          <SelectTrigger className="h-8 text-xs flex-1">
+      <div className="flex items-center gap-2 p-2 bg-teal-500/5 rounded-lg border border-teal-200/30">
+        <Select 
+          value={formData.jour_semaine.toString()} 
+          onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
+        >
+          <SelectTrigger className="h-8 w-24 text-xs border-teal-200/50">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[1, 2, 3, 4, 5].map((j) => (
+              <SelectItem key={j} value={j.toString()}>
+                {jours[j]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select 
+          value={formData.demi_journee} 
+          onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}
+        >
+          <SelectTrigger className="h-8 flex-1 text-xs border-teal-200/50">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -105,8 +149,11 @@ export function HoraireSecretaireLineEdit({
           </SelectContent>
         </Select>
 
-        <Select value={formData.site_id} onValueChange={(value) => setFormData({ ...formData, site_id: value })}>
-          <SelectTrigger className="h-8 text-xs flex-1">
+        <Select 
+          value={formData.site_id} 
+          onValueChange={(value) => setFormData({ ...formData, site_id: value })}
+        >
+          <SelectTrigger className="h-8 flex-1 text-xs border-teal-200/50">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -118,15 +165,18 @@ export function HoraireSecretaireLineEdit({
           </SelectContent>
         </Select>
 
-        <Select value={formData.alternance_type} onValueChange={(value) => setFormData({ ...formData, alternance_type: value })}>
-          <SelectTrigger className="h-8 text-xs flex-1">
+        <Select 
+          value={formData.alternance_type} 
+          onValueChange={(value) => setFormData({ ...formData, alternance_type: value })}
+        >
+          <SelectTrigger className="h-8 w-28 text-xs border-teal-200/50">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="hebdomadaire">Hebdomadaire</SelectItem>
-            <SelectItem value="une_sur_deux">1 sur 2</SelectItem>
-            <SelectItem value="une_sur_trois">1 sur 3</SelectItem>
-            <SelectItem value="une_sur_quatre">1 sur 4</SelectItem>
+            <SelectItem value="hebdomadaire">Hebdo</SelectItem>
+            <SelectItem value="une_sur_deux">1/2</SelectItem>
+            <SelectItem value="une_sur_trois">1/3</SelectItem>
+            <SelectItem value="une_sur_quatre">1/4</SelectItem>
           </SelectContent>
         </Select>
 
@@ -135,7 +185,7 @@ export function HoraireSecretaireLineEdit({
             value={formData.alternance_semaine_modulo.toString()} 
             onValueChange={(value) => setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })}
           >
-            <SelectTrigger className="h-8 text-xs w-24">
+            <SelectTrigger className="h-8 w-24 text-xs border-teal-200/50">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -164,18 +214,20 @@ export function HoraireSecretaireLineEdit({
           </Select>
         )}
 
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleSave}
+          disabled={loading}
           className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
         >
           <Check className="h-3 w-3" />
         </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => setEditing(false)}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCancel}
+          disabled={loading}
           className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
         >
           <X className="h-3 w-3" />
@@ -185,9 +237,12 @@ export function HoraireSecretaireLineEdit({
   }
 
   return (
-    <div className="group flex items-center justify-between gap-2 p-2 hover:bg-muted/30 rounded-lg transition-colors">
+    <div 
+      className="group flex items-center justify-between gap-2 p-2 hover:bg-teal-500/5 rounded-lg transition-colors cursor-pointer"
+      onClick={() => setIsEditing(true)}
+    >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400 min-w-[35px]">
+        <span className="text-xs font-medium text-teal-600 dark:text-teal-400 min-w-[35px]">
           {jour}
         </span>
         <span className="text-xs text-muted-foreground truncate">
@@ -203,20 +258,15 @@ export function HoraireSecretaireLineEdit({
         )}
       </div>
       
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1">
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={() => setEditing(true)}
-          className="h-7 w-7 p-0 hover:bg-cyan-500/10 hover:text-cyan-600"
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => onDelete(horaire.id)}
-          className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(horaire.id);
+          }}
+          className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <Trash2 className="h-3 w-3" />
         </Button>
