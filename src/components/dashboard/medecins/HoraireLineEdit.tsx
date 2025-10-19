@@ -23,6 +23,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
     demi_journee: horaire.demi_journee,
     site_id: horaire.site_id,
     type_intervention_id: horaire.type_intervention_id || 'none',
+    alternance_type: horaire.alternance_type || 'hebdomadaire',
+    alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
   });
   const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -38,6 +40,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       demi_journee: horaire.demi_journee,
       site_id: horaire.site_id,
       type_intervention_id: horaire.type_intervention_id || 'none',
+      alternance_type: horaire.alternance_type || 'hebdomadaire',
+      alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
     });
   }, [horaire]);
 
@@ -92,6 +96,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         demi_journee: formData.demi_journee,
         site_id: formData.site_id,
         type_intervention_id: formData.type_intervention_id === 'none' ? null : formData.type_intervention_id,
+        alternance_type: formData.alternance_type,
+        alternance_semaine_modulo: formData.alternance_semaine_modulo,
       };
 
       const { error } = await supabase
@@ -125,6 +131,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       demi_journee: horaire.demi_journee,
       site_id: horaire.site_id,
       type_intervention_id: horaire.type_intervention_id || 'none',
+      alternance_type: horaire.alternance_type || 'hebdomadaire',
+      alternance_semaine_modulo: horaire.alternance_semaine_modulo || 0,
     });
     setIsEditing(false);
   };
@@ -199,6 +207,61 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
                   {type.nom}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Select
+          value={formData.alternance_type}
+          onValueChange={(value: any) => 
+            setFormData({ 
+              ...formData, 
+              alternance_type: value,
+              alternance_semaine_modulo: 0 
+            })
+          }
+        >
+          <SelectTrigger className="w-24 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hebdomadaire">Hebdo</SelectItem>
+            <SelectItem value="une_sur_deux">1/2</SelectItem>
+            <SelectItem value="une_sur_trois">1/3</SelectItem>
+            <SelectItem value="une_sur_quatre">1/4</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {formData.alternance_type !== 'hebdomadaire' && (
+          <Select
+            value={formData.alternance_semaine_modulo.toString()}
+            onValueChange={(value) => 
+              setFormData({ ...formData, alternance_semaine_modulo: parseInt(value) })
+            }
+          >
+            <SelectTrigger className="w-20 h-8 text-xs border-cyan-200/50 bg-cyan-500/5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {formData.alternance_type === 'une_sur_deux' ? (
+                <>
+                  <SelectItem value="0">Pair</SelectItem>
+                  <SelectItem value="1">Impair</SelectItem>
+                </>
+              ) : formData.alternance_type === 'une_sur_trois' ? (
+                <>
+                  <SelectItem value="0">S1</SelectItem>
+                  <SelectItem value="1">S2</SelectItem>
+                  <SelectItem value="2">S3</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="0">S1</SelectItem>
+                  <SelectItem value="1">S2</SelectItem>
+                  <SelectItem value="2">S3</SelectItem>
+                  <SelectItem value="3">S4</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         )}
