@@ -227,7 +227,7 @@ export type Database = {
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
           secretaire_id: string | null
-          site_id: string | null
+          site_id: string
           updated_at: string
         }
         Insert: {
@@ -237,7 +237,7 @@ export type Database = {
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
-          site_id?: string | null
+          site_id?: string
           updated_at?: string
         }
         Update: {
@@ -247,7 +247,7 @@ export type Database = {
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
           secretaire_id?: string | null
-          site_id?: string | null
+          site_id?: string
           updated_at?: string
         }
         Relationships: [
