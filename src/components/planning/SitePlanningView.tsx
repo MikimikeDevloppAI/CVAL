@@ -588,9 +588,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       />
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs">{p.secretaire_nom}</span>
-                                      {p.validated && (
-                                        <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
-                                      )}
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button
@@ -698,9 +695,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
                                       />
                                       <User className="h-3 w-3 text-primary flex-shrink-0" />
                                       <span className="font-medium text-xs">{p.secretaire_nom}</span>
-                                      {p.validated && (
-                                        <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
-                                      )}
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button
