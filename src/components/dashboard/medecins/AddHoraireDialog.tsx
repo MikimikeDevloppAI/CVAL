@@ -17,6 +17,7 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
   const [loading, setLoading] = useState(false);
   const [sites, setSites] = useState<any[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
+  const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     jour_semaine: '',
     demi_journee: 'toute_journee',
@@ -54,7 +55,11 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
       .eq('actif', true)
       .order('nom');
 
-    if (sitesData) setSites(sitesData);
+    if (sitesData) {
+      setSites(sitesData);
+      const blocSite = sitesData.find(s => s.nom.toLowerCase().includes('bloc'));
+      if (blocSite) setBlocOperatoireSiteId(blocSite.id);
+    }
     if (typesData) setTypesIntervention(typesData);
   };
 
@@ -180,21 +185,23 @@ export function AddHoraireDialog({ medecinId, onSuccess }: AddHoraireDialogProps
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Type d'intervention (optionnel)</Label>
-            <Select value={formData.type_intervention_id} onValueChange={(value) => setFormData({ ...formData, type_intervention_id: value })}>
-              <SelectTrigger className="border-cyan-200/50 focus:border-cyan-500">
-                <SelectValue placeholder="Aucun" />
-              </SelectTrigger>
-              <SelectContent>
-                {typesIntervention.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {formData.site_id === blocOperatoireSiteId && (
+            <div className="space-y-2">
+              <Label>Type d'intervention (optionnel)</Label>
+              <Select value={formData.type_intervention_id} onValueChange={(value) => setFormData({ ...formData, type_intervention_id: value })}>
+                <SelectTrigger className="border-cyan-200/50 focus:border-cyan-500">
+                  <SelectValue placeholder="Aucun" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Alternance</Label>
