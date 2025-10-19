@@ -576,6 +576,7 @@ serve(async (req) => {
     // ========== PHASE 1: BLOC + SITES RESTREINTS (Updated with consolidated dayBlocPresence) ==========
     
     console.log("\n🚨 ========== PHASE 1: BLOC + SITES RESTREINTS ==========");
+    console.log(`🔒 ${validatedAssignmentIds.size} assignation(s) validée(s) protégées (skip Phase 1)`);
     
     const phase1Violations: Array<{
       secId: string;
@@ -658,6 +659,18 @@ serve(async (req) => {
       let bestDelta = -Infinity;
       
       for (const candidate of candidatesList) {
+        // Skip validated assignments
+        if (validatedAssignmentIds.has(candidate.id)) {
+          console.log(`  ⏭️ Skip ${getSecretaryName(candidate.secretaire_id)} (validée)`);
+          continue;
+        }
+        
+        // Skip if restricted assignment is validated
+        if (validatedAssignmentIds.has(restrictedAssignment.id)) {
+          console.log(`  ⏭️ Skip swap (assignation restreinte validée)`);
+          break;
+        }
+        
         if (wouldCreatePhase1Violation(restrictedAssignment, candidate)) continue;
         if (wouldBreakClosureConstraint(restrictedAssignment, candidate)) continue;
         
@@ -718,6 +731,7 @@ serve(async (req) => {
     // ========== PHASE 2: FERMETURE (jour par jour avec 'toute_journee' support) ==========
     
     console.log("\n🔒 ========== PHASE 2: FERMETURE (jour par jour) ==========");
+    console.log(`🔒 ${validatedAssignmentIds.size} assignation(s) validée(s) protégées (skip Phase 2)`);
     
     const sitesWithClosure = sites.filter((s: any) => s.fermeture);
     const allDates = Array.from(new Set(currentAssignments.map((a: any) => a.date))).sort() as string[];
@@ -820,11 +834,15 @@ serve(async (req) => {
           const candidates = [...siteCandidates, ...adminCandidates];
           
           for (const candidate of candidates) {
+            // Skip validated assignments
+            if (validatedAssignmentIds.has(candidate.id)) continue;
+            
             const currentAssignment = currentAssignments.find((a: any) =>
               a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
             );
             
             if (!currentAssignment) continue;
+            if (validatedAssignmentIds.has(currentAssignment.id)) continue;
             
             if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
             if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
@@ -880,11 +898,15 @@ serve(async (req) => {
           const candidates = [...siteCandidates, ...adminCandidates];
 
           for (const candidate of candidates) {
+            // Skip validated assignments
+            if (validatedAssignmentIds.has(candidate.id)) continue;
+            
             const currentAssignment = currentAssignments.find((a: any) =>
               a.secretaire_id === secId && a.date === date && a.periode === missingPeriod
             );
 
             if (!currentAssignment) continue;
+            if (validatedAssignmentIds.has(currentAssignment.id)) continue;
 
             if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
             if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
@@ -953,6 +975,9 @@ serve(async (req) => {
               );
 
               for (const candidate of interSiteCandidates) {
+                // Skip validated assignments
+                if (validatedAssignmentIds.has(candidate.id)) continue;
+                
                 if (wouldCreatePhase1Violation(currentAssignment, candidate)) continue;
                 if (wouldBreakClosureConstraint(currentAssignment, candidate)) continue;
 
@@ -1305,6 +1330,7 @@ serve(async (req) => {
     // ========== PHASE 3: PRÉFÉRENCE ADMIN ==========
     
     console.log("\n📋 ========== PHASE 3: PRÉFÉRENCE ADMIN ==========");
+    console.log(`🔒 ${validatedAssignmentIds.size} assignation(s) validée(s) protégées (skip Phase 3)`);
     
     let phase3SwapsCount = 0;
     const preferredAdminSecs = secretaires.filter((s: any) => s.prefered_admin);
@@ -1328,9 +1354,9 @@ serve(async (req) => {
       const needed = Math.max(0, 2 - adminCount);
       console.log(`  🎯 Besoin de ${needed} demi-journée(s) supplémentaire(s) pour atteindre 2`);
       
-      // Collecter toutes les assignations site de cette secrétaire (qui ne sont pas liées à un médecin)
+      // Collecter toutes les assignations site de cette secrétaire (qui ne sont pas liées à un médecin et non validées)
       const siteAssignments = secAssignments.filter((a: any) => 
-        a.type_assignation === 'site' && !hasPhysicianLink(a)
+        a.type_assignation === 'site' && !hasPhysicianLink(a) && !validatedAssignmentIds.has(a.id)
       );
       
       // Vérifier pour chaque assignation si elle est bloquée par contrainte fermeture
@@ -1645,6 +1671,7 @@ serve(async (req) => {
     // ========== PHASE 4: OPTIMISATION PORT-EN-TRUIE ==========
     console.log("\n🏥 ========== PHASE 4: OPTIMISATION PORT-EN-TRUIE ==========");
     console.log("Objectif: Échanger celles à Port-en-Truie sans préférence 1 avec celles qui le préfèrent ou sont déjà 2x/semaine");
+    console.log(`🔒 ${validatedAssignmentIds.size} assignation(s) validée(s) protégées (skip Phase 4)`);
     
     // Port-en-Truie = Centre Esplanade - Ophtalmologie
     const portSite = sites.find((s: any) => s.id === PORT_EN_TRUIE_ID);
@@ -1653,11 +1680,12 @@ serve(async (req) => {
     let phase4SwapsCount = 0;
     const allDatesPhase4 = Array.from(new Set(currentAssignments.map((a: any) => a.date))).sort() as string[];
     
-    // Identifier toutes les secrétaires assignées à Port-en-Truie
+    // Identifier toutes les secrétaires assignées à Port-en-Truie (non validées)
     const portAssignments = currentAssignments.filter((a: any) =>
       a.type_assignation === 'site' &&
       a.site_id === PORT_EN_TRUIE_ID &&
-      !hasPhysicianLink(a)
+      !hasPhysicianLink(a) &&
+      !validatedAssignmentIds.has(a.id)
     );
     
     console.log(`📊 ${portAssignments.length} assignation(s) à Port-en-Truie (sans lien médecin)`);
@@ -1735,6 +1763,7 @@ serve(async (req) => {
         if (c.secretaire_id === secId) return false;
         if (c.site_id === PORT_EN_TRUIE_ID) return false;
         if (hasPhysicianLink(c)) return false;
+        if (validatedAssignmentIds.has(c.id)) return false; // Skip validated
         
         // Si l'assignation actuelle est protégée et journée complète, on doit trouver quelqu'un aussi en journée complète
         if (isProtected && isFullDay) {

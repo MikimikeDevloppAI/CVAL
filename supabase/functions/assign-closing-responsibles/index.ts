@@ -302,15 +302,16 @@ serve(async (req) => {
         // Assigner uniquement 2F ou 3F (pas 1R)
         const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
         
-        // Reset flags
+        // Reset flags (ONLY non-validated)
         await supabase
           .from('planning_genere_personnel')
           .update({ is_1r: false, is_2f: false, is_3f: false })
           .eq('date', date)
           .eq('site_id', site_id)
-          .eq('type_assignation', 'site');
+          .eq('type_assignation', 'site')
+          .eq('validated', false);
         
-        // Set 2F/3F morning
+        // Set 2F/3F morning (ONLY non-validated)
         await supabase
           .from('planning_genere_personnel')
           .update(update2F3FData)
@@ -318,9 +319,10 @@ serve(async (req) => {
           .eq('site_id', site_id)
           .eq('periode', 'matin')
           .eq('secretaire_id', singleSecId)
-          .eq('type_assignation', 'site');
+          .eq('type_assignation', 'site')
+          .eq('validated', false);
         
-        // Set 2F/3F afternoon
+        // Set 2F/3F afternoon (ONLY non-validated)
         await supabase
           .from('planning_genere_personnel')
           .update(update2F3FData)
@@ -328,7 +330,8 @@ serve(async (req) => {
           .eq('site_id', site_id)
           .eq('periode', 'apres_midi')
           .eq('secretaire_id', singleSecId)
-          .eq('type_assignation', 'site');
+          .eq('type_assignation', 'site')
+          .eq('validated', false);
         
         console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (1R impossible)`);
         assignmentCount += 1;
@@ -449,17 +452,18 @@ serve(async (req) => {
       
       console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${score1R.score}, 1R:${score1R.count_1r}, 2F:${score1R.count_2f}, 3F:${score1R.count_3f}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${score2F3F.score}, 1R:${score2F3F.count_1r}, 2F:${score2F3F.count_2f}, 3F:${score2F3F.count_3f})`);
 
-      // First, reset all responsable flags for this site/date
+      // First, reset all responsable flags for this site/date (ONLY non-validated)
       const { error: resetError } = await supabase
         .from('planning_genere_personnel')
         .update({ is_1r: false, is_2f: false, is_3f: false })
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('type_assignation', 'site');
+        .eq('type_assignation', 'site')
+        .eq('validated', false); // Only non-validated
 
       if (resetError) throw resetError;
 
-      // Update morning records - set 1R flag
+      // Update morning records - set 1R flag (ONLY non-validated)
       const { error: update1RMorningError } = await supabase
         .from('planning_genere_personnel')
         .update({ is_1r: true })
@@ -467,11 +471,12 @@ serve(async (req) => {
         .eq('site_id', site_id)
         .eq('periode', 'matin')
         .eq('secretaire_id', responsable1R)
-        .eq('type_assignation', 'site');
+        .eq('type_assignation', 'site')
+        .eq('validated', false); // Only non-validated
 
       if (update1RMorningError) throw update1RMorningError;
 
-      // Update morning records - set 2F or 3F flag
+      // Update morning records - set 2F or 3F flag (ONLY non-validated)
       const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
       const { error: update2F3FMorningError } = await supabase
         .from('planning_genere_personnel')
@@ -480,11 +485,12 @@ serve(async (req) => {
         .eq('site_id', site_id)
         .eq('periode', 'matin')
         .eq('secretaire_id', responsable2F3F)
-        .eq('type_assignation', 'site');
+        .eq('type_assignation', 'site')
+        .eq('validated', false); // Only non-validated
 
       if (update2F3FMorningError) throw update2F3FMorningError;
 
-      // Update afternoon records - set 1R flag
+      // Update afternoon records - set 1R flag (ONLY non-validated)
       const { error: update1RAfternoonError } = await supabase
         .from('planning_genere_personnel')
         .update({ is_1r: true })
@@ -492,11 +498,12 @@ serve(async (req) => {
         .eq('site_id', site_id)
         .eq('periode', 'apres_midi')
         .eq('secretaire_id', responsable1R)
-        .eq('type_assignation', 'site');
+        .eq('type_assignation', 'site')
+        .eq('validated', false); // Only non-validated
 
       if (update1RAfternoonError) throw update1RAfternoonError;
 
-      // Update afternoon records - set 2F or 3F flag
+      // Update afternoon records - set 2F or 3F flag (ONLY non-validated)
       const { error: update2F3FAfternoonError } = await supabase
         .from('planning_genere_personnel')
         .update(update2F3FData)
@@ -504,7 +511,8 @@ serve(async (req) => {
         .eq('site_id', site_id)
         .eq('periode', 'apres_midi')
         .eq('secretaire_id', responsable2F3F)
-        .eq('type_assignation', 'site');
+        .eq('type_assignation', 'site')
+        .eq('validated', false); // Only non-validated
 
       if (update2F3FAfternoonError) throw update2F3FAfternoonError;
 
