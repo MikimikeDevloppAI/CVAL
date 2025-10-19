@@ -240,9 +240,9 @@ export function QuickEditSitesDialog({
             </Popover>
 
             {selectedSitesDetailsPrio1.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-md mt-2">
+              <div className="flex flex-wrap gap-2 p-3 bg-teal-500/5 border border-teal-200/20 dark:border-teal-800/20 rounded-lg mt-2">
                 {selectedSitesDetailsPrio1.map((site) => (
-                  <Badge key={site.id} variant="secondary" className="text-xs">
+                  <Badge key={site.id} className="bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 border-teal-500/20 text-xs">
                     {site.nom}
                   </Badge>
                 ))}
@@ -298,9 +298,9 @@ export function QuickEditSitesDialog({
             </Popover>
 
             {selectedSitesDetailsPrio2.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-md mt-2">
+              <div className="flex flex-wrap gap-2 p-3 bg-teal-500/5 border border-teal-200/20 dark:border-teal-800/20 rounded-lg mt-2">
                 {selectedSitesDetailsPrio2.map((site) => (
-                  <Badge key={site.id} variant="outline" className="text-xs">
+                  <Badge key={site.id} variant="outline" className="text-xs bg-teal-50 dark:bg-teal-950/20 border-teal-200 dark:border-teal-900">
                     {site.nom}
                   </Badge>
                 ))}
@@ -356,9 +356,9 @@ export function QuickEditSitesDialog({
             </Popover>
 
             {selectedSitesDetailsPrio3.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-md mt-2">
+              <div className="flex flex-wrap gap-2 p-3 bg-teal-500/5 border border-teal-200/20 dark:border-teal-800/20 rounded-lg mt-2">
                 {selectedSitesDetailsPrio3.map((site) => (
-                  <Badge key={site.id} variant="outline" className="text-xs opacity-70">
+                  <Badge key={site.id} variant="outline" className="text-xs bg-teal-50/50 dark:bg-teal-950/10 border-teal-200/50 dark:border-teal-900/50 opacity-70">
                     {site.nom}
                   </Badge>
                 ))}

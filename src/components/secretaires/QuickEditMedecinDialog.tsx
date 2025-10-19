@@ -214,9 +214,9 @@ export function QuickEditMedecinDialog({
             </Popover>
 
             {selectedMedecinsDetailsPrio1.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-md mt-2">
+              <div className="flex flex-wrap gap-2 p-3 bg-cyan-500/5 border border-cyan-200/20 dark:border-cyan-800/20 rounded-lg mt-2">
                 {selectedMedecinsDetailsPrio1.map((medecin) => (
-                  <Badge key={medecin.id} variant="secondary" className="text-xs">
+                  <Badge key={medecin.id} className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-cyan-500/20 text-xs">
                     {medecin.first_name} {medecin.name}
                   </Badge>
                 ))}
@@ -272,9 +272,9 @@ export function QuickEditMedecinDialog({
             </Popover>
 
             {selectedMedecinsDetailsPrio2.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-md mt-2">
+              <div className="flex flex-wrap gap-2 p-3 bg-cyan-500/5 border border-cyan-200/20 dark:border-cyan-800/20 rounded-lg mt-2">
                 {selectedMedecinsDetailsPrio2.map((medecin) => (
-                  <Badge key={medecin.id} variant="outline" className="text-xs">
+                  <Badge key={medecin.id} variant="outline" className="text-xs bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-900">
                     {medecin.first_name} {medecin.name}
                   </Badge>
                 ))}
