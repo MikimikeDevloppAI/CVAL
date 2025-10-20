@@ -224,6 +224,43 @@ export function buildMILPModelSoft(
   for (const [varName, coeffs] of varExamples) {
     console.log(`    ${varName}: score=${(coeffs as any).score_total}`);
   }
+
+  // Vérifier l'intégrité du modèle
+  console.log(`\n🔍 Vérification de l'intégrité du modèle:`);
+  let missingVars = 0;
+  const missingVarsList: string[] = [];
+  
+  for (const [constraintName, constraint] of Object.entries(model.constraints)) {
+    for (const varName of Object.keys(constraint)) {
+      if (varName !== 'max' && varName !== 'min' && !model.variables[varName]) {
+        console.warn(`  ⚠️ Variable ${varName} dans contrainte ${constraintName} n'existe pas!`);
+        missingVars++;
+        missingVarsList.push(`${varName} (contrainte: ${constraintName})`);
+      }
+    }
+  }
+  
+  if (missingVars > 0) {
+    console.error(`  ❌ ${missingVars} variables manquantes détectées:`);
+    missingVarsList.slice(0, 10).forEach(v => console.error(`    - ${v}`));
+    if (missingVarsList.length > 10) {
+      console.error(`    ... et ${missingVarsList.length - 10} autres`);
+    }
+  } else {
+    console.log(`  ✅ Aucune variable manquante`);
+  }
+
+  // Log du modèle complet (structure)
+  console.log(`\n📄 Structure du modèle MILP:`);
+  console.log(JSON.stringify({
+    optimize: model.optimize,
+    opType: model.opType,
+    constraints_count: Object.keys(model.constraints).length,
+    variables_count: Object.keys(model.variables).length,
+    ints_count: Object.keys(model.ints).length,
+    constraints_sample: Object.keys(model.constraints).slice(0, 3),
+    variables_sample: Object.keys(model.variables).slice(0, 3)
+  }, null, 2));
   
   return model;
 }

@@ -201,7 +201,22 @@ async function optimizeSingleWeek(
     );
     
     console.log('\n🔄 Résolution du modèle MILP...');
-    const solution = solver.Solve(model);
+    let solution;
+    try {
+      solution = solver.Solve(model);
+      console.log(`\n📊 Résultat brut du solveur:`, JSON.stringify(solution, null, 2));
+    } catch (error) {
+      console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
+      console.error(`  Message: ${error.message}`);
+      console.error(`  Stack: ${error.stack}`);
+      dailyResults.push({ 
+        date, 
+        success: false, 
+        reason: 'solver_error',
+        error: error.message
+      });
+      continue;
+    }
     
     if (!solution.feasible) {
       console.error(`\n❌ ÉCHEC: Aucune solution faisable trouvée pour ${date}`);
