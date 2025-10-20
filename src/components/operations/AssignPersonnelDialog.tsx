@@ -232,10 +232,10 @@ export const AssignPersonnelDialog = ({
             <div className="space-y-2">
               <Label>Sélectionner une secrétaire</Label>
               <Select value={selectedSecretaireId} onValueChange={setSelectedSecretaireId}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choisir une secrétaire..." />
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
+                <SelectContent position="popper">
                   {availableSecretaries.map((secretary) => (
                     <SelectItem 
                       key={secretary.secretaire_id} 
