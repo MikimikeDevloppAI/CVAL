@@ -59,14 +59,27 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch active sites
+      // Fetch active sites (exclude bloc opératoire)
       const { data: sites } = await supabase
         .from('sites')
         .select('*')
         .eq('actif', true)
+        .not('nom', 'eq', 'Clinique La Vallée - Bloc opératoire')
         .order('nom');
 
       if (!sites) return;
+
+      // Add administrative site
+      const adminSite = {
+        id: '00000000-0000-0000-0000-000000000001',
+        nom: 'Site Administratif',
+        actif: true,
+        fermeture: false,
+        adresse: '',
+        created_at: '',
+        updated_at: ''
+      };
+      const allSites = [...sites, adminSite];
 
       // Fetch stats
       const { data: secretaires } = await supabase
@@ -95,7 +108,8 @@ const DashboardPage = () => {
 
       // Fetch dashboard data for each site
       const dashboardData = await Promise.all(
-        sites.map(async (site) => {
+        allSites.map(async (site) => {
+          const isAdminSite = site.id === '00000000-0000-0000-0000-000000000001';
           // Fetch besoins effectifs (médecins)
           const { data: besoins } = await supabase
             .from('besoin_effectif')
@@ -110,17 +124,23 @@ const DashboardPage = () => {
             .order('date');
 
           // Fetch planning généré (secrétaires)
-          const { data: planning } = await supabase
+          const planningQuery = supabase
             .from('planning_genere_personnel')
             .select(`
               *,
               secretaires(id, first_name, name)
             `)
-            .eq('site_id', site.id)
             .gte('date', startDate)
             .lte('date', endDate)
-            .eq('type_assignation', 'site')
             .order('date');
+
+          if (isAdminSite) {
+            planningQuery.eq('type_assignation', 'administratif');
+          } else {
+            planningQuery.eq('site_id', site.id).eq('type_assignation', 'site');
+          }
+
+          const { data: planning } = await planningQuery;
 
           // Group by date and period
           const daysMap = new Map<string, DayData>();

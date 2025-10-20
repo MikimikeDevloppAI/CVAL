@@ -82,19 +82,41 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
       <div className="p-4">
         <div className="grid grid-cols-7 gap-2">
           {/* Day Headers */}
-          {days.map((day) => (
-            <div
-              key={day.toISOString()}
-              className="text-center pb-2 border-b border-border/30"
-            >
-              <p className="text-xs font-medium text-muted-foreground uppercase">
-                {format(day, 'EEE', { locale: fr })}
-              </p>
-              <p className="text-sm font-semibold text-foreground mt-1">
-                {format(day, 'd', { locale: fr })}
-              </p>
-            </div>
-          ))}
+          {days.map((day) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const dayMorningData = getDayData(day, 'matin');
+            const dayAfternoonData = getDayData(day, 'apres_midi');
+            
+            // Calculate missing secretaries for the day
+            let totalManquant = 0;
+            if (dayMorningData) {
+              const manquantMatin = Math.max(0, Math.ceil(dayMorningData.besoin_secretaires) - dayMorningData.secretaires.length);
+              totalManquant += manquantMatin;
+            }
+            if (dayAfternoonData) {
+              const manquantAM = Math.max(0, Math.ceil(dayAfternoonData.besoin_secretaires) - dayAfternoonData.secretaires.length);
+              totalManquant += manquantAM;
+            }
+
+            return (
+              <div
+                key={day.toISOString()}
+                className="text-center pb-2 border-b border-border/30"
+              >
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  {format(day, 'EEE', { locale: fr })}
+                </p>
+                <p className="text-sm font-semibold text-foreground mt-1">
+                  {format(day, 'd', { locale: fr })}
+                </p>
+                {totalManquant > 0 && (
+                  <p className="text-[10px] text-red-600 font-semibold mt-1">
+                    -{totalManquant}
+                  </p>
+                )}
+              </div>
+            );
+          })}
 
           {/* Morning Row */}
           {days.map((day) => {
