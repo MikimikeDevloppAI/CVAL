@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { format, startOfWeek, addWeeks, subWeeks, eachDayOfInterval } from 'date-fns';
+import { format, startOfWeek, addWeeks, subWeeks, eachDayOfInterval, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { OperationDayCard } from '@/components/operations/OperationDayCard';
+import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronLeft, ChevronRight, Calendar, Settings } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, ChevronLeft, Calendar, Settings, Plus } from 'lucide-react';
 
 interface Operation {
   id: string;
@@ -36,12 +38,22 @@ const OperationsPage = () => {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'planning' | 'configuration'>('planning');
+  const [addOperationOpen, setAddOperationOpen] = useState(false);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1, locale: fr });
   const weekDays = eachDayOfInterval({ 
     start: weekStart, 
     end: addWeeks(weekStart, 1) 
   }).slice(0, 5); // Lundi à Vendredi
+
+  // Generate 8 weeks: 4 past, current, 3 future
+  const weekOptions = Array.from({ length: 8 }, (_, i) => {
+    const weekDate = addWeeks(startOfWeek(new Date(), { weekStartsOn: 1, locale: fr }), i - 4);
+    return {
+      value: format(weekDate, 'yyyy-MM-dd'),
+      label: `Semaine du ${format(weekDate, 'd MMM yyyy', { locale: fr })}`
+    };
+  });
 
   useEffect(() => {
     fetchOperations();
@@ -137,6 +149,11 @@ const OperationsPage = () => {
     setCurrentWeek(new Date());
   };
 
+  const handleWeekChange = (weekValue: string) => {
+    const selectedDate = new Date(weekValue);
+    setCurrentWeek(selectedDate);
+  };
+
   return (
     <div className="w-full space-y-6">
       {/* Header avec Retour et Onglets */}
@@ -187,22 +204,22 @@ const OperationsPage = () => {
       {/* Navigation Semaine */}
       {activeTab === 'planning' && (
         <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePreviousWeek}
-            className="hover:bg-primary/10"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Semaine du</p>
-              <p className="text-lg font-semibold">
-                {format(weekStart, 'dd MMMM yyyy', { locale: fr })}
-              </p>
-            </div>
+          <div className="flex items-center gap-3">
+            <Select 
+              value={format(weekStart, 'yyyy-MM-dd')} 
+              onValueChange={handleWeekChange}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {weekOptions.map((week) => (
+                  <SelectItem key={week.value} value={week.value}>
+                    {week.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="sm"
@@ -214,12 +231,11 @@ const OperationsPage = () => {
           </div>
 
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleNextWeek}
-            className="hover:bg-primary/10"
+            onClick={() => setAddOperationOpen(true)}
+            className="gap-2"
           >
-            <ChevronRight className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
+            Ajouter une opération
           </Button>
         </div>
       )}
@@ -251,6 +267,14 @@ const OperationsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Add Operation Dialog */}
+      <AddOperationDialog
+        open={addOperationOpen}
+        onOpenChange={setAddOperationOpen}
+        currentWeekStart={weekStart}
+        onSuccess={fetchOperations}
+      />
     </div>
   );
 };
