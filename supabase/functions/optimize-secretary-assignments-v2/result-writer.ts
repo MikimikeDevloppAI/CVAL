@@ -11,6 +11,27 @@ export async function writeAssignments(
   console.log('\n📝 Écriture des résultats...');
   console.log(`  📊 Solution trouvée: ${Object.keys(solution).length} variables`);
   
+  // ÉTAPE 0 : Reset de toutes les capacités de la date
+  console.log(`\n♻️ Réinitialisation des capacités pour ${date}...`);
+  
+  const { data: resetData, error: resetError } = await supabase
+    .from('capacite_effective')
+    .update({
+      site_id: '00000000-0000-0000-0000-000000000001', // ADMIN_SITE_ID
+      planning_genere_bloc_operatoire_id: null,
+      besoin_operation_id: null
+    })
+    .eq('date', date)
+    .eq('actif', true)
+    .select('id');
+
+  if (resetError) {
+    console.error('❌ Erreur lors du reset:', resetError);
+    throw resetError;
+  }
+
+  console.log(`  ✅ ${resetData?.length || 0} capacités réinitialisées`);
+  
   const updates: any[] = [];
   let assignedCount = 0;
 
