@@ -260,19 +260,30 @@ export async function writeAssignments(
     const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
     const update: any = {
       id: capacite.id,
-      site_id: need.type === 'bloc_operatoire' ? BLOC_SITE_ID : site_id,
+      site_id: site_id, // Utiliser le site_id de la variable
       planning_genere_bloc_operatoire_id: null,
       besoin_operation_id: null,
     };
 
-    // Si c'est un besoin de bloc, assigner les IDs
-    if (need.type === 'bloc_operatoire') {
-      if (need.bloc_operation_id) {
+    // ✅ Si assignation au Bloc Opératoire, remplir les IDs supplémentaires
+    if (site_id === BLOC_SITE_ID) {
+      // Priorité 1 : IDs parsés de la variable
+      if (bloc_operation_id) {
+        update.planning_genere_bloc_operatoire_id = bloc_operation_id;
+      }
+      if (besoin_operation_id) {
+        update.besoin_operation_id = besoin_operation_id;
+      }
+      
+      // Priorité 2 : IDs du besoin trouvé (si IDs manquants)
+      if (!update.planning_genere_bloc_operatoire_id && need?.bloc_operation_id) {
         update.planning_genere_bloc_operatoire_id = need.bloc_operation_id;
       }
-      if (need.besoin_operation_id) {
+      if (!update.besoin_operation_id && need?.besoin_operation_id) {
         update.besoin_operation_id = need.besoin_operation_id;
       }
+      
+      console.log(`  🏥 BLOC assignation détectée: bloc_op=${update.planning_genere_bloc_operatoire_id?.slice(0,8)}, besoin_op=${update.besoin_operation_id?.slice(0,8)}`);
     }
 
     // 🔍 DIAGNOSTIC 6: Log update préparé complet
