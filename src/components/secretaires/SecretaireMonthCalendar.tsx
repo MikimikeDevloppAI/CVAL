@@ -382,12 +382,21 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                           <div className="text-xs font-medium truncate" style={{ color: slot.color }}>
                             {slot.site}
                           </div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                          <div 
+                            className="text-[10px] font-medium mt-0.5"
+                            style={{ 
+                              color: slot.periodes.length === 2 
+                                ? slot.color
+                                : slot.periodes.includes('matin')
+                                ? 'hsl(38, 92%, 50%)'
+                                : 'hsl(221, 83%, 53%)'
+                            }}
+                          >
                             {slot.periodes.length === 2
-                              ? '🌅 Journée'
+                              ? 'Journée complète'
                               : slot.periodes.includes('matin')
-                              ? '🌅 Matin'
-                              : '🌆 AM'}
+                              ? 'Matin'
+                              : 'Après-midi'}
                           </div>
                           <button
                             onClick={() => handleDeleteClick(slot.ids)}
