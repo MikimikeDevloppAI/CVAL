@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Command,
   CommandEmpty,
@@ -24,13 +25,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsUpDown, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Medecin {
   id: string;
   first_name: string;
   name: string;
+  existing_assignment?: string;
 }
 
 interface AddMedecinToDayDialogProps {
@@ -53,12 +55,27 @@ export function AddMedecinToDayDialog({
   const [periode, setPeriode] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
   const [loading, setLoading] = useState(false);
   const [comboOpen, setComboOpen] = useState(false);
+  const [existingAssignment, setExistingAssignment] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
       fetchMedecins();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (periode) {
+      fetchMedecins();
+    }
+  }, [periode]);
+
+  useEffect(() => {
+    if (selectedMedecinId) {
+      checkExistingAssignment();
+    } else {
+      setExistingAssignment(null);
+    }
+  }, [selectedMedecinId, date]);
 
   const fetchMedecins = async () => {
     const { data } = await supabase
@@ -68,8 +85,55 @@ export function AddMedecinToDayDialog({
       .order('name');
 
     if (data) {
-      setMedecins(data);
+      // Fetch existing assignments for this date and period
+      const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
+        ? ['matin', 'apres_midi'] 
+        : [periode as 'matin' | 'apres_midi'];
+
+      const { data: assignmentsData } = await supabase
+        .from('besoin_effectif')
+        .select('medecin_id, site_id, demi_journee, sites(nom)')
+        .eq('date', date)
+        .eq('type', 'medecin')
+        .in('demi_journee', periodsToCheck);
+
+      // Map assignments to medecins
+      const medecinsWithAssignments = data.map(med => {
+        const assignments = assignmentsData?.filter(a => a.medecin_id === med.id) || [];
+        let assignmentText = '';
+        
+        if (assignments.length > 0) {
+          const siteNames = [...new Set(assignments.map(a => a.sites?.nom || 'Site inconnu'))];
+          const periods = assignments.map(a => {
+            if (a.demi_journee === 'matin') return 'M';
+            if (a.demi_journee === 'apres_midi') return 'AM';
+            return '';
+          }).filter(Boolean);
+          
+          assignmentText = `(${periods.join('+')}: ${siteNames.join(', ')})`;
+        }
+
+        return {
+          id: med.id,
+          first_name: med.first_name,
+          name: med.name,
+          existing_assignment: assignmentText
+        };
+      });
+
+      setMedecins(medecinsWithAssignments);
     }
+  };
+
+  const checkExistingAssignment = async () => {
+    const { data } = await supabase
+      .from('besoin_effectif')
+      .select('*')
+      .eq('medecin_id', selectedMedecinId)
+      .eq('date', date)
+      .eq('type', 'medecin');
+
+    setExistingAssignment(data && data.length > 0 ? data : null);
   };
 
   const handleSubmit = async () => {
@@ -96,10 +160,22 @@ export function AddMedecinToDayDialog({
       if (existing && existing.length > 0) {
         toast({
           title: 'Attention',
-          description: 'Ce médecin est déjà assigné pour ce jour',
+          description: 'Ce médecin est déjà assigné pour ce jour sur ce site',
           variant: 'destructive',
         });
         return;
+      }
+
+      // Delete existing assignments if any (from other sites)
+      if (existingAssignment && existingAssignment.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('medecin_id', selectedMedecinId)
+          .eq('date', date)
+          .eq('type', 'medecin');
+
+        if (deleteError) throw deleteError;
       }
 
       // Create entries
@@ -173,11 +249,11 @@ export function AddMedecinToDayDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
+              <PopoverContent className="w-[400px] p-0">
                 <Command>
                   <CommandInput placeholder="Rechercher un médecin..." />
                   <CommandEmpty>Aucun médecin trouvé.</CommandEmpty>
-                  <CommandGroup>
+                  <CommandGroup className="max-h-[300px] overflow-y-auto">
                     {medecins.map((medecin) => (
                       <CommandItem
                         key={medecin.id}
@@ -189,17 +265,33 @@ export function AddMedecinToDayDialog({
                       >
                         <Check
                           className={cn(
-                            "mr-2 h-4 w-4",
+                            "mr-2 h-4 w-4 flex-shrink-0",
                             selectedMedecinId === medecin.id ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        {medecin.first_name} {medecin.name}
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate">{medecin.first_name} {medecin.name}</span>
+                          {medecin.existing_assignment && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {medecin.existing_assignment}
+                            </span>
+                          )}
+                        </div>
                       </CommandItem>
                     ))}
                   </CommandGroup>
                 </Command>
               </PopoverContent>
             </Popover>
+
+            {existingAssignment && existingAssignment.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Ce médecin est déjà assigné ce jour. Son assignation sera déplacée vers ce site.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <div className="space-y-2">
