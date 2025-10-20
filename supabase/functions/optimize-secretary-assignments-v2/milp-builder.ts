@@ -231,7 +231,8 @@ export function buildMILPModelSoft(
   const missingVarsList: string[] = [];
   
   for (const [constraintName, constraint] of Object.entries(model.constraints)) {
-    for (const varName of Object.keys(constraint)) {
+    const cObj = constraint as Record<string, any>;
+    for (const varName of Object.keys(cObj)) {
       if (varName !== 'max' && varName !== 'min' && !model.variables[varName]) {
         console.warn(`  ⚠️ Variable ${varName} dans contrainte ${constraintName} n'existe pas!`);
         missingVars++;

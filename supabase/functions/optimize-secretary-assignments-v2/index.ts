@@ -205,7 +205,15 @@ async function optimizeSingleWeek(
     try {
       solution = solver.Solve(model);
       console.log(`\n📊 Résultat brut du solveur:`, JSON.stringify(solution, null, 2));
-    } catch (error) {
+      const assignedVars = Object.entries(solution)
+        .filter(([k, v]) => k.startsWith('assign_') && v === 1)
+        .map(([k]) => k);
+      console.log(`\n🧩 Variables assignées (=1): ${assignedVars.length}`);
+      assignedVars.slice(0, 20).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
+      if (assignedVars.length === 0) {
+        console.warn('⚠️ Aucune variable assignée. Vérifiez l\'éligibilité, les contraintes et la construction du modèle.');
+      }
+    } catch (error: any) {
       console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
       console.error(`  Message: ${error.message}`);
       console.error(`  Stack: ${error.stack}`);
