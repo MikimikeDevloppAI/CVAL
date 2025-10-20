@@ -83,7 +83,7 @@ const DashboardPage = () => {
       // Add administrative site at the end
       const adminSite = {
         id: '00000000-0000-0000-0000-000000000001',
-        nom: 'Site Administratif',
+        nom: 'Administratif',
         actif: true,
         fermeture: false,
         adresse: '',
