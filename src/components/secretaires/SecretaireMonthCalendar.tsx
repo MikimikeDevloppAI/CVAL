@@ -70,6 +70,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
+  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi'>('toute_journee');
 
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -267,6 +268,16 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   const handleEditClick = (slot: DaySlot) => {
     setEditingSlot(slot);
     setSelectedSiteId(slot.siteId);
+    
+    // Détecter la période initiale: si les deux périodes sont présentes, afficher "toute_journee"
+    if (slot.periodes.length === 2) {
+      setSelectedPeriode('toute_journee');
+    } else if (slot.periodes.includes('matin')) {
+      setSelectedPeriode('matin');
+    } else {
+      setSelectedPeriode('apres_midi');
+    }
+    
     setEditDialogOpen(true);
   };
 
@@ -276,43 +287,115 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
       return;
     }
 
-    // Check for overlaps if changing site
     const dateStr = editingSlot.ids.length > 0 
       ? capacites.find(c => c.id === editingSlot.ids[0])?.date 
       : null;
-    
-    if (dateStr && selectedSiteId !== editingSlot.siteId) {
-      const periodes: ('matin' | 'apres_midi')[] = editingSlot.periodes as ('matin' | 'apres_midi')[];
-      const overlapResult = await checkSecretaireOverlap(secretaireId, dateStr, periodes);
-      if (overlapResult.hasOverlap) {
-        toast.error(getOverlapErrorMessage(overlapResult, 'secretaire'));
-        return;
-      }
+
+    if (!dateStr) {
+      toast.error('Date non trouvée');
+      return;
     }
 
     setLoading(true);
 
-    // Update all capacites in the slot
-    for (const id of editingSlot.ids) {
-      const { error } = await supabase
-        .from('capacite_effective')
-        .update({
-          site_id: selectedSiteId,
-        })
-        .eq('id', id);
+    try {
+      // Déterminer quels capacites existantes on doit garder/modifier/supprimer
+      const matinCapacite = capacites.find(c => editingSlot.ids.includes(c.id) && c.demi_journee === 'matin');
+      const apresmidiCapacite = capacites.find(c => editingSlot.ids.includes(c.id) && c.demi_journee === 'apres_midi');
 
-      if (error) {
-        toast.error('Erreur lors de la modification');
-        setLoading(false);
-        return;
+      if (selectedPeriode === 'toute_journee') {
+        // Modifier journée complète : assurer que matin ET après-midi existent
+        if (matinCapacite) {
+          await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: selectedSiteId,
+            })
+            .eq('id', matinCapacite.id);
+        } else {
+          // Créer le matin s'il n'existe pas
+          await supabase.from('capacite_effective').insert({
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'matin',
+          });
+        }
+
+        if (apresmidiCapacite) {
+          await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: selectedSiteId,
+            })
+            .eq('id', apresmidiCapacite.id);
+        } else {
+          // Créer l'après-midi s'il n'existe pas
+          await supabase.from('capacite_effective').insert({
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi',
+          });
+        }
+      } else if (selectedPeriode === 'matin') {
+        // Modifier uniquement le matin, supprimer l'après-midi si existe
+        if (matinCapacite) {
+          await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: selectedSiteId,
+            })
+            .eq('id', matinCapacite.id);
+        } else {
+          // Créer le matin s'il n'existe pas
+          await supabase.from('capacite_effective').insert({
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'matin',
+          });
+        }
+
+        // Supprimer l'après-midi si existe
+        if (apresmidiCapacite) {
+          await supabase.from('capacite_effective').delete().eq('id', apresmidiCapacite.id);
+        }
+      } else {
+        // selectedPeriode === 'apres_midi'
+        // Modifier uniquement l'après-midi, supprimer le matin si existe
+        if (apresmidiCapacite) {
+          await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: selectedSiteId,
+            })
+            .eq('id', apresmidiCapacite.id);
+        } else {
+          // Créer l'après-midi s'il n'existe pas
+          await supabase.from('capacite_effective').insert({
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi',
+          });
+        }
+
+        // Supprimer le matin si existe
+        if (matinCapacite) {
+          await supabase.from('capacite_effective').delete().eq('id', matinCapacite.id);
+        }
       }
-    }
 
-    toast.success('Créneau modifié');
-    fetchCapacites();
-    setEditDialogOpen(false);
-    setEditingSlot(null);
-    setLoading(false);
+      toast.success('Créneau modifié');
+      fetchCapacites();
+      setEditDialogOpen(false);
+      setEditingSlot(null);
+    } catch (error) {
+      toast.error('Erreur lors de la modification');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Générer les jours du mois avec padding
@@ -560,6 +643,20 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
             <DialogDescription className="sr-only">Modifier l&apos;assignation pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Période</label>
+              <Select value={selectedPeriode} onValueChange={(value: any) => setSelectedPeriode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="toute_journee">Journée complète</SelectItem>
+                  <SelectItem value="matin">Matin uniquement</SelectItem>
+                  <SelectItem value="apres_midi">Après-midi uniquement</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Site</label>
               <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
