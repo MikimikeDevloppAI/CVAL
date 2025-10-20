@@ -21,7 +21,6 @@ interface PersonnePresence {
   is_1r?: boolean;
   is_2f?: boolean;
   is_3f?: boolean;
-  site_nom?: string;
 }
 
 interface DayData {
@@ -142,8 +141,7 @@ const DashboardPage = () => {
             .from('capacite_effective')
             .select(`
               *,
-              secretaires(id, first_name, name),
-              sites!capacite_effective_site_id_fkey(nom)
+              secretaires(id, first_name, name)
             `)
             .gte('date', startDate)
             .lte('date', endDate)
@@ -236,8 +234,7 @@ const DashboardPage = () => {
                   apres_midi: periode === 'apres_midi',
                   is_1r: cap.is_1r,
                   is_2f: cap.is_2f,
-                  is_3f: cap.is_3f,
-                  site_nom: cap.sites?.nom
+                  is_3f: cap.is_3f
                 });
               }
             }

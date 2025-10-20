@@ -16,7 +16,6 @@ interface PersonnePresence {
   is_1r?: boolean;
   is_2f?: boolean;
   is_3f?: boolean;
-  site_nom?: string;
 }
 
 interface DayData {
@@ -126,11 +125,6 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                   >
                     <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
                     <span className="truncate">{s.nom}</span>
-                    {s.site_nom && (
-                      <span className="text-[8px] font-semibold text-primary/70 flex-shrink-0">
-                        ({s.site_nom === 'Administratif' ? 'Admin' : s.site_nom})
-                      </span>
-                    )}
                     {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
                     {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
                     {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
@@ -180,9 +174,7 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                 <ul className="text-xs space-y-0.5">
                   {data.secretaires.map(s => (
                     <li key={s.id} className="flex items-center gap-1">
-                      • {s.nom}
-                      {s.site_nom && <span className="text-[10px] text-primary/70">({s.site_nom === 'Administratif' ? 'Admin' : s.site_nom})</span>}
-                      {' '}- {s.matin && s.apres_midi ? 'Journée' : s.matin ? 'Matin' : 'Après-midi'}
+                      • {s.nom} - {s.matin && s.apres_midi ? 'Journée' : s.matin ? 'Matin' : 'Après-midi'}
                       {s.is_1r && <span className="text-[10px]">(1R)</span>}
                       {s.is_2f && <span className="text-[10px]">(2F)</span>}
                       {s.is_3f && <span className="text-[10px]">(3F)</span>}

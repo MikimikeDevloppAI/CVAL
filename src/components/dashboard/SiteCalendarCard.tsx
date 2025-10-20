@@ -15,7 +15,6 @@ interface PersonnePresence {
   is_1r?: boolean;
   is_2f?: boolean;
   is_3f?: boolean;
-  site_nom?: string;
 }
 
 interface DayData {
