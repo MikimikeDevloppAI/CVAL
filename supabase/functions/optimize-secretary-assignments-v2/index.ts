@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T20:10:00Z
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T20:30:00Z
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
@@ -204,14 +204,46 @@ async function optimizeSingleWeek(
     let solution;
     try {
       solution = solver.Solve(model);
-      console.log(`\n📊 Résultat brut du solveur:`, JSON.stringify(solution, null, 2));
+      
+      console.log(`\n📊 Résultat du solveur:`);
+      console.log(`  feasible: ${solution.feasible}`);
+      console.log(`  bounded: ${solution.bounded}`);
+      console.log(`  result: ${solution.result}`);
+      
+      if (!solution.feasible) {
+        console.error(`❌ Modèle infaisable - aucune solution trouvée`);
+        dailyResults.push({ 
+          date, 
+          assigned: 0, 
+          score: 0, 
+          error: 'Modèle infaisable' 
+        });
+        continue;
+      }
+      
+      if (solution.result === Infinity || solution.result === -Infinity || isNaN(solution.result)) {
+        console.error(`❌ Modèle non borné ou invalide - result: ${solution.result}`);
+        dailyResults.push({ 
+          date, 
+          assigned: 0, 
+          score: 0, 
+          error: 'Modèle non borné' 
+        });
+        continue;
+      }
+      
       const assignedVars = Object.entries(solution)
         .filter(([k, v]) => k.startsWith('assign_') && v === 1)
         .map(([k]) => k);
-      console.log(`\n🧩 Variables assignées (=1): ${assignedVars.length}`);
-      assignedVars.slice(0, 20).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
-      if (assignedVars.length === 0) {
-        console.warn('⚠️ Aucune variable assignée. Vérifiez l\'éligibilité, les contraintes et la construction du modèle.');
+      console.log(`  ✅ ${assignedVars.length} assignations trouvées (score: ${solution.result})`);
+      
+      if (assignedVars.length > 0) {
+        assignedVars.slice(0, 10).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
+        if (assignedVars.length > 10) {
+          console.log(`    ... et ${assignedVars.length - 10} autres assignations`);
+        }
+      } else {
+        console.warn('⚠️ Aucune variable assignée malgré un modèle faisable.');
       }
     } catch (error: any) {
       console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
