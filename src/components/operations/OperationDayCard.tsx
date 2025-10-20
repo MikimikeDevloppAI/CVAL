@@ -39,29 +39,29 @@ export const OperationDayCard = ({ date, operations, index, onUpdate }: Operatio
     <div
       className={cn(
         "rounded-xl overflow-hidden",
-        "backdrop-blur-xl border border-border/50",
-        "shadow-lg hover:shadow-xl",
+        "bg-card/50 backdrop-blur-xl border border-border/50",
+        "shadow-lg hover:shadow-xl hover:border-primary/30",
         "transition-all duration-300 ease-out",
         "animate-fade-in"
       )}
-      style={{ animationDelay: `${index * 100}ms` }}
+      style={{ animationDelay: `${index * 50}ms` }}
     >
       {/* Header */}
-      <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
+      <div className="p-4 border-b border-border/50 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
         <div className="text-center">
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">
             {format(date, 'EEEE', { locale: fr })}
           </p>
-          <p className="text-lg font-semibold text-foreground mt-1">
+          <p className="text-xl font-bold text-foreground mt-1">
             {format(date, 'd MMMM', { locale: fr })}
           </p>
         </div>
       </div>
 
       {/* Operations */}
-      <div className="p-3 space-y-4">
+      <div className="p-4 space-y-4">
         {morningOps.length === 0 && afternoonOps.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground text-sm">
+          <div className="text-center py-8 text-muted-foreground text-sm">
             Aucune opération
           </div>
         ) : (
