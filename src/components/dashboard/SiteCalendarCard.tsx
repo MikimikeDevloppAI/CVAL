@@ -80,11 +80,6 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
             <h3 className="text-lg font-semibold text-foreground">
               {site.site_nom}
             </h3>
-            {site.site_fermeture && (
-              <Badge variant="destructive" className="mt-2">
-                Fermé
-              </Badge>
-            )}
           </div>
           {hasIssues && (
             <Badge variant="outline" className="bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
