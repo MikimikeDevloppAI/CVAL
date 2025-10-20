@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ModernCard, ModernCardHeader, ModernCardContent, ModernCardTitle } from '@/components/ui/modern-card';
 import { AbsenceForm } from '@/components/absences/AbsenceForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -373,11 +372,17 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
           </DialogHeader>
 
           <Tabs defaultValue="absences" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="absences" className="data-[state=active]:bg-primary/10">
+            <TabsList className="grid w-full grid-cols-2 mb-4 bg-card/50 backdrop-blur-sm border border-border/50 p-1">
+              <TabsTrigger 
+                value="absences" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
                 Absences
               </TabsTrigger>
-              <TabsTrigger value="jours-feries" className="data-[state=active]:bg-primary/10">
+              <TabsTrigger 
+                value="jours-feries" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
                 Jours Fériés
               </TabsTrigger>
             </TabsList>
@@ -391,12 +396,12 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     placeholder="Rechercher une absence..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 bg-card/50 backdrop-blur-sm border-border/50"
                   />
                 </div>
                 {canManage && (
                   <Button
-                    className="gap-2"
+                    className="gap-2 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105"
                     onClick={() => {
                       setSelectedAbsence(null);
                       setIsAbsenceDialogOpen(true);
@@ -415,20 +420,36 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-                    {filteredAbsences.map((absence) => (
-                      <ModernCard key={absence.id}>
-                        <ModernCardHeader>
+                    {filteredAbsences.map((absence, idx) => (
+                      <div
+                        key={absence.id}
+                        className="group relative overflow-hidden rounded-xl bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        {/* Gradient Glow */}
+                        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-20 bg-gradient-to-br from-red-500 to-orange-500" />
+                        
+                        {/* Header */}
+                        <div className="relative p-5 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
-                              <ModernCardTitle>
+                              <h4 className="font-bold text-lg text-foreground mb-2">
                                 {absence.type_personne === 'medecin' 
                                   ? `${absence.medecins?.first_name} ${absence.medecins?.name}`
                                   : `${absence.secretaires?.first_name} ${absence.secretaires?.name}`
                                 }
-                              </ModernCardTitle>
-                              <div className="flex gap-2 flex-wrap mt-2">
-                                <Badge variant="secondary" className="text-xs">
+                              </h4>
+                              <div className="flex gap-2 flex-wrap">
+                                <Badge 
+                                  className="text-xs bg-gradient-to-r from-cyan-500 to-blue-500 text-white border-0"
+                                >
                                   {absence.type_personne === 'medecin' ? 'Médecin' : 'Secrétaire'}
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className="text-xs bg-primary/10 text-primary border-primary/20"
+                                >
+                                  {getTypeLabel(absence.type)}
                                 </Badge>
                               </div>
                             </div>
@@ -442,7 +463,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                     setSelectedAbsence(absence);
                                     setIsAbsenceDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 hover:scale-110"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -450,60 +471,60 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setAbsenceToDelete(absence)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                                  className="opacity-0 group-hover:opacity-100 transition-all text-destructive hover:text-destructive hover:bg-destructive/10 hover:scale-110"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             )}
                           </div>
-                        </ModernCardHeader>
+                        </div>
                         
-                        <ModernCardContent>
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                Type
-                              </p>
-                              <p className="text-sm">{getTypeLabel(absence.type)}</p>
+                        {/* Content */}
+                        <div className="relative p-5 space-y-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/10 to-blue-500/10">
+                              <Calendar className="h-4 w-4 text-cyan-600" />
                             </div>
-
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
                                 Période
                               </p>
-                              <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="h-3 w-3" />
-                                <span>
-                                  {format(new Date(absence.date_debut), 'dd MMM yyyy', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
-                                </span>
-                              </div>
+                              <p className="text-sm font-medium">
+                                {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
+                              </p>
                               {absence.heure_debut && absence.heure_fin && (
-                                <Badge variant="outline" className="mt-2">
+                                <Badge variant="outline" className="mt-1 text-xs">
                                   {absence.heure_debut.slice(0, 5)} - {absence.heure_fin.slice(0, 5)}
                                 </Badge>
                               )}
                             </div>
-
-                            {absence.motif && (
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Motif
-                                </p>
-                                <p className="text-sm">{absence.motif}</p>
-                              </div>
-                            )}
                           </div>
-                        </ModernCardContent>
-                      </ModernCard>
+
+                          {absence.motif && (
+                            <div className="pt-3 border-t border-border/50">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                                Motif
+                              </p>
+                              <p className="text-sm text-foreground/80">{absence.motif}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
 
                 {!loading && filteredAbsences.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      {searchTerm ? 'Aucune absence trouvée pour cette recherche' : 'Aucune absence enregistrée'}
+                  <div className="text-center py-16">
+                    <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 mb-4">
+                      <CalendarOff className="h-12 w-12 text-red-500" />
+                    </div>
+                    <p className="text-lg font-medium text-foreground mb-2">
+                      {searchTerm ? 'Aucune absence trouvée' : 'Aucune absence enregistrée'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Commencez par déclarer une absence'}
                     </p>
                   </div>
                 )}
@@ -519,12 +540,12 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     placeholder="Rechercher un jour férié..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 bg-card/50 backdrop-blur-sm border-border/50"
                   />
                 </div>
                 {canManage && (
                   <Button
-                    className="gap-2"
+                    className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105"
                     onClick={() => {
                       setSelectedJourFerie(null);
                       setIsJourFerieDialogOpen(true);
@@ -543,18 +564,22 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-                    {filteredJoursFeries.map((jourFerie) => (
-                      <ModernCard key={jourFerie.id}>
-                        <ModernCardHeader>
-                          <div className="flex items-start justify-between">
+                    {filteredJoursFeries.map((jourFerie, idx) => (
+                      <div
+                        key={jourFerie.id}
+                        className="group relative overflow-hidden rounded-xl bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        {/* Gradient Glow */}
+                        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-20 bg-gradient-to-br from-green-500 to-emerald-500" />
+                        
+                        {/* Content */}
+                        <div className="relative p-5">
+                          <div className="flex items-start justify-between mb-4">
                             <div className="flex-1 min-w-0">
-                              <ModernCardTitle>{jourFerie.nom}</ModernCardTitle>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                                <Calendar className="h-3 w-3" />
-                                <span>
-                                  {format(new Date(jourFerie.date), 'dd MMMM yyyy', { locale: fr })}
-                                </span>
-                              </div>
+                              <h4 className="font-bold text-lg text-foreground mb-3">
+                                {jourFerie.nom}
+                              </h4>
                             </div>
                             
                             {canManage && (
@@ -566,7 +591,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                     setSelectedJourFerie(jourFerie);
                                     setIsJourFerieDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 hover:scale-110"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -574,23 +599,43 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setJourFerieToDelete(jourFerie)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                                  className="opacity-0 group-hover:opacity-100 transition-all text-destructive hover:text-destructive hover:bg-destructive/10 hover:scale-110"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             )}
                           </div>
-                        </ModernCardHeader>
-                      </ModernCard>
+                          
+                          <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                            <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
+                              <Calendar className="h-4 w-4 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
+                                Date
+                              </p>
+                              <p className="text-sm font-bold text-foreground">
+                                {format(new Date(jourFerie.date), 'dd MMMM yyyy', { locale: fr })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
 
                 {!loading && filteredJoursFeries.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      {searchTerm ? 'Aucun jour férié trouvé pour cette recherche' : 'Aucun jour férié enregistré'}
+                  <div className="text-center py-16">
+                    <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-green-500/10 to-emerald-500/10 mb-4">
+                      <Calendar className="h-12 w-12 text-green-500" />
+                    </div>
+                    <p className="text-lg font-medium text-foreground mb-2">
+                      {searchTerm ? 'Aucun jour férié trouvé' : 'Aucun jour férié enregistré'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Commencez par ajouter un jour férié'}
                     </p>
                   </div>
                 )}
@@ -602,9 +647,12 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
 
       {/* Absence Form Dialog */}
       <Dialog open={isAbsenceDialogOpen} onOpenChange={setIsAbsenceDialogOpen}>
-        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto backdrop-blur-xl bg-background/95 border-border/50">
+          <DialogHeader className="border-b border-border/50 pb-4">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-red-500 to-orange-500">
+                <CalendarOff className="h-5 w-5 text-white" />
+              </div>
               {selectedAbsence ? 'Modifier l\'absence' : 'Déclarer une absence'}
             </DialogTitle>
           </DialogHeader>
@@ -623,23 +671,30 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
           form.reset();
         }
       }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-md backdrop-blur-xl bg-background/95 border-border/50">
+          <DialogHeader className="border-b border-border/50 pb-4">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500">
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
               {selectedJourFerie ? 'Modifier le jour férié' : 'Ajouter un jour férié'}
             </DialogTitle>
           </DialogHeader>
         
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onJourFerieSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onJourFerieSubmit)} className="space-y-5 pt-2">
               <FormField
                 control={form.control}
                 name="nom"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom</FormLabel>
+                    <FormLabel className="text-sm font-semibold">Nom du jour férié</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Noël" {...field} />
+                      <Input 
+                        placeholder="Ex: Noël, Jour de l'An..." 
+                        {...field}
+                        className="bg-card/50 backdrop-blur-sm border-border/50"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -651,16 +706,20 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 name="date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel className="text-sm font-semibold">Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input 
+                        type="date" 
+                        {...field}
+                        className="bg-card/50 backdrop-blur-sm border-border/50"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
                 <Button
                   type="button"
                   variant="outline"
@@ -669,10 +728,14 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     setSelectedJourFerie(null);
                     form.reset();
                   }}
+                  className="hover:bg-muted/50"
                 >
                   Annuler
                 </Button>
-                <Button type="submit">
+                <Button 
+                  type="submit"
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg"
+                >
                   {selectedJourFerie ? 'Modifier' : 'Ajouter'}
                 </Button>
               </div>
