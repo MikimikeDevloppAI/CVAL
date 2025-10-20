@@ -8,11 +8,17 @@ export async function writeAssignments(
   capacites: CapaciteEffective[],
   supabase: SupabaseClient
 ) {
+  console.log('\n📝 Écriture des résultats...');
+  console.log(`  📊 Solution trouvée: ${Object.keys(solution).length} variables`);
+  
   const updates: any[] = [];
+  let assignedCount = 0;
   
   // Parse solution
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('assign_') || value !== 1) continue;
+    
+    assignedCount++;
     
     // Format: assign_{secretaire_id}_{site_id}_{date}_{periode}
     const parts = varName.replace('assign_', '').split('_');
@@ -60,12 +66,23 @@ export async function writeAssignments(
       }
     }
     
+    console.log(`\n  ✅ Assignation ${assignedCount}:`, {
+      secretaire_id,
+      site_id,
+      date,
+      periode,
+      capacite_id: capacite.id,
+      need_type: need?.type,
+      bloc_operation_id: need?.bloc_operation_id
+    });
+    
     updates.push(update);
   }
   
-  console.log(`📝 Écriture de ${updates.length} assignations dans capacite_effective`);
+  console.log(`\n📝 Écriture de ${updates.length} assignations dans capacite_effective`);
   
   // Batch update
+  let successCount = 0;
   for (const update of updates) {
     const { error } = await supabase
       .from('capacite_effective')
@@ -74,8 +91,10 @@ export async function writeAssignments(
     
     if (error) {
       console.error(`❌ Erreur lors de l'update de ${update.id}:`, error);
+    } else {
+      successCount++;
     }
   }
   
-  console.log('✅ Assignations écrites avec succès');
+  console.log(`\n✅ ${successCount}/${updates.length} assignations écrites avec succès`);
 }

@@ -15,7 +15,10 @@ export function buildMILPModelSoft(
   week_data: WeekData,
   week_assignments: AssignmentSummary[]
 ) {
-  console.log(`🏗️ Construction du modèle MILP pour ${date}`);
+  console.log(`\n🏗️ Construction du modèle MILP...`);
+  console.log(`  📅 Date: ${date}`);
+  console.log(`  📋 Besoins: ${needs.length}`);
+  console.log(`  👥 Capacités: ${capacites.filter(c => c.date === date).length}`);
   
   const model: any = {
     optimize: 'score_total',
@@ -36,8 +39,15 @@ export function buildMILPModelSoft(
   // ============================================================
   // VARIABLES AND COEFFICIENTS
   // ============================================================
+  let variableCount = 0;
   for (const need of needs) {
     const needId = `${need.site_id}_${need.date}_${need.periode}`;
+    console.log(`\n  📌 Besoin ${needId}:`, {
+      site_id: need.site_id,
+      periode: need.periode,
+      nombre_max: need.nombre_max,
+      type: need.type
+    });
     
     for (const cap of todayCapacites) {
       if (!cap.secretaire_id) continue;
@@ -82,15 +92,26 @@ export function buildMILPModelSoft(
       
       // Coefficient in objective function
       model.variables[varName] = { score_total: score };
+      variableCount++;
+      
+      if (variableCount <= 10) {
+        console.log(`    ✅ Variable ${varName} créée avec score: ${score.toFixed(2)}`);
+      }
     }
+  }
+  
+  if (variableCount > 10) {
+    console.log(`    ... et ${variableCount - 10} autres variables créées`);
   }
   
   // ============================================================
   // CONSTRAINT: Max nombre_max per need (HARD)
   // ============================================================
+  let constraintCount = 0;
   for (const need of needs) {
     const needId = `${need.site_id}_${need.date}_${need.periode}`;
     model.constraints[`max_need_${needId}`] = { max: need.nombre_max };
+    constraintCount++;
     
     // Add all assignment variables for this need
     for (const cap of todayCapacites) {
@@ -129,6 +150,7 @@ export function buildMILPModelSoft(
     for (const varName of varNames) {
       model.constraints[`max_one_${key}`][varName] = 1;
     }
+    constraintCount++;
   }
   
   // ============================================================
@@ -185,11 +207,23 @@ export function buildMILPModelSoft(
         for (const fdVar of fullDayVars) {
           model.constraints[`closure_${site.id}_${date}`][fdVar] = 1;
         }
+        constraintCount++;
+        console.log(`  📊 Contrainte closure_${site.id}_${date}: >= 2 full-day`);
       }
     }
   }
   
-  console.log(`✅ Modèle MILP construit: ${Object.keys(model.variables).length} variables, ${Object.keys(model.constraints).length} contraintes`);
+  console.log(`\n✅ Modèle MILP construit:`);
+  console.log(`  📊 Variables: ${Object.keys(model.variables).length}`);
+  console.log(`  📊 Contraintes: ${Object.keys(model.constraints).length}`);
+  console.log(`  📊 Variables entières: ${Object.keys(model.ints).length}`);
+  
+  // Afficher quelques exemples de variables avec leurs coefficients
+  const varExamples = Object.entries(model.variables).slice(0, 5);
+  console.log(`\n  🔍 Exemples de variables (5 premières):`);
+  for (const [varName, coeffs] of varExamples) {
+    console.log(`    ${varName}: score=${(coeffs as any).score_total}`);
+  }
   
   return model;
 }

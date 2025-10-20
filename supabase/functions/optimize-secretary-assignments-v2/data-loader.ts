@@ -93,7 +93,18 @@ export async function loadWeekData(
   const medecins = medecinsRes.data || [];
   const medecins_map = new Map(medecins.map(m => [m.id, m]));
 
-  console.log(`✅ Données chargées: ${secretairesRes.data?.length} secrétaires, ${capacitesRes.data?.length} capacités, ${besoinsEffRes.data?.length} besoins effectifs`);
+  console.log(`\n✅ Données chargées:`);
+  console.log(`  ✅ Secrétaires : ${secretairesRes.data?.length}`);
+  console.log(`  ✅ Médecins : ${medecinsRes.data?.length}`);
+  console.log(`  ✅ Sites : ${sitesRes.data?.length}`);
+  console.log(`  ✅ Besoins opérations : ${besoinsOpsRes.data?.length}`);
+  console.log(`  ✅ Secrétaires-besoins : ${secBesoinsRes.data?.length}`);
+  console.log(`  ✅ Secrétaires-médecins : ${secMedecinsRes.data?.length}`);
+  console.log(`  ✅ Secrétaires-sites : ${secSitesRes.data?.length}`);
+  console.log(`  ✅ Capacités effectives : ${capacitesRes.data?.length}`);
+  console.log(`  ✅ Besoins effectifs : ${besoinsEffRes.data?.length}`);
+  console.log(`  ✅ Planning bloc : ${planningBlocRes.data?.length}`);
+  console.log(`  ✅ Types intervention besoins : ${typesIntervRes.data?.length}`);
 
   return {
     secretaires: secretairesRes.data || [],

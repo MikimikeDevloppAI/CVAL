@@ -1,7 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-declare const solver: any;
+import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 import type { SiteNeed, WeekData } from './types.ts';
 import { ADMIN_SITE_ID } from './types.ts';
@@ -21,6 +20,11 @@ function calculateNeeds(
   types_intervention_besoins: any[],
   sites: any[]
 ): SiteNeed[] {
+  console.log('🔍 Calcul des besoins...');
+  console.log(`  📌 Besoins effectifs : ${besoins_effectifs.length}`);
+  console.log(`  📌 Planning bloc : ${planning_bloc.length}`);
+  console.log(`  📌 Sites totaux : ${sites.length}`);
+  
   const needs: SiteNeed[] = [];
   
   // ============================================================
@@ -31,6 +35,8 @@ function calculateNeeds(
     .filter(s => s.nom.toLowerCase().includes('bloc') || 
                   s.nom.toLowerCase().includes('opératoire'))
     .map(s => s.id);
+  
+  console.log(`  📌 Sites bloc identifiés : ${blocSiteIds.join(', ')}`);
   
   // Group by site + date + demi_journee
   const siteGroups = new Map<string, any[]>();
@@ -64,15 +70,27 @@ function calculateNeeds(
     
     const nombre_max = Math.ceil(totalBesoin);
     
-    needs.push({
+    const need = {
       site_id,
       date,
       periode: demi_journee as 'matin' | 'apres_midi',
       nombre_suggere: nombre_max,
       nombre_max,
       medecins_ids,
-      type: 'site'
+      type: 'site' as const
+    };
+    
+    console.log(`\n  ✅ Besoin SITE calculé:`, {
+      type: need.type,
+      site_id: need.site_id,
+      date: need.date,
+      periode: need.periode,
+      nombre_suggere: need.nombre_suggere,
+      nombre_max: need.nombre_max,
+      medecins_count: need.medecins_ids.length
     });
+    
+    needs.push(need);
   }
   
   // ============================================================
@@ -94,19 +112,33 @@ function calculateNeeds(
     );
     
     for (const besoinPersonnel of besoinsPersonnel) {
-      needs.push({
+      const need = {
         site_id: blocSite?.id || bloc.site_id,
         date: bloc.date,
         periode: bloc.periode,
         nombre_suggere: besoinPersonnel.nombre_requis,
         nombre_max: besoinPersonnel.nombre_requis,
         medecins_ids: bloc.medecin_id ? [bloc.medecin_id] : [],
-        type: 'bloc_operatoire',
+        type: 'bloc_operatoire' as const,
         bloc_operation_id: bloc.id,
         besoin_operation_id: besoinPersonnel.besoin_operation_id
+      };
+      
+      console.log(`\n  ✅ Besoin BLOC calculé:`, {
+        type: need.type,
+        site_id: need.site_id,
+        date: need.date,
+        periode: need.periode,
+        nombre_max: need.nombre_max,
+        bloc_operation_id: need.bloc_operation_id,
+        besoin_operation_id: need.besoin_operation_id
       });
+      
+      needs.push(need);
     }
   }
+  
+  console.log(`\n✅ Total besoins calculés: ${needs.length} (Sites: ${needs.filter(n => n.type === 'site').length}, Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length})`);
   
   return needs;
 }
@@ -125,7 +157,9 @@ async function optimizeSingleWeek(
   const dailyResults: any[] = [];
   
   for (const date of sortedDates) {
-    console.log(`\n📅 Optimisation du ${date}`);
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📅 OPTIMISATION DU ${date}`);
+    console.log('='.repeat(60));
     
     // Calculate needs (with bloc exclusion)
     const needs = calculateNeeds(
@@ -136,7 +170,20 @@ async function optimizeSingleWeek(
       weekData.sites
     );
     
-    console.log(`📋 Besoins calculés: ${needs.length} besoins (${needs.filter(n => n.type === 'site').length} sites, ${needs.filter(n => n.type === 'bloc_operatoire').length} bloc)`);
+    console.log(`\n📋 Besoins calculés: ${needs.length} besoins`);
+    console.log(`  Sites: ${needs.filter(n => n.type === 'site').length}`);
+    console.log(`  Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length}`);
+    
+    // Détail des besoins par site
+    const needsBySite = new Map<string, number>();
+    for (const need of needs) {
+      needsBySite.set(need.site_id, (needsBySite.get(need.site_id) || 0) + 1);
+    }
+    console.log('\n  📊 Répartition par site:');
+    for (const [site_id, count] of needsBySite) {
+      const site = weekData.sites.find(s => s.id === site_id);
+      console.log(`    ${site?.nom || site_id}: ${count} besoins`);
+    }
     
     // Get week assignments (before this day)
     const week_assignments = await getCurrentWeekAssignments(
@@ -153,11 +200,13 @@ async function optimizeSingleWeek(
       week_assignments
     );
     
-    console.log('🔄 Résolution du modèle MILP...');
+    console.log('\n🔄 Résolution du modèle MILP...');
     const solution = solver.Solve(model);
     
     if (!solution.feasible) {
-      console.error(`❌ Pas de solution faisable pour ${date}`);
+      console.error(`\n❌ ÉCHEC: Aucune solution faisable trouvée pour ${date}`);
+      console.error(`  Raison possible: contraintes trop restrictives`);
+      console.error(`  Besoins: ${needs.length}, Contraintes: ${Object.keys(model.constraints).length}`);
       dailyResults.push({ 
         date, 
         success: false, 
@@ -167,7 +216,10 @@ async function optimizeSingleWeek(
       continue;
     }
     
-    console.log(`✅ Solution trouvée avec score: ${solution.result}`);
+    const assignedCount = Object.entries(solution).filter(([key, value]) => key.startsWith('assign_') && value === 1).length;
+    console.log(`\n✅ Solution trouvée!`);
+    console.log(`  🏆 Score total: ${solution.result}`);
+    console.log(`  📊 Assignations: ${assignedCount}`);
     
     // Write results
     await writeAssignments(

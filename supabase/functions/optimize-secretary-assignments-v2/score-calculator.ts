@@ -55,6 +55,16 @@ export function calculateDynamicScore(
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
+  console.log(`\n🎯 Calcul du score pour:`, {
+    secretaire_id,
+    need: {
+      site_id: need.site_id,
+      date: need.date,
+      periode: need.periode,
+      type: need.type
+    }
+  });
+  
   let score = 0;
   
   // ============================================================
@@ -73,6 +83,7 @@ export function calculateDynamicScore(
                           besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
                           SCORE_WEIGHTS.BESOIN_OP_PREF_3;
       positiveScores.push(besoinScore);
+      console.log(`  ✅ Score BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
     }
   }
   
@@ -85,6 +96,7 @@ export function calculateDynamicScore(
       const medecinScore = medecinMatch.priorite === '1' ? 
         SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
       positiveScores.push(medecinScore);
+      console.log(`  ✅ Score MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
     }
   }
   
@@ -97,11 +109,16 @@ export function calculateDynamicScore(
                       siteMatch.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
                       SCORE_WEIGHTS.SITE_PREF_3;
     positiveScores.push(siteScore);
+    console.log(`  ✅ Score SITE_PREF_${siteMatch.priorite}: ${siteScore}`);
   }
   
+  console.log(`  📊 Scores positifs trouvés: [${positiveScores.join(', ')}]`);
+  
   // Prendre le MAX des scores positifs
-  if (positiveScores.length > 0) {
-    score += Math.max(...positiveScores);
+  const base_score = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
+  if (base_score > 0) {
+    score += base_score;
+    console.log(`  🏆 Score BASE (MAX): ${base_score}`);
   }
   
   // ============================================================
@@ -126,6 +143,7 @@ export function calculateDynamicScore(
     // Bonus dégressif : 10, 9, 8, ..., 0
     const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
     score += adminBonus;
+    console.log(`  💼 Admin: ${totalAdminCount} assignations → Bonus: ${adminBonus}`);
   }
   
   // ============================================================
@@ -153,6 +171,7 @@ export function calculateDynamicScore(
         
         if (!isAdminInvolved) {
           score += PENALTIES.CHANGEMENT_SITE;
+          console.log(`  ⚠️ Changement de site détecté (${morning_site_id} → ${need.site_id}): ${PENALTIES.CHANGEMENT_SITE}`);
         }
       }
     }
@@ -181,7 +200,9 @@ export function calculateDynamicScore(
     // Penalty: -10 per half-day beyond 2
     if (totalSiteCount >= 2) {
       const overload = totalSiteCount - 2;
-      score += overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+      const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+      score += penalty;
+      console.log(`  ⚠️ Site pref 2/3 sur-assigné (${totalSiteCount} > 2): ${penalty}`);
     }
   }
   
@@ -204,6 +225,7 @@ export function calculateDynamicScore(
     
     if (otherAssignment && otherAssignment.is_bloc) {
       score += PENALTIES.BLOC_EXCLUSION;
+      console.log(`  ⚠️ Exclusion bloc détectée (site interdit + bloc sur autre période): ${PENALTIES.BLOC_EXCLUSION}`);
     }
   }
   
@@ -222,8 +244,11 @@ export function calculateDynamicScore(
     
     if (otherAssignment && FORBIDDEN_SITES.includes(otherAssignment.site_id)) {
       score += PENALTIES.BLOC_EXCLUSION;
+      console.log(`  ⚠️ Exclusion bloc détectée (bloc + site interdit sur autre période): ${PENALTIES.BLOC_EXCLUSION}`);
     }
   }
+  
+  console.log(`  🎯 SCORE TOTAL: ${score}`);
   
   return score;
 }
