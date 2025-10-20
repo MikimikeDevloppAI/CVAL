@@ -20,6 +20,29 @@ export function buildMILPModelSoft(
   console.log(`  📋 Besoins: ${needs.length}`);
   console.log(`  👥 Capacités: ${capacites.filter(c => c.date === date).length}`);
   
+  // 🔍 DIAGNOSTIC: Répartition des capacités du jour
+  const todayCapacites = capacites.filter(c => c.date === date);
+  const capByPeriod = { matin: 0, apres_midi: 0 };
+  const capBySite: Record<string, number> = {};
+  const capExamples: string[] = [];
+  
+  todayCapacites.forEach((c, idx) => {
+    if (c.secretaire_id) {
+      capByPeriod[c.demi_journee as keyof typeof capByPeriod]++;
+      const siteKey = c.site_id?.slice(0,8) || 'unknown';
+      capBySite[siteKey] = (capBySite[siteKey] || 0) + 1;
+      if (idx < 5) {
+        capExamples.push(`${c.secretaire_id.slice(0,8)}_${c.demi_journee}_${c.site_id?.slice(0,8)}`);
+      }
+    }
+  });
+  
+  console.log('\n  📊 DIAGNOSTIC CAPACITÉS DU JOUR (avec secretaire_id):');
+  console.log(`     Total: ${todayCapacites.filter(c => c.secretaire_id).length}`);
+  console.log(`     Matin: ${capByPeriod.matin}, Après-midi: ${capByPeriod.apres_midi}`);
+  console.log(`     Top 5 sites:`, Object.entries(capBySite).slice(0, 5).map(([s,n]) => `${s}:${n}`).join(', '));
+  console.log(`     Exemples (5 premières):`, capExamples);
+  
   const model: any = {
     optimize: 'score_total',
     opType: 'max',
@@ -27,8 +50,6 @@ export function buildMILPModelSoft(
     variables: {},
     binaries: {}
   };
-  
-  const todayCapacites = capacites.filter(c => c.date === date);
   
   // Dynamic context (snapshot)
   const context: DynamicContext = {
@@ -49,7 +70,7 @@ export function buildMILPModelSoft(
       ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
       : `${need.site_id}_${need.date}_${need.periode}`;
     
-    // LOG POUR CHAQUE BESOIN (diagnostic complet)
+    // 🔍 LOG DÉTAILLÉ POUR CHAQUE BESOIN
     console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
       type: need.type,
       site_id: need.site_id?.slice(0, 8),
@@ -58,6 +79,38 @@ export function buildMILPModelSoft(
       bloc_operation_id: need.bloc_operation_id?.slice(0, 8),
       besoin_operation_id: need.besoin_operation_id?.slice(0, 8)
     });
+    
+    // 📊 Comptage des capacités disponibles pour cette période
+    const periodCaps = todayCapacites.filter(c => 
+      c.secretaire_id && c.demi_journee === need.periode
+    );
+    console.log(`    📌 Capacités période ${need.periode}: ${periodCaps.length}`);
+    
+    // 🎓 Pour les besoins BLOC: comptage des secrétaires compétentes
+    if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
+      const competents = new Set(
+        week_data.secretaires_besoins
+          .filter((sb: any) => sb.besoin_operation_id === need.besoin_operation_id)
+          .map((sb: any) => sb.secretaire_id)
+      );
+      const eligibleByCompetence = periodCaps.filter(c => competents.has(c.secretaire_id));
+      console.log(`    🎓 Compétences pour besoin_op ${need.besoin_operation_id?.slice(0,8)}:`);
+      console.log(`       - Total compétents (toutes périodes): ${competents.size}`);
+      console.log(`       - Éligibles ce jour (période ${need.periode}): ${eligibleByCompetence.length}`);
+      console.log(`       - Exemples compétents:`, Array.from(competents).slice(0, 3).map((id: any) => id.slice(0,8)));
+    } else if (need.type === 'site') {
+      // 🏢 Pour les besoins SITE: comptage des secrétaires membres du site
+      const siteMembersInPeriod = periodCaps.filter(c => 
+        week_data.secretaires_sites.some((ss: any) => 
+          ss.secretaire_id === c.secretaire_id && ss.site_id === need.site_id
+        )
+      );
+      console.log(`    🏢 Membres du site ${need.site_id?.slice(0,8)}:`);
+      console.log(`       - Éligibles ce jour (période ${need.periode}): ${siteMembersInPeriod.length}`);
+      if (siteMembersInPeriod.length > 0) {
+        console.log(`       - Exemples:`, siteMembersInPeriod.slice(0, 3).map(c => c.secretaire_id?.slice(0,8)));
+      }
+    }
     
     let testedCount = 0;
     let rejectedNoCompetence = 0;
@@ -151,9 +204,13 @@ export function buildMILPModelSoft(
       }
     }
     
-    // Summary for each need
+    // 📊 RÉSUMÉ APRÈS CHAQUE BESOIN
+    const needIdShort = needId.slice(0, 35);
+    console.log(`\n  ✅ Résumé besoin ${needIdShort}...`);
+    console.log(`     Type: ${need.type}, Période: ${need.periode}`);
+    console.log(`     Testés: ${testedCount}, Rejetés site: ${rejectedNotEligible}, Rejetés compétence: ${rejectedNoCompetence}, Acceptés: ${acceptedCount}`);
     if (need.type === 'bloc_operatoire') {
-      console.log(`  📊 BLOC Summary pour ${needId}: testé=${testedCount}, rejeté_compétence=${rejectedNoCompetence}, accepté=${acceptedCount}`);
+      console.log(`     🏥 BLOC: ${acceptedCount} variables créées pour ce besoin opératoire`);
     }
   }
   
