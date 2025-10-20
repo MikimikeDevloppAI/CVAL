@@ -132,21 +132,15 @@ export const AssignPersonnelDialog = ({
     try {
       setSubmitting(true);
       
-      // Get the Bloc Opératoire site ID
-      const { data: blocSite, error: siteError } = await supabase
-        .from('sites')
-        .select('id')
-        .eq('nom', 'Bloc opératoire')
-        .single();
-
-      if (siteError) throw siteError;
+      // Bloc Opératoire site ID (hardcoded to avoid issues with name changes)
+      const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
       const { error } = await supabase
         .from('capacite_effective')
         .update({
           planning_genere_bloc_operatoire_id: operationId,
           besoin_operation_id: besoinId,
-          site_id: blocSite.id,
+          site_id: BLOC_OPERATOIRE_SITE_ID,
         })
         .eq('id', selectedCapaciteId);
 

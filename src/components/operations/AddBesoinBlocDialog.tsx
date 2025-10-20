@@ -135,14 +135,8 @@ export const AddBesoinBlocDialog = ({
         if (updateError) throw updateError;
         toast.success('Besoin mis à jour avec succès');
       } else {
-        // Create new besoin
-        const { data: blocSite, error: siteError } = await supabase
-          .from('sites')
-          .select('id')
-          .eq('nom', 'Clinique La Vallée - Bloc opératoire')
-          .single();
-
-        if (siteError) throw siteError;
+        // Create new besoin with Bloc Opératoire site ID (hardcoded)
+        const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
         const { error: insertError } = await supabase
           .from('besoin_effectif')
@@ -151,7 +145,7 @@ export const AddBesoinBlocDialog = ({
             demi_journee: selectedPeriode,
             medecin_id: selectedMedecin,
             type_intervention_id: selectedType,
-            site_id: blocSite.id,
+            site_id: BLOC_OPERATOIRE_SITE_ID,
             type: 'bloc_operatoire',
             actif: true
           });
