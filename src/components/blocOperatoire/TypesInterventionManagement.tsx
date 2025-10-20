@@ -443,15 +443,6 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-semibold text-foreground">Code</Label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="Ex: ARTH"
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-2">
                 <Label className="text-sm font-semibold text-foreground">Salle préférentielle</Label>
                 <Select
                   value={formData.salle_preferentielle || undefined}
