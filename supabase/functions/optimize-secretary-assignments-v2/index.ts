@@ -140,6 +140,29 @@ function calculateNeeds(
   
   console.log(`\n✅ Total besoins calculés: ${needs.length} (Sites: ${needs.filter(n => n.type === 'site').length}, Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length})`);
   
+  // 🔍 Validation des besoins BLOC
+  const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire');
+  console.log(`\n🔍 Validation des ${blocNeeds.length} besoins BLOC:`);
+  let blocNeedsValid = 0;
+  let blocNeedsInvalid = 0;
+  for (const blocNeed of blocNeeds) {
+    if (!blocNeed.bloc_operation_id || !blocNeed.besoin_operation_id) {
+      console.error(`  ❌ Besoin BLOC incomplet:`, {
+        date: blocNeed.date,
+        periode: blocNeed.periode,
+        bloc_operation_id: blocNeed.bloc_operation_id,
+        besoin_operation_id: blocNeed.besoin_operation_id,
+      });
+      blocNeedsInvalid++;
+    } else {
+      console.log(`  ✅ Besoin BLOC complet: op=${blocNeed.bloc_operation_id?.slice(0,8)}..., besoin=${blocNeed.besoin_operation_id?.slice(0,8)}...`);
+      blocNeedsValid++;
+    }
+  }
+  if (blocNeeds.length > 0) {
+    console.log(`📊 Validation BLOC: ${blocNeedsValid} valides, ${blocNeedsInvalid} invalides`);
+  }
+  
   return needs;
 }
 

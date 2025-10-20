@@ -166,9 +166,10 @@ export async function writeAssignments(
     assignedCount++;
 
     // Préparer l'update
+    const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
     const update: any = {
       id: capacite.id,
-      site_id: site_id,
+      site_id: need.type === 'bloc_operatoire' ? BLOC_SITE_ID : site_id,
       planning_genere_bloc_operatoire_id: null,
       besoin_operation_id: null,
     };
@@ -185,12 +186,16 @@ export async function writeAssignments(
 
     console.log(`\n  ✅ Assignation ${assignedCount}:`, {
       secretaire_id,
-      site_id,
+      site_id_variable: site_id,
+      site_id_final: update.site_id,
       date,
       periode,
       capacite_id: capacite.id,
       need_type: need?.type,
-      bloc_operation_id: (need as any)?.bloc_operation_id,
+      bloc_operation_id: need?.bloc_operation_id,
+      besoin_operation_id: need?.besoin_operation_id,
+      will_write_bloc_id: update.planning_genere_bloc_operatoire_id,
+      will_write_besoin_id: update.besoin_operation_id,
     });
 
     updates.push(update);
