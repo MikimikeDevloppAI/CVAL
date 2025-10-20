@@ -76,6 +76,10 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
 
+  // Edit dialog states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
+
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [besoinToDelete, setBesoinToDelete] = useState<string | null>(null);
@@ -284,6 +288,52 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     setBesoinToDelete(null);
   };
 
+  const handleEditClick = (slot: DaySlot) => {
+    setEditingSlot(slot);
+    setSelectedSiteId(slot.siteId);
+    setSelectedTypeInterventionId(''); // Will be set from existing data if available
+    
+    // Find if there's a type intervention on the first besoin
+    const firstBesoin = besoins.find(b => slot.ids.includes(b.id));
+    if (firstBesoin?.type_intervention_id) {
+      setSelectedTypeInterventionId(firstBesoin.type_intervention_id);
+    }
+    
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingSlot || !selectedSiteId) {
+      toast.error('Veuillez sélectionner un site');
+      return;
+    }
+
+    setLoading(true);
+
+    // Update all besoins in the slot
+    for (const id of editingSlot.ids) {
+      const { error } = await supabase
+        .from('besoin_effectif')
+        .update({
+          site_id: selectedSiteId,
+          type_intervention_id: selectedTypeInterventionId || null,
+        })
+        .eq('id', id);
+
+      if (error) {
+        toast.error('Erreur lors de la modification');
+        setLoading(false);
+        return;
+      }
+    }
+
+    toast.success('Créneau modifié');
+    fetchBesoins();
+    setEditDialogOpen(false);
+    setEditingSlot(null);
+    setLoading(false);
+  };
+
   // Générer les jours du mois avec padding
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -401,8 +451,9 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                       {slots.map((slot, idx) => (
                         <div
                           key={idx}
+                          onClick={() => handleEditClick(slot)}
                           className={cn(
-                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md',
+                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer',
                             slot.periodes.length === 2
                               ? 'border-2 bg-opacity-10'
                               : slot.periodes.includes('matin')
@@ -439,7 +490,10 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                               : 'Après-midi'}
                           </div>
                           <button
-                            onClick={() => handleDeleteClick(slot.ids)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(slot.ids);
+                            }}
                             className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:scale-110 shadow-lg"
                           >
                             <X className="h-3 w-3" />
@@ -507,7 +561,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             </div>
 
             <div>
-              <label className="text-sm font-medium">Type d'intervention (optionnel)</label>
+              <label className="text-sm font-medium">Type d&apos;intervention (optionnel)</label>
               <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un type" />
@@ -532,6 +586,62 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                 className="bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90"
               >
                 Ajouter journée complète
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Besoin Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-planning-teal/30">
+          <DialogHeader>
+            <DialogTitle>Modifier l&apos;assignation</DialogTitle>
+            <DialogDescription className="sr-only">Modifier l&apos;assignation pour {medecinNom}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Site</label>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Type d&apos;intervention (optionnel)</label>
+              <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleEditSave}
+                disabled={loading}
+                className="bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90"
+              >
+                Enregistrer
               </Button>
             </div>
           </div>

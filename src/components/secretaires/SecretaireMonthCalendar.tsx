@@ -66,6 +66,10 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
 
+  // Edit dialog states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
+
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [capaciteToDelete, setCapaciteToDelete] = useState<string | null>(null);
@@ -249,6 +253,43 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
     setCapaciteToDelete(null);
   };
 
+  const handleEditClick = (slot: DaySlot) => {
+    setEditingSlot(slot);
+    setSelectedSiteId(slot.siteId);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingSlot || !selectedSiteId) {
+      toast.error('Veuillez sélectionner un site');
+      return;
+    }
+
+    setLoading(true);
+
+    // Update all capacites in the slot
+    for (const id of editingSlot.ids) {
+      const { error } = await supabase
+        .from('capacite_effective')
+        .update({
+          site_id: selectedSiteId,
+        })
+        .eq('id', id);
+
+      if (error) {
+        toast.error('Erreur lors de la modification');
+        setLoading(false);
+        return;
+      }
+    }
+
+    toast.success('Créneau modifié');
+    fetchCapacites();
+    setEditDialogOpen(false);
+    setEditingSlot(null);
+    setLoading(false);
+  };
+
   // Générer les jours du mois avec padding
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -366,8 +407,9 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                       {slots.map((slot, idx) => (
                         <div
                           key={idx}
+                          onClick={() => handleEditClick(slot)}
                           className={cn(
-                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md',
+                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer',
                             slot.periodes.length === 2
                               ? 'border-2 bg-opacity-10'
                               : slot.periodes.includes('matin')
@@ -399,7 +441,10 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                               : 'Après-midi'}
                           </div>
                           <button
-                            onClick={() => handleDeleteClick(slot.ids)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(slot.ids);
+                            }}
                             className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:scale-110 shadow-lg"
                           >
                             <X className="h-3 w-3" />
@@ -476,6 +521,46 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                 className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
               >
                 Ajouter journée complète
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Capacite Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-primary/20">
+          <DialogHeader>
+            <DialogTitle>Modifier l&apos;assignation</DialogTitle>
+            <DialogDescription className="sr-only">Modifier l&apos;assignation pour {secretaireNom}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Site</label>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleEditSave}
+                disabled={loading}
+                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+              >
+                Enregistrer
               </Button>
             </div>
           </div>
