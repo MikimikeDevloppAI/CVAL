@@ -222,35 +222,55 @@ export type Database = {
       capacite_effective: {
         Row: {
           actif: boolean
+          besoin_operation_id: string | null
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
+          planning_genere_bloc_operatoire_id: string | null
           secretaire_id: string | null
           site_id: string
           updated_at: string
         }
         Insert: {
           actif?: boolean
+          besoin_operation_id?: string | null
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
+          planning_genere_bloc_operatoire_id?: string | null
           secretaire_id?: string | null
           site_id?: string
           updated_at?: string
         }
         Update: {
           actif?: boolean
+          besoin_operation_id?: string | null
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
+          planning_genere_bloc_operatoire_id?: string | null
           secretaire_id?: string | null
           site_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "capacite_effective_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
+            columns: ["planning_genere_bloc_operatoire_id"]
+            isOneToOne: false
+            referencedRelation: "planning_genere_bloc_operatoire"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "capacite_effective_secretaire_id_fkey"
             columns: ["secretaire_id"]

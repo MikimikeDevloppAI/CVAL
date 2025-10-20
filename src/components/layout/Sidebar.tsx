@@ -35,7 +35,7 @@ const planningItems = [
   { name: 'Jours fériés', href: '/jours-feries', icon: CalendarX2 },
   { name: 'Médecins', href: '/medecins', icon: Stethoscope },
   { name: 'Secrétaires', href: '/secretaires', icon: User },
-  { name: 'Bloc Opératoire', href: '/bloc-operatoire', icon: ClipboardPlus },
+  { name: 'Opérations', href: '/operations', icon: ClipboardPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
 ];
 
