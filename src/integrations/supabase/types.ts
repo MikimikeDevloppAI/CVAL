@@ -227,6 +227,9 @@ export type Database = {
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id: string
+          is_1r: boolean
+          is_2f: boolean
+          is_3f: boolean
           planning_genere_bloc_operatoire_id: string | null
           secretaire_id: string | null
           site_id: string
@@ -239,6 +242,9 @@ export type Database = {
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
           id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
           planning_genere_bloc_operatoire_id?: string | null
           secretaire_id?: string | null
           site_id?: string
@@ -251,6 +257,9 @@ export type Database = {
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
           id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
           planning_genere_bloc_operatoire_id?: string | null
           secretaire_id?: string | null
           site_id?: string

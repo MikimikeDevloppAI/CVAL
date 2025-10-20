@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DayCell } from './DayCell';
+import { DayDetailDialog } from './DayDetailDialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -12,6 +14,7 @@ interface PersonnePresence {
   validated?: boolean;
   is_1r?: boolean;
   is_2f?: boolean;
+  is_3f?: boolean;
 }
 
 interface DayData {
@@ -36,9 +39,12 @@ interface SiteCalendarCardProps {
   startDate: string;
   endDate: string;
   index: number;
+  onRefresh: () => void;
 }
 
-export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalendarCardProps) => {
+export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }: SiteCalendarCardProps) => {
+  const [selectedDay, setSelectedDay] = useState<{ date: Date; data: DayData } | null>(null);
+
   // Filter out Sundays (day 0)
   const days = eachDayOfInterval({
     start: parseISO(startDate),
@@ -48,6 +54,10 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
   const getDayData = (date: Date): DayData | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return site.days.find(d => d.date === dateStr) || null;
+  };
+
+  const handleOpenDetail = (date: Date, data: DayData) => {
+    setSelectedDay({ date, data });
   };
 
   const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
@@ -127,11 +137,23 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
                 key={day.toISOString()}
                 date={day}
                 data={dayData}
+                onOpenDetail={handleOpenDetail}
               />
             );
           })}
         </div>
       </div>
+
+      {selectedDay && (
+        <DayDetailDialog
+          open={!!selectedDay}
+          onOpenChange={(open) => !open && setSelectedDay(null)}
+          date={selectedDay.date}
+          siteId={site.site_id}
+          siteName={site.site_nom}
+          onRefresh={onRefresh}
+        />
+      )}
     </div>
   );
 };

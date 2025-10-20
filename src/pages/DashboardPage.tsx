@@ -19,6 +19,7 @@ interface PersonnePresence {
   validated?: boolean;
   is_1r?: boolean;
   is_2f?: boolean;
+  is_3f?: boolean;
 }
 
 interface DayData {
@@ -133,26 +134,7 @@ const DashboardPage = () => {
             .eq('type', 'medecin')
             .order('date');
 
-          // Fetch planning généré (secrétaires) + capacité effective
-          const planningQuery = supabase
-            .from('planning_genere_personnel')
-            .select(`
-              *,
-              secretaires(id, first_name, name)
-            `)
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .order('date');
-
-          if (isAdminSite) {
-            planningQuery.eq('type_assignation', 'administratif');
-          } else {
-            planningQuery.eq('site_id', site.id).eq('type_assignation', 'site');
-          }
-
-          const { data: planning } = await planningQuery;
-
-          // Fetch capacité effective pour les secrétaires
+          // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
           const capaciteQuery = supabase
             .from('capacite_effective')
             .select(`
@@ -215,48 +197,7 @@ const DashboardPage = () => {
             }
           });
 
-          // Process planning (secrétaires)
-          planning?.forEach((plan) => {
-            const date = plan.date;
-            if (!daysMap.has(date)) {
-              daysMap.set(date, {
-                date,
-                medecins: [],
-                secretaires: [],
-                besoin_secretaires_matin: 0,
-                besoin_secretaires_apres_midi: 0,
-                status_matin: 'non_satisfait',
-                status_apres_midi: 'non_satisfait'
-              });
-            }
-            const day = daysMap.get(date)!;
-            
-            if (plan.secretaires) {
-              const secretaireNom = plan.secretaires.name || '';
-              const periode = plan.periode === 'matin' ? 'matin' : 'apres_midi';
-              
-              // Check if secretaire already exists
-              const existingSecretaire = day.secretaires.find(s => s.id === plan.secretaires.id);
-              if (existingSecretaire) {
-                existingSecretaire[periode] = true;
-                if (plan.is_1r) existingSecretaire.is_1r = true;
-                if (plan.is_2f) existingSecretaire.is_2f = true;
-                if (plan.validated) existingSecretaire.validated = true;
-              } else {
-                day.secretaires.push({
-                  id: plan.secretaires.id,
-                  nom: secretaireNom,
-                  matin: periode === 'matin',
-                  apres_midi: periode === 'apres_midi',
-                  validated: plan.validated || false,
-                  is_1r: plan.is_1r,
-                  is_2f: plan.is_2f
-                });
-              }
-            }
-          });
-
-          // Process capacité effective (secrétaires sans planning)
+          // Process capacité effective (secrétaires)
           capacite?.forEach((cap) => {
             const date = cap.date;
             if (!daysMap.has(date)) {
@@ -276,19 +217,22 @@ const DashboardPage = () => {
               const secretaireNom = cap.secretaires.name || '';
               const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
-              // Only add if not already in planning
+              // Check if secretaire already exists
               const existingSecretaire = day.secretaires.find(s => s.id === cap.secretaires.id);
               if (existingSecretaire) {
                 existingSecretaire[periode] = true;
+                if (cap.is_1r) existingSecretaire.is_1r = true;
+                if (cap.is_2f) existingSecretaire.is_2f = true;
+                if (cap.is_3f) existingSecretaire.is_3f = true;
               } else {
                 day.secretaires.push({
                   id: cap.secretaires.id,
                   nom: secretaireNom,
                   matin: periode === 'matin',
                   apres_midi: periode === 'apres_midi',
-                  validated: false,
-                  is_1r: false,
-                  is_2f: false
+                  is_1r: cap.is_1r,
+                  is_2f: cap.is_2f,
+                  is_3f: cap.is_3f
                 });
               }
             }
@@ -336,7 +280,18 @@ const DashboardPage = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'planning_genere_personnel'
+          table: 'capacite_effective'
+        },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'besoin_effectif'
         },
         () => {
           fetchDashboardData();
@@ -447,6 +402,7 @@ const DashboardPage = () => {
               startDate={startDate}
               endDate={endDate}
               index={index}
+              onRefresh={fetchDashboardData}
             />
           ))}
         </div>

@@ -15,6 +15,7 @@ interface PersonnePresence {
   validated?: boolean;
   is_1r?: boolean;
   is_2f?: boolean;
+  is_3f?: boolean;
 }
 
 interface DayData {
@@ -30,9 +31,17 @@ interface DayData {
 interface DayCellProps {
   date: Date;
   data: DayData | null;
+  onOpenDetail?: (date: Date, data: DayData) => void;
 }
 
-export const DayCell = ({ date, data }: DayCellProps) => {
+export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data && onOpenDetail) {
+      onOpenDetail(date, data);
+    }
+  };
+
   if (!data || (data.medecins.length === 0 && data.secretaires.length === 0)) {
     return (
       <div className="min-h-[140px] rounded-lg border border-border/30 bg-muted/20 p-3">
@@ -61,6 +70,7 @@ export const DayCell = ({ date, data }: DayCellProps) => {
       <Tooltip>
         <TooltipTrigger asChild>
           <div
+            onClick={handleClick}
             className={cn(
               "min-h-[140px] rounded-xl border-2 p-3 transition-all duration-300",
               "hover:shadow-lg hover:scale-[1.02] cursor-pointer",
@@ -121,6 +131,7 @@ export const DayCell = ({ date, data }: DayCellProps) => {
                     <span className="truncate">{s.nom}</span>
                     {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
                     {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
+                    {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
                   </span>
                 ))}
               </div>
@@ -170,6 +181,7 @@ export const DayCell = ({ date, data }: DayCellProps) => {
                       • {s.nom} - {s.matin && s.apres_midi ? 'Journée' : s.matin ? 'Matin' : 'Après-midi'}
                       {s.is_1r && <span className="text-[10px]">(1R)</span>}
                       {s.is_2f && <span className="text-[10px]">(2F)</span>}
+                      {s.is_3f && <span className="text-[10px]">(3F)</span>}
                       {s.validated && <CheckCircle2 className="h-3 w-3 text-emerald-600 ml-1" />}
                     </li>
                   ))}
