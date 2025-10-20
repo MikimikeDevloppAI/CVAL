@@ -372,17 +372,11 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
           </DialogHeader>
 
           <Tabs defaultValue="absences" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-2 mb-4 bg-card/50 backdrop-blur-sm border border-border/50 p-1">
-              <TabsTrigger 
-                value="absences" 
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-              >
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="absences" className="data-[state=active]:bg-background">
                 Absences
               </TabsTrigger>
-              <TabsTrigger 
-                value="jours-feries" 
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-              >
+              <TabsTrigger value="jours-feries" className="data-[state=active]:bg-background">
                 Jours Fériés
               </TabsTrigger>
             </TabsList>
@@ -401,7 +395,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 </div>
                 {canManage && (
                   <Button
-                    className="gap-2 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105"
+                    className="gap-2"
                     onClick={() => {
                       setSelectedAbsence(null);
                       setIsAbsenceDialogOpen(true);
@@ -423,32 +417,23 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     {filteredAbsences.map((absence, idx) => (
                       <div
                         key={absence.id}
-                        className="group relative overflow-hidden rounded-xl bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-red-200/50 dark:border-red-800/50 shadow-lg hover:shadow-xl hover:shadow-red-500/20 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:border-red-400/70 dark:hover:border-red-600/70 group"
                         style={{ animationDelay: `${idx * 50}ms` }}
                       >
-                        {/* Gradient Glow */}
-                        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-20 bg-gradient-to-br from-red-500 to-orange-500" />
-                        
-                        {/* Header */}
-                        <div className="relative p-5 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
-                          <div className="flex items-start justify-between">
+                        <div className="p-5">
+                          <div className="flex items-start justify-between mb-4">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-lg text-foreground mb-2">
+                              <h4 className="text-lg font-semibold text-foreground group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors mb-2">
                                 {absence.type_personne === 'medecin' 
                                   ? `${absence.medecins?.first_name} ${absence.medecins?.name}`
                                   : `${absence.secretaires?.first_name} ${absence.secretaires?.name}`
                                 }
                               </h4>
                               <div className="flex gap-2 flex-wrap">
-                                <Badge 
-                                  className="text-xs bg-gradient-to-r from-cyan-500 to-blue-500 text-white border-0"
-                                >
+                                <Badge className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-cyan-500/20 text-xs">
                                   {absence.type_personne === 'medecin' ? 'Médecin' : 'Secrétaire'}
                                 </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className="text-xs bg-primary/10 text-primary border-primary/20"
-                                >
+                                <Badge className="bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20 border-red-500/20 text-xs">
                                   {getTypeLabel(absence.type)}
                                 </Badge>
                               </div>
@@ -463,7 +448,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                     setSelectedAbsence(absence);
                                     setIsAbsenceDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 hover:scale-110"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-600"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -471,44 +456,42 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setAbsenceToDelete(absence)}
-                                  className="opacity-0 group-hover:opacity-100 transition-all text-destructive hover:text-destructive hover:bg-destructive/10 hover:scale-110"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             )}
                           </div>
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="relative p-5 space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/10 to-blue-500/10">
-                              <Calendar className="h-4 w-4 text-cyan-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
-                                Période
-                              </p>
-                              <p className="text-sm font-medium">
-                                {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
-                              </p>
-                              {absence.heure_debut && absence.heure_fin && (
-                                <Badge variant="outline" className="mt-1 text-xs">
-                                  {absence.heure_debut.slice(0, 5)} - {absence.heure_fin.slice(0, 5)}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
 
-                          {absence.motif && (
-                            <div className="pt-3 border-t border-border/50">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
-                                Motif
-                              </p>
-                              <p className="text-sm text-foreground/80">{absence.motif}</p>
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                                <Calendar className="w-3 h-3 text-red-600 dark:text-red-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-muted-foreground mb-0.5">Période</p>
+                                <p className="text-sm font-medium">
+                                  {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
+                                </p>
+                              </div>
                             </div>
-                          )}
+                            
+                            {absence.heure_debut && absence.heure_fin && (
+                              <Badge variant="outline" className="text-xs">
+                                {absence.heure_debut.slice(0, 5)} - {absence.heure_fin.slice(0, 5)}
+                              </Badge>
+                            )}
+
+                            {absence.motif && (
+                              <div className="pt-3 border-t border-border/50">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                                  Motif
+                                </p>
+                                <p className="text-sm">{absence.motif}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -516,15 +499,9 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 )}
 
                 {!loading && filteredAbsences.length === 0 && (
-                  <div className="text-center py-16">
-                    <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 mb-4">
-                      <CalendarOff className="h-12 w-12 text-red-500" />
-                    </div>
-                    <p className="text-lg font-medium text-foreground mb-2">
-                      {searchTerm ? 'Aucune absence trouvée' : 'Aucune absence enregistrée'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Commencez par déclarer une absence'}
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">
+                      {searchTerm ? 'Aucune absence trouvée pour cette recherche' : 'Aucune absence enregistrée'}
                     </p>
                   </div>
                 )}
@@ -545,7 +522,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 </div>
                 {canManage && (
                   <Button
-                    className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105"
+                    className="gap-2"
                     onClick={() => {
                       setSelectedJourFerie(null);
                       setIsJourFerieDialogOpen(true);
@@ -567,17 +544,13 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     {filteredJoursFeries.map((jourFerie, idx) => (
                       <div
                         key={jourFerie.id}
-                        className="group relative overflow-hidden rounded-xl bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-emerald-200/50 dark:border-emerald-800/50 shadow-lg hover:shadow-xl hover:shadow-emerald-500/20 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:border-emerald-400/70 dark:hover:border-emerald-600/70 group"
                         style={{ animationDelay: `${idx * 50}ms` }}
                       >
-                        {/* Gradient Glow */}
-                        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-20 bg-gradient-to-br from-green-500 to-emerald-500" />
-                        
-                        {/* Content */}
-                        <div className="relative p-5">
+                        <div className="p-5">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-lg text-foreground mb-3">
+                              <h4 className="text-lg font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                 {jourFerie.nom}
                               </h4>
                             </div>
@@ -591,7 +564,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                     setSelectedJourFerie(jourFerie);
                                     setIsJourFerieDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/10 hover:scale-110"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-500/10 hover:text-emerald-600"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -599,7 +572,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setJourFerieToDelete(jourFerie)}
-                                  className="opacity-0 group-hover:opacity-100 transition-all text-destructive hover:text-destructive hover:bg-destructive/10 hover:scale-110"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -607,15 +580,13 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
-                              <Calendar className="h-4 w-4 text-white" />
+                          <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                              <Calendar className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div className="flex-1">
-                              <p className="text-xs font-medium text-muted-foreground mb-0.5">
-                                Date
-                              </p>
-                              <p className="text-sm font-bold text-foreground">
+                              <p className="text-xs font-medium text-muted-foreground mb-0.5">Date</p>
+                              <p className="text-sm font-medium">
                                 {format(new Date(jourFerie.date), 'dd MMMM yyyy', { locale: fr })}
                               </p>
                             </div>
@@ -627,15 +598,9 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 )}
 
                 {!loading && filteredJoursFeries.length === 0 && (
-                  <div className="text-center py-16">
-                    <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-green-500/10 to-emerald-500/10 mb-4">
-                      <Calendar className="h-12 w-12 text-green-500" />
-                    </div>
-                    <p className="text-lg font-medium text-foreground mb-2">
-                      {searchTerm ? 'Aucun jour férié trouvé' : 'Aucun jour férié enregistré'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Commencez par ajouter un jour férié'}
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">
+                      {searchTerm ? 'Aucun jour férié trouvé pour cette recherche' : 'Aucun jour férié enregistré'}
                     </p>
                   </div>
                 )}
@@ -647,12 +612,9 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
 
       {/* Absence Form Dialog */}
       <Dialog open={isAbsenceDialogOpen} onOpenChange={setIsAbsenceDialogOpen}>
-        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto backdrop-blur-xl bg-background/95 border-border/50">
-          <DialogHeader className="border-b border-border/50 pb-4">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-red-500 to-orange-500">
-                <CalendarOff className="h-5 w-5 text-white" />
-              </div>
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
               {selectedAbsence ? 'Modifier l\'absence' : 'Déclarer une absence'}
             </DialogTitle>
           </DialogHeader>
@@ -671,30 +633,23 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
           form.reset();
         }
       }}>
-        <DialogContent className="max-w-md backdrop-blur-xl bg-background/95 border-border/50">
-          <DialogHeader className="border-b border-border/50 pb-4">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500">
-                <Calendar className="h-5 w-5 text-white" />
-              </div>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
               {selectedJourFerie ? 'Modifier le jour férié' : 'Ajouter un jour férié'}
             </DialogTitle>
           </DialogHeader>
         
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onJourFerieSubmit)} className="space-y-5 pt-2">
+            <form onSubmit={form.handleSubmit(onJourFerieSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="nom"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-semibold">Nom du jour férié</FormLabel>
+                    <FormLabel>Nom</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="Ex: Noël, Jour de l'An..." 
-                        {...field}
-                        className="bg-card/50 backdrop-blur-sm border-border/50"
-                      />
+                      <Input placeholder="Ex: Noël" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -706,20 +661,16 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                 name="date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-semibold">Date</FormLabel>
+                    <FormLabel>Date</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="date" 
-                        {...field}
-                        className="bg-card/50 backdrop-blur-sm border-border/50"
-                      />
+                      <Input type="date" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -728,14 +679,10 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     setSelectedJourFerie(null);
                     form.reset();
                   }}
-                  className="hover:bg-muted/50"
                 >
                   Annuler
                 </Button>
-                <Button 
-                  type="submit"
-                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg"
-                >
+                <Button type="submit">
                   {selectedJourFerie ? 'Modifier' : 'Ajouter'}
                 </Button>
               </div>
