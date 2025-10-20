@@ -3,12 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Settings, Edit2, Trash2, MapPin } from "lucide-react";
-import { TypeInterventionBesoinsForm } from "./TypeInterventionBesoinsForm";
+import { Plus, Edit2, Trash2, MapPin } from "lucide-react";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
 import { ConfigurationsMultiFluxManagement } from "./ConfigurationsMultiFluxManagement";
 
@@ -33,6 +33,13 @@ interface Salle {
   name: string;
 }
 
+interface BesoinOperation {
+  id: string;
+  code: string;
+  nom: string;
+  categorie?: string;
+}
+
 export interface TypesInterventionManagementRef {
   openAddDialog: () => void;
 }
@@ -40,22 +47,26 @@ export interface TypesInterventionManagementRef {
 const TypesInterventionManagement = React.forwardRef<TypesInterventionManagementRef>((props, ref) => {
   const [types, setTypes] = useState<TypeIntervention[]>([]);
   const [salles, setSalles] = useState<Salle[]>([]);
+  const [besoinsOperations, setBesoinsOperations] = useState<BesoinOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [besoinsOpen, setBesoinsOpen] = useState(false);
   const [editingType, setEditingType] = useState<TypeIntervention | null>(null);
-  const [selectedTypeForBesoins, setSelectedTypeForBesoins] = useState<TypeIntervention | null>(null);
   const [formData, setFormData] = useState({
     nom: '',
     code: '',
     salle_preferentielle: null as string | null,
   });
+  const [besoins, setBesoins] = useState<Record<string, number>>({});
+  const [showAddBesoin, setShowAddBesoin] = useState(false);
+  const [selectedNewBesoin, setSelectedNewBesoin] = useState<string>('');
+  const [newBesoinNombre, setNewBesoinNombre] = useState<number>(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTypes();
     fetchSalles();
+    fetchBesoinsOperations();
   }, []);
 
   const fetchTypes = async () => {
@@ -100,6 +111,23 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
     setSalles(data || []);
   };
 
+  const fetchBesoinsOperations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('besoins_operations')
+        .select('*')
+        .eq('actif', true)
+        .order('categorie', { ascending: true })
+        .order('nom', { ascending: true });
+
+      if (error) throw error;
+      setBesoinsOperations(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des types de besoins:', error);
+      toast.error('Impossible de charger les types de besoins');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -111,6 +139,8 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
     const oldSalle = editingType?.salle_preferentielle;
 
     try {
+      let typeId: string;
+      
       if (editingType) {
         const { error } = await supabase
           .from('types_intervention')
@@ -122,17 +152,44 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
           .eq('id', editingType.id);
 
         if (error) throw error;
+        typeId = editingType.id;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('types_intervention')
           .insert({
             nom: formData.nom,
             code: formData.code,
             salle_preferentielle: formData.salle_preferentielle,
             actif: true,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        typeId = data.id;
+      }
+
+      // Save besoins
+      await supabase
+        .from('types_intervention_besoins_personnel')
+        .delete()
+        .eq('type_intervention_id', typeId);
+
+      const besoinsToInsert = Object.entries(besoins)
+        .filter(([_, nombre]) => nombre > 0)
+        .map(([besoin_operation_id, nombre_requis]) => ({
+          type_intervention_id: typeId,
+          besoin_operation_id,
+          nombre_requis,
+          actif: true,
+        }));
+
+      if (besoinsToInsert.length > 0) {
+        const { error: besoinsError } = await supabase
+          .from('types_intervention_besoins_personnel')
+          .insert(besoinsToInsert);
+
+        if (besoinsError) throw besoinsError;
       }
 
       toast.success(editingType ? 'Type modifié avec succès' : 'Type créé avec succès');
@@ -140,6 +197,7 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
       setFormOpen(false);
       setEditingType(null);
       setFormData({ nom: '', code: '', salle_preferentielle: null });
+      setBesoins({});
 
       // Trigger room reassignment if preferred room changed
       if (editingType && oldSalle !== formData.salle_preferentielle) {
@@ -178,26 +236,78 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
     }
   };
 
-  const openBesoinsDialog = (type: TypeIntervention) => {
-    setSelectedTypeForBesoins(type);
-    setBesoinsOpen(true);
-  };
-
-  const openEditDialog = (type: TypeIntervention) => {
+  const openEditDialog = async (type: TypeIntervention) => {
     setEditingType(type);
     setFormData({
       nom: type.nom,
       code: type.code,
       salle_preferentielle: type.salle_preferentielle,
     });
+    
+    // Load existing besoins
+    try {
+      const { data, error } = await supabase
+        .from('types_intervention_besoins_personnel')
+        .select('besoin_operation_id, nombre_requis')
+        .eq('type_intervention_id', type.id)
+        .eq('actif', true);
+
+      if (error) throw error;
+
+      const besoinsMap: Record<string, number> = {};
+      data?.forEach((besoin) => {
+        besoinsMap[besoin.besoin_operation_id] = besoin.nombre_requis;
+      });
+      setBesoins(besoinsMap);
+    } catch (error) {
+      console.error('Error loading besoins:', error);
+    }
+    
     setFormOpen(true);
   };
 
   const openAddDialog = () => {
     setEditingType(null);
     setFormData({ nom: '', code: '', salle_preferentielle: null });
+    setBesoins({});
     setFormOpen(true);
   };
+
+  const handleRemoveBesoin = (besoinId: string) => {
+    setBesoins((prev) => {
+      const newBesoins = { ...prev };
+      delete newBesoins[besoinId];
+      return newBesoins;
+    });
+  };
+
+  const handleAddBesoin = () => {
+    if (selectedNewBesoin && newBesoinNombre > 0) {
+      setBesoins((prev) => ({
+        ...prev,
+        [selectedNewBesoin]: newBesoinNombre,
+      }));
+      setSelectedNewBesoin('');
+      setNewBesoinNombre(1);
+      setShowAddBesoin(false);
+    }
+  };
+
+  const handleChangeBesoin = (besoinId: string, value: string) => {
+    const nombre = parseInt(value) || 0;
+    setBesoins((prev) => ({
+      ...prev,
+      [besoinId]: nombre,
+    }));
+  };
+
+  const availableBesoins = besoinsOperations
+    .filter((besoin) => !besoins[besoin.id])
+    .sort((a, b) => a.nom.localeCompare(b.nom));
+
+  const configuredBesoins = besoinsOperations.filter(
+    (besoin) => besoins[besoin.id] > 0
+  );
 
   useImperativeHandle(ref, () => ({
     openAddDialog,
@@ -259,15 +369,6 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    onClick={() => openBesoinsDialog(type)}
-                    className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
-                    title="Configurer les besoins"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
                     onClick={() => openEditDialog(type)}
                     className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
                     title="Modifier"
@@ -324,49 +425,180 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
       <ConfigurationsMultiFluxManagement />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">{editingType ? 'Modifier' : 'Ajouter'} un type d'intervention</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-5 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Nom</label>
-              <Input
-                value={formData.nom}
-                onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                placeholder="Ex: Arthroscopie"
-                className="h-11"
-              />
+          <form onSubmit={handleSubmit} className="space-y-6 py-4">
+            {/* Informations de base */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Informations générales</h3>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground">Nom</Label>
+                <Input
+                  value={formData.nom}
+                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                  placeholder="Ex: Arthroscopie"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground">Code</Label>
+                <Input
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="Ex: ARTH"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground">Salle préférentielle</Label>
+                <Select
+                  value={formData.salle_preferentielle || ''}
+                  onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value || null })}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Sélectionner une salle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucune préférence</SelectItem>
+                    {salles.map((salle) => (
+                      <SelectItem key={salle.id} value={salle.id}>
+                        {salle.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Code</label>
-              <Input
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="Ex: ARTH"
-                className="h-11"
-              />
+
+            {/* Besoins en personnel */}
+            <div className="space-y-4 pt-4 border-t border-border/50">
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Besoins en personnel</h3>
+              <p className="text-sm text-muted-foreground">
+                Définissez le nombre de personnes nécessaires pour chaque rôle
+              </p>
+
+              {/* Liste des besoins configurés */}
+              <div className="space-y-2">
+                {configuredBesoins.length > 0 ? (
+                  configuredBesoins.map((besoin) => (
+                    <div key={besoin.id} className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{besoin.nom}</div>
+                        {besoin.categorie && (
+                          <div className="text-xs text-muted-foreground">{besoin.categorie}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor={`nombre-${besoin.id}`} className="text-sm text-muted-foreground">Nombre:</Label>
+                        <Input
+                          id={`nombre-${besoin.id}`}
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={besoins[besoin.id]}
+                          onChange={(e) => handleChangeBesoin(besoin.id, e.target.value)}
+                          className="w-20"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveBesoin(besoin.id)}
+                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Aucun besoin configuré
+                  </p>
+                )}
+              </div>
+
+              {/* Zone d'ajout de nouveau besoin */}
+              {showAddBesoin ? (
+                <div className="p-4 rounded-lg bg-muted/50 border border-border/50 space-y-3">
+                  <div className="space-y-2">
+                    <Label>Sélectionner un rôle</Label>
+                    <Select 
+                      value={selectedNewBesoin || undefined} 
+                      onValueChange={setSelectedNewBesoin}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir un rôle..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableBesoins.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground">
+                            Tous les rôles ont déjà été ajoutés
+                          </div>
+                        ) : (
+                          availableBesoins.map((besoin) => (
+                            <SelectItem key={besoin.id} value={besoin.id}>
+                              {besoin.nom}
+                              {besoin.categorie && ` (${besoin.categorie})`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Nombre de personnes</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={newBesoinNombre}
+                      onChange={(e) => setNewBesoinNombre(parseInt(e.target.value) || 1)}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowAddBesoin(false);
+                        setSelectedNewBesoin('');
+                        setNewBesoinNombre(1);
+                      }}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddBesoin}
+                      disabled={!selectedNewBesoin || newBesoinNombre < 1}
+                    >
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowAddBesoin(true)}
+                  disabled={availableBesoins.length === 0}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter un besoin
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Salle préférentielle</label>
-              <Select
-                value={formData.salle_preferentielle || ''}
-                onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value || null })}
-              >
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder="Sélectionner une salle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Aucune préférence</SelectItem>
-                  {salles.map((salle) => (
-                    <SelectItem key={salle.id} value={salle.id}>
-                      {salle.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-border/50">
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Annuler
               </Button>
@@ -375,20 +607,6 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
           </form>
         </DialogContent>
       </Dialog>
-
-      {selectedTypeForBesoins && (
-        <TypeInterventionBesoinsForm
-          open={besoinsOpen}
-          onOpenChange={(open) => {
-            setBesoinsOpen(open);
-            if (!open) {
-              fetchTypes();
-            }
-          }}
-          typeInterventionId={selectedTypeForBesoins.id}
-          typeInterventionNom={selectedTypeForBesoins.nom}
-        />
-      )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
