@@ -227,8 +227,8 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
           id: operation.id,
           date: operation.date,
           periode: operation.periode,
-          salle_actuelle: operation.salle_assignee,
-          type_intervention_id: operation.types_intervention.id
+          salle_assignee: operation.salle_assignee || '',
+          type_intervention_nom: operation.types_intervention.nom
         }}
         onSuccess={() => {
           onUpdate();

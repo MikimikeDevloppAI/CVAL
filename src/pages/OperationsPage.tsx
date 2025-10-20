@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { OperationDayCard } from '@/components/operations/OperationDayCard';
 import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
-import WeekSelector from '@/components/shared/WeekSelector';
+import { WeekSelector } from '@/components/shared/WeekSelector';
 import { Loader2 } from 'lucide-react';
 
 interface Operation {
@@ -93,12 +93,19 @@ const OperationsPage = () => {
         `)
         .gte('date', format(weekStart, 'yyyy-MM-dd'))
         .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+        .in('periode', ['matin', 'apres_midi'])
         .neq('statut', 'annule')
         .order('date')
         .order('periode');
 
       if (error) throw error;
-      setOperations(data || []);
+      
+      // Filter and type-cast to ensure only matin/apres_midi periods
+      const filteredData = (data || []).filter(
+        (op): op is Operation => op.periode === 'matin' || op.periode === 'apres_midi'
+      );
+      
+      setOperations(filteredData);
     } catch (error) {
       console.error('Error fetching operations:', error);
       toast.error('Erreur lors du chargement des opérations');
