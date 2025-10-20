@@ -365,29 +365,15 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => openEditDialog(type)}
-                    className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
-                    title="Modifier"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setTypeToDelete(type.id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => openEditDialog(type)}
+                  className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
+                  title="Modifier"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
               </div>
               
               {/* Besoins en personnel */}
