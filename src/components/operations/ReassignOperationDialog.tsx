@@ -28,6 +28,9 @@ interface ReassignOperationDialogProps {
   onSuccess: () => void;
 }
 
+const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+
 export const ReassignOperationDialog = ({
   open,
   onOpenChange,
@@ -42,22 +45,24 @@ export const ReassignOperationDialog = ({
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [blocOperatoireId, setBlocOperatoireId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       fetchData();
+      setSelectedSiteId('');
+      setSelectedTypeInterventionId('');
     }
   }, [open]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch active sites
+      // Fetch active sites (exclude admin site)
       const { data: sitesData, error: sitesError } = await supabase
         .from('sites')
         .select('id, nom')
         .eq('actif', true)
+        .neq('id', ADMIN_SITE_ID)
         .order('nom');
 
       if (sitesError) throw sitesError;
@@ -68,10 +73,6 @@ export const ReassignOperationDialog = ({
       );
 
       setSites(sortedSites);
-
-      // Find bloc operatoire site ID
-      const blocSite = sitesData?.find(s => s.nom === 'Clinique La Vallée - Bloc opératoire');
-      setBlocOperatoireId(blocSite?.id || null);
 
       // Fetch active intervention types
       const { data: typesData, error: typesError } = await supabase
@@ -102,7 +103,7 @@ export const ReassignOperationDialog = ({
       return;
     }
 
-    if (selectedSiteId === blocOperatoireId && !selectedTypeInterventionId) {
+    if (selectedSiteId === BLOC_OPERATOIRE_SITE_ID && !selectedTypeInterventionId) {
       toast.error('Veuillez sélectionner un type d\'intervention pour le bloc opératoire');
       return;
     }
@@ -123,8 +124,8 @@ export const ReassignOperationDialog = ({
         demi_journee: currentPeriode,
         medecin_id: currentMedecinId,
         site_id: selectedSiteId,
-        type: selectedSiteId === blocOperatoireId ? 'bloc_operatoire' as const : 'medecin' as const,
-        type_intervention_id: selectedSiteId === blocOperatoireId ? selectedTypeInterventionId : null,
+        type: selectedSiteId === BLOC_OPERATOIRE_SITE_ID ? 'bloc_operatoire' as const : 'medecin' as const,
+        type_intervention_id: selectedSiteId === BLOC_OPERATOIRE_SITE_ID ? selectedTypeInterventionId : null,
         actif: true
       };
 
@@ -145,22 +146,27 @@ export const ReassignOperationDialog = ({
     }
   };
 
-  const isBlocOperatoire = selectedSiteId === blocOperatoireId;
+  const isBlocOperatoire = selectedSiteId === BLOC_OPERATOIRE_SITE_ID;
+
+  const handleSiteChange = (siteId: string) => {
+    setSelectedSiteId(siteId);
+    // Reset type intervention when changing site
+    if (siteId !== BLOC_OPERATOIRE_SITE_ID) {
+      setSelectedTypeInterventionId('');
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Réaffecter l'opération</DialogTitle>
-          <DialogDescription>
-            Sélectionnez un nouveau site pour cette opération. Le personnel assigné sera automatiquement libéré.
-          </DialogDescription>
+          <DialogTitle>Réaffecter le médecin</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="site">Nouveau site</Label>
-            <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+            <Select value={selectedSiteId} onValueChange={handleSiteChange}>
               <SelectTrigger id="site">
                 <SelectValue placeholder="Sélectionner un site" />
               </SelectTrigger>
