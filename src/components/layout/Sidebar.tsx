@@ -29,12 +29,7 @@ import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Planning', href: '/planning', icon: Calendar },
   { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
-  { name: 'Absences', href: '/absences', icon: CalendarX },
-  { name: 'Jours fériés', href: '/jours-feries', icon: CalendarX2 },
-  { name: 'Médecins', href: '/medecins', icon: Stethoscope },
-  { name: 'Secrétaires', href: '/secretaires', icon: User },
   { name: 'Opérations', href: '/operations', icon: ClipboardPlus },
   { name: 'Sites', href: '/sites', icon: Building2 },
 ];
@@ -68,10 +63,8 @@ export const Sidebar = () => {
     fetchProfile();
   }, [user]);
 
-  // Filter items based on planning access
-  const visibleItems = canManage 
-    ? planningItems 
-    : planningItems.filter(item => item.href === '/planning');
+  // All items visible when user has planning access
+  const visibleItems = canManage ? planningItems : [];
 
   const getInitials = () => {
     if (profile?.prenom && profile?.nom) {

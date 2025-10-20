@@ -8,8 +8,6 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { UserCog, Stethoscope, Edit, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { EditSecretaryAssignmentDialog } from './EditSecretaryAssignmentDialog';
-import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 interface MILPOptimizationViewProps {
@@ -37,16 +35,6 @@ interface SiteClosureStatus {
 }
 
 export function MILPOptimizationView({ assignments, weekDays, specialites, onRefresh }: MILPOptimizationViewProps) {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedSecretary, setSelectedSecretary] = useState<SecretaryForEdit | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [secretaryToDelete, setSecretaryToDelete] = useState<{
-    id: string;
-    nom: string;
-    date: string;
-    hasMatin: boolean;
-    hasApresMidi: boolean;
-  } | null>(null);
   const [sitesWithClosure, setSitesWithClosure] = useState<{ id: string; nom: string }[]>([]);
   
   // Charger les sites avec fermeture activée

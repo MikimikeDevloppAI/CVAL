@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Clock, MapPin, X } from 'lucide-react';
 import { useState } from 'react';
-import { DeleteSecretaryDialog } from './DeleteSecretaryDialog';
 
 interface SecretaryAssignment {
   date: string;
@@ -37,17 +36,9 @@ export function SecretaryWeekView({
   weekDays,
   onRefresh,
 }: SecretaryWeekViewProps) {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [secretaryToDelete, setSecretaryToDelete] = useState<{
-    id: string;
-    nom: string;
-    date: string;
-    hasMatin: boolean;
-    hasApresMidi: boolean;
-  } | null>(null);
-
   const handleDeleteClick = (date: string, hasMatin: boolean, hasApresMidi: boolean) => {
-    setSecretaryToDelete({
+    // Deletion disabled - component simplified
+  };
       id: secretaryId,
       nom: secretaryName,
       date,

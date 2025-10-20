@@ -7,7 +7,6 @@ import { fr } from 'date-fns/locale';
 import { Loader2, Scissors, MapPin, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChangeSalleDialog } from './ChangeSalleDialog';
-import ChangePersonnelDialog from './ChangePersonnelDialog';
 
 interface BlocOperation {
   id: string;
@@ -22,18 +21,6 @@ interface BlocOperation {
     code: string;
   };
   medecin?: {
-    first_name: string;
-    name: string;
-  };
-  personnel: PersonnelAssignment[];
-}
-
-interface PersonnelAssignment {
-  id: string;
-  type_besoin: string;
-  ordre: number;
-  secretaire_id: string | null;
-  secretaire?: {
     first_name: string;
     name: string;
   };
@@ -71,8 +58,6 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
   const [isExpanded, setIsExpanded] = useState(false);
   const [changeSalleDialogOpen, setChangeSalleDialogOpen] = useState(false);
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
-  const [changePersonnelDialogOpen, setChangePersonnelDialogOpen] = useState(false);
-  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -102,30 +87,10 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
         }
       )
       .subscribe();
-
-    // Real-time subscription for personnel assignments
-    const personnelChannel = supabase
-      .channel('bloc-personnel-planning-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planning_genere_personnel',
-          filter: 'type_assignation=eq.bloc'
-        },
-        () => {
-          if (mounted) {
-            fetchBlocOperations();
-          }
-        }
-      )
-      .subscribe();
     
     return () => {
       mounted = false;
       supabase.removeChannel(blocChannel);
-      supabase.removeChannel(personnelChannel);
     };
   }, [startDate, endDate]);
 
@@ -138,22 +103,6 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
       type_intervention_nom: operation.type_intervention?.nom || 'Type non défini',
     });
     setChangeSalleDialogOpen(true);
-  };
-
-  const handleChangePersonnel = (personnel: PersonnelAssignment, operation: BlocOperation) => {
-    setSelectedPersonnel({
-      id: personnel.id,
-      type_besoin: personnel.type_besoin,
-      secretaire_id: personnel.secretaire_id,
-      secretaire_nom: personnel.secretaire 
-        ? `${personnel.secretaire.first_name} ${personnel.secretaire.name}`
-        : null,
-      date: operation.date,
-      periode: operation.periode,
-      operation_nom: operation.type_intervention?.nom || 'Type non défini',
-      planning_genere_bloc_operatoire_id: operation.id,
-    });
-    setChangePersonnelDialogOpen(true);
   };
 
   const fetchBlocOperations = async () => {
@@ -176,42 +125,7 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
 
       if (blocsError) throw blocsError;
 
-      const operationsWithPersonnel: BlocOperation[] = [];
-      
-      for (const bloc of blocsData || []) {
-        const { data: personnelData, error: personnelError } = await supabase
-          .from('planning_genere_personnel')
-          .select(`
-            id,
-            ordre,
-            besoin_operation_id,
-            besoin_operation:besoins_operations!besoin_operation_id(nom),
-            secretaire:secretaires!secretaire_id(first_name, name),
-            secretaire_id
-          `)
-          .eq('planning_genere_bloc_operatoire_id', bloc.id)
-          .eq('type_assignation', 'bloc')
-          .order('besoin_operation_id', { ascending: true })
-          .order('ordre', { ascending: true });
-
-        if (personnelError) throw personnelError;
-
-        // Transform to match expected interface
-        const personnel = (personnelData || []).map((p: any) => ({
-          id: p.id,
-          ordre: p.ordre,
-          type_besoin: p.besoin_operation?.nom || 'Personnel',
-          secretaire_id: p.secretaire_id,
-          secretaire: p.secretaire
-        }));
-
-        operationsWithPersonnel.push({
-          ...bloc,
-          personnel
-        });
-      }
-
-      setOperations(operationsWithPersonnel);
+      setOperations(blocsData || []);
     } catch (error) {
       console.error('Error fetching bloc operations:', error);
     } finally {
@@ -297,25 +211,6 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
                               </span>
                             </div>
                           )}
-                          
-                          {operation.personnel.map((p) => (
-                            <div 
-                              key={p.id}
-                              className="flex items-center gap-1 bg-muted/50 rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-muted transition-colors"
-                              onClick={() => handleChangePersonnel(p, operation)}
-                            >
-                              <span className="text-muted-foreground">
-                                {TYPE_BESOIN_LABELS[p.type_besoin] || p.type_besoin}
-                              </span>
-                              <span className="font-medium truncate">
-                                {p.secretaire ? (
-                                  `${p.secretaire.first_name.charAt(0)}. ${p.secretaire.name}`
-                                ) : (
-                                  <span className="text-muted-foreground italic">-</span>
-                                )}
-                              </span>
-                            </div>
-                          ))}
                         </div>
                       </div>
                     ))}
@@ -335,18 +230,6 @@ export const CompactBlocOperatoirePlanningView = memo(function CompactBlocOperat
           onSuccess={() => {
             fetchBlocOperations();
             setSelectedOperation(null);
-          }}
-        />
-      )}
-
-      {selectedPersonnel && (
-        <ChangePersonnelDialog
-          open={changePersonnelDialogOpen}
-          onOpenChange={setChangePersonnelDialogOpen}
-          assignment={selectedPersonnel}
-          onSuccess={() => {
-            fetchBlocOperations();
-            setSelectedPersonnel(null);
           }}
         />
       )}

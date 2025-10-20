@@ -8,13 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PlanningProtectedRoute } from "@/components/PlanningProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
-import PlanningPage from "./pages/PlanningPage";
-import AbsencesPage from "./pages/AbsencesPage";
-import JoursFeriesPage from "./pages/JoursFeriesPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
-import MedecinsPage from "./pages/MedecinsPage";
-import SecretairesPage from "./pages/SecretairesPage";
 import SitesPage from "./pages/SitesPage";
 import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
@@ -49,28 +44,7 @@ const App = () => (
                         <DashboardPage />
                       </PlanningProtectedRoute>
                     } />
-                    <Route path="/planning" element={<PlanningPage />} />
                     <Route path="/home" element={<HomePage />} />
-                    <Route path="/absences" element={
-                      <PlanningProtectedRoute>
-                        <AbsencesPage />
-                      </PlanningProtectedRoute>
-                    } />
-                    <Route path="/jours-feries" element={
-                      <PlanningProtectedRoute>
-                        <JoursFeriesPage />
-                      </PlanningProtectedRoute>
-                    } />
-                    <Route path="/medecins" element={
-                      <PlanningProtectedRoute>
-                        <MedecinsPage />
-                      </PlanningProtectedRoute>
-                    } />
-                    <Route path="/secretaires" element={
-                      <PlanningProtectedRoute>
-                        <SecretairesPage />
-                      </PlanningProtectedRoute>
-                    } />
                     <Route path="/backup" element={
                       <PlanningProtectedRoute>
                         <BackupPage />
