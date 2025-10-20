@@ -303,7 +303,7 @@ export type Database = {
           created_at: string
           id: string
           ordre: number
-          salle: string
+          salle: string | null
           type_intervention_id: string
         }
         Insert: {
@@ -311,7 +311,7 @@ export type Database = {
           created_at?: string
           id?: string
           ordre: number
-          salle: string
+          salle?: string | null
           type_intervention_id: string
         }
         Update: {
@@ -319,7 +319,7 @@ export type Database = {
           created_at?: string
           id?: string
           ordre?: number
-          salle?: string
+          salle?: string | null
           type_intervention_id?: string
         }
         Relationships: [
@@ -335,6 +335,13 @@ export type Database = {
             columns: ["configuration_id"]
             isOneToOne: false
             referencedRelation: "configurations_multi_flux"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_multi_flux_salle"
+            columns: ["salle"]
+            isOneToOne: false
+            referencedRelation: "salles_operation"
             referencedColumns: ["id"]
           },
         ]
@@ -689,6 +696,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_planning_bloc_salle"
+            columns: ["salle_assignee"]
+            isOneToOne: false
+            referencedRelation: "salles_operation"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
             columns: ["medecin_id"]
             isOneToOne: false
@@ -831,6 +845,24 @@ export type Database = {
           planning?: boolean
           prenom?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      salles_operation: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
         }
         Relationships: []
       }
@@ -1101,7 +1133,15 @@ export type Database = {
           salle_preferentielle?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_types_intervention_salle"
+            columns: ["salle_preferentielle"]
+            isOneToOne: false
+            referencedRelation: "salles_operation"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       types_intervention_besoins_personnel: {
         Row: {
@@ -1174,6 +1214,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_room_for_operation: {
+        Args: {
+          p_date: string
+          p_medecin_id: string
+          p_periode: Database["public"]["Enums"]["demi_journee"]
+          p_type_intervention_id: string
+        }
+        Returns: string
+      }
       create_besoin_from_bloc: {
         Args: { p_bloc_id: string }
         Returns: undefined
@@ -1220,6 +1269,13 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      reassign_all_rooms_for_slot: {
+        Args: {
+          p_date: string
+          p_periode: Database["public"]["Enums"]["demi_journee"]
+        }
+        Returns: undefined
       }
       recalculate_base_schedule_optimization: {
         Args: Record<PropertyKey, never>
