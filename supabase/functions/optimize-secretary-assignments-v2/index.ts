@@ -13,6 +13,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper: UUID validation
+function isUuid(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+// Helper: Detect BLOC variable based on structure (last 2 segments = UUIDs)
+function isBlocVar(varName: string): boolean {
+  if (!varName.startsWith('assign_')) return false;
+  const parts = varName.split('_');
+  if (parts.length < 7) return false;
+  const prev = parts[parts.length - 2];
+  const last = parts[parts.length - 1];
+  return isUuid(prev) && isUuid(last);
+}
+
 function calculateNeeds(
   besoins_effectifs: any[],
   medecins_map: Map<string, any>,
@@ -290,24 +305,9 @@ async function optimizeSingleWeek(
         .map(([k]) => k);
       console.log(`  ✅ ${assignedVars.length} assignations trouvées (score: ${solution.result})`);
       
-      // Count bloc assignments
-      const blocAssignedVars = assignedVars.filter(v => v.includes('_bloc_'));
-      console.log(`  🏥 Assignations BLOC: ${blocAssignedVars.length}`);
-      if (blocAssignedVars.length === 0 && needs.some(n => n.type === 'bloc_operatoire')) {
-        console.warn(`  ⚠️ Aucune variable BLOC assignée alors que des besoins BLOC existent!`);
-      } else if (blocAssignedVars.length > 0) {
-        console.log(`  📋 Exemples d'assignations BLOC:`);
-        blocAssignedVars.slice(0, 5).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
-      }
-      
-      if (assignedVars.length > 0) {
-        assignedVars.slice(0, 10).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
-        if (assignedVars.length > 10) {
-          console.log(`    ... et ${assignedVars.length - 10} autres assignations`);
-        }
-      } else {
-        console.warn('⚠️ Aucune variable assignée malgré un modèle faisable.');
-      }
+      // Count bloc assignments using structure detection
+      const blocAssignedVars = assignedVars.filter(v => isBlocVar(v));
+      console.log(`  🏥 Assignations BLOC détectées (structure): ${blocAssignedVars.length}`);
     } catch (error: any) {
       console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
       console.error(`  Message: ${error.message}`);

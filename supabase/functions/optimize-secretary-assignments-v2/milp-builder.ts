@@ -15,33 +15,9 @@ export function buildMILPModelSoft(
   week_data: WeekData,
   week_assignments: AssignmentSummary[]
 ) {
-  console.log(`\n🏗️ Construction du modèle MILP...`);
-  console.log(`  📅 Date: ${date}`);
-  console.log(`  📋 Besoins: ${needs.length}`);
-  console.log(`  👥 Capacités: ${capacites.filter(c => c.date === date).length}`);
+  console.log(`🔧 Construction du modèle MILP pour ${date}...`);
   
-  // 🔍 DIAGNOSTIC: Répartition des capacités du jour
   const todayCapacites = capacites.filter(c => c.date === date);
-  const capByPeriod = { matin: 0, apres_midi: 0 };
-  const capBySite: Record<string, number> = {};
-  const capExamples: string[] = [];
-  
-  todayCapacites.forEach((c, idx) => {
-    if (c.secretaire_id) {
-      capByPeriod[c.demi_journee as keyof typeof capByPeriod]++;
-      const siteKey = c.site_id?.slice(0,8) || 'unknown';
-      capBySite[siteKey] = (capBySite[siteKey] || 0) + 1;
-      if (idx < 5) {
-        capExamples.push(`${c.secretaire_id.slice(0,8)}_${c.demi_journee}_${c.site_id?.slice(0,8)}`);
-      }
-    }
-  });
-  
-  console.log('\n  📊 DIAGNOSTIC CAPACITÉS DU JOUR (avec secretaire_id):');
-  console.log(`     Total: ${todayCapacites.filter(c => c.secretaire_id).length}`);
-  console.log(`     Matin: ${capByPeriod.matin}, Après-midi: ${capByPeriod.apres_midi}`);
-  console.log(`     Top 5 sites:`, Object.entries(capBySite).slice(0, 5).map(([s,n]) => `${s}:${n}`).join(', '));
-  console.log(`     Exemples (5 premières):`, capExamples);
   
   const model: any = {
     optimize: 'score_total',
@@ -57,51 +33,6 @@ export function buildMILPModelSoft(
     today_assignments: new Map()
   };
   
-  // ============================================================
-  // 🔍 DIAGNOSTIC BLOC AVANT CONSTRUCTION
-  // ============================================================
-  const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire');
-  if (blocNeeds.length > 0) {
-    console.log(`\n🔬 DIAGNOSTIC BESOINS BLOC (${blocNeeds.length} besoins):`);
-    
-    // 1. Liste des besoin_operation_id requis
-    const requiredBesoinIds = new Set<string>();
-    blocNeeds.forEach(need => {
-      if (need.besoin_operation_id) {
-        requiredBesoinIds.add(need.besoin_operation_id);
-      }
-    });
-    console.log(`  📋 besoin_operation_id requis: [${Array.from(requiredBesoinIds).map(id => id.slice(0,8)).join(', ')}]`);
-    
-    // 2. Compétences disponibles
-    const availableCompetences = new Map<string, Set<string>>();
-    week_data.secretaires_besoins.forEach((sb: any) => {
-      if (!availableCompetences.has(sb.besoin_operation_id)) {
-        availableCompetences.set(sb.besoin_operation_id, new Set());
-      }
-      availableCompetences.get(sb.besoin_operation_id)!.add(sb.secretaire_id);
-    });
-    
-    console.log(`  🎓 Compétences disponibles (${availableCompetences.size} besoin_operation_id):`);
-    if (availableCompetences.size === 0) {
-      console.error(`    ❌ AUCUNE compétence trouvée dans secretaires_besoins!`);
-    } else {
-      Array.from(availableCompetences.entries()).slice(0,5).forEach(([besoinId, secIds]) => {
-        console.log(`    ${besoinId.slice(0,8)}: ${secIds.size} secrétaires → [${Array.from(secIds).slice(0,3).map(id => id.slice(0,8)).join(', ')}]`);
-      });
-    }
-    
-    // 3. Vérifier les correspondances
-    console.log(`  🔍 Correspondances besoin ↔ compétences:`);
-    requiredBesoinIds.forEach(besoinId => {
-      const competents = availableCompetences.get(besoinId);
-      if (!competents || competents.size === 0) {
-        console.error(`    ❌ ${besoinId.slice(0,8)}: AUCUNE secrétaire compétente trouvée!`);
-      } else {
-        console.log(`    ✅ ${besoinId.slice(0,8)}: ${competents.size} secrétaires OK`);
-      }
-    });
-  }
   
   // ============================================================
   // VARIABLES AND COEFFICIENTS
@@ -113,15 +44,11 @@ export function buildMILPModelSoft(
     try {
       const need = needs[needIndex];
       
-      // 🔍 LOG DEBUG uniquement pour site BLOC (86f1047f)
-      const isBlocSite = need.site_id === '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
-      if (isBlocSite) {
-        console.log(`\n${'='.repeat(80)}`);
-        console.log(`🔍 DEBUG BLOC [${needIndex + 1}/${needs.length}]`);
-        console.log(`   Type: ${need.type} | Période: ${need.periode}`);
-        if (need.type === 'bloc_operatoire') {
-          console.log(`   🏥 operation=${need.bloc_operation_id?.slice(0,8)}, besoin=${need.besoin_operation_id?.slice(0,8)}`);
-        }
+      const isTargetBlocSite = need.site_id === '86f1047f-c4ff-441f-a064-42ee2f8ef37a' && need.type === 'bloc_operatoire';
+      
+      if (isTargetBlocSite) {
+        console.log(`\n🎯 BLOC DEBUG - ${need.periode}`);
+        console.log(`   🏥 BLOC IDs: op=${need.bloc_operation_id?.slice(0,8)}..., besoin=${need.besoin_operation_id?.slice(0,8)}...`);
       }
       
       // Create unique need ID with numeric period code (1=matin, 2=apres_midi)
@@ -130,8 +57,7 @@ export function buildMILPModelSoft(
         ? `${need.site_id}_${need.date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
         : `${need.site_id}_${need.date}_${periodCode}`;
       
-      // 🔍 LOG DEBUG needId généré pour site BLOC
-      if (isBlocSite && need.type === 'bloc_operatoire') {
+      if (isTargetBlocSite) {
         console.log(`   📝 needId: ${needId}`);
       }
     
@@ -183,16 +109,13 @@ export function buildMILPModelSoft(
         blocVariableCount++;
       }
       
-      // 🔍 LOG DEBUG variables créées pour site BLOC uniquement
-      if (isBlocSite && need.type === 'bloc_operatoire' && acceptedCount <= 3) {
-        console.log(`     ✅ Variable: ${varName}`);
-        console.log(`        Score: ${score.toFixed(2)}`);
+      if (isTargetBlocSite && acceptedCount <= 3) {
+        console.log(`   ✅ Variable: ${varName} (score: ${score.toFixed(2)})`);
       }
     }
     
-    if (isBlocSite) {
-      console.log(`   ✅ ${acceptedCount} variables créées pour ce besoin`);
-      console.log(`${'='.repeat(80)}\n`);
+    if (isTargetBlocSite) {
+      console.log(`   ✅ ${acceptedCount} variables créées pour ce besoin BLOC`);
     }
       
     } catch (error) {
@@ -217,7 +140,7 @@ export function buildMILPModelSoft(
     }
   }
   
-  console.log(`\n📊 Total: ${variableCount} variables (BLOC: ${blocVariableCount})`);
+  
   
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
     const need = needs[needIndex];
@@ -363,7 +286,7 @@ export function buildMILPModelSoft(
     }
   }
   
-  console.log(`\n✅ Modèle construit: ${Object.keys(model.variables).length} variables`);
+  
   
   return model;
 }
