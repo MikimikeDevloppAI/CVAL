@@ -141,15 +141,14 @@ export function buildMILPModelSoft(
     console.log(`  📊 Contrainte ${constraintName}: max ${totalMax} secrétaires (${needsInSlot.length} besoins)`);
     
     // Add ALL variables for this slot to this constraint
-    for (const cap of todayCapacites) {
-      if (!cap.secretaire_id) continue;
+    // This includes both site needs and bloc needs (which have _bloc_ suffix)
+    for (const varName of Object.keys(model.variables)) {
+      if (!varName.startsWith('assign_')) continue;
       
-      // Check if this cap's period matches the slot's period
-      const [site_id, slot_date, periode] = slotKey.split('_');
-      if (cap.demi_journee !== periode) continue;
-      
-      const varName = `assign_${cap.secretaire_id}_${slotKey}`;
-      if (model.variables[varName]) {
+      // Check if this variable is for this slot
+      // Variables are named: assign_{secretaire_id}_{needId}
+      // where needId is either {slotKey} or {slotKey}_bloc_{besoin_operation_id}
+      if (varName.includes(slotKey)) {
         model.variables[varName][constraintName] = 1;
       }
     }
