@@ -352,8 +352,10 @@ export function ConfigurationsMultiFluxManagement() {
                         ?.sort((a, b) => a.ordre - b.ordre)
                         .map((ci, idx) => (
                           <div key={idx} className={`p-2 rounded border ${getSalleColor(ci.salle)}`}>
-                            <div className="text-xs font-medium mb-1">{ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1)}</div>
-                            <div className="text-sm">{ci.types_intervention.nom}</div>
+                            <div className="text-xs font-medium mb-1">
+                              {ci.salle ? ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1) : 'Non définie'}
+                            </div>
+                            <div className="text-sm">{ci.types_intervention?.nom || 'Type non défini'}</div>
                           </div>
                         ))}
                     </div>
@@ -420,8 +422,10 @@ export function ConfigurationsMultiFluxManagement() {
                         ?.sort((a, b) => a.ordre - b.ordre)
                         .map((ci, idx) => (
                           <div key={idx} className={`p-2 rounded border ${getSalleColor(ci.salle)}`}>
-                            <div className="text-xs font-medium mb-1">{ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1)}</div>
-                            <div className="text-sm">{ci.types_intervention.nom}</div>
+                            <div className="text-xs font-medium mb-1">
+                              {ci.salle ? ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1) : 'Non définie'}
+                            </div>
+                            <div className="text-sm">{ci.types_intervention?.nom || 'Type non défini'}</div>
                           </div>
                         ))}
                     </div>
