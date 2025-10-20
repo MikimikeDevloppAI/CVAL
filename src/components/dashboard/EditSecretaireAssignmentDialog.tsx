@@ -111,9 +111,9 @@ export function EditSecretaireAssignmentDialog({
       if (deleteError) throw deleteError;
 
       // Create new assignments
-      const entries = periode === 'journee'
+      const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
         ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
-        : [{ demi_journee: periode }];
+        : [{ demi_journee: periode as 'matin' | 'apres_midi' }];
 
       for (const entry of entries) {
         const { error } = await supabase
