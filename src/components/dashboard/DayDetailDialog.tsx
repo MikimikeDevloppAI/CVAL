@@ -209,16 +209,29 @@ export function DayDetailDialog({
     }
   };
 
-  const getPeriodeBadge = (periode: string) => {
+  const getDotColor = (periode: string) => {
     switch (periode) {
       case 'matin':
-        return <Badge className="border-amber-500 bg-amber-500/10 text-amber-700">Matin</Badge>;
+        return 'bg-blue-500';
       case 'apres_midi':
-        return <Badge className="border-blue-500 bg-blue-500/10 text-blue-700">Après-midi</Badge>;
+        return 'bg-yellow-500';
       case 'journee':
-        return <Badge className="border-purple-500 bg-purple-500/10 text-purple-700">Journée</Badge>;
+        return 'bg-green-500';
       default:
-        return null;
+        return 'bg-muted';
+    }
+  };
+
+  const getPeriodeLabel = (periode: string) => {
+    switch (periode) {
+      case 'matin':
+        return 'Matin';
+      case 'apres_midi':
+        return 'Après-midi';
+      case 'journee':
+        return 'Journée';
+      default:
+        return '';
     }
   };
 
@@ -278,8 +291,9 @@ export function DayDetailDialog({
                         className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors"
                       >
                         <div className="flex items-center gap-3">
+                          <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(medecin.periode))} />
                           <div className="font-medium">{medecin.nom}</div>
-                          {getPeriodeBadge(medecin.periode)}
+                          <span className="text-sm text-muted-foreground">({getPeriodeLabel(medecin.periode)})</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -333,8 +347,9 @@ export function DayDetailDialog({
                         className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/5 transition-colors"
                       >
                         <div className="flex items-center gap-3 flex-wrap">
+                          <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(secretaire.periode))} />
                           <div className="font-medium">{secretaire.nom}</div>
-                          {getPeriodeBadge(secretaire.periode)}
+                          <span className="text-sm text-muted-foreground">({getPeriodeLabel(secretaire.periode)})</span>
                           {secretaire.is_1r && (
                             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500">
                               1R
