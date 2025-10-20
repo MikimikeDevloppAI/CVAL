@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import { Stethoscope, Users, MapPin, Trash2 } from 'lucide-react';
+import { Stethoscope, Users, MapPin, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { AssignPersonnelDialog } from './AssignPersonnelDialog';
+import { ReassignOperationDialog } from './ReassignOperationDialog';
 import { cn } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 interface Operation {
@@ -23,6 +17,7 @@ interface Operation {
   date: string;
   periode: 'matin' | 'apres_midi';
   salle_assignee: string | null;
+  besoin_effectif_id?: string | null;
   salles_operation: {
     id: string;
     name: string;
@@ -70,11 +65,28 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedBesoin, setSelectedBesoin] = useState<{ id: string; nom: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [besoinEffectifId, setBesoinEffectifId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBesoins();
     fetchAssignments();
+    fetchBesoinEffectifId();
   }, [operation.id]);
+
+  const fetchBesoinEffectifId = async () => {
+    const { data, error } = await supabase
+      .from('planning_genere_bloc_operatoire')
+      .select('besoin_effectif_id')
+      .eq('id', operation.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching besoin_effectif_id:', error);
+      return;
+    }
+    setBesoinEffectifId(data?.besoin_effectif_id || null);
+  };
 
   const fetchBesoins = async () => {
     const { data, error } = await supabase
@@ -160,17 +172,8 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
     setAssignDialogOpen(true);
   };
 
-  const handleDeleteOperation = async () => {
+  const handleDeleteCompletely = async () => {
     try {
-      // Récupérer le besoin_effectif_id avant de supprimer
-      const { data: planningData, error: fetchError } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select('besoin_effectif_id')
-        .eq('id', operation.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
       // Réinitialiser les capacites_effective liées à cette opération
       const { error: capaciteError } = await supabase
         .from('capacite_effective')
@@ -192,22 +195,27 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
       if (planningError) throw planningError;
 
       // Supprimer le besoin_effectif si présent
-      if (planningData?.besoin_effectif_id) {
+      if (besoinEffectifId) {
         const { error: besoinError } = await supabase
           .from('besoin_effectif')
           .delete()
-          .eq('id', planningData.besoin_effectif_id);
+          .eq('id', besoinEffectifId);
 
         if (besoinError) throw besoinError;
       }
 
-      toast.success('Opération supprimée avec succès');
+      toast.success('Opération supprimée définitivement');
       setDeleteDialogOpen(false);
       onUpdate();
     } catch (error) {
       console.error('Error deleting operation:', error);
       toast.error('Erreur lors de la suppression de l\'opération');
     }
+  };
+
+  const handleReassignSuccess = () => {
+    setDeleteDialogOpen(false);
+    onUpdate();
   };
 
   return (
@@ -329,26 +337,76 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
         />
       )}
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette opération ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action supprimera l'opération du {operation.types_intervention.code} du Dr. {operation.medecins?.first_name} {operation.medecins?.name}.
-              Le personnel assigné sera libéré et repassera en disponible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteOperation}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Suppression de l'opération
+            </DialogTitle>
+            <DialogDescription className="space-y-4 pt-4">
+              <div className="rounded-lg border border-border/50 bg-muted/50 p-4 space-y-2">
+                <p className="font-medium text-foreground">Opération concernée :</p>
+                <ul className="space-y-1 text-sm">
+                  <li>• Dr. {operation.medecins?.first_name} {operation.medecins?.name}</li>
+                  <li>• Type : {operation.types_intervention.code}</li>
+                  <li>• Date : {format(new Date(operation.date), 'd MMMM yyyy', { locale: fr })} - {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-2">
+                <p className="font-medium text-destructive flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Conséquences :
+                </p>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li>• Tout le personnel assigné ({assignments.length} personne{assignments.length > 1 ? 's' : ''}) sera libéré et repassera en disponible</li>
+                  {operation.salle_assignee && (
+                    <li>• La salle {operation.salles_operation?.name} sera libérée</li>
+                  )}
+                </ul>
+              </div>
+
+              <p className="text-sm font-medium text-foreground">Que voulez-vous faire ?</p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteCompletely}
             >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              Supprimer définitivement
+            </Button>
+            <Button 
+              variant="default"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setReassignDialogOpen(true);
+              }}
+            >
+              Réaffecter à un autre site
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reassign Dialog */}
+      {besoinEffectifId && (
+        <ReassignOperationDialog
+          open={reassignDialogOpen}
+          onOpenChange={setReassignDialogOpen}
+          besoinEffectifId={besoinEffectifId}
+          currentDate={operation.date}
+          currentPeriode={operation.periode}
+          currentMedecinId={operation.medecins?.id || null}
+          onSuccess={handleReassignSuccess}
+        />
+      )}
     </>
   );
 };
