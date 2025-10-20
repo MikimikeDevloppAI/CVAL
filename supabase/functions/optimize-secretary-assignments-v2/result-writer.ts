@@ -1,6 +1,11 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { SiteNeed, CapaciteEffective } from './types.ts';
 
+// Helper function to validate UUID format
+function isUuid(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 export async function writeAssignments(
   solution: any,
   date: string,
@@ -47,7 +52,13 @@ export async function writeAssignments(
   
   console.log(`\n📦 Variables BLOC détectées: ${blocAssignedVars.length}`);
   if (blocAssignedVars.length > 0) {
-    console.log(`   Exemples:`, blocAssignedVars.slice(0, 3));
+    console.log(`   Exemples (3 premiers):`, blocAssignedVars.slice(0, 3));
+    // Log si apres_midi
+    const apresMidiBlocVars = blocAssignedVars.filter(v => v.includes('_apres_midi_bloc_'));
+    console.log(`   📋 Variables _apres_midi_bloc_: ${apresMidiBlocVars.length}`);
+    if (apresMidiBlocVars.length > 0) {
+      console.log(`      Exemples:`, apresMidiBlocVars.slice(0, 2));
+    }
   }
   console.log(`\n🏢 Variables SITE détectées: ${siteAssignedVars.length}`);
   if (siteAssignedVars.length > 0) {
@@ -70,46 +81,60 @@ export async function writeAssignments(
     
     if (varName.includes('_apres_midi_bloc_')) {
       periode = 'apres_midi';
-      // Format: assign_{sec_id}_{site_id}_{date}_apres_midi_bloc_{bloc_uuid}_{besoin_uuid}
-      const match = varName.match(/^assign_(.+)_apres_midi_bloc_([0-9a-f-]{36})_([0-9a-f-]{36})$/);
+      // Regex plus permissif
+      const match = varName.match(/^assign_(.+?)_apres_midi_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})(?:$|_)/);
       if (match) {
         coreSansPeriode = match[1];
-        bloc_operation_id = match[2];
-        besoin_operation_id = match[3];
-        console.log(`  🔍 BLOC après-midi parsé: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
-      } else {
-        console.warn(`  ⚠️ Format BLOC après-midi invalide: ${varName}`);
-        // Fallback ancien parsing
-        const parts = varName.split('_apres_midi_bloc_');
-        coreSansPeriode = parts[0].slice('assign_'.length);
-        const blocParts = parts[1].split('_');
-        if (blocParts.length >= 2) {
-          bloc_operation_id = blocParts[0];
-          besoin_operation_id = blocParts[1];
+        const uuid1 = match[2].toLowerCase();
+        const uuid2 = match[3].toLowerCase();
+        
+        if (isUuid(uuid1) && isUuid(uuid2)) {
+          bloc_operation_id = uuid1;
+          besoin_operation_id = uuid2;
+          console.log(`  ✅ BLOC après-midi parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
         } else {
-          besoin_operation_id = parts[1];
+          console.error(`  ❌ BLOC après-midi: UUIDs invalides!`);
+        }
+      } else {
+        console.error(`  ❌ BLOC après-midi: Format REGEX invalide! varName=${varName.slice(0, 80)}...`);
+        // Fallback
+        const parts = varName.split('_apres_midi_bloc_');
+        if (parts.length === 2) {
+          coreSansPeriode = parts[0].slice('assign_'.length);
+          const uuidMatches = parts[1].match(/([0-9a-fA-F-]{36})/g);
+          if (uuidMatches && uuidMatches.length >= 2) {
+            bloc_operation_id = uuidMatches[0].toLowerCase();
+            besoin_operation_id = uuidMatches[1].toLowerCase();
+            console.log(`    ✅ Fallback OK: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+          }
         }
       }
     } else if (varName.includes('_matin_bloc_')) {
       periode = 'matin';
-      // Format: assign_{sec_id}_{site_id}_{date}_matin_bloc_{bloc_uuid}_{besoin_uuid}
-      const match = varName.match(/^assign_(.+)_matin_bloc_([0-9a-f-]{36})_([0-9a-f-]{36})$/);
+      const match = varName.match(/^assign_(.+?)_matin_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})(?:$|_)/);
       if (match) {
         coreSansPeriode = match[1];
-        bloc_operation_id = match[2];
-        besoin_operation_id = match[3];
-        console.log(`  🔍 BLOC matin parsé: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
-      } else {
-        console.warn(`  ⚠️ Format BLOC matin invalide: ${varName}`);
-        // Fallback ancien parsing
-        const parts = varName.split('_matin_bloc_');
-        coreSansPeriode = parts[0].slice('assign_'.length);
-        const blocParts = parts[1].split('_');
-        if (blocParts.length >= 2) {
-          bloc_operation_id = blocParts[0];
-          besoin_operation_id = blocParts[1];
+        const uuid1 = match[2].toLowerCase();
+        const uuid2 = match[3].toLowerCase();
+        
+        if (isUuid(uuid1) && isUuid(uuid2)) {
+          bloc_operation_id = uuid1;
+          besoin_operation_id = uuid2;
+          console.log(`  ✅ BLOC matin parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
         } else {
-          besoin_operation_id = parts[1];
+          console.error(`  ❌ BLOC matin: UUIDs invalides!`);
+        }
+      } else {
+        console.error(`  ❌ BLOC matin: Format REGEX invalide!`);
+        const parts = varName.split('_matin_bloc_');
+        if (parts.length === 2) {
+          coreSansPeriode = parts[0].slice('assign_'.length);
+          const uuidMatches = parts[1].match(/([0-9a-fA-F-]{36})/g);
+          if (uuidMatches && uuidMatches.length >= 2) {
+            bloc_operation_id = uuidMatches[0].toLowerCase();
+            besoin_operation_id = uuidMatches[1].toLowerCase();
+            console.log(`    ✅ Fallback OK: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+          }
         }
       }
     } else if (varName.endsWith('_apres_midi')) {
@@ -129,30 +154,11 @@ export async function writeAssignments(
 
     const [secretaire_id, site_id, dateStr] = coreSansPeriode.split('_');
 
-    // 🔍 DIAGNOSTIC 2: Log du parsing de la variable
-    console.log(`\n🔍 Traitement variable:`, {
-      varName: varName.slice(0, 60) + (varName.length > 60 ? '...' : ''),
-      parsed: {
-        secretaire_id: secretaire_id?.slice(0, 8),
-        site_id_from_var: site_id?.slice(0, 8),
-        dateStr,
-        periode,
-        bloc_operation_id: bloc_operation_id?.slice(0, 8),
-        besoin_operation_id: besoin_operation_id?.slice(0, 8)
-      }
-    });
-
     if (!secretaire_id || !site_id || !dateStr) {
-      console.warn(`⚠️ Parsing invalide pour ${varName} → {secretaire_id:${secretaire_id}}, {site_id:${site_id}}, {date:${dateStr}}`);
+      console.warn(`⚠️ Parsing invalide pour ${varName}`);
       continue;
     }
 
-    if (dateStr !== date) {
-      console.warn(`⚠️ Mismatch de date (var=${dateStr} vs param=${date}) pour ${varName}`);
-    }
-
-    // 🔍 DIAGNOSTIC 3: Recherche de la capacité correspondante
-    console.log(`  🔎 Recherche capacité (by secretaire_id/date/periode)...`);
     const capacite = capacites.find(
       (c) =>
         c.secretaire_id === secretaire_id &&
@@ -162,32 +168,11 @@ export async function writeAssignments(
 
     if (!capacite) {
       console.warn(`⚠️ Capacité non trouvée pour ${varName}`);
-      const caps = capacites
-        .filter((c) => c.secretaire_id === secretaire_id && c.date === date)
-        .map((c) => ({ id: c.id?.slice(0, 8), demi_journee: c.demi_journee, site_id: (c as any).site_id?.slice(0, 8) }))
-        .slice(0, 5);
-      console.warn(`   🔍 Capacités disponibles ce jour pour ${secretaire_id?.slice(0, 8)}:`, caps);
       continue;
     }
 
-    // 🔍 DIAGNOSTIC 4: Capacité trouvée
-    console.log(`  ✅ Capacité trouvée:`, {
-      capacite_id: capacite.id?.slice(0, 8),
-      demi_journee: capacite.demi_journee,
-      site_id: (capacite as any).site_id?.slice(0, 8),
-      confirm: 'UPDATE ciblé par id (pas d\'insert)'
-    });
-
-    // 🔍 DIAGNOSTIC 5: Recherche du besoin correspondant
-    // For bloc needs, match by bloc_operation_id + besoin_operation_id + date + periode
     let need;
     if (bloc_operation_id && besoin_operation_id) {
-      console.log(`  🎯 BLOC need recherché:`, {
-        bloc_operation_id: bloc_operation_id?.slice(0, 8),
-        besoin_operation_id: besoin_operation_id?.slice(0, 8),
-        date,
-        periode
-      });
       need = needs.find(
         (n) => n.type === 'bloc_operatoire' && 
                n.bloc_operation_id === bloc_operation_id &&
@@ -195,99 +180,43 @@ export async function writeAssignments(
                n.date === date && 
                n.periode === periode
       );
-      if (!need) {
-        console.warn(`  ⚠️ BLOC need non trouvé dans la liste des needs`);
-        const blocNeedsForDay = needs
-          .filter((n) => n.type === 'bloc_operatoire' && n.date === date)
-          .map((n) => ({ 
-            periode: n.periode, 
-            bloc_op: n.bloc_operation_id?.slice(0, 8), 
-            besoin_op: n.besoin_operation_id?.slice(0, 8),
-            nombre_max: n.nombre_max
-          }));
-        console.warn(`     Besoins BLOC du jour:`, blocNeedsForDay);
-      }
     } else {
-      // For site needs: match by site_id + date + periode
-      console.log(`  🎯 SITE need recherché:`, {
-        site_id: site_id?.slice(0, 8),
-        date,
-        periode
-      });
       need = needs.find(
         (n) => n.site_id === site_id && n.date === date && n.periode === periode
       );
     }
 
+    if (!need && bloc_operation_id && besoin_operation_id) {
+      console.log(`  ♻️ FALLBACK BLOC utilisé`);
+      const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+      
+      assignedCount++;
+      updates.push({
+        id: capacite.id,
+        site_id: BLOC_SITE_ID,
+        planning_genere_bloc_operatoire_id: bloc_operation_id,
+        besoin_operation_id: besoin_operation_id,
+      });
+      processedCapaciteIds.add(capacite.id);
+      continue;
+    }
+
     if (!need) {
       console.warn(`⚠️ Besoin non trouvé pour ${varName}`);
-      
-      // FALLBACK for BLOC assignments: use parsed IDs directly
-      if (bloc_operation_id && besoin_operation_id) {
-        console.log(`  ♻️ FALLBACK BLOC utilisé: besoin non trouvé mais IDs parsés disponibles`);
-        const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
-        
-        assignedCount++;
-        const update: any = {
-          id: capacite.id,
-          site_id: BLOC_SITE_ID,
-          planning_genere_bloc_operatoire_id: bloc_operation_id,
-          besoin_operation_id: besoin_operation_id,
-        };
-        
-        // 🔍 DIAGNOSTIC 6: Log update préparé
-        console.log(`  📝 Update préparé (FALLBACK BLOC):`, {
-          capacite_id: capacite.id?.slice(0, 8),
-          site_id_final: BLOC_SITE_ID?.slice(0, 8),
-          planning_genere_bloc_operatoire_id: bloc_operation_id?.slice(0, 8),
-          besoin_operation_id: besoin_operation_id?.slice(0, 8)
-        });
-        
-        if (processedCapaciteIds.has(capacite.id)) {
-          console.warn(`  ⚠️ Duplicate update target: ${capacite.id?.slice(0, 8)}`);
-        }
-        processedCapaciteIds.add(capacite.id);
-        
-        updates.push(update);
-        continue;
-      }
-      
-      // For non-bloc needs, log and skip
-      if (bloc_operation_id) {
-        const blocNeeds = needs
-          .filter((n) => n.type === 'bloc_operatoire' && n.date === date)
-          .map((n) => ({ 
-            periode: n.periode, 
-            bloc_operation_id: n.bloc_operation_id, 
-            besoin_operation_id: n.besoin_operation_id,
-            nombre_max: n.nombre_max
-          }))
-          .slice(0, 10);
-        console.warn(`   🔍 Besoins BLOC connus ce jour:`, blocNeeds);
-      } else {
-        const dayNeedsForSite = needs
-          .filter((n) => n.site_id === site_id && n.date === date)
-          .map((n) => ({ periode: n.periode, type: n.type, nombre_max: n.nombre_max }))
-          .slice(0, 10);
-        console.warn(`   🔍 Besoins connus ce jour pour site ${site_id}:`, dayNeedsForSite);
-      }
       continue;
     }
 
     assignedCount++;
 
-    // Préparer l'update
     const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
     const update: any = {
       id: capacite.id,
-      site_id: site_id, // Utiliser le site_id de la variable
+      site_id: site_id,
       planning_genere_bloc_operatoire_id: null,
       besoin_operation_id: null,
     };
 
-    // ✅ Si assignation au Bloc Opératoire, remplir les IDs supplémentaires
     if (site_id === BLOC_SITE_ID) {
-      // Priorité 1 : IDs parsés de la variable
       if (bloc_operation_id) {
         update.planning_genere_bloc_operatoire_id = bloc_operation_id;
       }
@@ -295,7 +224,6 @@ export async function writeAssignments(
         update.besoin_operation_id = besoin_operation_id;
       }
       
-      // Priorité 2 : IDs du besoin trouvé (si IDs manquants)
       if (!update.planning_genere_bloc_operatoire_id && need?.bloc_operation_id) {
         update.planning_genere_bloc_operatoire_id = need.bloc_operation_id;
       }
@@ -303,40 +231,19 @@ export async function writeAssignments(
         update.besoin_operation_id = need.besoin_operation_id;
       }
       
-      console.log(`  🏥 BLOC assignation détectée: bloc_op=${update.planning_genere_bloc_operatoire_id?.slice(0,8)}, besoin_op=${update.besoin_operation_id?.slice(0,8)}`);
+      console.log(`  🏥 BLOC assignation: bloc_op=${update.planning_genere_bloc_operatoire_id?.slice(0,8)}, besoin_op=${update.besoin_operation_id?.slice(0,8)}`);
     }
 
-    // 🔍 DIAGNOSTIC 6: Log update préparé complet
-    console.log(`  📝 Update préparé:`, {
-      capacite_id: capacite.id?.slice(0, 8),
-      site_id_final: update.site_id?.slice(0, 8),
-      planning_genere_bloc_operatoire_id: update.planning_genere_bloc_operatoire_id?.slice(0, 8),
-      besoin_operation_id: update.besoin_operation_id?.slice(0, 8),
-      need_type: need?.type
-    });
-
-    if (processedCapaciteIds.has(capacite.id)) {
-      console.warn(`  ⚠️ Duplicate update target: ${capacite.id?.slice(0, 8)}`);
-    }
     processedCapaciteIds.add(capacite.id);
-
     updates.push(update);
   }
 
-  // 🔍 DIAGNOSTIC 7: Résumé avant écriture
-  console.log(`\n📝 Écriture de ${updates.length} assignations dans capacite_effective`);
-  
   const updatesWithBlocIds = updates.filter(u => u.planning_genere_bloc_operatoire_id !== null);
-  const updatesWithoutBlocIds = updates.filter(u => u.planning_genere_bloc_operatoire_id === null);
-  const distinctCapaciteIds = new Set(updates.map(u => u.id));
-  
-  console.log(`  📊 Updates avec IDs BLOC: ${updatesWithBlocIds.length}`);
-  console.log(`  📊 Updates sans IDs BLOC (sites réguliers): ${updatesWithoutBlocIds.length}`);
-  console.log(`  📊 Nombre de capacites distinctes ciblées: ${distinctCapaciteIds.size}`);
-  console.log(`  ✅ 0 inserts planifiés (UPDATE uniquement via id)`);
+  console.log(`\n📝 Écriture de ${updates.length} assignations (${updatesWithBlocIds.length} BLOC)`);
   
   // Batch update
   let successCount = 0;
+  let errorCount = 0;
   for (const update of updates) {
     const { error } = await supabase
       .from('capacite_effective')
@@ -344,42 +251,33 @@ export async function writeAssignments(
       .eq('id', update.id);
     
     if (error) {
-      console.error(`❌ Erreur lors de l'update de ${update.id}:`, error);
+      errorCount++;
+      console.error(`❌ Erreur UPDATE ${update.id?.slice(0,8)}:`, error.message);
     } else {
       successCount++;
-      // 🔍 DIAGNOSTIC 8: Log des 3 premiers updates réussis
-      if (successCount <= 3) {
-        console.log(`  ✅ UPDATE OK [${successCount}]:`, {
-          capacite_id: update.id?.slice(0, 8),
-          site_id: update.site_id?.slice(0, 8),
-          bloc_id: update.planning_genere_bloc_operatoire_id?.slice(0, 8) || 'null',
-          besoin_id: update.besoin_operation_id?.slice(0, 8) || 'null'
-        });
+      if (update.planning_genere_bloc_operatoire_id) {
+        console.log(`  ✅ BLOC UPDATE OK: capacite=${update.id?.slice(0, 8)}, bloc_op=${update.planning_genere_bloc_operatoire_id?.slice(0, 8)}`);
       }
     }
   }
   
   console.log(`\n✅ ${successCount}/${updates.length} assignations écrites avec succès`);
+  if (errorCount > 0) console.error(`❌ ${errorCount} erreurs`);
   
-  // 🔍 DIAGNOSTIC 9: Vérification post-écriture pour BLOC
+  // Vérification post-écriture
   if (updatesWithBlocIds.length > 0) {
     console.log(`\n🔬 Vérification post-écriture (échantillon BLOC)...`);
-    const sampleBlocUpdates = updatesWithBlocIds.slice(0, 3);
-    for (const update of sampleBlocUpdates) {
+    for (const update of updatesWithBlocIds.slice(0, 3)) {
       const { data: verif, error: verifError } = await supabase
         .from('capacite_effective')
         .select('id, planning_genere_bloc_operatoire_id, besoin_operation_id, site_id')
         .eq('id', update.id)
         .single();
       
-      if (verifError) {
-        console.error(`  ❌ Erreur lecture capacite ${update.id}:`, verifError);
-      } else {
-        console.log(`  🔬 Vérif capacite ${verif.id?.slice(0, 8)}:`, {
-          bloc_op: verif.planning_genere_bloc_operatoire_id?.slice(0, 8),
-          besoin_op: verif.besoin_operation_id?.slice(0, 8),
-          site_id: verif.site_id?.slice(0, 8)
-        });
+      if (!verifError && verif) {
+        const blocOk = verif.planning_genere_bloc_operatoire_id ? '✅' : '❌';
+        const besoinOk = verif.besoin_operation_id ? '✅' : '❌';
+        console.log(`  🔬 Capacite ${verif.id?.slice(0, 8)}: ${blocOk} bloc_op=${verif.planning_genere_bloc_operatoire_id?.slice(0,8) || 'NULL'}, ${besoinOk} besoin_op=${verif.besoin_operation_id?.slice(0,8) || 'NULL'}`);
       }
     }
   }

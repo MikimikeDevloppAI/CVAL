@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T20:30:00Z
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T21:45:00Z - Enhanced BLOC parsing
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
