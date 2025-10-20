@@ -251,17 +251,7 @@ export function buildMILPModelSoft(
     console.log(`  ✅ Aucune variable manquante`);
   }
 
-  // Log du modèle complet (structure)
-  console.log(`\n📄 Structure du modèle MILP:`);
-  console.log(JSON.stringify({
-    optimize: model.optimize,
-    opType: model.opType,
-    constraints_count: Object.keys(model.constraints).length,
-    variables_count: Object.keys(model.variables).length,
-    ints_count: Object.keys(model.ints).length,
-    constraints_sample: Object.keys(model.constraints).slice(0, 3),
-    variables_sample: Object.keys(model.variables).slice(0, 3)
-  }, null, 2));
+  console.log(`\n✅ Modèle MILP prêt pour résolution\n`);
   
   return model;
 }
