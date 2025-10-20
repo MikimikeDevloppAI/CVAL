@@ -131,11 +131,22 @@ export const AssignPersonnelDialog = ({
 
     try {
       setSubmitting(true);
+      
+      // Get the Bloc Opératoire site ID
+      const { data: blocSite, error: siteError } = await supabase
+        .from('sites')
+        .select('id')
+        .eq('nom', 'Clinique La Vallée - Bloc opératoire')
+        .single();
+
+      if (siteError) throw siteError;
+
       const { error } = await supabase
         .from('capacite_effective')
         .update({
           planning_genere_bloc_operatoire_id: operationId,
           besoin_operation_id: besoinId,
+          site_id: blocSite.id,
         })
         .eq('id', selectedCapaciteId);
 
