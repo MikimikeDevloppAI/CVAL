@@ -53,29 +53,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
     
     loadSitesWithClosure();
   }, []);
-  
-  const handleEditClick = (secretary: any, assignment: AssignmentResult) => {
-    setSelectedSecretary({
-      id: secretary.id,
-      nom: secretary.nom,
-      date: assignment.date,
-      periode: assignment.periode,
-      site_id: assignment.site_id,
-      site_nom: assignment.site_nom,
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleDeleteClick = (secretary: any, date: string, hasMatin: boolean, hasApresMidi: boolean) => {
-    setSecretaryToDelete({
-      id: secretary.id,
-      nom: secretary.nom,
-      date,
-      hasMatin,
-      hasApresMidi,
-    });
-    setDeleteDialogOpen(true);
-  };
 
   // Filtrer les jours ouvrés (lundi à vendredi)
   const weekdaysOnly = weekDays.filter(d => {
@@ -342,26 +319,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                             <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                               <div className="flex items-center gap-1">
                                 <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                  {onRefresh && (
-                                    <div className="ml-auto flex gap-1 flex-shrink-0">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0"
-                                        onClick={() => handleEditClick(sec, matin!)}
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0 text-destructive hover:text-destructive"
-                                        onClick={() => handleDeleteClick(sec, matin!.date, true, true)}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  )}
                               </div>
                               
                               {(sec.is_1r || sec.is_2f || sec.is_3f || sec.is_backup) && (
@@ -525,26 +482,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                               <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                                 <div className="flex items-center gap-1">
                                   <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                    {assignment && onRefresh && (
-                                      <div className="ml-auto flex gap-1 flex-shrink-0">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 w-5 p-0"
-                                          onClick={() => handleEditClick(sec, assignment)}
-                                        >
-                                          <Edit className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 w-5 p-0 text-destructive hover:text-destructive"
-                                          onClick={() => handleDeleteClick(sec, assignment.date, hasMatin, hasApresMidi)}
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    )}
                                 </div>
                                 
                                 {(sec.is_1r || sec.is_2f || sec.is_3f || sec.is_backup) && (
@@ -637,16 +574,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                           <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                             <div className="flex items-center gap-1">
                               <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                              {onRefresh && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                  onClick={() => handleEditClick(sec, matin!)}
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                              )}
                             </div>
                             
                             {sec.is_backup && (
@@ -726,16 +653,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
                             <div key={idx} className="border rounded-lg p-2 space-y-2 bg-card hover:bg-accent/5 transition-colors">
                               <div className="flex items-center gap-1">
                                 <span className="font-medium text-xs line-clamp-2">{sec.nom}</span>
-                                {assignment && onRefresh && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 ml-auto flex-shrink-0"
-                                    onClick={() => handleEditClick(sec, assignment)}
-                                  >
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                )}
                               </div>
                               
                               {sec.is_backup && (
@@ -773,37 +690,6 @@ export function MILPOptimizationView({ assignments, weekDays, specialites, onRef
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {selectedSecretary && (
-        <EditSecretaryAssignmentDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          secretaryId={selectedSecretary.id}
-          date={selectedSecretary.date}
-          period={selectedSecretary.periode}
-          siteId={selectedSecretary.site_id}
-          onSuccess={() => {
-            if (onRefresh) onRefresh();
-            setSelectedSecretary(null);
-          }}
-        />
-      )}
-
-      {secretaryToDelete && (
-        <DeleteSecretaryDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          secretaryId={secretaryToDelete.id}
-          secretaryName={secretaryToDelete.nom}
-          date={secretaryToDelete.date}
-          hasMatinAssignment={secretaryToDelete.hasMatin}
-          hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
-          onSuccess={() => {
-            onRefresh?.();
-            setSecretaryToDelete(null);
-          }}
-        />
       )}
     </div>
   );

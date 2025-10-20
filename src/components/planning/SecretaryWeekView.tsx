@@ -36,18 +36,6 @@ export function SecretaryWeekView({
   weekDays,
   onRefresh,
 }: SecretaryWeekViewProps) {
-  const handleDeleteClick = (date: string, hasMatin: boolean, hasApresMidi: boolean) => {
-    // Deletion disabled - component simplified
-  };
-      id: secretaryId,
-      nom: secretaryName,
-      date,
-      hasMatin,
-      hasApresMidi,
-    });
-    setDeleteDialogOpen(true);
-  };
-
   // Group assignments by date
   const assignmentsByDate = weekDays.map(day => {
     const dateStr = format(day, 'yyyy-MM-dd');
@@ -121,16 +109,6 @@ export function SecretaryWeekView({
                               </>
                             )}
                           </div>
-                          {onRefresh && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(dateStr, true, !!apresMidi)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -176,16 +154,6 @@ export function SecretaryWeekView({
                               </>
                             )}
                           </div>
-                          {onRefresh && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(dateStr, !!matin, true)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -203,22 +171,6 @@ export function SecretaryWeekView({
           ))}
         </div>
       </SheetContent>
-      
-      {secretaryToDelete && (
-        <DeleteSecretaryDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          secretaryId={secretaryToDelete.id}
-          secretaryName={secretaryToDelete.nom}
-          date={secretaryToDelete.date}
-          hasMatinAssignment={secretaryToDelete.hasMatin}
-          hasApresMidiAssignment={secretaryToDelete.hasApresMidi}
-          onSuccess={() => {
-            onRefresh?.();
-            onOpenChange(false);
-          }}
-        />
-      )}
     </Sheet>
   );
 }
