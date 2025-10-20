@@ -62,7 +62,12 @@ export const ReassignOperationDialog = ({
 
       if (sitesError) throw sitesError;
 
-      setSites(sitesData || []);
+      // Sort sites alphabetically
+      const sortedSites = (sitesData || []).sort((a, b) => 
+        a.nom.localeCompare(b.nom)
+      );
+
+      setSites(sortedSites);
 
       // Find bloc operatoire site ID
       const blocSite = sitesData?.find(s => s.nom === 'Clinique La Vallée - Bloc opératoire');
@@ -77,7 +82,12 @@ export const ReassignOperationDialog = ({
 
       if (typesError) throw typesError;
 
-      setTypesIntervention(typesData || []);
+      // Sort types alphabetically
+      const sortedTypes = (typesData || []).sort((a, b) => 
+        a.nom.localeCompare(b.nom)
+      );
+
+      setTypesIntervention(sortedTypes);
     } catch (error: any) {
       console.error('Erreur lors du chargement des données:', error);
       toast.error('Erreur lors du chargement des données');

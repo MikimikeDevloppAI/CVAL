@@ -146,6 +146,13 @@ export const AssignPersonnelDialog = ({
         });
       }
 
+      // Sort alphabetically by name
+      formatted.sort((a, b) => {
+        const nameA = `${a.first_name} ${a.name}`.toLowerCase();
+        const nameB = `${b.first_name} ${b.name}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
       setAvailableSecretaries(formatted);
     } catch (error) {
       console.error('Error fetching available secretaries:', error);
