@@ -40,9 +40,9 @@ export async function writeAssignments(
   const updates: any[] = [];
   let assignedCount = 0;
 
-  // Lister les variables assignées (=1)
+  // Lister les variables assignées (>0.5 pour supporter les flottants)
   const assignedVars = Object.entries(solution)
-    .filter(([k, v]) => k.startsWith('assign_') && v === 1)
+    .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
     .map(([k]) => k);
   console.log(`  🔎 Variables assignées (=1): ${assignedVars.length}`);
   
@@ -69,82 +69,61 @@ export async function writeAssignments(
 
   // Parcours des variables assignées
   for (const varName of assignedVars) {
-    // Format attendu:
-    // - Site needs: assign_{secretaire_id}_{site_id}_{date}_{periode}
-    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periode}_bloc_{bloc_operation_id}_{besoin_operation_id}
+    // Format attendu avec codes numériques:
+    // - Site needs: assign_{secretaire_id}_{site_id}_{date}_{periodCode} où periodCode = 1 ou 2
+    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periodCode}_bloc_{bloc_operation_id}_{besoin_operation_id}
     
-    // Detect period first
+    // Detect period code and convert to text
     let periode: 'matin' | 'apres_midi' | undefined;
+    let periodCode: string | undefined;
     let coreSansPeriode: string = '';
     let bloc_operation_id: string | undefined;
     let besoin_operation_id: string | undefined;
     
-    if (varName.includes('_apres_midi_bloc_')) {
-      periode = 'apres_midi';
-      // Regex plus permissif
-      const match = varName.match(/^assign_(.+?)_apres_midi_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})(?:$|_)/);
-      if (match) {
-        coreSansPeriode = match[1];
-        const uuid1 = match[2].toLowerCase();
-        const uuid2 = match[3].toLowerCase();
+    // Check for BLOC variables first (they have _bloc_ in them)
+    const isBlocVar = varName.includes('_bloc_');
+    
+    if (isBlocVar) {
+      // Extract period code from _1_bloc_ or _2_bloc_
+      const periodMatch = varName.match(/_([12])_bloc_/);
+      if (periodMatch) {
+        periodCode = periodMatch[1];
+        periode = periodCode === '1' ? 'matin' : 'apres_midi';
+        console.log(`  🔢 BLOC période détectée: code=${periodCode} → ${periode}`);
         
-        if (isUuid(uuid1) && isUuid(uuid2)) {
-          bloc_operation_id = uuid1;
-          besoin_operation_id = uuid2;
-          console.log(`  ✅ BLOC après-midi parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
+        // Extract the two UUIDs after _bloc_
+        const blocMatch = varName.match(/_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})/);
+        if (blocMatch && isUuid(blocMatch[1]) && isUuid(blocMatch[2])) {
+          bloc_operation_id = blocMatch[1].toLowerCase();
+          besoin_operation_id = blocMatch[2].toLowerCase();
+          console.log(`  ✅ BLOC parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
+          
+          // Extract core without period code and bloc part
+          const beforeBloc = varName.split(`_${periodCode}_bloc_`)[0];
+          coreSansPeriode = beforeBloc.slice('assign_'.length);
         } else {
-          console.error(`  ❌ BLOC après-midi: UUIDs invalides!`);
+          console.error(`  ❌ BLOC: UUIDs invalides dans ${varName.slice(0, 80)}...`);
+          continue;
         }
       } else {
-        console.error(`  ❌ BLOC après-midi: Format REGEX invalide! varName=${varName.slice(0, 80)}...`);
-        // Fallback
-        const parts = varName.split('_apres_midi_bloc_');
-        if (parts.length === 2) {
-          coreSansPeriode = parts[0].slice('assign_'.length);
-          const uuidMatches = parts[1].match(/([0-9a-fA-F-]{36})/g);
-          if (uuidMatches && uuidMatches.length >= 2) {
-            bloc_operation_id = uuidMatches[0].toLowerCase();
-            besoin_operation_id = uuidMatches[1].toLowerCase();
-            console.log(`    ✅ Fallback OK: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
-          }
-        }
+        console.error(`  ❌ BLOC: Code période non trouvé dans ${varName.slice(0, 80)}...`);
+        continue;
       }
-    } else if (varName.includes('_matin_bloc_')) {
-      periode = 'matin';
-      const match = varName.match(/^assign_(.+?)_matin_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})(?:$|_)/);
-      if (match) {
-        coreSansPeriode = match[1];
-        const uuid1 = match[2].toLowerCase();
-        const uuid2 = match[3].toLowerCase();
+    } else {
+      // SITE variable: extract period code from end (_1 or _2)
+      const periodMatch = varName.match(/_([12])$/);
+      if (periodMatch) {
+        periodCode = periodMatch[1];
+        periode = periodCode === '1' ? 'matin' : 'apres_midi';
+        console.log(`  🔢 SITE période détectée: code=${periodCode} → ${periode}`);
         
-        if (isUuid(uuid1) && isUuid(uuid2)) {
-          bloc_operation_id = uuid1;
-          besoin_operation_id = uuid2;
-          console.log(`  ✅ BLOC matin parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
-        } else {
-          console.error(`  ❌ BLOC matin: UUIDs invalides!`);
-        }
+        // Remove period code to get core
+        const core = varName.slice('assign_'.length);
+        coreSansPeriode = core.slice(0, -2); // Remove _1 or _2
       } else {
-        console.error(`  ❌ BLOC matin: Format REGEX invalide!`);
-        const parts = varName.split('_matin_bloc_');
-        if (parts.length === 2) {
-          coreSansPeriode = parts[0].slice('assign_'.length);
-          const uuidMatches = parts[1].match(/([0-9a-fA-F-]{36})/g);
-          if (uuidMatches && uuidMatches.length >= 2) {
-            bloc_operation_id = uuidMatches[0].toLowerCase();
-            besoin_operation_id = uuidMatches[1].toLowerCase();
-            console.log(`    ✅ Fallback OK: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
-          }
-        }
+        console.warn(`⚠️ SITE: Code période non trouvé dans ${varName}`);
+        continue;
       }
-    } else if (varName.endsWith('_apres_midi')) {
-      periode = 'apres_midi';
-      const core = varName.slice('assign_'.length);
-      coreSansPeriode = core.slice(0, -('_apres_midi').length);
-    } else if (varName.endsWith('_matin')) {
-      periode = 'matin';
-      const core = varName.slice('assign_'.length);
-      coreSansPeriode = core.slice(0, -('_matin').length);
     }
 
     if (!periode || !coreSansPeriode) {

@@ -68,10 +68,11 @@ export function buildMILPModelSoft(
     
     try {
       const need = needs[needIndex];
-      // Create unique need ID - for bloc include BOTH bloc_operation_id AND besoin_operation_id
+      // Create unique need ID with numeric period code (1=matin, 2=apres_midi)
+      const periodCode = need.periode === 'matin' ? '1' : '2';
       const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-        ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
-        : `${need.site_id}_${need.date}_${need.periode}`;
+        ? `${need.site_id}_${need.date}_${periodCode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
+        : `${need.site_id}_${need.date}_${periodCode}`;
       
       // 🔍 LOG DÉTAILLÉ POUR CHAQUE BESOIN
       console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
@@ -260,9 +261,10 @@ export function buildMILPModelSoft(
   console.log(`\n📏 Contraintes par besoin individuel...`);
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
     const need = needs[needIndex];
+    const periodCode = need.periode === 'matin' ? '1' : '2';
     const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
-      : `${need.site_id}_${need.date}_${need.periode}`;
+      ? `${need.site_id}_${need.date}_${periodCode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
+      : `${need.site_id}_${need.date}_${periodCode}`;
     
     const constraintName = `max_need_${needId}`;
     model.constraints[constraintName] = { max: need.nombre_max };
@@ -331,9 +333,10 @@ export function buildMILPModelSoft(
   
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
     const need = needs[needIndex];
+    const periodCode = need.periode === 'matin' ? '1' : '2';
     const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
-      : `${need.site_id}_${need.date}_${need.periode}`;
+      ? `${need.site_id}_${need.date}_${periodCode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
+      : `${need.site_id}_${need.date}_${periodCode}`;
     
     for (const cap of todayCapacites) {
       if (!cap.secretaire_id || cap.demi_journee !== need.periode) continue;
@@ -384,11 +387,11 @@ export function buildMILPModelSoft(
       
       for (const cap of todayCapacites.filter(c => c.secretaire_id)) {
         const morningNeedId = morningNeed.type === 'bloc_operatoire' && morningNeed.bloc_operation_id && morningNeed.besoin_operation_id
-          ? `${site.id}_${date}_matin_bloc_${morningNeed.bloc_operation_id}_${morningNeed.besoin_operation_id}`
-          : `${site.id}_${date}_matin`;
+          ? `${site.id}_${date}_1_bloc_${morningNeed.bloc_operation_id}_${morningNeed.besoin_operation_id}`
+          : `${site.id}_${date}_1`;
         const afternoonNeedId = afternoonNeed.type === 'bloc_operatoire' && afternoonNeed.bloc_operation_id && afternoonNeed.besoin_operation_id
-          ? `${site.id}_${date}_apres_midi_bloc_${afternoonNeed.bloc_operation_id}_${afternoonNeed.besoin_operation_id}`
-          : `${site.id}_${date}_apres_midi`;
+          ? `${site.id}_${date}_2_bloc_${afternoonNeed.bloc_operation_id}_${afternoonNeed.besoin_operation_id}`
+          : `${site.id}_${date}_2`;
         
         const morningVar = `assign_${cap.secretaire_id}_${morningNeedId}`;
         const afternoonVar = `assign_${cap.secretaire_id}_${afternoonNeedId}`;

@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T21:45:00Z - Enhanced BLOC parsing
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T22:10:00Z - Numeric period codes (1=matin, 2=apres_midi)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
@@ -276,7 +276,7 @@ async function optimizeSingleWeek(
       }
       
       const assignedVars = Object.entries(solution)
-        .filter(([k, v]) => k.startsWith('assign_') && v === 1)
+        .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
         .map(([k]) => k);
       console.log(`  ✅ ${assignedVars.length} assignations trouvées (score: ${solution.result})`);
       
@@ -324,7 +324,7 @@ async function optimizeSingleWeek(
       continue;
     }
     
-    const assignedCount = Object.entries(solution).filter(([key, value]) => key.startsWith('assign_') && value === 1).length;
+    const assignedCount = Object.entries(solution).filter(([key, value]) => key.startsWith('assign_') && Number(value) > 0.5).length;
     console.log(`\n✅ Solution trouvée!`);
     console.log(`  🏆 Score total: ${solution.result}`);
     console.log(`  📊 Assignations: ${assignedCount}`);
@@ -356,7 +356,7 @@ async function optimizeSingleWeek(
       let assignedForSlot = 0;
       for (const [varName, value] of Object.entries(solution)) {
         if (!varName.startsWith('assign_')) continue;
-        if (value !== 1) continue;
+        if (Number(value) <= 0.5) continue;
         
         // Check if this variable is for this slot
         if (varName.includes(slotKey)) {
