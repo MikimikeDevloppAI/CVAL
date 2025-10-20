@@ -230,63 +230,81 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {types.map((type) => (
-          <Card key={type.id}>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>{type.nom}</CardTitle>
-                  <CardDescription>{type.code}</CardDescription>
-                  {type.salle_preferentielle && (
-                    <div className="mt-2">
-                      <span className={`px-2 py-1 rounded border text-xs ${getSalleColor(type.salle_preferentielle)}`}>
-                        {getSalleName(type.salle_preferentielle)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => openBesoinsDialog(type)}>
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(type)}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setTypeToDelete(type.id);
-                      setDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+          <div
+            key={type.id}
+            className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <h4 className="font-semibold text-lg">{type.nom}</h4>
+                <p className="text-sm text-muted-foreground mb-2">{type.code}</p>
+                {type.salle_preferentielle && (
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(type.salle_preferentielle)}`}>
+                    Salle: {getSalleName(type.salle_preferentielle)}
+                  </span>
+                )}
               </div>
-            </CardHeader>
+              <div className="flex gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => openBesoinsDialog(type)}
+                  className="h-8 w-8"
+                  title="Configurer les besoins"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => openEditDialog(type)}
+                  className="h-8 w-8"
+                  title="Modifier"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setTypeToDelete(type.id);
+                    setDeleteDialogOpen(true);
+                  }}
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  title="Supprimer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
             {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
-              <CardContent>
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-2">Besoins en personnel:</p>
                 <div className="flex flex-wrap gap-2">
                   {type.types_intervention_besoins_personnel.map((besoin, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs bg-secondary rounded">
+                    <span 
+                      key={idx} 
+                      className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-md font-medium"
+                    >
                       {besoin.besoins_operations?.nom || 'N/A'}: {besoin.nombre_requis}
                     </span>
                   ))}
                 </div>
-              </CardContent>
+              </div>
             )}
-          </Card>
-        ))}
-
-        {types.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            Aucun type d'intervention configuré
           </div>
-        )}
+        ))}
       </div>
+
+      {types.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          Aucun type d'intervention configuré
+        </div>
+      )}
 
       <ConfigurationsMultiFluxManagement />
 

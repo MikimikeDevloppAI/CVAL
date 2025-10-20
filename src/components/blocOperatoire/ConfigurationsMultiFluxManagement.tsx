@@ -297,30 +297,33 @@ export function ConfigurationsMultiFluxManagement() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="double_flux">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="double_flux">Double Flux</TabsTrigger>
-          <TabsTrigger value="triple_flux">Triple Flux</TabsTrigger>
+        <TabsList className="w-full bg-muted/50">
+          <TabsTrigger value="double_flux" className="flex-1">Double Flux</TabsTrigger>
+          <TabsTrigger value="triple_flux" className="flex-1">Triple Flux</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="double_flux" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Configurations Double Flux</h3>
-            <Button onClick={() => openAddDialog('double_flux')}>
-              <Plus className="h-4 w-4 mr-2" />
+        <TabsContent value="double_flux" className="space-y-4 mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-foreground">Configurations Double Flux</h3>
+            <Button onClick={() => openAddDialog('double_flux')} className="gap-2">
+              <Plus className="h-4 w-4" />
               Ajouter
             </Button>
           </div>
 
-          {configurations.filter(c => c.type_flux === 'double_flux').map((config) => (
-            <Card key={config.id}>
-              <CardHeader>
-                <div className="flex justify-between items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {configurations.filter(c => c.type_flux === 'double_flux').map((config) => (
+              <div
+                key={config.id}
+                className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+              >
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <CardTitle>{config.nom}</CardTitle>
-                    <CardDescription>{config.code}</CardDescription>
+                    <h4 className="font-semibold text-lg">{config.nom}</h4>
+                    <p className="text-sm text-muted-foreground">{config.code}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)}>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
@@ -330,47 +333,55 @@ export function ConfigurationsMultiFluxManagement() {
                         setConfigToDelete(config.id);
                         setDeleteDialogOpen(true);
                       }}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="font-medium">{interv.type_intervention.nom}</div>
-                      <span className={`px-2 py-1 rounded border text-xs ${getSalleColor(interv.salle)}`}>
+                    <div key={idx} className="p-3 bg-muted/30 rounded-lg border border-border/30">
+                      <div className="text-sm font-medium mb-2">{interv.type_intervention.nom}</div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
                         {getSalleName(interv.salle)}
                       </span>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            ))}
+          </div>
+
+          {configurations.filter(c => c.type_flux === 'double_flux').length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              Aucune configuration double flux
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="triple_flux" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Configurations Triple Flux</h3>
-            <Button onClick={() => openAddDialog('triple_flux')}>
-              <Plus className="h-4 w-4 mr-2" />
+        <TabsContent value="triple_flux" className="space-y-4 mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-foreground">Configurations Triple Flux</h3>
+            <Button onClick={() => openAddDialog('triple_flux')} className="gap-2">
+              <Plus className="h-4 w-4" />
               Ajouter
             </Button>
           </div>
 
-          {configurations.filter(c => c.type_flux === 'triple_flux').map((config) => (
-            <Card key={config.id}>
-              <CardHeader>
-                <div className="flex justify-between items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {configurations.filter(c => c.type_flux === 'triple_flux').map((config) => (
+              <div
+                key={config.id}
+                className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+              >
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <CardTitle>{config.nom}</CardTitle>
-                    <CardDescription>{config.code}</CardDescription>
+                    <h4 className="font-semibold text-lg">{config.nom}</h4>
+                    <p className="text-sm text-muted-foreground">{config.code}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)}>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
@@ -380,26 +391,33 @@ export function ConfigurationsMultiFluxManagement() {
                         setConfigToDelete(config.id);
                         setDeleteDialogOpen(true);
                       }}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="font-medium">{interv.type_intervention.nom}</div>
-                      <span className={`px-2 py-1 rounded border text-xs ${getSalleColor(interv.salle)}`}>
+                    <div key={idx} className="p-2 bg-muted/30 rounded-lg border border-border/30">
+                      <div className="text-xs font-medium mb-2 truncate" title={interv.type_intervention.nom}>
+                        {interv.type_intervention.nom}
+                      </div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
                         {getSalleName(interv.salle)}
                       </span>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            ))}
+          </div>
+
+          {configurations.filter(c => c.type_flux === 'triple_flux').length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              Aucune configuration triple flux
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
