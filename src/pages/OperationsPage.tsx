@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { OperationDayCard } from '@/components/operations/OperationDayCard';
 import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
-import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronLeft, ChevronRight, Calendar, Settings } from 'lucide-react';
 
@@ -247,11 +246,6 @@ const OperationsPage = () => {
           <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-6 shadow-lg">
             <h2 className="text-2xl font-semibold text-foreground mb-6">Types d'intervention</h2>
             <TypesInterventionManagement />
-          </div>
-          
-          <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-6 shadow-lg">
-            <h2 className="text-2xl font-semibold text-foreground mb-6">Configurations Multi-flux</h2>
-            <ConfigurationsMultiFluxManagement />
           </div>
         </div>
       )}
