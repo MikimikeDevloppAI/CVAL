@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Stethoscope, Users, MapPin } from 'lucide-react';
+import { Stethoscope, Users, MapPin, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { AssignPersonnelDialog } from './AssignPersonnelDialog';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 
 interface Operation {
   id: string;
@@ -58,6 +69,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
   const [changeSalleOpen, setChangeSalleOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedBesoin, setSelectedBesoin] = useState<{ id: string; nom: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchBesoins();
@@ -113,7 +125,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
     
     const name = salleName.toLowerCase();
     if (name.includes('rouge')) return 'bg-red-100 text-red-700 border-red-300';
-    if (name.includes('verte')) return 'bg-green-100 text-green-700 border-green-300';
+    if (name.includes('vert')) return 'bg-green-100 text-green-700 border-green-300';
     if (name.includes('jaune')) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
     return 'bg-muted text-muted-foreground border-muted';
   };
@@ -148,25 +160,85 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
     setAssignDialogOpen(true);
   };
 
+  const handleDeleteOperation = async () => {
+    try {
+      // Récupérer le besoin_effectif_id avant de supprimer
+      const { data: planningData, error: fetchError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select('besoin_effectif_id')
+        .eq('id', operation.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Réinitialiser les capacites_effective liées à cette opération
+      const { error: capaciteError } = await supabase
+        .from('capacite_effective')
+        .update({
+          planning_genere_bloc_operatoire_id: null,
+          besoin_operation_id: null,
+          site_id: '00000000-0000-0000-0000-000000000001'
+        })
+        .eq('planning_genere_bloc_operatoire_id', operation.id);
+
+      if (capaciteError) throw capaciteError;
+
+      // Supprimer le planning_genere_bloc_operatoire
+      const { error: planningError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .delete()
+        .eq('id', operation.id);
+
+      if (planningError) throw planningError;
+
+      // Supprimer le besoin_effectif si présent
+      if (planningData?.besoin_effectif_id) {
+        const { error: besoinError } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', planningData.besoin_effectif_id);
+
+        if (besoinError) throw besoinError;
+      }
+
+      toast.success('Opération supprimée avec succès');
+      setDeleteDialogOpen(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error deleting operation:', error);
+      toast.error('Erreur lors de la suppression de l\'opération');
+    }
+  };
+
   return (
     <>
       <div className="rounded-lg border border-border p-3 space-y-3 bg-transparent hover:shadow-md transition-shadow">
-        {/* Period and Room */}
+        {/* Period, Room and Delete */}
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-muted-foreground">
             {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}
           </span>
-          <Badge
-            variant="outline"
-            className={cn(
-              "cursor-pointer hover:opacity-80 transition-opacity font-medium text-xs",
-              getSalleColor(operation.salles_operation?.name || null)
-            )}
-            onClick={() => setChangeSalleOpen(true)}
-          >
-            <MapPin className="h-3 w-3 mr-1" />
-            {operation.salles_operation?.name || 'Non assignée'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "cursor-pointer hover:opacity-80 transition-opacity font-medium text-xs",
+                getSalleColor(operation.salles_operation?.name || null)
+              )}
+              onClick={() => setChangeSalleOpen(true)}
+            >
+              <MapPin className="h-3 w-3 mr-1" />
+              {operation.salles_operation?.name || 'Non assignée'}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
 
         {/* Doctor */}
@@ -256,6 +328,27 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
           }}
         />
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette opération ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action supprimera l'opération du {operation.types_intervention.code} du Dr. {operation.medecins?.first_name} {operation.medecins?.name}.
+              Le personnel assigné sera libéré et repassera en disponible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteOperation}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
