@@ -190,7 +190,7 @@ export const ReassignOperationDialog = ({
                 <SelectContent>
                   {typesIntervention.map((type) => (
                     <SelectItem key={type.id} value={type.id}>
-                      {type.code} - {type.nom}
+                      {type.nom}
                     </SelectItem>
                   ))}
                 </SelectContent>
