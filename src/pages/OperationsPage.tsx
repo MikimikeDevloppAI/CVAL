@@ -39,6 +39,7 @@ const OperationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'planning' | 'configuration'>('planning');
   const [addOperationOpen, setAddOperationOpen] = useState(false);
+  const [weekOptions, setWeekOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1, locale: fr });
   const weekDays = eachDayOfInterval({ 
@@ -46,14 +47,53 @@ const OperationsPage = () => {
     end: addWeeks(weekStart, 1) 
   }).slice(0, 5); // Lundi à Vendredi
 
-  // Generate 8 weeks: 4 past, current, 3 future
-  const weekOptions = Array.from({ length: 8 }, (_, i) => {
-    const weekDate = addWeeks(startOfWeek(new Date(), { weekStartsOn: 1, locale: fr }), i - 4);
-    return {
-      value: format(weekDate, 'yyyy-MM-dd'),
-      label: `Semaine du ${format(weekDate, 'd MMM yyyy', { locale: fr })}`
-    };
-  });
+  useEffect(() => {
+    generateWeekOptions();
+  }, []);
+
+  const generateWeekOptions = async () => {
+    try {
+      // Get max date from besoin_effectif
+      const { data: maxDateData, error: maxDateError } = await supabase
+        .from('besoin_effectif')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (maxDateError) throw maxDateError;
+
+      const maxDate = maxDateData?.date ? new Date(maxDateData.date) : addWeeks(new Date(), 12);
+      const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1, locale: fr });
+      const maxWeekStart = startOfWeek(maxDate, { weekStartsOn: 1, locale: fr });
+
+      // Calculate number of weeks from current to max
+      const weeksCount = Math.ceil((maxWeekStart.getTime() - currentWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
+      // Generate weeks from current week to max week
+      const options = Array.from({ length: weeksCount }, (_, i) => {
+        const weekDate = addWeeks(currentWeekStart, i);
+        return {
+          value: format(weekDate, 'yyyy-MM-dd'),
+          label: `Semaine du ${format(weekDate, 'd MMM yyyy', { locale: fr })}`
+        };
+      });
+
+      setWeekOptions(options);
+    } catch (error) {
+      console.error('Error generating week options:', error);
+      // Fallback: generate 12 weeks from now
+      const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1, locale: fr });
+      const options = Array.from({ length: 12 }, (_, i) => {
+        const weekDate = addWeeks(currentWeekStart, i);
+        return {
+          value: format(weekDate, 'yyyy-MM-dd'),
+          label: `Semaine du ${format(weekDate, 'd MMM yyyy', { locale: fr })}`
+        };
+      });
+      setWeekOptions(options);
+    }
+  };
 
   useEffect(() => {
     fetchOperations();
