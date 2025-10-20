@@ -283,7 +283,6 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
             
             {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
               <div className="mt-3 pt-3 border-t border-border/50">
-                <p className="text-xs text-muted-foreground mb-2">Besoins en personnel:</p>
                 <div className="flex flex-wrap gap-2">
                   {type.types_intervention_besoins_personnel.map((besoin, idx) => (
                     <span 
