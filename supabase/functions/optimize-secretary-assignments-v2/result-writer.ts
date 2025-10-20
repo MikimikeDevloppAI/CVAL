@@ -70,27 +70,47 @@ export async function writeAssignments(
     
     if (varName.includes('_apres_midi_bloc_')) {
       periode = 'apres_midi';
-      const parts = varName.split('_apres_midi_bloc_');
-      coreSansPeriode = parts[0].slice('assign_'.length);
-      // Extract bloc_operation_id and besoin_operation_id
-      const blocParts = parts[1].split('_');
-      if (blocParts.length >= 2) {
-        bloc_operation_id = blocParts[0];
-        besoin_operation_id = blocParts[1];
+      // Format: assign_{sec_id}_{site_id}_{date}_apres_midi_bloc_{bloc_uuid}_{besoin_uuid}
+      const match = varName.match(/^assign_(.+)_apres_midi_bloc_([0-9a-f-]{36})_([0-9a-f-]{36})$/);
+      if (match) {
+        coreSansPeriode = match[1];
+        bloc_operation_id = match[2];
+        besoin_operation_id = match[3];
+        console.log(`  🔍 BLOC après-midi parsé: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
       } else {
-        besoin_operation_id = parts[1]; // fallback for old format
+        console.warn(`  ⚠️ Format BLOC après-midi invalide: ${varName}`);
+        // Fallback ancien parsing
+        const parts = varName.split('_apres_midi_bloc_');
+        coreSansPeriode = parts[0].slice('assign_'.length);
+        const blocParts = parts[1].split('_');
+        if (blocParts.length >= 2) {
+          bloc_operation_id = blocParts[0];
+          besoin_operation_id = blocParts[1];
+        } else {
+          besoin_operation_id = parts[1];
+        }
       }
     } else if (varName.includes('_matin_bloc_')) {
       periode = 'matin';
-      const parts = varName.split('_matin_bloc_');
-      coreSansPeriode = parts[0].slice('assign_'.length);
-      // Extract bloc_operation_id and besoin_operation_id
-      const blocParts = parts[1].split('_');
-      if (blocParts.length >= 2) {
-        bloc_operation_id = blocParts[0];
-        besoin_operation_id = blocParts[1];
+      // Format: assign_{sec_id}_{site_id}_{date}_matin_bloc_{bloc_uuid}_{besoin_uuid}
+      const match = varName.match(/^assign_(.+)_matin_bloc_([0-9a-f-]{36})_([0-9a-f-]{36})$/);
+      if (match) {
+        coreSansPeriode = match[1];
+        bloc_operation_id = match[2];
+        besoin_operation_id = match[3];
+        console.log(`  🔍 BLOC matin parsé: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
       } else {
-        besoin_operation_id = parts[1]; // fallback for old format
+        console.warn(`  ⚠️ Format BLOC matin invalide: ${varName}`);
+        // Fallback ancien parsing
+        const parts = varName.split('_matin_bloc_');
+        coreSansPeriode = parts[0].slice('assign_'.length);
+        const blocParts = parts[1].split('_');
+        if (blocParts.length >= 2) {
+          bloc_operation_id = blocParts[0];
+          besoin_operation_id = blocParts[1];
+        } else {
+          besoin_operation_id = parts[1];
+        }
       }
     } else if (varName.endsWith('_apres_midi')) {
       periode = 'apres_midi';
