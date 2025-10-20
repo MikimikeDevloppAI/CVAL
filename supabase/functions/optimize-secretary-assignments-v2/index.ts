@@ -288,7 +288,7 @@ serve(async (req) => {
     }
 
     console.log(`\n========================================`);
-    console.log(`🎯 OPTIMISATION MILP V2`);
+    console.log(`🎯 OPTIMISATION MILP V2 - Build ${new Date().toISOString()}`);
     console.log(`📅 Dates à optimiser: ${dates.length} jour(s)`);
     console.log(`========================================\n`);
 
