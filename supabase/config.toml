@@ -1,3 +1,5 @@
+project_id = "xvuugxjseavbxpxhfprb"
+
 [functions.optimize-planning-milp-unified]
 verify_jwt = false
 
@@ -17,4 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.assign-closing-responsibles]
+verify_jwt = false
+
+[functions.optimize-secretary-assignments-v2]
 verify_jwt = false
