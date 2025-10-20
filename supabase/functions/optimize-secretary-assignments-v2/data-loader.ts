@@ -105,6 +105,27 @@ export async function loadWeekData(
   console.log(`  ✅ Besoins effectifs : ${besoinsEffRes.data?.length}`);
   console.log(`  ✅ Planning bloc : ${planningBlocRes.data?.length}`);
   console.log(`  ✅ Types intervention besoins : ${typesIntervRes.data?.length}`);
+  
+  // 🔍 DIAGNOSTIC: Compétences BLOC disponibles
+  console.log(`\n🔍 DIAGNOSTIC Compétences BLOC (secretaires_besoins_operations):`);
+  const secBesoins = secBesoinsRes.data || [];
+  if (secBesoins.length === 0) {
+    console.warn(`  ⚠️ AUCUNE compétence trouvée dans secretaires_besoins_operations!`);
+  } else {
+    // Grouper par besoin_operation_id
+    const byBesoinOp = new Map<string, string[]>();
+    secBesoins.forEach((sb: any) => {
+      if (!byBesoinOp.has(sb.besoin_operation_id)) {
+        byBesoinOp.set(sb.besoin_operation_id, []);
+      }
+      byBesoinOp.get(sb.besoin_operation_id)!.push(sb.secretaire_id);
+    });
+    
+    console.log(`  📊 Compétences par besoin_operation_id:`);
+    Array.from(byBesoinOp.entries()).slice(0, 5).forEach(([besoinId, secIds]) => {
+      console.log(`    ${besoinId.slice(0,8)}: ${secIds.length} secrétaires → [${secIds.slice(0,3).map(id => id.slice(0,8)).join(', ')}...]`);
+    });
+  }
 
   return {
     secretaires: secretairesRes.data || [],

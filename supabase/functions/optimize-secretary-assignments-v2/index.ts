@@ -96,6 +96,14 @@ function calculateNeeds(
   // ============================================================
   // 2. BLOC NEEDS (from planning_genere_bloc_operatoire)
   // ============================================================
+  console.log(`\n🏥 Diagnostic planning_bloc pour ce jour:`);
+  console.log(`  📋 Entrées planning_bloc: ${planning_bloc.length}`);
+  planning_bloc.forEach((bloc, idx) => {
+    if (idx < 3) {
+      console.log(`    [${idx+1}] id=${bloc.id?.slice(0,8)}, type_intervention=${bloc.type_intervention_id?.slice(0,8)}, periode=${bloc.periode}`);
+    }
+  });
+  
   const blocSite = sites.find(s => 
     s.nom.toLowerCase().includes('bloc') && 
     s.nom.toLowerCase().includes('opératoire')
@@ -103,6 +111,8 @@ function calculateNeeds(
   
   if (!blocSite) {
     console.warn('⚠️ Site "Bloc opératoire" non trouvé');
+  } else {
+    console.log(`  ✅ Site bloc trouvé: ${blocSite.id.slice(0,8)} - ${blocSite.nom}`);
   }
   
   for (const bloc of planning_bloc) {

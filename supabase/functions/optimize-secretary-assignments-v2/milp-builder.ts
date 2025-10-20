@@ -58,6 +58,52 @@ export function buildMILPModelSoft(
   };
   
   // ============================================================
+  // 🔍 DIAGNOSTIC BLOC AVANT CONSTRUCTION
+  // ============================================================
+  const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire');
+  if (blocNeeds.length > 0) {
+    console.log(`\n🔬 DIAGNOSTIC BESOINS BLOC (${blocNeeds.length} besoins):`);
+    
+    // 1. Liste des besoin_operation_id requis
+    const requiredBesoinIds = new Set<string>();
+    blocNeeds.forEach(need => {
+      if (need.besoin_operation_id) {
+        requiredBesoinIds.add(need.besoin_operation_id);
+      }
+    });
+    console.log(`  📋 besoin_operation_id requis: [${Array.from(requiredBesoinIds).map(id => id.slice(0,8)).join(', ')}]`);
+    
+    // 2. Compétences disponibles
+    const availableCompetences = new Map<string, Set<string>>();
+    week_data.secretaires_besoins.forEach((sb: any) => {
+      if (!availableCompetences.has(sb.besoin_operation_id)) {
+        availableCompetences.set(sb.besoin_operation_id, new Set());
+      }
+      availableCompetences.get(sb.besoin_operation_id)!.add(sb.secretaire_id);
+    });
+    
+    console.log(`  🎓 Compétences disponibles (${availableCompetences.size} besoin_operation_id):`);
+    if (availableCompetences.size === 0) {
+      console.error(`    ❌ AUCUNE compétence trouvée dans secretaires_besoins!`);
+    } else {
+      Array.from(availableCompetences.entries()).slice(0,5).forEach(([besoinId, secIds]) => {
+        console.log(`    ${besoinId.slice(0,8)}: ${secIds.size} secrétaires → [${Array.from(secIds).slice(0,3).map(id => id.slice(0,8)).join(', ')}]`);
+      });
+    }
+    
+    // 3. Vérifier les correspondances
+    console.log(`  🔍 Correspondances besoin ↔ compétences:`);
+    requiredBesoinIds.forEach(besoinId => {
+      const competents = availableCompetences.get(besoinId);
+      if (!competents || competents.size === 0) {
+        console.error(`    ❌ ${besoinId.slice(0,8)}: AUCUNE secrétaire compétente trouvée!`);
+      } else {
+        console.log(`    ✅ ${besoinId.slice(0,8)}: ${competents.size} secrétaires OK`);
+      }
+    });
+  }
+  
+  // ============================================================
   // VARIABLES AND COEFFICIENTS
   // ============================================================
   let variableCount = 0;
@@ -92,16 +138,27 @@ export function buildMILPModelSoft(
     
     // 🎓 Pour les besoins BLOC: comptage des secrétaires compétentes
     if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
+      console.log(`\n  🔬 DIAGNOSTIC ELIGIBILITÉ BLOC pour besoin_operation_id=${need.besoin_operation_id?.slice(0,8)}:`);
+      
       const competents = new Set(
         week_data.secretaires_besoins
           .filter((sb: any) => sb.besoin_operation_id === need.besoin_operation_id)
           .map((sb: any) => sb.secretaire_id)
       );
+      console.log(`    📊 Secrétaires compétentes (secretaires_besoins): ${competents.size}`);
+      console.log(`       Exemples: [${Array.from(competents).slice(0,3).map(id => id.slice(0,8)).join(', ')}]`);
+      
       const eligibleByCompetence = periodCaps.filter(c => competents.has(c.secretaire_id));
-      console.log(`    🎓 Compétences pour besoin_op ${need.besoin_operation_id?.slice(0,8)}:`);
-      console.log(`       - Total compétents (toutes périodes): ${competents.size}`);
-      console.log(`       - Éligibles ce jour (période ${need.periode}): ${eligibleByCompetence.length}`);
-      console.log(`       - Exemples compétents:`, Array.from(competents).slice(0, 3).map((id: any) => id.slice(0,8)));
+      console.log(`    📊 Capacités avec compétence et bonne période: ${eligibleByCompetence.length}`);
+      
+      if (eligibleByCompetence.length === 0) {
+        console.error(`    ❌ AUCUNE capacité éligible trouvée pour ce besoin BLOC!`);
+        if (competents.size === 0) {
+          console.error(`       → Raison: Aucune secrétaire n'a la compétence pour ce besoin_operation_id`);
+        } else {
+          console.error(`       → Raison: Les secrétaires compétentes n'ont pas de capacité pour cette période`);
+        }
+      }
     } else if (need.type === 'site') {
       // 🏢 Pour les besoins SITE: comptage des secrétaires membres du site
       const siteMembersInPeriod = periodCaps.filter(c => 
