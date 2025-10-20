@@ -283,14 +283,14 @@ export function ConfigurationsMultiFluxManagement() {
     const salleName = getSalleName(salle);
     switch (salleName.toLowerCase()) {
       case 'rouge':
-        return 'bg-red-100 text-red-800 border-red-300';
+        return 'bg-red-50 text-red-700 border border-red-200';
       case 'jaune':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
       case 'vert':
       case 'verte':
-        return 'bg-green-100 text-green-800 border-green-300';
+        return 'bg-green-50 text-green-700 border border-green-200';
       default:
-        return 'bg-muted text-muted-foreground';
+        return 'bg-muted/50 text-muted-foreground border border-border/50';
     }
   };
 

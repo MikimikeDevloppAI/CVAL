@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Settings, Edit2, Trash2 } from "lucide-react";
+import { Plus, Settings, Edit2, Trash2, MapPin } from "lucide-react";
 import { TypeInterventionBesoinsForm } from "./TypeInterventionBesoinsForm";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
 import { ConfigurationsMultiFluxManagement } from "./ConfigurationsMultiFluxManagement";
@@ -214,14 +214,14 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
 
     switch (salleName.toLowerCase()) {
       case 'rouge':
-        return 'bg-red-100 text-red-800 border-red-300';
+        return 'bg-red-50 text-red-700 border border-red-200';
       case 'jaune':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
       case 'verte':
       case 'vert':
-        return 'bg-green-100 text-green-800 border-green-300';
+        return 'bg-green-50 text-green-700 border border-green-200';
       default:
-        return 'bg-muted text-muted-foreground';
+        return 'bg-muted/50 text-muted-foreground border border-border/50';
     }
   };
 
@@ -230,112 +230,130 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {types.map((type) => (
+        {types.map((type, index) => (
           <div
             key={type.id}
-            className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+            className="group rounded-xl overflow-hidden bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm border border-border/50 hover:border-primary/30 hover:shadow-xl transition-all duration-300 animate-fade-in"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex-1">
-                <h4 className="font-semibold text-lg">{type.nom}</h4>
-                <p className="text-sm text-muted-foreground mb-2">{type.code}</p>
-                {type.salle_preferentielle && (
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(type.salle_preferentielle)}`}>
-                    Salle: {getSalleName(type.salle_preferentielle)}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-1">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => openBesoinsDialog(type)}
-                  className="h-8 w-8"
-                  title="Configurer les besoins"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => openEditDialog(type)}
-                  className="h-8 w-8"
-                  title="Modifier"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setTypeToDelete(type.id);
-                    setDeleteDialogOpen(true);
-                  }}
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  title="Supprimer"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            
-            {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/50">
-                <div className="flex flex-wrap gap-2">
-                  {type.types_intervention_besoins_personnel.map((besoin, idx) => (
-                    <span 
-                      key={idx} 
-                      className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-md font-medium"
-                    >
-                      {besoin.besoins_operations?.nom || 'N/A'}: {besoin.nombre_requis}
+            <div className="p-5 space-y-4">
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div className="flex-1 space-y-2">
+                  <h4 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">{type.nom}</h4>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wide">
+                      {type.code}
                     </span>
-                  ))}
+                    {type.salle_preferentielle && (
+                      <span className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${getSalleColor(type.salle_preferentielle)}`}>
+                        <MapPin className="h-3 w-3" />
+                        {getSalleName(type.salle_preferentielle)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => openBesoinsDialog(type)}
+                    className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
+                    title="Configurer les besoins"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => openEditDialog(type)}
+                    className="h-9 w-9 hover:bg-primary/10 hover:text-primary transition-colors"
+                    title="Modifier"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setTypeToDelete(type.id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            )}
+              
+              {/* Besoins en personnel */}
+              {type.types_intervention_besoins_personnel && type.types_intervention_besoins_personnel.length > 0 && (
+                <div className="pt-3 border-t border-border/30">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Personnel requis</p>
+                  <div className="flex flex-wrap gap-2">
+                    {type.types_intervention_besoins_personnel.map((besoin, idx) => (
+                      <div 
+                        key={idx} 
+                        className="px-3 py-1.5 rounded-lg bg-card border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200"
+                      >
+                        <span className="text-xs font-medium text-foreground">
+                          {besoin.besoins_operations?.nom || 'N/A'}
+                        </span>
+                        <span className="ml-2 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-bold">
+                          {besoin.nombre_requis}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
 
       {types.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          Aucun type d'intervention configuré
+        <div className="text-center py-16 rounded-xl bg-card/30 backdrop-blur-sm border border-dashed border-border/50">
+          <p className="text-muted-foreground text-sm">Aucun type d'intervention configuré</p>
         </div>
       )}
 
       <ConfigurationsMultiFluxManagement />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingType ? 'Modifier' : 'Ajouter'} un type d'intervention</DialogTitle>
+            <DialogTitle className="text-xl font-bold">{editingType ? 'Modifier' : 'Ajouter'} un type d'intervention</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Nom</label>
+          <form onSubmit={handleSubmit} className="space-y-5 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Nom</label>
               <Input
                 value={formData.nom}
                 onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                 placeholder="Ex: Arthroscopie"
+                className="h-11"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium block mb-2">Code</label>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Code</label>
               <Input
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                 placeholder="Ex: ARTH"
+                className="h-11"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium block mb-2">Salle préférentielle</label>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Salle préférentielle</label>
               <Select
                 value={formData.salle_preferentielle || ''}
                 onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value || null })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Sélectionner une salle" />
                 </SelectTrigger>
                 <SelectContent>
@@ -348,11 +366,11 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Annuler
               </Button>
-              <Button type="submit">{editingType ? 'Modifier' : 'Créer'}</Button>
+              <Button type="submit" className="px-6">{editingType ? 'Modifier' : 'Créer'}</Button>
             </div>
           </form>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, startOfWeek, addWeeks, subWeeks, eachDayOfInterval, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { OperationDayCard } from '@/components/operations/OperationDayCard';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
-import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesInterventionManagement';
+import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, ChevronLeft, Calendar, Settings, Plus } from 'lucide-react';
@@ -34,6 +34,7 @@ interface Operation {
 
 const OperationsPage = () => {
   const navigate = useNavigate();
+  const typesManagementRef = useRef<TypesInterventionManagementRef>(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -300,10 +301,22 @@ const OperationsPage = () => {
           </div>
         )
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Types d'intervention</h2>
+              <p className="text-sm text-muted-foreground mt-1">Gérez les types d'intervention et leurs besoins en personnel</p>
+            </div>
+            <Button
+              onClick={() => typesManagementRef.current?.openAddDialog()}
+              className="gap-2 px-6"
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter un type
+            </Button>
+          </div>
           <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-6 shadow-lg">
-            <h2 className="text-2xl font-semibold text-foreground mb-6">Types d'intervention</h2>
-            <TypesInterventionManagement />
+            <TypesInterventionManagement ref={typesManagementRef} />
           </div>
         </div>
       )}
