@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { Loader2, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface TypeIntervention {
   id: string;
@@ -40,26 +43,17 @@ export const AddOperationDialog = ({
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [selectedMedecinId, setSelectedMedecinId] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | ''>('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  // Generate dates for the week (Monday to Friday)
-  const weekDates = Array.from({ length: 5 }, (_, i) => {
-    const date = addDays(currentWeekStart, i);
-    return {
-      value: format(date, 'yyyy-MM-dd'),
-      label: format(date, 'EEEE d MMMM', { locale: fr })
-    };
-  });
 
   useEffect(() => {
     if (open) {
       fetchData();
       setSelectedTypeInterventionId('');
       setSelectedMedecinId('');
-      setSelectedDate('');
+      setSelectedDate(undefined);
       setSelectedPeriode('');
     }
   }, [open]);
@@ -112,11 +106,13 @@ export const AddOperationDialog = ({
 
     setSubmitting(true);
     try {
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      
       // Check if a besoin_effectif already exists for this date/period/type/medecin
       const { data: existingBesoin, error: checkError } = await supabase
         .from('besoin_effectif')
         .select('id')
-        .eq('date', selectedDate)
+        .eq('date', dateString)
         .eq('demi_journee', selectedPeriode)
         .eq('type', 'bloc_operatoire')
         .eq('type_intervention_id', selectedTypeInterventionId)
@@ -137,7 +133,7 @@ export const AddOperationDialog = ({
 
       // Create new besoin_effectif
       const newBesoin = {
-        date: selectedDate,
+        date: dateString,
         demi_journee: selectedPeriode,
         medecin_id: selectedMedecinId,
         site_id: BLOC_OPERATOIRE_SITE_ID,
@@ -177,15 +173,6 @@ export const AddOperationDialog = ({
         ) : (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="site">Site</Label>
-              <Select value={BLOC_OPERATOIRE_SITE_ID} disabled>
-                <SelectTrigger id="site">
-                  <SelectValue placeholder="Clinique La Vallée - Bloc opératoire" />
-                </SelectTrigger>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="type-intervention">Type d'intervention</Label>
               <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
                 <SelectTrigger id="type-intervention">
@@ -218,19 +205,31 @@ export const AddOperationDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
-              <Select value={selectedDate} onValueChange={setSelectedDate}>
-                <SelectTrigger id="date">
-                  <SelectValue placeholder="Sélectionner une date" />
-                </SelectTrigger>
-                <SelectContent>
-                  {weekDates.map((date) => (
-                    <SelectItem key={date.value} value={date.value}>
-                      {date.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, 'PPP', { locale: fr }) : <span>Sélectionner une date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                    locale={fr}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-2">
