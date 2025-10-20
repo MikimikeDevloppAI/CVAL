@@ -8,9 +8,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -229,22 +229,20 @@ export const AssignPersonnelDialog = ({
               Aucune secrétaire qualifiée disponible
             </div>
           ) : (
-            <RadioGroup value={selectedSecretaireId} onValueChange={setSelectedSecretaireId}>
-              <div className="space-y-2">
-                {availableSecretaries.map((secretary) => (
-                  <div
-                    key={secretary.secretaire_id}
-                    className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors"
-                  >
-                    <RadioGroupItem
+            <div className="space-y-2">
+              <Label>Sélectionner une secrétaire</Label>
+              <Select value={selectedSecretaireId} onValueChange={setSelectedSecretaireId}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue placeholder="Choisir une secrétaire..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {availableSecretaries.map((secretary) => (
+                    <SelectItem 
+                      key={secretary.secretaire_id} 
                       value={secretary.secretaire_id}
-                      id={secretary.secretaire_id}
-                    />
-                    <Label
-                      htmlFor={secretary.secretaire_id}
-                      className="flex-1 cursor-pointer"
+                      className="cursor-pointer"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">
                           {secretary.first_name} {secretary.name}
                         </span>
@@ -259,11 +257,11 @@ export const AssignPersonnelDialog = ({
                           </Badge>
                         )}
                       </div>
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </RadioGroup>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
 
