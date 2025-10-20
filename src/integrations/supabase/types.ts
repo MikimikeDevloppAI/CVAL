@@ -1354,6 +1354,10 @@ export type Database = {
         Args: { p_assignment_id_1: string; p_assignment_id_2: string }
         Returns: Json
       }
+      trigger_reassign_all_rooms: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       update_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]

@@ -1,26 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { triggerRoomReassignment } from "@/lib/roomReassignment";
 
 interface TypeIntervention {
   id: string;
   nom: string;
   code: string;
+  actif: boolean;
+}
+
+interface Salle {
+  id: string;
+  name: string;
 }
 
 interface ConfigurationIntervention {
   type_intervention_id: string;
-  type_personnel: 'anesthesiste' | 'instrumentiste' | 'instrumentiste_aide_salle' | 'aide_salle' | 'accueil' | '';
-  salle: 'rouge' | 'verte' | 'jaune';
   ordre: number;
+  salle: string;
 }
 
 interface Configuration {
@@ -29,34 +35,23 @@ interface Configuration {
   code: string;
   type_flux: 'double_flux' | 'triple_flux';
   actif: boolean;
-  configurations_multi_flux_interventions?: Array<{
+  interventions: Array<{
+    id: string;
     type_intervention_id: string;
-    salle: string;
     ordre: number;
-    types_intervention: {
+    salle: string | null;
+    type_intervention: {
       nom: string;
       code: string;
     };
   }>;
 }
 
-const SALLES = [
-  { value: 'rouge', label: 'Salle Rouge' },
-  { value: 'verte', label: 'Salle Verte' },
-  { value: 'jaune', label: 'Salle Jaune' },
-];
-
-const TYPES_PERSONNEL = [
-  { value: 'anesthesiste', label: 'Anesthésiste' },
-  { value: 'instrumentiste', label: 'Instrumentiste' },
-  { value: 'instrumentiste_aide_salle', label: 'Instrumentiste / Aide de salle' },
-  { value: 'aide_salle', label: 'Aide de salle' },
-  { value: 'accueil', label: 'Accueil' },
-];
-
 export function ConfigurationsMultiFluxManagement() {
   const [configurations, setConfigurations] = useState<Configuration[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
+  const [salles, setSalles] = useState<Salle[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<Configuration | null>(null);
@@ -64,209 +59,189 @@ export function ConfigurationsMultiFluxManagement() {
     type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
   });
   const [interventions, setInterventions] = useState<ConfigurationIntervention[]>([
-    { type_intervention_id: '', type_personnel: '', salle: 'rouge' as const, ordre: 1 },
-    { type_intervention_id: '', type_personnel: '', salle: 'verte' as const, ordre: 2 },
+    { type_intervention_id: '', ordre: 1, salle: 'rouge' },
+    { type_intervention_id: '', ordre: 2, salle: 'verte' },
   ]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [configToDelete, setConfigToDelete] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [editingConfig, setEditingConfig] = useState<Configuration | null>(null);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [configToDelete, setConfigToDelete] = useState<string | null>(null);
+  const [editingConfig, setEditingConfig] = useState<Configuration | null>(null);
+  const [formData, setFormData] = useState({
+    type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
+    interventions: [] as ConfigurationIntervention[],
+  });
 
   useEffect(() => {
     fetchConfigurations();
     fetchTypesIntervention();
+    fetchSalles();
   }, []);
 
   const fetchConfigurations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('configurations_multi_flux')
-        .select(`
-          *,
-          configurations_multi_flux_interventions (
-            type_intervention_id,
-            salle,
-            ordre,
-            types_intervention (
-              nom,
-              code
-            )
+    const { data, error } = await supabase
+      .from('configurations_multi_flux')
+      .select(`
+        *,
+        configurations_multi_flux_interventions (
+          id,
+          type_intervention_id,
+          ordre,
+          salle,
+          types_intervention (
+            nom,
+            code
           )
-        `)
-        .eq('actif', true)
-        .order('nom');
+        )
+      `)
+      .eq('actif', true)
+      .order('nom');
 
-      if (error) throw error;
-      setConfigurations((data || []) as Configuration[]);
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les configurations',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTypesIntervention = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('types_intervention')
-        .select('id, nom, code')
-        .eq('actif', true)
-        .order('nom');
-
-      if (error) throw error;
-      setTypesIntervention(data || []);
-    } catch (error) {
-      console.error('Erreur:', error);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({ type_flux: 'double_flux' });
-    setInterventions([
-      { type_intervention_id: '', type_personnel: '', salle: 'rouge', ordre: 1 },
-      { type_intervention_id: '', type_personnel: '', salle: 'verte', ordre: 2 },
-    ]);
-  };
-
-  const openAddDialog = (typeFlux: 'double_flux' | 'triple_flux') => {
-    setSelectedConfig(null);
-    resetForm();
-    setFormData({ ...formData, type_flux: typeFlux });
-    
-    if (typeFlux === 'triple_flux') {
-      setInterventions([
-        { type_intervention_id: '', type_personnel: '', salle: 'rouge', ordre: 1 },
-        { type_intervention_id: '', type_personnel: '', salle: 'verte', ordre: 2 },
-        { type_intervention_id: '', type_personnel: '', salle: 'jaune', ordre: 3 },
-      ]);
-    }
-    
-    setIsFormOpen(true);
-  };
-
-  const openEditDialog = (config: Configuration) => {
-    setSelectedConfig(config);
-    setFormData({
-      type_flux: config.type_flux,
-    });
-    
-    const interventionsData = config.configurations_multi_flux_interventions?.map(ci => ({
-      type_intervention_id: ci.type_intervention_id,
-      type_personnel: '' as const,
-      salle: ci.salle as 'rouge' | 'verte' | 'jaune',
-      ordre: ci.ordre,
-    })) || [];
-    
-    setInterventions(interventionsData);
-    setIsFormOpen(true);
-  };
-
-  const handleSubmit = async () => {
-    const interventionsCount = formData.type_flux === 'double_flux' ? 2 : 3;
-    const filledInterventions = interventions.filter(i => i.type_intervention_id);
-    
-    if (filledInterventions.length !== interventionsCount) {
-      toast({
-        title: 'Erreur',
-        description: `Vous devez sélectionner ${interventionsCount} types d'intervention`,
-        variant: 'destructive',
-      });
+    if (error) {
+      console.error('Error fetching configurations:', error);
+      toast.error('Erreur lors du chargement des configurations');
       return;
     }
 
-    // Générer le nom et le code automatiquement à partir des types d'intervention
+    setConfigurations((data || []).map(config => ({
+      ...config,
+      interventions: config.configurations_multi_flux_interventions || []
+    })) as Configuration[]);
+  };
+
+  const fetchTypesIntervention = async () => {
+    const { data, error } = await supabase
+      .from('types_intervention')
+      .select('*')
+      .eq('actif', true)
+      .order('nom');
+
+    if (error) {
+      console.error('Error fetching types intervention:', error);
+      toast.error('Erreur lors du chargement des types d\'intervention');
+      return;
+    }
+
+    setTypesIntervention(data || []);
+  };
+
+  const fetchSalles = async () => {
+    const { data, error } = await supabase
+      .from('salles_operation')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching salles:', error);
+      toast.error('Erreur lors du chargement des salles');
+      return;
+    }
+
+    setSalles(data || []);
+  };
+
+  const openAddDialog = (typeFlux: 'double_flux' | 'triple_flux') => {
+    setEditingConfig(null);
+    const numInterventions = typeFlux === 'double_flux' ? 2 : 3;
+    setFormData({
+      type_flux: typeFlux,
+      interventions: Array(numInterventions).fill(null).map((_, idx) => ({
+        type_intervention_id: '',
+        ordre: idx + 1,
+        salle: salles[idx]?.id || '',
+      })),
+    });
+    setFormDialogOpen(true);
+  };
+
+  const openEditDialog = (config: Configuration) => {
+    setEditingConfig(config);
+    setFormData({
+      type_flux: config.type_flux,
+      interventions: config.interventions.map(i => ({
+        type_intervention_id: i.type_intervention_id,
+        ordre: i.ordre,
+        salle: i.salle || '',
+      })),
+    });
+    setFormDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    const filledInterventions = formData.interventions.filter(i => i.type_intervention_id);
+    const expectedCount = formData.type_flux === 'double_flux' ? 2 : 3;
+
+    if (filledInterventions.length !== expectedCount) {
+      toast.error(`Vous devez sélectionner ${expectedCount} interventions`);
+      return;
+    }
+
     const interventionCodes = filledInterventions
       .sort((a, b) => a.ordre - b.ordre)
       .map(i => {
         const type = typesIntervention.find(t => t.id === i.type_intervention_id);
         return type?.code || '';
       });
-    
+
     const nom = interventionCodes.join(' + ');
     const code = interventionCodes.join('_');
 
     try {
-      if (selectedConfig) {
-        // Modification
-        const { error: configError } = await supabase
+      let configId = editingConfig?.id;
+
+      if (editingConfig) {
+        const { error } = await supabase
           .from('configurations_multi_flux')
-          .update({
-            nom,
-            code,
-            type_flux: formData.type_flux,
-          })
-          .eq('id', selectedConfig.id);
+          .update({ nom, code, type_flux: formData.type_flux })
+          .eq('id', editingConfig.id);
 
-        if (configError) throw configError;
+        if (error) throw error;
 
-        // Supprimer les anciennes interventions
         await supabase
           .from('configurations_multi_flux_interventions')
           .delete()
-          .eq('configuration_id', selectedConfig.id);
-
-        // Ajouter les nouvelles interventions
-        const { error: interventionsError } = await supabase
-          .from('configurations_multi_flux_interventions')
-          .insert(
-            filledInterventions.map(i => ({
-              configuration_id: selectedConfig.id,
-              type_intervention_id: i.type_intervention_id,
-              salle: i.salle,
-              ordre: i.ordre,
-            }))
-          );
-
-        if (interventionsError) throw interventionsError;
-
-        toast({ title: 'Succès', description: 'Configuration modifiée' });
+          .eq('configuration_id', editingConfig.id);
       } else {
-        // Création
-        const { data: configData, error: configError } = await supabase
+        const { data, error } = await supabase
           .from('configurations_multi_flux')
-          .insert({
-            nom,
-            code,
-            type_flux: formData.type_flux,
-            actif: true,
-          })
+          .insert({ nom, code, type_flux: formData.type_flux, actif: true })
           .select()
           .single();
 
-        if (configError) throw configError;
-
-        // Ajouter les interventions
-        const { error: interventionsError } = await supabase
-          .from('configurations_multi_flux_interventions')
-          .insert(
-            filledInterventions.map(i => ({
-              configuration_id: configData.id,
-              type_intervention_id: i.type_intervention_id,
-              salle: i.salle,
-              ordre: i.ordre,
-            }))
-          );
-
-        if (interventionsError) throw interventionsError;
-
-        toast({ title: 'Succès', description: 'Configuration créée' });
+        if (error) throw error;
+        configId = data.id;
       }
 
-      setIsFormOpen(false);
-      resetForm();
-      setSelectedConfig(null);
+      const { error: interventionsError } = await supabase
+        .from('configurations_multi_flux_interventions')
+        .insert(
+          filledInterventions.map(i => ({
+            configuration_id: configId,
+            type_intervention_id: i.type_intervention_id,
+            salle: i.salle || null,
+            ordre: i.ordre,
+          }))
+        );
+
+      if (interventionsError) throw interventionsError;
+
+      toast.success(editingConfig ? 'Configuration modifiée avec succès' : 'Configuration créée avec succès');
       fetchConfigurations();
+      setFormDialogOpen(false);
+
+      // Trigger room reassignment
+      try {
+        await triggerRoomReassignment();
+        toast.success('Salles réassignées avec succès');
+      } catch (error) {
+        console.error('Error reassigning rooms:', error);
+        toast.error('Erreur lors de la réassignation des salles');
+      }
     } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible d\'enregistrer la configuration',
-        variant: 'destructive',
-      });
+      console.error('Error saving configuration:', error);
+      toast.error('Erreur lors de l\'enregistrement');
     }
   };
 
@@ -281,94 +256,80 @@ export function ConfigurationsMultiFluxManagement() {
 
       if (error) throw error;
 
-      toast({ title: 'Succès', description: 'Configuration supprimée' });
+      toast.success('Configuration supprimée avec succès');
+      fetchConfigurations();
       setDeleteDialogOpen(false);
       setConfigToDelete(null);
-      fetchConfigurations();
+
+      // Trigger room reassignment
+      try {
+        await triggerRoomReassignment();
+        toast.success('Salles réassignées avec succès');
+      } catch (error) {
+        console.error('Error reassigning rooms:', error);
+        toast.error('Erreur lors de la réassignation des salles');
+      }
     } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de supprimer la configuration',
-        variant: 'destructive',
-      });
+      console.error('Error deleting configuration:', error);
+      toast.error('Erreur lors de la suppression');
     }
   };
 
   const updateIntervention = (index: number, field: keyof ConfigurationIntervention, value: string) => {
-    const newInterventions = [...interventions];
+    const newInterventions = [...formData.interventions];
     newInterventions[index] = { ...newInterventions[index], [field]: value };
-    setInterventions(newInterventions);
+    setFormData({ ...formData, interventions: newInterventions });
   };
 
-  const getSalleColor = (salle: string) => {
-    switch (salle) {
-      case 'rouge': return 'bg-red-100 text-red-800 border-red-300';
-      case 'verte': return 'bg-green-100 text-green-800 border-green-300';
-      case 'jaune': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+  const getSalleName = (salleId: string | null) => {
+    if (!salleId) return 'Non assignée';
+    const salle = salles.find(s => s.id === salleId);
+    return salle?.name || 'Inconnue';
+  };
+
+  const getSalleColor = (salle: string | null) => {
+    const salleName = getSalleName(salle);
+    switch (salleName.toLowerCase()) {
+      case 'rouge':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'jaune':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'vert':
+      case 'verte':
+        return 'bg-green-100 text-green-800 border-green-300';
+      default:
+        return 'bg-muted text-muted-foreground';
     }
   };
 
-  const doubleFlux = configurations.filter(c => c.type_flux === 'double_flux');
-  const tripleFlux = configurations.filter(c => c.type_flux === 'triple_flux');
-
-  if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Chargement...</div>;
-  }
-
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="double_flux" className="w-full">
+      <Tabs defaultValue="double_flux">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="double_flux">Double Flux</TabsTrigger>
           <TabsTrigger value="triple_flux">Triple Flux</TabsTrigger>
         </TabsList>
 
         <TabsContent value="double_flux" className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Configurations Double Flux</h3>
-            <Button onClick={() => openAddDialog('double_flux')} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Ajouter une configuration
+            <Button onClick={() => openAddDialog('double_flux')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter
             </Button>
           </div>
 
-          <div className="grid gap-3">
-            {doubleFlux.map((config) => (
-              <div
-                key={config.id}
-                className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <h4 className="font-medium">{config.nom}</h4>
-                      <Badge variant="outline" className="text-xs">{config.code}</Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2">
-                      {config.configurations_multi_flux_interventions
-                        ?.sort((a, b) => a.ordre - b.ordre)
-                        .map((ci, idx) => (
-                          <div key={idx} className={`p-2 rounded border ${getSalleColor(ci.salle)}`}>
-                            <div className="text-xs font-medium mb-1">
-                              {ci.salle ? ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1) : 'Non définie'}
-                            </div>
-                            <div className="text-sm">{ci.types_intervention?.nom || 'Type non défini'}</div>
-                          </div>
-                        ))}
-                    </div>
+          {configurations.filter(c => c.type_flux === 'double_flux').map((config) => (
+            <Card key={config.id}>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>{config.nom}</CardTitle>
+                    <CardDescription>{config.code}</CardDescription>
                   </div>
-
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(config)}
-                      title="Modifier"
-                    >
-                      <Edit className="h-4 w-4" />
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)}>
+                      <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -377,68 +338,48 @@ export function ConfigurationsMultiFluxManagement() {
                         setConfigToDelete(config.id);
                         setDeleteDialogOpen(true);
                       }}
-                      className="text-destructive hover:text-destructive"
-                      title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {doubleFlux.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune configuration double flux
-            </div>
-          )}
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="font-medium">{interv.type_intervention.nom}</div>
+                      <span className={`px-2 py-1 rounded border text-xs ${getSalleColor(interv.salle)}`}>
+                        {getSalleName(interv.salle)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
 
         <TabsContent value="triple_flux" className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Configurations Triple Flux</h3>
-            <Button onClick={() => openAddDialog('triple_flux')} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Ajouter une configuration
+            <Button onClick={() => openAddDialog('triple_flux')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter
             </Button>
           </div>
 
-          <div className="grid gap-3">
-            {tripleFlux.map((config) => (
-              <div
-                key={config.id}
-                className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <h4 className="font-medium">{config.nom}</h4>
-                      <Badge variant="outline" className="text-xs">{config.code}</Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      {config.configurations_multi_flux_interventions
-                        ?.sort((a, b) => a.ordre - b.ordre)
-                        .map((ci, idx) => (
-                          <div key={idx} className={`p-2 rounded border ${getSalleColor(ci.salle)}`}>
-                            <div className="text-xs font-medium mb-1">
-                              {ci.salle ? ci.salle.charAt(0).toUpperCase() + ci.salle.slice(1) : 'Non définie'}
-                            </div>
-                            <div className="text-sm">{ci.types_intervention?.nom || 'Type non défini'}</div>
-                          </div>
-                        ))}
-                    </div>
+          {configurations.filter(c => c.type_flux === 'triple_flux').map((config) => (
+            <Card key={config.id}>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>{config.nom}</CardTitle>
+                    <CardDescription>{config.code}</CardDescription>
                   </div>
-
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(config)}
-                      title="Modifier"
-                    >
-                      <Edit className="h-4 w-4" />
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)}>
+                      <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -447,116 +388,104 @@ export function ConfigurationsMultiFluxManagement() {
                         setConfigToDelete(config.id);
                         setDeleteDialogOpen(true);
                       }}
-                      className="text-destructive hover:text-destructive"
-                      title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {tripleFlux.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune configuration triple flux
-            </div>
-          )}
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3">
+                  {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="font-medium">{interv.type_intervention.nom}</div>
+                      <span className={`px-2 py-1 rounded border text-xs ${getSalleColor(interv.salle)}`}>
+                        {getSalleName(interv.salle)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
 
-      {/* Dialog pour ajouter/modifier une configuration */}
-      <Dialog open={isFormOpen} onOpenChange={(open) => {
-        if (!open) resetForm();
-        setIsFormOpen(open);
-      }}>
+      <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedConfig ? 'Modifier' : 'Ajouter'} une configuration {formData.type_flux === 'double_flux' ? 'double' : 'triple'} flux
+              {editingConfig ? 'Modifier' : 'Ajouter'} une configuration {formData.type_flux === 'double_flux' ? 'double' : 'triple'} flux
             </DialogTitle>
           </DialogHeader>
-          
           <div className="space-y-4 py-4">
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Sélectionnez les types d'intervention</label>
-              {interventions.map((intervention, index) => (
-                <div key={index} className="grid grid-cols-2 gap-3 p-3 border rounded-lg bg-card">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Type d'intervention</label>
-                    <Select
-                      value={intervention.type_intervention_id}
-                      onValueChange={(value) => updateIntervention(index, 'type_intervention_id', value)}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner un type d'intervention" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        {typesIntervention.map((type) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Salle</label>
-                    <Select
-                      value={intervention.salle}
-                      onValueChange={(value) => updateIntervention(index, 'salle', value)}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        {SALLES.map((salle) => (
-                          <SelectItem key={salle.value} value={salle.value}>
-                            {salle.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            {formData.interventions.map((intervention, idx) => (
+              <div key={idx} className="grid grid-cols-2 gap-4 p-4 border rounded">
+                <div>
+                  <label className="text-sm font-medium block mb-2">Intervention {idx + 1}</label>
+                  <Select
+                    value={intervention.type_intervention_id}
+                    onValueChange={(value) => updateIntervention(idx, 'type_intervention_id', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {typesIntervention.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.nom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
+                <div>
+                  <label className="text-sm font-medium block mb-2">Salle</label>
+                  <Select
+                    value={intervention.salle || ''}
+                    onValueChange={(value) => updateIntervention(idx, 'salle', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une salle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {salles.map((salle) => (
+                        <SelectItem key={salle.id} value={salle.id}>
+                          {salle.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
           </div>
-
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => {
-              setIsFormOpen(false);
-              resetForm();
-            }}>
-              <X className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={() => setFormDialogOpen(false)}>
               Annuler
             </Button>
             <Button onClick={handleSubmit}>
-              <Save className="h-4 w-4 mr-2" />
-              Créer
+              {editingConfig ? 'Modifier' : 'Créer'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de confirmation de suppression */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer cette configuration ? Cette action est irréversible.
+              Êtes-vous sûr de vouloir supprimer cette configuration ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
 }
+
