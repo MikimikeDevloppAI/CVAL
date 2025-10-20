@@ -764,99 +764,6 @@ export type Database = {
           },
         ]
       }
-      planning_genere_personnel: {
-        Row: {
-          besoin_operation_id: string | null
-          created_at: string | null
-          date: string
-          id: string
-          is_1r: boolean
-          is_2f: boolean
-          is_3f: boolean
-          ordre: number
-          periode: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id: string | null
-          planning_id: string | null
-          secretaire_id: string | null
-          site_id: string | null
-          type_assignation: string
-          updated_at: string | null
-          validated: boolean
-        }
-        Insert: {
-          besoin_operation_id?: string | null
-          created_at?: string | null
-          date: string
-          id?: string
-          is_1r?: boolean
-          is_2f?: boolean
-          is_3f?: boolean
-          ordre?: number
-          periode: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id?: string | null
-          planning_id?: string | null
-          secretaire_id?: string | null
-          site_id?: string | null
-          type_assignation: string
-          updated_at?: string | null
-          validated?: boolean
-        }
-        Update: {
-          besoin_operation_id?: string | null
-          created_at?: string | null
-          date?: string
-          id?: string
-          is_1r?: boolean
-          is_2f?: boolean
-          is_3f?: boolean
-          ordre?: number
-          periode?: Database["public"]["Enums"]["periode"]
-          planning_genere_bloc_operatoire_id?: string | null
-          planning_id?: string | null
-          secretaire_id?: string | null
-          site_id?: string | null
-          type_assignation?: string
-          updated_at?: string | null
-          validated?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planning_genere_personnel_besoin_operation_id_fkey"
-            columns: ["besoin_operation_id"]
-            isOneToOne: false
-            referencedRelation: "besoins_operations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_planning_genere_bloc_operatoire__fkey"
-            columns: ["planning_genere_bloc_operatoire_id"]
-            isOneToOne: false
-            referencedRelation: "planning_genere_bloc_operatoire"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_planning_id_fkey"
-            columns: ["planning_id"]
-            isOneToOne: false
-            referencedRelation: "planning"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_secretaire_id_fkey"
-            columns: ["secretaire_id"]
-            isOneToOne: false
-            referencedRelation: "secretaires"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "planning_genere_personnel_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           created_at: string
@@ -1357,10 +1264,6 @@ export type Database = {
           p_secretary_id_1: string
           p_secretary_id_2: string
         }
-        Returns: Json
-      }
-      swap_secretaries_personnel: {
-        Args: { p_assignment_id_1: string; p_assignment_id_2: string }
         Returns: Json
       }
       trigger_reassign_all_rooms: {
