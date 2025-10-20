@@ -105,11 +105,20 @@ export async function writeAssignments(
     const prev = parts[parts.length - 2];
     const isBloc = parts.length >= 7 && isUuid(prev) && isUuid(last);
     
+    // 🔬 DIAGNOSTIC détaillé pour variables >= 7 parties
+    if (parts.length >= 7) {
+      console.log(`  🔬 DIAGNOSTIC variable: ${varName}`);
+      console.log(`     parts.length=${parts.length}`);
+      console.log(`     prev (parts[${parts.length-2}])="${prev}"`);
+      console.log(`     last (parts[${parts.length-1}])="${last}"`);
+      console.log(`     isUuid(prev)=${isUuid(prev)}, isUuid(last)=${isUuid(last)}`);
+      console.log(`     → isBloc=${isBloc}`);
+    }
+    
     if (isBloc) {
       bloc_operation_id = prev.toLowerCase();
       besoin_operation_id = last.toLowerCase();
-      console.log(`  🏥 BLOC détecté: var=${varName}`);
-      console.log(`     → parts.length=${parts.length}, période=${periodToken}→${periode}, bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+      console.log(`  🏥 BLOC détecté: période=${periodToken}→${periode}, bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
     } else {
       console.log(`  🏢 SITE: var=${varName}, parts.length=${parts.length}, période=${periodToken}→${periode}`);
     }
@@ -195,6 +204,11 @@ export async function writeAssignments(
   let successCount = 0;
   let errorCount = 0;
   for (const update of updates) {
+    // 📝 LOG AVANT UPDATE pour voir l'objet exact
+    if (update.planning_genere_bloc_operatoire_id) {
+      console.log(`  📝 UPDATE BLOC: capacite_id=${update.id.slice(0,8)}, site_id=${update.site_id.slice(0,8)}, planning_genere_bloc_operatoire_id=${update.planning_genere_bloc_operatoire_id.slice(0,8)}, besoin_operation_id=${update.besoin_operation_id?.slice(0,8)}`);
+    }
+    
     const { error } = await supabase
       .from('capacite_effective')
       .update(update)
