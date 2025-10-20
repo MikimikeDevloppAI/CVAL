@@ -141,7 +141,7 @@ const OperationsPage = () => {
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
-          onClick={() => window.location.href = '/'}
+          onClick={() => window.location.href = '/dashboard'}
           className="gap-2"
         >
           <ChevronLeft className="h-4 w-4" />

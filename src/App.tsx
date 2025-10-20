@@ -44,13 +44,13 @@ const App = () => (
               <ProtectedRoute>
                 <Layout>
                   <Routes>
-                    <Route path="/dashboard" element={
+                    <Route path="/" element={
                       <PlanningProtectedRoute>
                         <DashboardPage />
                       </PlanningProtectedRoute>
                     } />
                     <Route path="/planning" element={<PlanningPage />} />
-                    <Route path="/" element={<HomePage />} />
+                    <Route path="/home" element={<HomePage />} />
                     <Route path="/absences" element={
                       <PlanningProtectedRoute>
                         <AbsencesPage />
