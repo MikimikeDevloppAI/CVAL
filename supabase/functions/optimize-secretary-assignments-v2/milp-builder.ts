@@ -58,9 +58,16 @@ export function buildMILPModelSoft(
       besoin_operation_id: need.besoin_operation_id
     });
     
+    let testedCount = 0;
+    let rejectedNoCompetence = 0;
+    let rejectedNotEligible = 0;
+    let acceptedCount = 0;
+    
     for (const cap of todayCapacites) {
       if (!cap.secretaire_id) continue;
       if (cap.demi_journee !== need.periode) continue;
+      
+      testedCount++;
       
       // Check eligibility
       const isAdminSite = need.site_id === ADMIN_SITE_ID;
@@ -73,13 +80,22 @@ export function buildMILPModelSoft(
             sb => sb.secretaire_id === cap.secretaire_id && 
                   sb.besoin_operation_id === need.besoin_operation_id
           );
-          if (!hasCompetence) continue;
+          if (!hasCompetence) {
+            rejectedNoCompetence++;
+            if (rejectedNoCompetence <= 3) {
+              console.log(`    ❌ Secrétaire ${cap.secretaire_id.slice(0,8)}... rejetée (pas de compétence pour besoin ${need.besoin_operation_id?.slice(0,8)}...)`);
+            }
+            continue;
+          }
         } else {
           // For regular site needs: check site membership
           const isEligible = week_data.secretaires_sites.some(
             ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === need.site_id
           );
-          if (!isEligible) continue;
+          if (!isEligible) {
+            rejectedNotEligible++;
+            continue;
+          }
         }
       }
       
@@ -103,14 +119,23 @@ export function buildMILPModelSoft(
       // Initialize variable with objective coefficient
       model.variables[varName] = { score_total: score };
       variableCount++;
+      acceptedCount++;
       
       if (need.type === 'bloc_operatoire') {
         blocVariableCount++;
+        if (blocVariableCount <= 5) {
+          console.log(`    ✅ Variable BLOC ${varName} créée avec score: ${score.toFixed(2)}`);
+        }
       }
       
-      if (variableCount <= 10) {
+      if (variableCount <= 10 && need.type !== 'bloc_operatoire') {
         console.log(`    ✅ Variable ${varName} créée avec score: ${score.toFixed(2)}`);
       }
+    }
+    
+    // Summary for each need
+    if (need.type === 'bloc_operatoire') {
+      console.log(`  📊 BLOC Summary pour ${needId}: testé=${testedCount}, rejeté_compétence=${rejectedNoCompetence}, accepté=${acceptedCount}`);
     }
   }
   
