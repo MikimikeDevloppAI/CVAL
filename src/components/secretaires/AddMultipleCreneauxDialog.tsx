@@ -13,9 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { checkSecretaireOverlap, getOverlapErrorMessage } from '@/lib/overlapValidation';
 
 const multipleCreneauxSchema = z.object({
-  site_id: z.string().min(1, 'Veuillez sélectionner un site'),
+  site_id: z.string().optional(),
   demi_journee: z.enum(['matin', 'apres_midi', 'toute_journee']),
 });
 
@@ -40,6 +41,7 @@ export function AddMultipleCreneauxDialog({
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [adminSiteId, setAdminSiteId] = useState<string>('');
 
   const form = useForm<z.infer<typeof multipleCreneauxSchema>>({
     resolver: zodResolver(multipleCreneauxSchema),
@@ -65,6 +67,15 @@ export function AddMultipleCreneauxDialog({
       .order('nom');
 
     if (sitesData) setSites(sitesData);
+
+    // Fetch administratif site as default
+    const { data: adminSite } = await supabase
+      .from('sites')
+      .select('id')
+      .ilike('nom', '%administratif%')
+      .single();
+
+    if (adminSite) setAdminSiteId(adminSite.id);
   };
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -89,11 +100,25 @@ export function AddMultipleCreneauxDialog({
     setLoading(true);
 
     try {
+      // Check for overlaps before inserting
+      for (const date of selectedDates) {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const periodes: ('matin' | 'apres_midi')[] =
+          values.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [values.demi_journee];
+
+        const overlapResult = await checkSecretaireOverlap(secretaireId, dateStr, periodes);
+        if (overlapResult.hasOverlap) {
+          toast.error(getOverlapErrorMessage(overlapResult, 'secretaire'));
+          setLoading(false);
+          return;
+        }
+      }
+
       const capacitesToInsert = selectedDates.flatMap((date) => {
         const baseCapacite = {
           secretaire_id: secretaireId,
           date: format(date, 'yyyy-MM-dd'),
-          site_id: values.site_id,
+          site_id: values.site_id || adminSiteId, // Use admin site if no site selected
         };
 
         if (values.demi_journee === 'toute_journee') {
@@ -144,7 +169,7 @@ export function AddMultipleCreneauxDialog({
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger className="backdrop-blur-xl bg-card/95 border-teal-200/50 dark:border-teal-800/50">
-                            <SelectValue placeholder="Sélectionner un site" />
+                            <SelectValue placeholder="Administratif (par défaut)" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>

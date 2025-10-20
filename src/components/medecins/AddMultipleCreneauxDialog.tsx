@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { checkMedecinOverlap, getOverlapErrorMessage } from '@/lib/overlapValidation';
 
 const multipleCreneauxSchema = z.object({
   site_id: z.string().min(1, 'Veuillez sélectionner un site'),
@@ -47,6 +48,7 @@ export function AddMultipleCreneauxDialog({
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [blocSiteId, setBlocSiteId] = useState<string>('');
 
   const form = useForm<z.infer<typeof multipleCreneauxSchema>>({
     resolver: zodResolver(multipleCreneauxSchema),
@@ -66,13 +68,24 @@ export function AddMultipleCreneauxDialog({
   }, [open]);
 
   const fetchData = async () => {
+    // Fetch sites excluding "administratif"
     const { data: sitesData } = await supabase
       .from('sites')
       .select('id, nom')
       .eq('actif', true)
+      .not('nom', 'ilike', '%administratif%')
       .order('nom');
 
     if (sitesData) setSites(sitesData);
+
+    // Fetch bloc operatoire site
+    const { data: blocSite } = await supabase
+      .from('sites')
+      .select('id')
+      .ilike('nom', '%bloc%opératoire%')
+      .single();
+
+    if (blocSite) setBlocSiteId(blocSite.id);
 
     const { data: typesData } = await supabase
       .from('types_intervention')
@@ -102,9 +115,29 @@ export function AddMultipleCreneauxDialog({
       return;
     }
 
+    // Validate if type_intervention_id is required for bloc operatoire
+    if (values.site_id === blocSiteId && !values.type_intervention_id) {
+      toast.error('Le type d\'intervention est obligatoire pour le bloc opératoire');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Check for overlaps before inserting
+      for (const date of selectedDates) {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const periodes: ('matin' | 'apres_midi')[] =
+          values.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [values.demi_journee];
+
+        const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodes);
+        if (overlapResult.hasOverlap) {
+          toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
+          setLoading(false);
+          return;
+        }
+      }
+
       const besoinsToInsert = selectedDates.flatMap((date) => {
         const baseBesoin = {
           type: 'medecin' as const,
@@ -201,30 +234,32 @@ export function AddMultipleCreneauxDialog({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="type_intervention_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type d'intervention (optionnel)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50">
-                            <SelectValue placeholder="Sélectionner un type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {typesIntervention.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.nom}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {form.watch('site_id') === blocSiteId && (
+                  <FormField
+                    control={form.control}
+                    name="type_intervention_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type d'intervention <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50">
+                              <SelectValue placeholder="Sélectionner un type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {typesIntervention.map((type) => (
+                              <SelectItem key={type.id} value={type.id}>
+                                {type.nom}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {selectedDates.length > 0 && (
                   <div className="space-y-2">

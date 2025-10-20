@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { checkMedecinOverlap, getOverlapErrorMessage } from '@/lib/overlapValidation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -235,6 +236,16 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       return;
     }
 
+    // Check for overlaps before adding
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const periodes: ('matin' | 'apres_midi')[] = ['matin', 'apres_midi'];
+
+    const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodes);
+    if (overlapResult.hasOverlap) {
+      toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
+      return;
+    }
+
     setLoading(true);
 
     // Ajouter matin et après-midi pour une journée complète
@@ -306,6 +317,20 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     if (!editingSlot || !selectedSiteId) {
       toast.error('Veuillez sélectionner un site');
       return;
+    }
+
+    // Check for overlaps if changing site
+    const dateStr = editingSlot.ids.length > 0 
+      ? besoins.find(b => b.id === editingSlot.ids[0])?.date 
+      : null;
+    
+    if (dateStr && selectedSiteId !== editingSlot.siteId) {
+      const periodes: ('matin' | 'apres_midi')[] = editingSlot.periodes as ('matin' | 'apres_midi')[];
+      const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodes);
+      if (overlapResult.hasOverlap) {
+        toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
+        return;
+      }
     }
 
     setLoading(true);
