@@ -11,19 +11,24 @@ import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFe
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2 } from 'lucide-react';
 
+interface PersonnePresence {
+  id: string;
+  nom: string;
+  matin: boolean;
+  apres_midi: boolean;
+  validated?: boolean;
+  is_1r?: boolean;
+  is_2f?: boolean;
+}
+
 interface DayData {
   date: string;
-  periode: 'matin' | 'apres_midi';
-  medecins: { id: string; nom: string }[];
-  secretaires: { 
-    id: string; 
-    nom: string; 
-    validated: boolean;
-    is_1r?: boolean;
-    is_2f?: boolean;
-  }[];
-  besoin_secretaires: number;
-  status: 'satisfait' | 'partiel' | 'non_satisfait';
+  medecins: PersonnePresence[];
+  secretaires: PersonnePresence[];
+  besoin_secretaires_matin: number;
+  besoin_secretaires_apres_midi: number;
+  status_matin: 'satisfait' | 'partiel' | 'non_satisfait';
+  status_apres_midi: 'satisfait' | 'partiel' | 'non_satisfait';
 }
 
 interface DashboardSite {
@@ -142,63 +147,103 @@ const DashboardPage = () => {
 
           const { data: planning } = await planningQuery;
 
-          // Group by date and period
+          // Group by date only (not by period)
           const daysMap = new Map<string, DayData>();
           
-          // Process besoins
+          // Process besoins (médecins)
           besoins?.forEach((besoin) => {
-            const key = `${besoin.date}-${besoin.demi_journee}`;
-            if (!daysMap.has(key)) {
-              daysMap.set(key, {
-                date: besoin.date,
-                periode: besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi',
+            const date = besoin.date;
+            if (!daysMap.has(date)) {
+              daysMap.set(date, {
+                date,
                 medecins: [],
                 secretaires: [],
-                besoin_secretaires: 0,
-                status: 'non_satisfait'
+                besoin_secretaires_matin: 0,
+                besoin_secretaires_apres_midi: 0,
+                status_matin: 'non_satisfait',
+                status_apres_midi: 'non_satisfait'
               });
             }
-            const day = daysMap.get(key)!;
+            const day = daysMap.get(date)!;
+            
             if (besoin.medecins) {
-              day.medecins.push({
-                id: besoin.medecins.id,
-                nom: `${besoin.medecins.first_name || ''} ${besoin.medecins.name || ''}`.trim()
-              });
-              day.besoin_secretaires += 1.2; // Average per doctor
+              const medecinNom = `${besoin.medecins.first_name || ''} ${besoin.medecins.name || ''}`.trim();
+              const periode = besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi';
+              
+              // Check if medecin already exists
+              const existingMedecin = day.medecins.find(m => m.id === besoin.medecins.id);
+              if (existingMedecin) {
+                existingMedecin[periode] = true;
+              } else {
+                day.medecins.push({
+                  id: besoin.medecins.id,
+                  nom: medecinNom,
+                  matin: periode === 'matin',
+                  apres_midi: periode === 'apres_midi'
+                });
+              }
+              
+              // Add to besoin count
+              if (periode === 'matin') {
+                day.besoin_secretaires_matin += 1.2;
+              } else {
+                day.besoin_secretaires_apres_midi += 1.2;
+              }
             }
           });
 
-          // Process planning
+          // Process planning (secrétaires)
           planning?.forEach((plan) => {
-            const periode = plan.periode === 'matin' ? 'matin' : 'apres_midi';
-            const key = `${plan.date}-${periode}`;
-            if (!daysMap.has(key)) {
-              daysMap.set(key, {
-                date: plan.date,
-                periode,
+            const date = plan.date;
+            if (!daysMap.has(date)) {
+              daysMap.set(date, {
+                date,
                 medecins: [],
                 secretaires: [],
-                besoin_secretaires: 0,
-                status: 'non_satisfait'
+                besoin_secretaires_matin: 0,
+                besoin_secretaires_apres_midi: 0,
+                status_matin: 'non_satisfait',
+                status_apres_midi: 'non_satisfait'
               });
             }
-            const day = daysMap.get(key)!;
+            const day = daysMap.get(date)!;
+            
             if (plan.secretaires) {
-              day.secretaires.push({
-                id: plan.secretaires.id,
-                nom: `${plan.secretaires.first_name || ''} ${plan.secretaires.name || ''}`.trim(),
-                validated: plan.validated || false,
-                is_1r: plan.is_1r,
-                is_2f: plan.is_2f
-              });
+              const secretaireNom = `${plan.secretaires.first_name || ''} ${plan.secretaires.name || ''}`.trim();
+              const periode = plan.periode === 'matin' ? 'matin' : 'apres_midi';
+              
+              // Check if secretaire already exists
+              const existingSecretaire = day.secretaires.find(s => s.id === plan.secretaires.id);
+              if (existingSecretaire) {
+                existingSecretaire[periode] = true;
+                if (plan.is_1r) existingSecretaire.is_1r = true;
+                if (plan.is_2f) existingSecretaire.is_2f = true;
+                if (plan.validated) existingSecretaire.validated = true;
+              } else {
+                day.secretaires.push({
+                  id: plan.secretaires.id,
+                  nom: secretaireNom,
+                  matin: periode === 'matin',
+                  apres_midi: periode === 'apres_midi',
+                  validated: plan.validated || false,
+                  is_1r: plan.is_1r,
+                  is_2f: plan.is_2f
+                });
+              }
             }
           });
 
           // Calculate status for each day
-          const days = Array.from(daysMap.values()).map(day => ({
-            ...day,
-            status: calculateStatus(day.besoin_secretaires, day.secretaires.length)
-          }));
+          const days = Array.from(daysMap.values()).map(day => {
+            const secretairesMatin = day.secretaires.filter(s => s.matin).length;
+            const secretairesAM = day.secretaires.filter(s => s.apres_midi).length;
+            
+            return {
+              ...day,
+              status_matin: calculateStatus(day.besoin_secretaires_matin, secretairesMatin),
+              status_apres_midi: calculateStatus(day.besoin_secretaires_apres_midi, secretairesAM)
+            };
+          });
 
           return {
             site_id: site.id,

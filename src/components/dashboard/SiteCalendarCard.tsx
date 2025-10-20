@@ -4,19 +4,24 @@ import { DayCell } from './DayCell';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
+interface PersonnePresence {
+  id: string;
+  nom: string;
+  matin: boolean;
+  apres_midi: boolean;
+  validated?: boolean;
+  is_1r?: boolean;
+  is_2f?: boolean;
+}
+
 interface DayData {
   date: string;
-  periode: 'matin' | 'apres_midi';
-  medecins: { id: string; nom: string }[];
-  secretaires: { 
-    id: string; 
-    nom: string; 
-    validated: boolean;
-    is_1r?: boolean;
-    is_2f?: boolean;
-  }[];
-  besoin_secretaires: number;
-  status: 'satisfait' | 'partiel' | 'non_satisfait';
+  medecins: PersonnePresence[];
+  secretaires: PersonnePresence[];
+  besoin_secretaires_matin: number;
+  besoin_secretaires_apres_midi: number;
+  status_matin: 'satisfait' | 'partiel' | 'non_satisfait';
+  status_apres_midi: 'satisfait' | 'partiel' | 'non_satisfait';
 }
 
 interface DashboardSite {
@@ -39,12 +44,12 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
     end: parseISO(endDate)
   });
 
-  const getDayData = (date: Date, periode: 'matin' | 'apres_midi'): DayData | null => {
+  const getDayData = (date: Date): DayData | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return site.days.find(d => d.date === dateStr && d.periode === periode) || null;
+    return site.days.find(d => d.date === dateStr) || null;
   };
 
-  const hasIssues = site.days.some(d => d.status !== 'satisfait');
+  const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
 
   return (
     <div
@@ -83,19 +88,14 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
         <div className="grid grid-cols-7 gap-2">
           {/* Day Headers */}
           {days.map((day) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const dayMorningData = getDayData(day, 'matin');
-            const dayAfternoonData = getDayData(day, 'apres_midi');
+            const dayData = getDayData(day);
             
             // Calculate missing secretaries for the day
             let totalManquant = 0;
-            if (dayMorningData) {
-              const manquantMatin = Math.max(0, Math.ceil(dayMorningData.besoin_secretaires) - dayMorningData.secretaires.length);
-              totalManquant += manquantMatin;
-            }
-            if (dayAfternoonData) {
-              const manquantAM = Math.max(0, Math.ceil(dayAfternoonData.besoin_secretaires) - dayAfternoonData.secretaires.length);
-              totalManquant += manquantAM;
+            if (dayData) {
+              const manquantMatin = Math.max(0, Math.ceil(dayData.besoin_secretaires_matin) - dayData.secretaires.filter(s => s.matin).length);
+              const manquantAM = Math.max(0, Math.ceil(dayData.besoin_secretaires_apres_midi) - dayData.secretaires.filter(s => s.apres_midi).length);
+              totalManquant = manquantMatin + manquantAM;
             }
 
             return (
@@ -118,27 +118,13 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
             );
           })}
 
-          {/* Morning Row */}
+          {/* Day Cells */}
           {days.map((day) => {
-            const dayData = getDayData(day, 'matin');
+            const dayData = getDayData(day);
             return (
               <DayCell
-                key={`${day.toISOString()}-matin`}
+                key={day.toISOString()}
                 date={day}
-                periode="matin"
-                data={dayData}
-              />
-            );
-          })}
-
-          {/* Afternoon Row */}
-          {days.map((day) => {
-            const dayData = getDayData(day, 'apres_midi');
-            return (
-              <DayCell
-                key={`${day.toISOString()}-apres_midi`}
-                date={day}
-                periode="apres_midi"
                 data={dayData}
               />
             );
