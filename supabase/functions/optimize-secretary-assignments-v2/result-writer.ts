@@ -47,18 +47,20 @@ export async function writeAssignments(
   console.log(`  🔎 Variables assignées (=1): ${assignedVars.length}`);
   
   // 🔍 DIAGNOSTIC 1: Répartition variables BLOC vs SITE
-  const blocAssignedVars = assignedVars.filter(v => v.includes('_bloc_'));
-  const siteAssignedVars = assignedVars.filter(v => !v.includes('_bloc_'));
+  // Détection BLOC par structure: >= 7 parties avec 2 derniers UUIDs
+  const blocAssignedVars = assignedVars.filter(v => {
+    const parts = v.split('_');
+    // Format BLOC attendu: assign_{sec_uuid}_{site_uuid}_{date}_{1|2}_{bloc_op_uuid}_{besoin_op_uuid}
+    return parts.length >= 7 && isUuid(parts[5]) && isUuid(parts[6]);
+  });
+  const siteAssignedVars = assignedVars.filter(v => {
+    const parts = v.split('_');
+    return parts.length < 7 || !isUuid(parts[5] || '') || !isUuid(parts[6] || '');
+  });
   
-  console.log(`\n📦 Variables BLOC détectées: ${blocAssignedVars.length}`);
+  console.log(`\n📦 Variables BLOC détectées (structure): ${blocAssignedVars.length}`);
   if (blocAssignedVars.length > 0) {
     console.log(`   Exemples (3 premiers):`, blocAssignedVars.slice(0, 3));
-    // Log si apres_midi
-    const apresMidiBlocVars = blocAssignedVars.filter(v => v.includes('_apres_midi_bloc_'));
-    console.log(`   📋 Variables _apres_midi_bloc_: ${apresMidiBlocVars.length}`);
-    if (apresMidiBlocVars.length > 0) {
-      console.log(`      Exemples:`, apresMidiBlocVars.slice(0, 2));
-    }
   }
   console.log(`\n🏢 Variables SITE détectées: ${siteAssignedVars.length}`);
   if (siteAssignedVars.length > 0) {
@@ -69,69 +71,45 @@ export async function writeAssignments(
 
   // Parcours des variables assignées
   for (const varName of assignedVars) {
-    // Format attendu avec codes numériques:
+    // Format attendu:
     // - Site needs: assign_{secretaire_id}_{site_id}_{date}_{periodCode} où periodCode = 1 ou 2
-    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periodCode}_bloc_{bloc_operation_id}_{besoin_operation_id}
+    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periodCode}_{bloc_operation_id}_{besoin_operation_id}
     
-    // Detect period code and convert to text
-    let periode: 'matin' | 'apres_midi' | undefined;
-    let periodCode: string | undefined;
-    let coreSansPeriode: string = '';
-    let bloc_operation_id: string | undefined;
-    let besoin_operation_id: string | undefined;
+    const parts = varName.split('_');
     
-    // Check for BLOC variables first (they have _bloc_ in them)
-    const isBlocVar = varName.includes('_bloc_');
-    
-    if (isBlocVar) {
-      // Extract period code from _1_bloc_ or _2_bloc_
-      const periodMatch = varName.match(/_([12])_bloc_/);
-      if (periodMatch) {
-        periodCode = periodMatch[1];
-        periode = periodCode === '1' ? 'matin' : 'apres_midi';
-        console.log(`  🔢 BLOC période détectée: code=${periodCode} → ${periode}`);
-        
-        // Extract the two UUIDs after _bloc_
-        const blocMatch = varName.match(/_bloc_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})/);
-        if (blocMatch && isUuid(blocMatch[1]) && isUuid(blocMatch[2])) {
-          bloc_operation_id = blocMatch[1].toLowerCase();
-          besoin_operation_id = blocMatch[2].toLowerCase();
-          console.log(`  ✅ BLOC parsé OK: bloc_op=${bloc_operation_id.slice(0,8)}..., besoin_op=${besoin_operation_id.slice(0,8)}...`);
-          
-          // Extract core without period code and bloc part
-          const beforeBloc = varName.split(`_${periodCode}_bloc_`)[0];
-          coreSansPeriode = beforeBloc.slice('assign_'.length);
-        } else {
-          console.error(`  ❌ BLOC: UUIDs invalides dans ${varName.slice(0, 80)}...`);
-          continue;
-        }
-      } else {
-        console.error(`  ❌ BLOC: Code période non trouvé dans ${varName.slice(0, 80)}...`);
-        continue;
-      }
-    } else {
-      // SITE variable: extract period code from end (_1 or _2)
-      const periodMatch = varName.match(/_([12])$/);
-      if (periodMatch) {
-        periodCode = periodMatch[1];
-        periode = periodCode === '1' ? 'matin' : 'apres_midi';
-        console.log(`  🔢 SITE période détectée: code=${periodCode} → ${periode}`);
-        
-        // Remove period code to get core
-        const core = varName.slice('assign_'.length);
-        coreSansPeriode = core.slice(0, -2); // Remove _1 or _2
-      } else {
-        console.warn(`⚠️ SITE: Code période non trouvé dans ${varName}`);
-        continue;
-      }
-    }
-
-    if (!periode || !coreSansPeriode) {
-      console.warn(`⚠️ Période ou format invalide dans le nom de variable: ${varName}`);
+    // Validation de base: doit commencer par 'assign' et avoir au moins 5 parties
+    if (parts.length < 5 || parts[0] !== 'assign') {
+      console.warn(`⚠️ Format invalide: ${varName}`);
       continue;
     }
 
-    const [secretaire_id, site_id, dateStr] = coreSansPeriode.split('_');
+    const secretaire_id = parts[1];
+    const site_id = parts[2];
+    const dateStr = parts[3];
+    const periodCode = parts[4]; // '1' ou '2'
+    
+    // Validation des UUIDs de base
+    if (!isUuid(secretaire_id) || !isUuid(site_id)) {
+      console.warn(`⚠️ UUIDs invalides dans: ${varName}`);
+      continue;
+    }
+    
+    // Conversion période
+    const periode: 'matin' | 'apres_midi' = periodCode === '1' ? 'matin' : 'apres_midi';
+    
+    // Détection BLOC par structure: >= 7 parties avec 2 derniers UUIDs
+    let bloc_operation_id: string | undefined;
+    let besoin_operation_id: string | undefined;
+    const isBloc = parts.length >= 7 && isUuid(parts[5]) && isUuid(parts[6]);
+    
+    if (isBloc) {
+      bloc_operation_id = parts[5].toLowerCase();
+      besoin_operation_id = parts[6].toLowerCase();
+      console.log(`  🏥 BLOC détecté: var=${varName.slice(0, 60)}...`);
+      console.log(`     → période: ${periodCode} (${periode}), bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+    } else {
+      console.log(`  🏢 SITE: var=${varName.slice(0, 60)}..., période: ${periodCode} (${periode})`);
+    }
 
     if (!secretaire_id || !site_id || !dateStr) {
       console.warn(`⚠️ Parsing invalide pour ${varName}`);
@@ -166,13 +144,12 @@ export async function writeAssignments(
     }
 
     if (!need && bloc_operation_id && besoin_operation_id) {
-      console.log(`  ♻️ FALLBACK BLOC utilisé`);
-      const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+      console.log(`  ♻️ FALLBACK BLOC: besoin non trouvé mais IDs parsés, écriture directe`);
       
       assignedCount++;
       updates.push({
         id: capacite.id,
-        site_id: BLOC_SITE_ID,
+        site_id: site_id, // Utilise le site_id parsé du varName
         planning_genere_bloc_operatoire_id: bloc_operation_id,
         besoin_operation_id: besoin_operation_id,
       });
@@ -187,30 +164,21 @@ export async function writeAssignments(
 
     assignedCount++;
 
-    const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
     const update: any = {
       id: capacite.id,
       site_id: site_id,
-      planning_genere_bloc_operatoire_id: null,
-      besoin_operation_id: null,
     };
 
-    if (site_id === BLOC_SITE_ID) {
-      if (bloc_operation_id) {
-        update.planning_genere_bloc_operatoire_id = bloc_operation_id;
-      }
-      if (besoin_operation_id) {
-        update.besoin_operation_id = besoin_operation_id;
-      }
-      
-      if (!update.planning_genere_bloc_operatoire_id && need?.bloc_operation_id) {
-        update.planning_genere_bloc_operatoire_id = need.bloc_operation_id;
-      }
-      if (!update.besoin_operation_id && need?.besoin_operation_id) {
-        update.besoin_operation_id = need.besoin_operation_id;
-      }
-      
-      console.log(`  🏥 BLOC assignation: bloc_op=${update.planning_genere_bloc_operatoire_id?.slice(0,8)}, besoin_op=${update.besoin_operation_id?.slice(0,8)}`);
+    // Écriture inconditionnelle des IDs BLOC si parsés
+    if (bloc_operation_id && besoin_operation_id) {
+      update.planning_genere_bloc_operatoire_id = bloc_operation_id;
+      update.besoin_operation_id = besoin_operation_id;
+      console.log(`  ✅ BLOC IDs assignés: bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+    } else if (need?.bloc_operation_id && need?.besoin_operation_id) {
+      // Fallback: récupérer depuis le need si pas dans le varName
+      update.planning_genere_bloc_operatoire_id = need.bloc_operation_id;
+      update.besoin_operation_id = need.besoin_operation_id;
+      console.log(`  ♻️ BLOC IDs depuis need: bloc_op=${need.bloc_operation_id.slice(0,8)}, besoin_op=${need.besoin_operation_id.slice(0,8)}`);
     }
 
     processedCapaciteIds.add(capacite.id);
@@ -259,5 +227,15 @@ export async function writeAssignments(
         console.log(`  🔬 Capacite ${verif.id?.slice(0, 8)}: ${blocOk} bloc_op=${verif.planning_genere_bloc_operatoire_id?.slice(0,8) || 'NULL'}, ${besoinOk} besoin_op=${verif.besoin_operation_id?.slice(0,8) || 'NULL'}`);
       }
     }
+    
+    // Compteur final
+    const { data: finalCount } = await supabase
+      .from('capacite_effective')
+      .select('id', { count: 'exact', head: true })
+      .eq('date', date)
+      .not('planning_genere_bloc_operatoire_id', 'is', null)
+      .not('besoin_operation_id', 'is', null);
+    
+    console.log(`\n🧾 Récap BLOC final: ${finalCount || 0} lignes avec IDs BLOC écrits pour ${date}`);
   }
 }
