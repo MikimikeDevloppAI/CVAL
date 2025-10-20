@@ -345,30 +345,32 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
               <AlertTriangle className="h-5 w-5" />
               Suppression de l'opération
             </DialogTitle>
-            <DialogDescription className="space-y-4 pt-4">
-              <div className="rounded-lg border border-border/50 bg-muted/50 p-4 space-y-2">
-                <p className="font-medium text-foreground">Opération concernée :</p>
-                <ul className="space-y-1 text-sm">
-                  <li>• Dr. {operation.medecins?.first_name} {operation.medecins?.name}</li>
-                  <li>• Type : {operation.types_intervention.code}</li>
-                  <li>• Date : {format(new Date(operation.date), 'd MMMM yyyy', { locale: fr })} - {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}</li>
-                </ul>
-              </div>
+            <DialogDescription className="space-y-4 pt-2 text-foreground">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium mb-2">Opération concernée :</p>
+                  <p className="text-sm text-muted-foreground">
+                    Dr. {operation.medecins?.first_name} {operation.medecins?.name} • {operation.types_intervention.code}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(operation.date), 'd MMMM yyyy', { locale: fr })} - {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                  </p>
+                </div>
 
-              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-2">
-                <p className="font-medium text-destructive flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Conséquences :
-                </p>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• Tout le personnel assigné ({assignments.length} personne{assignments.length > 1 ? 's' : ''}) sera libéré et repassera en disponible</li>
+                <div>
+                  <p className="text-sm font-medium mb-2">Conséquences :</p>
+                  <p className="text-sm text-muted-foreground">
+                    • Personnel libéré : {assignments.length} personne{assignments.length > 1 ? 's' : ''}
+                  </p>
                   {operation.salle_assignee && (
-                    <li>• La salle {operation.salles_operation?.name} sera libérée</li>
+                    <p className="text-sm text-muted-foreground">
+                      • Salle {operation.salles_operation?.name} libérée
+                    </p>
                   )}
-                </ul>
-              </div>
+                </div>
 
-              <p className="text-sm font-medium text-foreground">Que voulez-vous faire ?</p>
+                <p className="text-sm font-medium pt-2">Que voulez-vous faire ?</p>
+              </div>
             </DialogDescription>
           </DialogHeader>
 
