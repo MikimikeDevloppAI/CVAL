@@ -693,21 +693,9 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                   <SelectValue placeholder="Sélectionner une période" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="matin">
-                    <div className="flex items-center gap-2">
-                      🌅 Matin uniquement
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="apres_midi">
-                    <div className="flex items-center gap-2">
-                      🌆 Après-midi uniquement
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="toute_journee">
-                    <div className="flex items-center gap-2">
-                      📅 Toute la journée
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="matin">Matin uniquement</SelectItem>
+                  <SelectItem value="apres_midi">Après-midi uniquement</SelectItem>
+                  <SelectItem value="toute_journee">Toute la journée</SelectItem>
                 </SelectContent>
               </Select>
             </div>
