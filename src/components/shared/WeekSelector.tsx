@@ -21,9 +21,9 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
   const [weeks, setWeeks] = useState<Date[]>([]);
 
   useEffect(() => {
-    // Generate 26 weeks (6 months forward, 6 months backward)
+    // Generate 52 weeks starting from current week (1 year forward)
     const weeksList: Date[] = [];
-    for (let i = -26; i <= 26; i++) {
+    for (let i = 0; i <= 52; i++) {
       weeksList.push(addWeeks(new Date(), i));
     }
     setWeeks(weeksList);
