@@ -383,7 +383,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
 
             {/* Absences Tab */}
             <TabsContent value="absences" className="flex-1 flex flex-col space-y-4 overflow-hidden mt-0">
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -510,7 +510,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
 
             {/* Jours Fériés Tab */}
             <TabsContent value="jours-feries" className="flex-1 flex flex-col space-y-4 overflow-hidden mt-0">
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
