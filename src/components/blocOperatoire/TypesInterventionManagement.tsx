@@ -351,12 +351,9 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
             <div className="p-5 space-y-4">
               {/* Header */}
               <div className="flex justify-between items-start">
-                <div className="flex-1 space-y-2">
-                  <h4 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">{type.nom}</h4>
+                <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wide">
-                      {type.code}
-                    </span>
+                    <h4 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">{type.nom}</h4>
                     {type.salle_preferentielle && (
                       <span className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${getSalleColor(type.salle_preferentielle)}`}>
                         <MapPin className="h-3 w-3" />
