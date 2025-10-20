@@ -394,7 +394,7 @@ const DashboardPage = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {dashboardSites.map((site, index) => (
             <SiteCalendarCard
               key={site.site_id}

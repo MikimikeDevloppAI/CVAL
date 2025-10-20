@@ -50,13 +50,13 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
     );
   }
 
-  const getPersonneBadgeClass = (matin: boolean, apres_midi: boolean) => {
+  const getDotColor = (matin: boolean, apres_midi: boolean) => {
     if (matin && apres_midi) {
-      return 'border-2 border-purple-500/60 bg-purple-500/10 text-purple-700';
+      return 'bg-green-500';
     } else if (matin) {
-      return 'border-2 border-amber-500/60 bg-amber-500/10 text-amber-700';
+      return 'bg-blue-500';
     } else {
-      return 'border-2 border-blue-500/60 bg-blue-500/10 text-blue-700';
+      return 'bg-yellow-500';
     }
   };
 
@@ -97,13 +97,11 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                   {data.medecins.map((m) => (
                     <span
                       key={m.id}
-                      className={cn(
-                        "text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full",
-                        getPersonneBadgeClass(m.matin, m.apres_midi)
-                      )}
+                      className="text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full bg-muted/50 border border-border/30 flex items-center gap-1.5"
                       title={m.nom}
                     >
-                      {m.nom}
+                      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
+                      <span className="truncate">{m.nom}</span>
                     </span>
                   ))}
                 </div>
@@ -122,12 +120,10 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                 {data.secretaires.map((s) => (
                   <span
                     key={s.id}
-                    className={cn(
-                      "text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1 truncate max-w-full",
-                      getPersonneBadgeClass(s.matin, s.apres_midi)
-                    )}
+                    className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30"
                     title={s.nom}
                   >
+                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
                     <span className="truncate">{s.nom}</span>
                     {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
                     {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
@@ -142,15 +138,15 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded border-2 border-amber-500 bg-amber-500/20" />
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span>Matin</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded border-2 border-blue-500 bg-blue-500/20" />
+                <div className="w-2 h-2 rounded-full bg-yellow-500" />
                 <span>Après-midi</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded border-2 border-purple-500 bg-purple-500/20" />
+                <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span>Journée</span>
               </div>
             </div>
