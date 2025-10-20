@@ -80,7 +80,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
-  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi'>('toute_journee');
+  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi' | null>(null);
 
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -228,54 +228,75 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     setSelectedDate(date);
     setSelectedSiteId('');
     setSelectedTypeInterventionId('');
+    setSelectedPeriode(null);
     setAddDialogOpen(true);
   };
 
   const handleAddBesoin = async () => {
-    if (!selectedDate || !selectedSiteId) {
-      toast.error('Veuillez sélectionner un site');
-      return;
-    }
-
-    // Check for overlaps before adding
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const periodes: ('matin' | 'apres_midi')[] = ['matin', 'apres_midi'];
-
-    const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodes);
-    if (overlapResult.hasOverlap) {
-      toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
+    if (!selectedDate || !selectedSiteId || !selectedPeriode) {
+      toast.error('Veuillez sélectionner un site et une période');
       return;
     }
 
     setLoading(true);
 
-    // Ajouter matin et après-midi pour une journée complète
-    const { error: errorMatin } = await supabase.from('besoin_effectif').insert({
-      type: 'medecin',
-      medecin_id: medecinId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      site_id: selectedSiteId,
-      demi_journee: 'matin',
-      type_intervention_id: selectedTypeInterventionId || null,
-    });
+    try {
+      // Check for overlaps before adding
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const periodesToCheck: ('matin' | 'apres_midi')[] = 
+        selectedPeriode === 'toute_journee' ? ['matin', 'apres_midi'] : [selectedPeriode];
 
-    const { error: errorApresmidi } = await supabase.from('besoin_effectif').insert({
-      type: 'medecin',
-      medecin_id: medecinId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      site_id: selectedSiteId,
-      demi_journee: 'apres_midi',
-      type_intervention_id: selectedTypeInterventionId || null,
-    });
+      const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodesToCheck);
+      if (overlapResult.hasOverlap) {
+        toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
+        setLoading(false);
+        return;
+      }
 
-    if (errorMatin || errorApresmidi) {
-      toast.error("Erreur lors de l'ajout");
-    } else {
-      toast.success('Journée complète ajoutée');
+      // If "toute_journee" is selected, insert both morning and afternoon
+      if (selectedPeriode === 'toute_journee') {
+        const besoins = [
+          {
+            type: 'medecin' as const,
+            medecin_id: medecinId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'matin' as const,
+            type_intervention_id: selectedTypeInterventionId || null,
+          },
+          {
+            type: 'medecin' as const,
+            medecin_id: medecinId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi' as const,
+            type_intervention_id: selectedTypeInterventionId || null,
+          }
+        ];
+        const { error } = await supabase.from('besoin_effectif').insert(besoins);
+        if (error) throw error;
+        toast.success('Créneaux matin et après-midi ajoutés');
+      } else {
+        const { error } = await supabase.from('besoin_effectif').insert({
+          type: 'medecin',
+          medecin_id: medecinId,
+          date: dateStr,
+          site_id: selectedSiteId,
+          demi_journee: selectedPeriode,
+          type_intervention_id: selectedTypeInterventionId || null,
+        });
+        if (error) throw error;
+        toast.success('Créneau ajouté');
+      }
+
       fetchBesoins();
       setAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding besoin:', error);
+      toast.error("Erreur lors de l'ajout");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDeleteClick = (besoinIds: string[]) => {
@@ -658,10 +679,39 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-planning-teal/30">
           <DialogHeader>
-            <DialogTitle>Ajouter une journée</DialogTitle>
-            <DialogDescription className="sr-only">Ajouter une journée complète pour {medecinNom}</DialogDescription>
+            <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogDescription className="sr-only">Ajouter un créneau pour {medecinNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Période</label>
+              <Select 
+                value={selectedPeriode || ''} 
+                onValueChange={(value) => setSelectedPeriode(value as 'matin' | 'apres_midi' | 'toute_journee')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="matin">
+                    <div className="flex items-center gap-2">
+                      🌅 Matin uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="apres_midi">
+                    <div className="flex items-center gap-2">
+                      🌆 Après-midi uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="toute_journee">
+                    <div className="flex items-center gap-2">
+                      📅 Toute la journée
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Site</label>
               <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
@@ -703,7 +753,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                 disabled={loading}
                 className="bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90"
               >
-                Ajouter journée complète
+                Ajouter
               </Button>
             </div>
           </div>

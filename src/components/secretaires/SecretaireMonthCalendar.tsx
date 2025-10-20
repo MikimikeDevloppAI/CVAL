@@ -70,7 +70,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
-  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi'>('toute_journee');
+  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi' | null>(null);
 
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -197,50 +197,69 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   const handleAddClick = (date: Date) => {
     setSelectedDate(date);
     setSelectedSiteId('');
+    setSelectedPeriode(null);
     setAddDialogOpen(true);
   };
 
   const handleAddCapacite = async () => {
-    if (!selectedDate || !selectedSiteId) {
-      toast.error('Veuillez sélectionner un site');
-      return;
-    }
-
-    // Check for overlaps before adding
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const periodes: ('matin' | 'apres_midi')[] = ['matin', 'apres_midi'];
-
-    const overlapResult = await checkSecretaireOverlap(secretaireId, dateStr, periodes);
-    if (overlapResult.hasOverlap) {
-      toast.error(getOverlapErrorMessage(overlapResult, 'secretaire'));
+    if (!selectedDate || !selectedSiteId || !selectedPeriode) {
+      toast.error('Veuillez sélectionner un site et une période');
       return;
     }
 
     setLoading(true);
 
-    // Ajouter matin et après-midi pour une journée complète
-    const { error: errorMatin } = await supabase.from('capacite_effective').insert({
-      secretaire_id: secretaireId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      site_id: selectedSiteId,
-      demi_journee: 'matin',
-    });
+    try {
+      // Check for overlaps before adding
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const periodesToCheck: ('matin' | 'apres_midi')[] = 
+        selectedPeriode === 'toute_journee' ? ['matin', 'apres_midi'] : [selectedPeriode];
 
-    const { error: errorApresmidi } = await supabase.from('capacite_effective').insert({
-      secretaire_id: secretaireId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      site_id: selectedSiteId,
-      demi_journee: 'apres_midi',
-    });
+      const overlapResult = await checkSecretaireOverlap(secretaireId, dateStr, periodesToCheck);
+      if (overlapResult.hasOverlap) {
+        toast.error(getOverlapErrorMessage(overlapResult, 'secretaire'));
+        setLoading(false);
+        return;
+      }
 
-    if (errorMatin || errorApresmidi) {
-      toast.error("Erreur lors de l'ajout");
-    } else {
-      toast.success('Journée complète ajoutée');
+      // If "toute_journee" is selected, insert both morning and afternoon
+      if (selectedPeriode === 'toute_journee') {
+        const capacites = [
+          {
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'matin' as const,
+          },
+          {
+            secretaire_id: secretaireId,
+            date: dateStr,
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi' as const,
+          }
+        ];
+        const { error } = await supabase.from('capacite_effective').insert(capacites);
+        if (error) throw error;
+        toast.success('Créneaux matin et après-midi ajoutés');
+      } else {
+        const { error } = await supabase.from('capacite_effective').insert({
+          secretaire_id: secretaireId,
+          date: dateStr,
+          site_id: selectedSiteId,
+          demi_journee: selectedPeriode,
+        });
+        if (error) throw error;
+        toast.success('Créneau ajouté');
+      }
+
       fetchCapacites();
       setAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding capacite:', error);
+      toast.error("Erreur lors de l'ajout");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDeleteClick = (capaciteIds: string[]) => {
@@ -599,10 +618,39 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-primary/20">
           <DialogHeader>
-            <DialogTitle>Ajouter une journée</DialogTitle>
-            <DialogDescription className="sr-only">Ajouter une journée complète pour {secretaireNom}</DialogDescription>
+            <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogDescription className="sr-only">Ajouter un créneau pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Période</label>
+              <Select 
+                value={selectedPeriode || ''} 
+                onValueChange={(value) => setSelectedPeriode(value as 'matin' | 'apres_midi' | 'toute_journee')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="matin">
+                    <div className="flex items-center gap-2">
+                      🌅 Matin uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="apres_midi">
+                    <div className="flex items-center gap-2">
+                      🌆 Après-midi uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="toute_journee">
+                    <div className="flex items-center gap-2">
+                      📅 Toute la journée
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Site</label>
               <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
@@ -628,7 +676,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                 disabled={loading}
                 className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
               >
-                Ajouter journée complète
+                Ajouter
               </Button>
             </div>
           </div>
