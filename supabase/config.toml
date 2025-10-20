@@ -1,17 +1,5 @@
 project_id = "xvuugxjseavbxpxhfprb"
 
-[functions.optimize-planning-milp-unified]
-verify_jwt = false
-
-[functions.optimize-base-schedule-milp]
-verify_jwt = false
-
-[functions.optimize-base-schedule-milp-scenario]
-verify_jwt = false
-
-[functions.optimize-planning-milp]
-verify_jwt = false
-
 [functions.generate-planning-pdf]
 verify_jwt = false
 
