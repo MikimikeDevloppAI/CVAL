@@ -26,18 +26,20 @@ interface Operation {
 
 interface OperationDayCardProps {
   date: Date;
-  periode: 'matin' | 'apres_midi';
   operations: Operation[];
   index: number;
   onUpdate: () => void;
 }
 
-export const OperationDayCard = ({ date, periode, operations, index, onUpdate }: OperationDayCardProps) => {
+export const OperationDayCard = ({ date, operations, index, onUpdate }: OperationDayCardProps) => {
+  const morningOps = operations.filter(op => op.periode === 'matin');
+  const afternoonOps = operations.filter(op => op.periode === 'apres_midi');
+
   return (
     <div
       className={cn(
         "rounded-xl overflow-hidden",
-        "bg-card/50 backdrop-blur-xl border border-border/50",
+        "backdrop-blur-xl border border-border/50",
         "shadow-lg hover:shadow-xl",
         "transition-all duration-300 ease-out",
         "animate-fade-in"
@@ -57,19 +59,36 @@ export const OperationDayCard = ({ date, periode, operations, index, onUpdate }:
       </div>
 
       {/* Operations */}
-      <div className="p-3 space-y-3">
-        {operations.length === 0 ? (
+      <div className="p-3 space-y-4">
+        {morningOps.length === 0 && afternoonOps.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground text-sm">
             Aucune opération
           </div>
         ) : (
-          operations.map((operation) => (
-            <OperationCard
-              key={operation.id}
-              operation={operation}
-              onUpdate={onUpdate}
-            />
-          ))
+          <>
+            {morningOps.length > 0 && (
+              <div className="space-y-3">
+                {morningOps.map((operation) => (
+                  <OperationCard
+                    key={operation.id}
+                    operation={operation}
+                    onUpdate={onUpdate}
+                  />
+                ))}
+              </div>
+            )}
+            {afternoonOps.length > 0 && (
+              <div className="space-y-3">
+                {afternoonOps.map((operation) => (
+                  <OperationCard
+                    key={operation.id}
+                    operation={operation}
+                    onUpdate={onUpdate}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -114,9 +114,10 @@ const OperationsPage = () => {
     }
   };
 
-  const getOperationsForDay = (date: Date, periode: 'matin' | 'apres_midi') => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return operations.filter(op => op.date === dateStr && op.periode === periode);
+  const getOperationsForDay = (date: Date) => {
+    return operations.filter(
+      (op) => op.date === format(date, 'yyyy-MM-dd')
+    );
   };
 
   return (
@@ -142,48 +143,18 @@ const OperationsPage = () => {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Morning Section */}
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-                    <span>🌅</span> Matin
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {weekDays
-                      .filter(day => format(day, 'E', { locale: fr }) !== 'sam' && format(day, 'E', { locale: fr }) !== 'dim')
-                      .map((day, index) => (
-                        <OperationDayCard
-                          key={`${format(day, 'yyyy-MM-dd')}-matin`}
-                          date={day}
-                          periode="matin"
-                          operations={getOperationsForDay(day, 'matin')}
-                          index={index}
-                          onUpdate={fetchOperations}
-                        />
-                      ))}
-                  </div>
-                </div>
-
-                {/* Afternoon Section */}
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-                    <span>🌆</span> Après-midi
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {weekDays
-                      .filter(day => format(day, 'E', { locale: fr }) !== 'sam' && format(day, 'E', { locale: fr }) !== 'dim')
-                      .map((day, index) => (
-                        <OperationDayCard
-                          key={`${format(day, 'yyyy-MM-dd')}-apres_midi`}
-                          date={day}
-                          periode="apres_midi"
-                          operations={getOperationsForDay(day, 'apres_midi')}
-                          index={index}
-                          onUpdate={fetchOperations}
-                        />
-                      ))}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {weekDays
+                  .filter(day => format(day, 'E', { locale: fr }) !== 'sam' && format(day, 'E', { locale: fr }) !== 'dim')
+                  .map((day, index) => (
+                    <OperationDayCard
+                      key={format(day, 'yyyy-MM-dd')}
+                      date={day}
+                      operations={getOperationsForDay(day)}
+                      index={index}
+                      onUpdate={fetchOperations}
+                    />
+                  ))}
               </div>
             )}
           </TabsContent>

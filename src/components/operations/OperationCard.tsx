@@ -150,7 +150,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
 
   return (
     <>
-      <div className="rounded-lg border border-border/50 bg-card p-3 space-y-3 hover:shadow-md transition-shadow">
+      <div className="rounded-lg border border-border p-3 space-y-3 bg-transparent hover:shadow-md transition-shadow">
         {/* Room Badge */}
         <Badge
           variant="outline"

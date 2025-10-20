@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { canPerformBlocRole, getTypeBesoinLabel } from '@/lib/blocHelpers';
 
 interface AvailableSecretary {
   capacite_id: string;
@@ -57,6 +58,19 @@ export const AssignPersonnelDialog = ({
   const fetchAvailableSecretaries = async () => {
     try {
       setLoading(true);
+      
+      // First, get the besoin code to check competency
+      const { data: besoinData, error: besoinError } = await supabase
+        .from('besoins_operations')
+        .select('code')
+        .eq('id', besoinId)
+        .single();
+
+      if (besoinError) throw besoinError;
+
+      const besoinCode = besoinData?.code;
+
+      // Fetch available secretaries with their competencies
       const { data, error } = await supabase
         .from('capacite_effective')
         .select(`
@@ -65,22 +79,40 @@ export const AssignPersonnelDialog = ({
           secretaires (
             id,
             first_name,
-            name
+            name,
+            secretaires_besoins_operations (
+              besoins_operations (
+                code
+              )
+            )
           )
         `)
         .eq('date', date)
         .eq('demi_journee', periode)
         .is('planning_genere_bloc_operatoire_id', null)
+        .is('besoin_operation_id', null)
         .eq('actif', true);
 
       if (error) throw error;
 
-      const formatted = data?.map(item => ({
-        capacite_id: item.id,
-        secretaire_id: item.secretaire_id!,
-        first_name: item.secretaires?.first_name || '',
-        name: item.secretaires?.name || '',
-      })) || [];
+      // Filter secretaries based on their competencies
+      const formatted = data
+        ?.filter(item => {
+          if (!item.secretaires) return false;
+          
+          const secretaire = {
+            id: item.secretaires.id,
+            besoins_operations: item.secretaires.secretaires_besoins_operations
+          };
+          
+          return canPerformBlocRole(secretaire, besoinCode);
+        })
+        .map(item => ({
+          capacite_id: item.id,
+          secretaire_id: item.secretaire_id!,
+          first_name: item.secretaires!.first_name || '',
+          name: item.secretaires!.name || '',
+        })) || [];
 
       setAvailableSecretaries(formatted);
     } catch (error) {
@@ -126,7 +158,7 @@ export const AssignPersonnelDialog = ({
         <DialogHeader>
           <DialogTitle>Assigner du personnel</DialogTitle>
           <DialogDescription>
-            Sélectionnez une secrétaire disponible pour le rôle : <strong>{besoinNom}</strong>
+            Personnel qualifié pour : <strong>{besoinNom}</strong>
           </DialogDescription>
         </DialogHeader>
 

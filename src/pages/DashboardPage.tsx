@@ -254,7 +254,7 @@ const DashboardPage = () => {
         <QuickActionButton
           label="Opérations"
           icon={<ClipboardPlus className="h-6 w-6" />}
-          href="/bloc-operatoire"
+          href="/operations"
           gradient="from-emerald-500 to-teal-500"
           count={stats.todayOperations}
         />
