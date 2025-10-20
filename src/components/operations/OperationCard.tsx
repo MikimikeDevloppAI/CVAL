@@ -151,18 +151,23 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
   return (
     <>
       <div className="rounded-lg border border-border p-3 space-y-3 bg-transparent hover:shadow-md transition-shadow">
-        {/* Room Badge */}
-        <Badge
-          variant="outline"
-          className={cn(
-            "cursor-pointer hover:opacity-80 transition-opacity font-medium",
-            getSalleColor(operation.salles_operation?.name || null)
-          )}
-          onClick={() => setChangeSalleOpen(true)}
-        >
-          <MapPin className="h-3 w-3 mr-1" />
-          {operation.salles_operation?.name || 'Non assignée'}
-        </Badge>
+        {/* Period and Room */}
+        <div className="flex items-center justify-between gap-2">
+          <Badge variant="secondary" className="text-xs">
+            {operation.periode === 'matin' ? '🌅 Matin' : '🌆 Après-midi'}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={cn(
+              "cursor-pointer hover:opacity-80 transition-opacity font-medium text-xs",
+              getSalleColor(operation.salles_operation?.name || null)
+            )}
+            onClick={() => setChangeSalleOpen(true)}
+          >
+            <MapPin className="h-3 w-3 mr-1" />
+            {operation.salles_operation?.name || 'Non assignée'}
+          </Badge>
+        </div>
 
         {/* Doctor */}
         <div className="flex items-center gap-2 text-sm">
