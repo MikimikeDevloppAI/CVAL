@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Settings, Edit2, Trash2 } from "lucide-react";
-import TypeInterventionBesoinsForm from "./TypeInterventionBesoinsForm";
+import { TypeInterventionBesoinsForm } from "./TypeInterventionBesoinsForm";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
 import { ConfigurationsMultiFluxManagement } from "./ConfigurationsMultiFluxManagement";
 
@@ -375,4 +375,5 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
 
 TypesInterventionManagement.displayName = 'TypesInterventionManagement';
 
+export { TypesInterventionManagement };
 export default TypesInterventionManagement;

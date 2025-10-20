@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { Plus, Edit2, Trash2 } from "lucide-react";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
 
 interface TypeIntervention {
@@ -51,27 +50,16 @@ export function ConfigurationsMultiFluxManagement() {
   const [configurations, setConfigurations] = useState<Configuration[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [salles, setSalles] = useState<Salle[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedConfig, setSelectedConfig] = useState<Configuration | null>(null);
-  const [formData, setFormData] = useState({
-    type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
-  });
-  const [interventions, setInterventions] = useState<ConfigurationIntervention[]>([
-    { type_intervention_id: '', ordre: 1, salle: 'rouge' },
-    { type_intervention_id: '', ordre: 2, salle: 'verte' },
-  ]);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [configToDelete, setConfigToDelete] = useState<string | null>(null);
-  const [editingConfig, setEditingConfig] = useState<Configuration | null>(null);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [configToDelete, setConfigToDelete] = useState<string | null>(null);
   const [editingConfig, setEditingConfig] = useState<Configuration | null>(null);
-  const [formData, setFormData] = useState({
-    type_flux: 'double_flux' as 'double_flux' | 'triple_flux',
-    interventions: [] as ConfigurationIntervention[],
+  const [formData, setFormData] = useState<{
+    type_flux: 'double_flux' | 'triple_flux';
+    interventions: ConfigurationIntervention[];
+  }>({
+    type_flux: 'double_flux',
+    interventions: [],
   });
 
   useEffect(() => {
@@ -107,7 +95,13 @@ export function ConfigurationsMultiFluxManagement() {
 
     setConfigurations((data || []).map(config => ({
       ...config,
-      interventions: config.configurations_multi_flux_interventions || []
+      interventions: (config.configurations_multi_flux_interventions || []).map((interv: any) => ({
+        id: interv.id,
+        type_intervention_id: interv.type_intervention_id,
+        ordre: interv.ordre,
+        salle: interv.salle,
+        type_intervention: interv.types_intervention,
+      }))
     })) as Configuration[]);
   };
 
@@ -231,7 +225,6 @@ export function ConfigurationsMultiFluxManagement() {
       fetchConfigurations();
       setFormDialogOpen(false);
 
-      // Trigger room reassignment
       try {
         await triggerRoomReassignment();
         toast.success('Salles réassignées avec succès');
@@ -261,7 +254,6 @@ export function ConfigurationsMultiFluxManagement() {
       setDeleteDialogOpen(false);
       setConfigToDelete(null);
 
-      // Trigger room reassignment
       try {
         await triggerRoomReassignment();
         toast.success('Salles réassignées avec succès');
@@ -488,4 +480,3 @@ export function ConfigurationsMultiFluxManagement() {
     </div>
   );
 }
-
