@@ -6,6 +6,15 @@ function isUuid(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
+// Helper function to detect BLOC variables
+function isBlocVariable(varName: string): boolean {
+  const parts = varName.split('_');
+  if (parts.length < 7) return false;
+  const prev = parts[parts.length - 2];
+  const last = parts[parts.length - 1];
+  return isUuid(prev) && isUuid(last);
+}
+
 export async function writeAssignments(
   solution: any,
   date: string,
@@ -37,7 +46,15 @@ export async function writeAssignments(
   // Lister les variables assignées (>0.5 pour supporter les flottants)
   const assignedVars = Object.entries(solution)
     .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
-    .map(([k]) => k);
+    .map(([k]) => k)
+    .sort((a, b) => {
+      // Trier pour traiter les BLOC en premier (évite écrasement par SITE)
+      const aIsBloc = isBlocVariable(a);
+      const bIsBloc = isBlocVariable(b);
+      if (aIsBloc && !bIsBloc) return -1;
+      if (!aIsBloc && bIsBloc) return 1;
+      return 0;
+    });
   
   // 🔍 DIAGNOSTIC 1: Répartition variables BLOC vs SITE
   // Détection BLOC robuste: 2 DERNIERS segments sont des UUIDs (avec ou sans "_bloc_")
@@ -124,6 +141,12 @@ export async function writeAssignments(
 
     if (!capacite) {
       console.warn(`⚠️ Capacité non trouvée pour ${varName}`);
+      continue;
+    }
+
+    // Éviter de retraiter une capacité déjà assignée (évite écrasement BLOC par SITE)
+    if (processedCapaciteIds.has(capacite.id)) {
+      console.log(`  ⏭️ Capacité ${capacite.id.slice(0,8)} déjà traitée, skip`);
       continue;
     }
 
