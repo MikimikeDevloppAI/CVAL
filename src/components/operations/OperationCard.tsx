@@ -258,9 +258,9 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
         </div>
 
         {/* Intervention Type */}
-        <Badge variant="secondary" className="text-xs">
-          {operation.types_intervention.code}
-        </Badge>
+        <div className="text-sm text-muted-foreground">
+          {operation.types_intervention.nom}
+        </div>
 
         {/* Personnel Requirements */}
         <div className="space-y-2 pt-2 border-t border-border/30">
