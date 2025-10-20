@@ -454,14 +454,13 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-foreground">Salle préférentielle</Label>
                 <Select
-                  value={formData.salle_preferentielle || ''}
+                  value={formData.salle_preferentielle || undefined}
                   onValueChange={(value) => setFormData({ ...formData, salle_preferentielle: value || null })}
                 >
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Sélectionner une salle" />
+                    <SelectValue placeholder="Aucune préférence" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucune préférence</SelectItem>
                     {salles.map((salle) => (
                       <SelectItem key={salle.id} value={salle.id}>
                         {salle.name}
@@ -469,6 +468,17 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.salle_preferentielle && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, salle_preferentielle: null })}
+                    className="text-xs"
+                  >
+                    Effacer la sélection
+                  </Button>
+                )}
               </div>
             </div>
 
