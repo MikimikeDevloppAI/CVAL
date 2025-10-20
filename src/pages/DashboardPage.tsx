@@ -185,7 +185,7 @@ const DashboardPage = () => {
             const day = daysMap.get(date)!;
             
             if (besoin.medecins) {
-              const medecinNom = `${besoin.medecins.first_name || ''} ${besoin.medecins.name || ''}`.trim();
+              const medecinNom = besoin.medecins.name || '';
               const periode = besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
               // Check if medecin already exists
@@ -227,7 +227,7 @@ const DashboardPage = () => {
             const day = daysMap.get(date)!;
             
             if (plan.secretaires) {
-              const secretaireNom = `${plan.secretaires.first_name || ''} ${plan.secretaires.name || ''}`.trim();
+              const secretaireNom = plan.secretaires.name || '';
               const periode = plan.periode === 'matin' ? 'matin' : 'apres_midi';
               
               // Check if secretaire already exists
@@ -268,7 +268,7 @@ const DashboardPage = () => {
             const day = daysMap.get(date)!;
             
             if (cap.secretaires) {
-              const secretaireNom = `${cap.secretaires.first_name || ''} ${cap.secretaires.name || ''}`.trim();
+              const secretaireNom = cap.secretaires.name || '';
               const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
               // Only add if not already in planning
