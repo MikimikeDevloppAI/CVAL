@@ -39,10 +39,11 @@ interface SiteCalendarCardProps {
 }
 
 export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalendarCardProps) => {
+  // Filter out Sundays (day 0)
   const days = eachDayOfInterval({
     start: parseISO(startDate),
     end: parseISO(endDate)
-  });
+  }).filter(day => day.getDay() !== 0);
 
   const getDayData = (date: Date): DayData | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -85,7 +86,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index }: SiteCalend
 
       {/* Calendar Grid */}
       <div className="p-4">
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
           {/* Day Headers */}
           {days.map((day) => {
             const dayData = getDayData(day);

@@ -128,7 +128,7 @@ const DashboardPage = () => {
             .eq('type', 'medecin')
             .order('date');
 
-          // Fetch planning généré (secrétaires)
+          // Fetch planning généré (secrétaires) + capacité effective
           const planningQuery = supabase
             .from('planning_genere_personnel')
             .select(`
@@ -146,6 +146,24 @@ const DashboardPage = () => {
           }
 
           const { data: planning } = await planningQuery;
+
+          // Fetch capacité effective pour les secrétaires
+          const capaciteQuery = supabase
+            .from('capacite_effective')
+            .select(`
+              *,
+              secretaires(id, first_name, name)
+            `)
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .eq('actif', true)
+            .order('date');
+
+          if (!isAdminSite) {
+            capaciteQuery.eq('site_id', site.id);
+          }
+
+          const { data: capacite } = await capaciteQuery;
 
           // Group by date only (not by period)
           const daysMap = new Map<string, DayData>();
@@ -228,6 +246,44 @@ const DashboardPage = () => {
                   validated: plan.validated || false,
                   is_1r: plan.is_1r,
                   is_2f: plan.is_2f
+                });
+              }
+            }
+          });
+
+          // Process capacité effective (secrétaires sans planning)
+          capacite?.forEach((cap) => {
+            const date = cap.date;
+            if (!daysMap.has(date)) {
+              daysMap.set(date, {
+                date,
+                medecins: [],
+                secretaires: [],
+                besoin_secretaires_matin: 0,
+                besoin_secretaires_apres_midi: 0,
+                status_matin: 'non_satisfait',
+                status_apres_midi: 'non_satisfait'
+              });
+            }
+            const day = daysMap.get(date)!;
+            
+            if (cap.secretaires) {
+              const secretaireNom = `${cap.secretaires.first_name || ''} ${cap.secretaires.name || ''}`.trim();
+              const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
+              
+              // Only add if not already in planning
+              const existingSecretaire = day.secretaires.find(s => s.id === cap.secretaires.id);
+              if (existingSecretaire) {
+                existingSecretaire[periode] = true;
+              } else {
+                day.secretaires.push({
+                  id: cap.secretaires.id,
+                  nom: secretaireNom,
+                  matin: periode === 'matin',
+                  apres_midi: periode === 'apres_midi',
+                  validated: false,
+                  is_1r: false,
+                  is_2f: false
                 });
               }
             }
@@ -370,6 +426,22 @@ const DashboardPage = () => {
         >
           <ChevronRight className="h-5 w-5" />
         </Button>
+      </div>
+
+      {/* Color Legend */}
+      <div className="flex items-center justify-center gap-6 bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded border-2 border-amber-500 bg-amber-500/20" />
+          <span className="text-sm text-muted-foreground">Matin</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded border-2 border-blue-500 bg-blue-500/20" />
+          <span className="text-sm text-muted-foreground">Après-midi</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded border-2 border-purple-500 bg-purple-500/20" />
+          <span className="text-sm text-muted-foreground">Journée complète</span>
+        </div>
       </div>
 
       {/* Sites Calendar Grid */}

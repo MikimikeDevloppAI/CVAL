@@ -88,9 +88,10 @@ export const DayCell = ({ date, data }: DayCellProps) => {
                     <span
                       key={m.id}
                       className={cn(
-                        "text-[10px] font-medium px-2 py-1 rounded-md transition-all",
+                        "text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full",
                         getPersonneBadgeClass(m.matin, m.apres_midi)
                       )}
+                      title={m.nom}
                     >
                       {m.nom}
                     </span>
@@ -112,13 +113,14 @@ export const DayCell = ({ date, data }: DayCellProps) => {
                   <span
                     key={s.id}
                     className={cn(
-                      "text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1",
+                      "text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1 truncate max-w-full",
                       getPersonneBadgeClass(s.matin, s.apres_midi)
                     )}
+                    title={s.nom}
                   >
-                    {s.nom}
-                    {s.is_1r && <span className="text-[8px] font-bold">(1R)</span>}
-                    {s.is_2f && <span className="text-[8px] font-bold">(2F)</span>}
+                    <span className="truncate">{s.nom}</span>
+                    {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
+                    {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
                   </span>
                 ))}
               </div>
