@@ -283,6 +283,12 @@ async function optimizeSingleWeek(
       // Count bloc assignments
       const blocAssignedVars = assignedVars.filter(v => v.includes('_bloc_'));
       console.log(`  🏥 Assignations BLOC: ${blocAssignedVars.length}`);
+      if (blocAssignedVars.length === 0 && needs.some(n => n.type === 'bloc_operatoire')) {
+        console.warn(`  ⚠️ Aucune variable BLOC assignée alors que des besoins BLOC existent!`);
+      } else if (blocAssignedVars.length > 0) {
+        console.log(`  📋 Exemples d'assignations BLOC:`);
+        blocAssignedVars.slice(0, 5).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
+      }
       
       if (assignedVars.length > 0) {
         assignedVars.slice(0, 10).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
@@ -397,6 +403,25 @@ async function optimizeSingleWeek(
       weekData.capacites_effective.filter(c => c.date === date),
       supabase
     );
+    
+    // Summary of BLOC assignments written
+    const { data: blocWrittenSummary, error: blocSummaryError } = await supabase
+      .from('capacite_effective')
+      .select('id, planning_genere_bloc_operatoire_id, besoin_operation_id')
+      .eq('date', date)
+      .eq('actif', true)
+      .not('planning_genere_bloc_operatoire_id', 'is', null);
+    
+    if (blocSummaryError) {
+      console.error('❌ Erreur lors du résumé BLOC:', blocSummaryError);
+    } else {
+      console.log(`\n🧾 Résumé écriture BLOC: ${blocWrittenSummary?.length || 0} capacités avec IDs BLOC`);
+      if (blocWrittenSummary && blocWrittenSummary.length > 0) {
+        blocWrittenSummary.slice(0, 3).forEach((c: any, i: number) => {
+          console.log(`    [${i+1}] capacite=${c.id.slice(0,8)}..., bloc_op=${c.planning_genere_bloc_operatoire_id?.slice(0,8)}..., besoin=${c.besoin_operation_id?.slice(0,8)}...`);
+        });
+      }
+    }
     
     // ============================================================
     // VERIFY: Bloc assignments written correctly

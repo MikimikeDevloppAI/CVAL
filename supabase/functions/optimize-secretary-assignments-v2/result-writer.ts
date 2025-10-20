@@ -142,6 +142,35 @@ export async function writeAssignments(
 
     if (!need) {
       console.warn(`⚠️ Besoin non trouvé pour ${varName}`);
+      
+      // FALLBACK for BLOC assignments: use parsed IDs directly
+      if (bloc_operation_id && besoin_operation_id) {
+        console.log(`  ♻️ Fallback BLOC: utilisation des IDs parsés directement`);
+        const BLOC_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+        
+        assignedCount++;
+        const update: any = {
+          id: capacite.id,
+          site_id: BLOC_SITE_ID,
+          planning_genere_bloc_operatoire_id: bloc_operation_id,
+          besoin_operation_id: besoin_operation_id,
+        };
+        
+        console.log(`\n  ✅ Assignation ${assignedCount} (FALLBACK BLOC):`, {
+          secretaire_id,
+          site_id_final: BLOC_SITE_ID,
+          date,
+          periode,
+          capacite_id: capacite.id,
+          bloc_operation_id,
+          besoin_operation_id,
+        });
+        
+        updates.push(update);
+        continue;
+      }
+      
+      // For non-bloc needs, log and skip
       if (bloc_operation_id) {
         const blocNeeds = needs
           .filter((n) => n.type === 'bloc_operatoire' && n.date === date)
@@ -202,6 +231,12 @@ export async function writeAssignments(
   }
 
   console.log(`\n📝 Écriture de ${updates.length} assignations dans capacite_effective`);
+  
+  // Log summary of updates with BLOC IDs
+  const updatesWithBlocIds = updates.filter(u => u.planning_genere_bloc_operatoire_id !== null);
+  const updatesWithoutBlocIds = updates.filter(u => u.planning_genere_bloc_operatoire_id === null);
+  console.log(`  📊 Updates avec IDs BLOC: ${updatesWithBlocIds.length}`);
+  console.log(`  📊 Updates sans IDs BLOC (sites réguliers): ${updatesWithoutBlocIds.length}`);
   
   // Batch update
   let successCount = 0;

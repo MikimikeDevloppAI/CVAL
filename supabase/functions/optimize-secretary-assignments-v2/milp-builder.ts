@@ -119,6 +119,15 @@ export function buildMILPModelSoft(
   }
   console.log(`  🏥 Variables BLOC: ${blocVariableCount}`);
   
+  // Log examples of BLOC variables
+  if (blocVariableCount > 0) {
+    const blocVarExamples = Object.keys(model.variables)
+      .filter(v => v.includes('_bloc_'))
+      .slice(0, 3);
+    console.log(`  📋 Exemples de variables BLOC:`);
+    blocVarExamples.forEach((v, i) => console.log(`    [${i+1}] ${v}`));
+  }
+  
   // ============================================================
   // CONSTRAINT: Max per individual need
   // ============================================================
