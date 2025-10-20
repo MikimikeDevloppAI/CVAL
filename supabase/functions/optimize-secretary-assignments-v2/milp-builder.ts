@@ -110,25 +110,22 @@ export function buildMILPModelSoft(
   let blocVariableCount = 0;
   
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
-    console.log(`\n🔵 DÉBUT traitement besoin [${needIndex + 1}/${needs.length}]...`);
-    
     try {
       const need = needs[needIndex];
+      
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`🔵 TRAITEMENT BESOIN [${needIndex + 1}/${needs.length}]`);
+      console.log(`   Type: ${need.type} | Période: ${need.periode} | Site: ${need.site_id?.slice(0,8)}`);
+      if (need.type === 'bloc_operatoire') {
+        console.log(`   🏥 BLOC: operation=${need.bloc_operation_id?.slice(0,8)}, besoin=${need.besoin_operation_id?.slice(0,8)}`);
+      }
+      console.log(`${'='.repeat(80)}`);
+      
       // Create unique need ID with numeric period code (1=matin, 2=apres_midi)
       const periodCode = need.periode === 'matin' ? '1' : '2';
       const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
         ? `${need.site_id}_${need.date}_${periodCode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
         : `${need.site_id}_${need.date}_${periodCode}`;
-      
-      // 🔍 LOG DÉTAILLÉ POUR CHAQUE BESOIN
-      console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
-      type: need.type,
-      site_id: need.site_id?.slice(0, 8),
-      periode: need.periode,
-      nombre_max: need.nombre_max,
-      bloc_operation_id: need.bloc_operation_id?.slice(0, 8),
-      besoin_operation_id: need.besoin_operation_id?.slice(0, 8)
-    });
     
     // 📊 Comptage des capacités disponibles pour cette période
     const periodCaps = todayCapacites.filter(c => 
@@ -192,14 +189,16 @@ export function buildMILPModelSoft(
         console.log(`    🔍 Test secrétaire ${cap.secretaire_id.slice(0,8)}... (cap.site=${cap.site_id?.slice(0,8)}..., need.type=${need.type})`);
       }
       
-      // Check eligibility
+      // ============================================================
+      // VÉRIFICATION D'ÉLIGIBILITÉ (LOGIQUE DIFFÉRENTE SELON LE TYPE)
+      // ============================================================
       const isAdminSite = need.site_id === ADMIN_SITE_ID;
       
       if (!isAdminSite) {
-        // For bloc: ONLY check competence (secretaires_besoins)
-        // No need to check site membership for bloc
         if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
-          // Check if secretary has competence for this besoin_operation
+          // 🏥 BLOC OPÉRATOIRE: Vérifier UNIQUEMENT la compétence technique
+          // Les secrétaires n'ont PAS besoin d'être "membres" du site bloc
+          // Elles peuvent être assignées au bloc depuis n'importe quel site
           const hasCompetence = week_data.secretaires_besoins.some(
             (sb: any) => sb.secretaire_id === cap.secretaire_id && 
                   sb.besoin_operation_id === need.besoin_operation_id
@@ -215,7 +214,7 @@ export function buildMILPModelSoft(
             console.log(`    ✅ BLOC accepté: Secrétaire ${cap.secretaire_id.slice(0,8)}... a la compétence`);
           }
         } else {
-          // For regular site needs: check site membership
+          // 🏢 SITE RÉGULIER: Vérifier l'appartenance au site
           const isEligible = week_data.secretaires_sites.some(
             ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === need.site_id
           );
@@ -274,7 +273,7 @@ export function buildMILPModelSoft(
         console.log(`     🏥 BLOC: ${acceptedCount} variables créées pour ce besoin opératoire`);
       }
       
-      console.log(`\n✅ FIN traitement besoin [${needIndex + 1}/${needs.length}]: ${acceptedCount} variables créées`);
+      console.log(`\n✅ FIN traitement besoin [${needIndex + 1}/${needs.length}]: ${acceptedCount} variables créées\n`);
       
     } catch (error) {
       const err = error as Error;
