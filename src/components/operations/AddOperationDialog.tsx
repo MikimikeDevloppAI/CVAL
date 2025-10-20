@@ -108,21 +108,21 @@ export const AddOperationDialog = ({
     try {
       const dateString = format(selectedDate, 'yyyy-MM-dd');
       
-      // Check if a besoin_effectif already exists for this date/period/type/medecin
+      // Check if ANY besoin_effectif already exists for this medecin/date/period
       const { data: existingBesoin, error: checkError } = await supabase
         .from('besoin_effectif')
-        .select('id')
+        .select('id, type')
+        .eq('medecin_id', selectedMedecinId)
         .eq('date', dateString)
         .eq('demi_journee', selectedPeriode)
-        .eq('type', 'bloc_operatoire')
-        .eq('type_intervention_id', selectedTypeInterventionId)
-        .eq('medecin_id', selectedMedecinId)
         .maybeSingle();
 
       if (checkError) throw checkError;
 
       // If exists, delete it first (triggers will cascade delete planning and free personnel)
       if (existingBesoin) {
+        toast.info('Un besoin effectif existant pour ce médecin a été remplacé');
+        
         const { error: deleteError } = await supabase
           .from('besoin_effectif')
           .delete()
