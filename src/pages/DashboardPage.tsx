@@ -64,17 +64,18 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch active sites (exclude bloc opératoire)
+      // Fetch active sites (exclude bloc opératoire and site administratif from DB)
       const { data: sites } = await supabase
         .from('sites')
         .select('*')
         .eq('actif', true)
         .not('nom', 'eq', 'Clinique La Vallée - Bloc opératoire')
+        .not('nom', 'ilike', '%administratif%')
         .order('nom');
 
       if (!sites) return;
 
-      // Add administrative site
+      // Add administrative site at the end
       const adminSite = {
         id: '00000000-0000-0000-0000-000000000001',
         nom: 'Site Administratif',
