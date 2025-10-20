@@ -66,7 +66,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
   // Add capacite dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee' | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
 
   // Delete dialog states
@@ -146,35 +146,60 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
     );
   };
 
-  const handleAddClick = (date: Date, period: 'matin' | 'apres_midi') => {
+  const handleAddClick = (date: Date) => {
     setSelectedDate(date);
-    setSelectedPeriod(period);
+    setSelectedPeriod(null);
     setSelectedSiteId('');
     setAddDialogOpen(true);
   };
 
   const handleAddCapacite = async () => {
     if (!selectedDate || !selectedPeriod || !selectedSiteId) {
-      toast.error('Veuillez sélectionner un site');
+      toast.error('Veuillez sélectionner un site et une période');
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.from('capacite_effective').insert({
-      secretaire_id: secretaireId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      site_id: selectedSiteId,
-      demi_journee: selectedPeriod,
-    });
-
-    if (error) {
-      toast.error('Erreur lors de l\'ajout');
-    } else {
-      toast.success('Créneau ajouté');
+    
+    try {
+      // If "toute_journee" is selected, insert both morning and afternoon
+      if (selectedPeriod === 'toute_journee') {
+        const capacites = [
+          {
+            secretaire_id: secretaireId,
+            date: format(selectedDate, 'yyyy-MM-dd'),
+            site_id: selectedSiteId,
+            demi_journee: 'matin' as const,
+          },
+          {
+            secretaire_id: secretaireId,
+            date: format(selectedDate, 'yyyy-MM-dd'),
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi' as const,
+          }
+        ];
+        const { error } = await supabase.from('capacite_effective').insert(capacites);
+        if (error) throw error;
+        toast.success('Créneaux matin et après-midi ajoutés');
+      } else {
+        const { error } = await supabase.from('capacite_effective').insert({
+          secretaire_id: secretaireId,
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          site_id: selectedSiteId,
+          demi_journee: selectedPeriod,
+        });
+        if (error) throw error;
+        toast.success('Créneau ajouté');
+      }
+      
       fetchCapacites();
       setAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding capacite:', error);
+      toast.error('Erreur lors de l\'ajout');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDeleteClick = (capaciteId: string) => {
@@ -315,7 +340,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
                         })}
                       </div>
                       <button
-                        onClick={() => handleAddClick(day, 'matin')}
+                        onClick={() => handleAddClick(day)}
                         className="w-full mt-2 p-2 rounded-lg border-2 border-dashed border-teal-300/50 dark:border-teal-700/50 opacity-0 group-hover:opacity-100 hover:border-teal-400 hover:bg-teal-500/10 transition-all duration-200 flex items-center justify-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400"
                       >
                         <Plus className="h-3 w-3" />
@@ -352,7 +377,7 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
                         })}
                       </div>
                       <button
-                        onClick={() => handleAddClick(day, 'apres_midi')}
+                        onClick={() => handleAddClick(day)}
                         className="w-full mt-2 p-2 rounded-lg border-2 border-dashed border-teal-300/50 dark:border-teal-700/50 opacity-0 group-hover:opacity-100 hover:border-teal-400 hover:bg-teal-500/10 transition-all duration-200 flex items-center justify-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400"
                       >
                         <Plus className="h-3 w-3" />
@@ -375,6 +400,38 @@ export function SecretaireWeekCalendar({ open, onOpenChange, secretaireId, secre
             <DialogDescription className="sr-only">Ajouter un créneau pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Période</label>
+              <Select 
+                value={selectedPeriod || ''} 
+                onValueChange={(value) => setSelectedPeriod(value as 'matin' | 'apres_midi' | 'toute_journee')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="matin">
+                    <div className="flex items-center gap-2">
+                      <Sunrise className="h-4 w-4 text-amber-600" />
+                      Matin uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="apres_midi">
+                    <div className="flex items-center gap-2">
+                      <Sunset className="h-4 w-4 text-blue-600" />
+                      Après-midi uniquement
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="toute_journee">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-primary" />
+                      Toute la journée
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Site</label>
               <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
