@@ -10,16 +10,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
-import { canPerformBlocRole, getTypeBesoinLabel } from '@/lib/blocHelpers';
+import { canPerformBlocRole } from '@/lib/blocHelpers';
 
 interface AvailableSecretary {
-  capacite_id: string;
+  capacite_id: string | null; // null si pas de capacité existante
   secretaire_id: string;
   first_name: string;
   name: string;
+  current_site_name: string | null; // null si pas encore assignée
+  has_capacity: boolean;
 }
 
 interface AssignPersonnelDialogProps {
@@ -33,6 +36,8 @@ interface AssignPersonnelDialogProps {
   onSuccess: () => void;
 }
 
+const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+
 export const AssignPersonnelDialog = ({
   open,
   onOpenChange,
@@ -44,14 +49,14 @@ export const AssignPersonnelDialog = ({
   onSuccess,
 }: AssignPersonnelDialogProps) => {
   const [availableSecretaries, setAvailableSecretaries] = useState<AvailableSecretary[]>([]);
-  const [selectedCapaciteId, setSelectedCapaciteId] = useState<string>('');
+  const [selectedSecretaireId, setSelectedSecretaireId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       fetchAvailableSecretaries();
-      setSelectedCapaciteId('');
+      setSelectedSecretaireId('');
     }
   }, [open, date, periode]);
 
@@ -59,7 +64,7 @@ export const AssignPersonnelDialog = ({
     try {
       setLoading(true);
       
-      // First, get the besoin code to check competency
+      // Get the besoin code to check competency
       const { data: besoinData, error: besoinError } = await supabase
         .from('besoins_operations')
         .select('code')
@@ -67,52 +72,81 @@ export const AssignPersonnelDialog = ({
         .single();
 
       if (besoinError) throw besoinError;
-
       const besoinCode = besoinData?.code;
 
-      // Fetch available secretaries with their competencies
-      const { data, error } = await supabase
+      // Fetch all active secretaries with their competencies and capacities for this date/periode
+      const { data: secretairesData, error: secretairesError } = await supabase
+        .from('secretaires')
+        .select(`
+          id,
+          first_name,
+          name,
+          secretaires_besoins_operations (
+            besoins_operations (
+              code
+            )
+          )
+        `)
+        .eq('actif', true);
+
+      if (secretairesError) throw secretairesError;
+
+      // Get all capacities for this date/periode (all sites)
+      const { data: capacitesData, error: capacitesError } = await supabase
         .from('capacite_effective')
         .select(`
           id,
           secretaire_id,
-          secretaires (
-            id,
-            first_name,
-            name,
-            secretaires_besoins_operations (
-              besoins_operations (
-                code
-              )
-            )
-          )
+          site_id,
+          sites (
+            nom
+          ),
+          planning_genere_bloc_operatoire_id,
+          besoin_operation_id
         `)
         .eq('date', date)
         .eq('demi_journee', periode)
-        .is('planning_genere_bloc_operatoire_id', null)
-        .is('besoin_operation_id', null)
         .eq('actif', true);
 
-      if (error) throw error;
+      if (capacitesError) throw capacitesError;
 
-      // Filter secretaries based on their competencies
-      const formatted = data
-        ?.filter(item => {
-          if (!item.secretaires) return false;
-          
-          const secretaire = {
-            id: item.secretaires.id,
-            besoins_operations: item.secretaires.secretaires_besoins_operations
-          };
-          
-          return canPerformBlocRole(secretaire, besoinCode);
-        })
-        .map(item => ({
-          capacite_id: item.id,
-          secretaire_id: item.secretaire_id!,
-          first_name: item.secretaires!.first_name || '',
-          name: item.secretaires!.name || '',
-        })) || [];
+      // Filter secretaries based on competency and map with their current assignment
+      const formatted: AvailableSecretary[] = [];
+      
+      for (const sec of secretairesData || []) {
+        const secretaire = {
+          id: sec.id,
+          besoins_operations: sec.secretaires_besoins_operations
+        };
+        
+        // Check if secretary has the required competency
+        if (!canPerformBlocRole(secretaire, besoinCode)) {
+          continue;
+        }
+
+        // Find their capacity for this date/periode
+        const capacity = capacitesData?.find(c => c.secretaire_id === sec.id);
+
+        // Only show if:
+        // 1. They have a capacity but NOT already assigned to this operation
+        // 2. They don't have a capacity at all (we'll create it)
+        const isAlreadyAssignedToThisOperation = 
+          capacity?.planning_genere_bloc_operatoire_id === operationId && 
+          capacity?.besoin_operation_id === besoinId;
+
+        if (isAlreadyAssignedToThisOperation) {
+          continue; // Skip - already assigned to this exact operation/role
+        }
+
+        formatted.push({
+          capacite_id: capacity?.id || null,
+          secretaire_id: sec.id,
+          first_name: sec.first_name || '',
+          name: sec.name || '',
+          current_site_name: capacity?.sites?.nom || null,
+          has_capacity: !!capacity
+        });
+      }
 
       setAvailableSecretaries(formatted);
     } catch (error) {
@@ -124,7 +158,7 @@ export const AssignPersonnelDialog = ({
   };
 
   const handleSubmit = async () => {
-    if (!selectedCapaciteId) {
+    if (!selectedSecretaireId) {
       toast.error('Veuillez sélectionner une secrétaire');
       return;
     }
@@ -132,19 +166,39 @@ export const AssignPersonnelDialog = ({
     try {
       setSubmitting(true);
       
-      // Bloc Opératoire site ID (hardcoded to avoid issues with name changes)
-      const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+      const selectedSecretary = availableSecretaries.find(s => s.secretaire_id === selectedSecretaireId);
+      if (!selectedSecretary) {
+        throw new Error('Secrétaire non trouvée');
+      }
 
-      const { error } = await supabase
-        .from('capacite_effective')
-        .update({
-          planning_genere_bloc_operatoire_id: operationId,
-          besoin_operation_id: besoinId,
-          site_id: BLOC_OPERATOIRE_SITE_ID,
-        })
-        .eq('id', selectedCapaciteId);
+      if (selectedSecretary.has_capacity && selectedSecretary.capacite_id) {
+        // Update existing capacity: change site to Bloc and assign to operation
+        const { error } = await supabase
+          .from('capacite_effective')
+          .update({
+            site_id: BLOC_OPERATOIRE_SITE_ID,
+            planning_genere_bloc_operatoire_id: operationId,
+            besoin_operation_id: besoinId,
+          })
+          .eq('id', selectedSecretary.capacite_id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // Create new capacity for this secretary
+        const { error } = await supabase
+          .from('capacite_effective')
+          .insert({
+            date: date,
+            demi_journee: periode,
+            secretaire_id: selectedSecretaireId,
+            site_id: BLOC_OPERATOIRE_SITE_ID,
+            planning_genere_bloc_operatoire_id: operationId,
+            besoin_operation_id: besoinId,
+            actif: true
+          });
+
+        if (error) throw error;
+      }
 
       toast.success('Personnel assigné avec succès');
       onSuccess();
@@ -174,25 +228,39 @@ export const AssignPersonnelDialog = ({
             </div>
           ) : availableSecretaries.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Aucune secrétaire disponible pour cette période
+              Aucune secrétaire qualifiée disponible
             </div>
           ) : (
-            <RadioGroup value={selectedCapaciteId} onValueChange={setSelectedCapaciteId}>
+            <RadioGroup value={selectedSecretaireId} onValueChange={setSelectedSecretaireId}>
               <div className="space-y-2">
                 {availableSecretaries.map((secretary) => (
                   <div
-                    key={secretary.capacite_id}
+                    key={secretary.secretaire_id}
                     className="flex items-center space-x-2 rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors"
                   >
                     <RadioGroupItem
-                      value={secretary.capacite_id}
-                      id={secretary.capacite_id}
+                      value={secretary.secretaire_id}
+                      id={secretary.secretaire_id}
                     />
                     <Label
-                      htmlFor={secretary.capacite_id}
-                      className="flex-1 cursor-pointer font-medium"
+                      htmlFor={secretary.secretaire_id}
+                      className="flex-1 cursor-pointer"
                     >
-                      {secretary.first_name} {secretary.name}
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          {secretary.first_name} {secretary.name}
+                        </span>
+                        {secretary.current_site_name && (
+                          <Badge variant="outline" className="ml-2">
+                            {secretary.current_site_name}
+                          </Badge>
+                        )}
+                        {!secretary.has_capacity && (
+                          <Badge variant="secondary" className="ml-2">
+                            Nouvelle capacité
+                          </Badge>
+                        )}
+                      </div>
                     </Label>
                   </div>
                 ))}
@@ -211,7 +279,7 @@ export const AssignPersonnelDialog = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedCapaciteId || submitting}
+            disabled={!selectedSecretaireId || submitting}
           >
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Assigner

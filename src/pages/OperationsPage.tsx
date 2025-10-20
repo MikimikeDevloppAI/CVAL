@@ -9,8 +9,7 @@ import { TypesInterventionManagement } from '@/components/blocOperatoire/TypesIn
 import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
 import { WeekSelector } from '@/components/shared/WeekSelector';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronLeft, Plus } from 'lucide-react';
-import { AddBesoinBlocDialog } from '@/components/operations/AddBesoinBlocDialog';
+import { Loader2, ChevronLeft } from 'lucide-react';
 
 interface Operation {
   id: string;
@@ -37,7 +36,6 @@ const OperationsPage = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addBesoinOpen, setAddBesoinOpen] = useState(false);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -142,16 +140,10 @@ const OperationsPage = () => {
         </div>
 
         <Tabs defaultValue="planning" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <TabsList className="bg-card/50 backdrop-blur-xl border border-border/50">
-              <TabsTrigger value="planning">Planning</TabsTrigger>
-              <TabsTrigger value="configuration">Configuration</TabsTrigger>
-            </TabsList>
-            <Button onClick={() => setAddBesoinOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Ajouter un besoin
-            </Button>
-          </div>
+          <TabsList className="bg-card/50 backdrop-blur-xl border border-border/50">
+            <TabsTrigger value="planning">Planning</TabsTrigger>
+            <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          </TabsList>
 
           <TabsContent value="planning" className="space-y-6">
             {loading ? (
@@ -189,12 +181,6 @@ const OperationsPage = () => {
             </div>
           </TabsContent>
         </Tabs>
-
-        <AddBesoinBlocDialog
-          open={addBesoinOpen}
-          onOpenChange={setAddBesoinOpen}
-          onSuccess={fetchOperations}
-        />
       </div>
     </div>
   );
