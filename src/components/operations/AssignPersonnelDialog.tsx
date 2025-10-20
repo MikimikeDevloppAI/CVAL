@@ -136,7 +136,7 @@ export const AssignPersonnelDialog = ({
       const { data: blocSite, error: siteError } = await supabase
         .from('sites')
         .select('id')
-        .eq('nom', 'Clinique La Vallée - Bloc opératoire')
+        .eq('nom', 'Bloc opératoire')
         .single();
 
       if (siteError) throw siteError;
