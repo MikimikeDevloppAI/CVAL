@@ -9,7 +9,8 @@ import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
 import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon } from 'lucide-react';
+import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 
 interface PersonnePresence {
   id: string;
@@ -46,6 +47,7 @@ const DashboardPage = () => {
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
+  const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -350,6 +352,16 @@ const DashboardPage = () => {
         />
       </div>
 
+      {/* Planning Action */}
+      <div className="grid grid-cols-1 gap-4">
+        <QuickActionButton
+          label="Planifier les secrétaires"
+          icon={<CalendarPlanIcon className="h-6 w-6" />}
+          onClick={() => setPlanningDialogOpen(true)}
+          gradient="from-purple-500 to-pink-500"
+        />
+      </div>
+
       {/* Week Selector */}
       <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
         <Button
@@ -421,6 +433,11 @@ const DashboardPage = () => {
       <AbsencesJoursFeriesPopup
         open={absencesPopupOpen}
         onOpenChange={setAbsencesPopupOpen}
+      />
+
+      <OptimizePlanningDialog
+        open={planningDialogOpen}
+        onOpenChange={setPlanningDialogOpen}
       />
     </div>
   );
