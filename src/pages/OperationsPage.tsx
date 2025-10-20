@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, startOfWeek, addWeeks, subWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { OperationDayCard } from '@/components/operations/OperationDayCard';
@@ -30,6 +31,7 @@ interface Operation {
 }
 
 const OperationsPage = () => {
+  const navigate = useNavigate();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,7 @@ const OperationsPage = () => {
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
-          onClick={() => window.location.href = '/dashboard'}
+          onClick={() => navigate('/')}
           className="gap-2"
         >
           <ChevronLeft className="h-4 w-4" />

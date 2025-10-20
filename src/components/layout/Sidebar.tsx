@@ -28,7 +28,7 @@ import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 const planningItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Planning', href: '/planning', icon: Calendar },
   { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   { name: 'Absences', href: '/absences', icon: CalendarX },
