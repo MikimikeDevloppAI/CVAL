@@ -52,6 +52,43 @@ interface EditHoraireDialogProps {
 
 const joursNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
+// Fonction pour calculer la semaine ISO
+const getISOWeek = (date: Date): number => {
+  const target = new Date(date.valueOf());
+  const dayNr = (date.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+};
+
+// Fonction pour vérifier si le médecin doit travailler (logique identique au SQL)
+const should_doctor_work_js = (
+  alternanceType: string,
+  alternanceModulo: number,
+  targetDate: Date
+): boolean => {
+  const weekNumber = getISOWeek(targetDate);
+  
+  switch (alternanceType) {
+    case 'hebdomadaire':
+      return true;
+    case 'une_sur_deux':
+      return weekNumber % 2 === alternanceModulo;
+    case 'une_sur_trois':
+      return weekNumber % 3 === alternanceModulo;
+    case 'une_sur_quatre':
+      return weekNumber % 4 === alternanceModulo;
+    case 'trois_sur_quatre':
+      return weekNumber % 4 !== alternanceModulo;
+    default:
+      return true;
+  }
+};
+
 export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire, onSuccess }: EditHoraireDialogProps) {
   const [sites, setSites] = useState<Site[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
@@ -111,6 +148,60 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
     }
   }, [horaire, form]);
 
+  const deleteManualBesoins = async (data: HoraireFormData) => {
+    const dateDebut = data.dateDebut || '1900-01-01';
+    const dateFin = data.dateFin || '2100-12-31';
+    
+    // Récupérer tous les besoins effectifs du médecin pour ce site
+    const { data: existingBesoins, error: fetchError } = await supabase
+      .from('besoin_effectif')
+      .select('*')
+      .eq('medecin_id', medecinId)
+      .eq('type', 'medecin')
+      .eq('site_id', data.siteId)
+      .gte('date', dateDebut)
+      .lte('date', dateFin);
+    
+    if (fetchError) throw fetchError;
+    
+    // Filtrer les besoins qui correspondent au jour de la semaine et à l'alternance
+    const besoinsToDelete = existingBesoins?.filter(besoin => {
+      const besoinDate = new Date(besoin.date);
+      const jourSemaine = besoinDate.getDay() || 7; // JavaScript: 0=Dimanche -> 7
+      
+      // Vérifier que c'est le bon jour de la semaine
+      if (jourSemaine !== jour) return false;
+      
+      // Vérifier l'alternance
+      const shouldWork = should_doctor_work_js(
+        data.alternanceType,
+        data.alternanceSemaineModulo,
+        besoinDate
+      );
+      
+      if (!shouldWork) return false;
+      
+      // Vérifier la période
+      if (data.demiJournee === 'toute_journee') {
+        return true; // Toute journée écrase matin ET après-midi
+      }
+      
+      return besoin.demi_journee === data.demiJournee;
+    }) || [];
+    
+    // Supprimer les besoins identifiés
+    if (besoinsToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('besoin_effectif')
+        .delete()
+        .in('id', besoinsToDelete.map(b => b.id));
+      
+      if (deleteError) throw deleteError;
+      
+      console.log(`✅ Supprimé ${besoinsToDelete.length} besoins effectifs manuels conflictuels`);
+    }
+  };
+
   const onSubmit = async (data: HoraireFormData) => {
     setLoading(true);
     try {
@@ -125,7 +216,9 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
         return;
       }
 
-      // Vérification des chevauchements
+      // Vérification des chevauchements dans horaires_base_medecins
+      const horairesToDelete: string[] = [];
+      
       const { data: existing, error: checkError } = await supabase
         .from('horaires_base_medecins')
         .select('*')
@@ -137,20 +230,16 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       if (checkError) throw checkError;
 
       if (existing && existing.length > 0) {
-        // Vérifier les chevauchements
         for (const existingHoraire of existing) {
-          // Même type d'alternance et même modulo
           if (existingHoraire.alternance_type === data.alternanceType && 
               existingHoraire.alternance_semaine_modulo === data.alternanceSemaineModulo) {
             
-            // Vérifier chevauchement de périodes
             const periodsOverlap = 
               data.demiJournee === 'toute_journee' ||
               existingHoraire.demi_journee === 'toute_journee' ||
               data.demiJournee === existingHoraire.demi_journee;
 
             if (periodsOverlap) {
-              // Vérifier chevauchement de dates
               const newStart = data.dateDebut || '1900-01-01';
               const newEnd = data.dateFin || '2100-12-31';
               const existingStart = existingHoraire.date_debut || '1900-01-01';
@@ -159,18 +248,25 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
               const datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
 
               if (datesOverlap) {
-                toast({
-                  title: "Conflit détecté",
-                  description: "Un horaire existe déjà pour ce jour avec la même alternance et la même période",
-                  variant: "destructive",
-                });
-                setLoading(false);
-                return;
+                horairesToDelete.push(existingHoraire.id);
               }
             }
           }
         }
       }
+
+      // Supprimer les horaires_base_medecins conflictuels
+      for (const horaireId of horairesToDelete) {
+        const { error: deleteError } = await supabase
+          .from('horaires_base_medecins')
+          .delete()
+          .eq('id', horaireId);
+        
+        if (deleteError) throw deleteError;
+      }
+      
+      // Supprimer les besoins effectifs manuels conflictuels
+      await deleteManualBesoins(data);
 
       if (horaire) {
         // Modification

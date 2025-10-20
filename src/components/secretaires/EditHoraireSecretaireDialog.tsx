@@ -45,7 +45,42 @@ interface EditHoraireSecretaireDialogProps {
 
 const joursNoms = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
-export function EditHoraireSecretaireDialog({ 
+// Fonction pour calculer la semaine ISO
+const getISOWeek = (date: Date): number => {
+  const target = new Date(date.valueOf());
+  const dayNr = (date.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+};
+
+// Fonction pour vérifier si la secrétaire doit travailler
+const should_secretary_work_js = (
+  alternanceType: string,
+  alternanceModulo: number,
+  targetDate: Date
+): boolean => {
+  const weekNumber = getISOWeek(targetDate);
+  
+  switch (alternanceType) {
+    case 'hebdomadaire':
+      return true;
+    case 'une_sur_deux':
+      return weekNumber % 2 === alternanceModulo;
+    case 'une_sur_trois':
+      return weekNumber % 3 === alternanceModulo;
+    case 'une_sur_quatre':
+      return weekNumber % 4 === alternanceModulo;
+    default:
+      return true;
+  }
+};
+
+export function EditHoraireSecretaireDialog({
   open, 
   onOpenChange, 
   secretaireId, 
@@ -99,10 +134,70 @@ export function EditHoraireSecretaireDialog({
     }
   }, [horaire, form]);
 
+  const deleteManualCapacites = async (data: HoraireFormData) => {
+    const dateDebut = data.dateDebut || '1900-01-01';
+    const dateFin = data.dateFin || '2100-12-31';
+    
+    // Récupérer toutes les capacités effectives de la secrétaire pour ce site (ou toutes si aucun site)
+    let query = supabase
+      .from('capacite_effective')
+      .select('*')
+      .eq('secretaire_id', secretaireId)
+      .gte('date', dateDebut)
+      .lte('date', dateFin);
+    
+    if (data.siteId && data.siteId !== 'none') {
+      query = query.eq('site_id', data.siteId);
+    }
+    
+    const { data: existingCapacites, error: fetchError } = await query;
+    
+    if (fetchError) throw fetchError;
+    
+    // Filtrer les capacités qui correspondent au jour de la semaine et à l'alternance
+    const capacitesToDelete = existingCapacites?.filter(capacite => {
+      const capaciteDate = new Date(capacite.date);
+      const jourSemaine = capaciteDate.getDay() || 7; // JavaScript: 0=Dimanche -> 7
+      
+      // Vérifier que c'est le bon jour de la semaine
+      if (jourSemaine !== jour) return false;
+      
+      // Vérifier l'alternance
+      const shouldWork = should_secretary_work_js(
+        data.alternanceType,
+        data.alternanceSemaineModulo,
+        capaciteDate
+      );
+      
+      if (!shouldWork) return false;
+      
+      // Vérifier la période
+      if (data.demiJournee === 'toute_journee') {
+        return true; // Toute journée écrase matin ET après-midi
+      }
+      
+      return capacite.demi_journee === data.demiJournee;
+    }) || [];
+    
+    // Supprimer les capacités identifiées
+    if (capacitesToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('capacite_effective')
+        .delete()
+        .in('id', capacitesToDelete.map(c => c.id));
+      
+      if (deleteError) throw deleteError;
+      
+      console.log(`✅ Supprimé ${capacitesToDelete.length} capacités effectives manuelles conflictuelles`);
+    }
+  };
+
   const onSubmit = async (data: HoraireFormData) => {
     setLoading(true);
     try {
-      // Vérification des chevauchements
+      // Vérification des chevauchements dans horaires_base_secretaires
+      const horairesToDelete: string[] = [];
+      
       const { data: existing, error: checkError } = await supabase
         .from('horaires_base_secretaires')
         .select('*')
@@ -114,34 +209,43 @@ export function EditHoraireSecretaireDialog({
       if (checkError) throw checkError;
 
       if (existing && existing.length > 0) {
-        // Vérifier les chevauchements de périodes
         for (const existingHoraire of existing) {
-          const periodsOverlap = 
-            data.demiJournee === 'toute_journee' ||
-            existingHoraire.demi_journee === 'toute_journee' ||
-            data.demiJournee === existingHoraire.demi_journee;
+          if (existingHoraire.alternance_type === data.alternanceType && 
+              existingHoraire.alternance_semaine_modulo === data.alternanceSemaineModulo) {
+            
+            const periodsOverlap = 
+              data.demiJournee === 'toute_journee' ||
+              existingHoraire.demi_journee === 'toute_journee' ||
+              data.demiJournee === existingHoraire.demi_journee;
 
-          if (periodsOverlap) {
-            // Vérifier chevauchement de dates
-            const newStart = data.dateDebut || '1900-01-01';
-            const newEnd = data.dateFin || '2100-12-31';
-            const existingStart = existingHoraire.date_debut || '1900-01-01';
-            const existingEnd = existingHoraire.date_fin || '2100-12-31';
+            if (periodsOverlap) {
+              const newStart = data.dateDebut || '1900-01-01';
+              const newEnd = data.dateFin || '2100-12-31';
+              const existingStart = existingHoraire.date_debut || '1900-01-01';
+              const existingEnd = existingHoraire.date_fin || '2100-12-31';
 
-            const datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
+              const datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
 
-            if (datesOverlap) {
-              toast({
-                title: "Conflit détecté",
-                description: "Un horaire existe déjà pour ce jour avec la même période",
-                variant: "destructive",
-              });
-              setLoading(false);
-              return;
+              if (datesOverlap) {
+                horairesToDelete.push(existingHoraire.id);
+              }
             }
           }
         }
       }
+
+      // Supprimer les horaires_base_secretaires conflictuels
+      for (const horaireId of horairesToDelete) {
+        const { error: deleteError } = await supabase
+          .from('horaires_base_secretaires')
+          .delete()
+          .eq('id', horaireId);
+        
+        if (deleteError) throw deleteError;
+      }
+      
+      // Supprimer les capacités effectives manuelles conflictuelles
+      await deleteManualCapacites(data);
 
       if (horaire) {
         // Modification
