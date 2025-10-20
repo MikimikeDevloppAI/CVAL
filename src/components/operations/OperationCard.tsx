@@ -374,7 +374,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Annuler
             </Button>
@@ -382,7 +382,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
               variant="destructive" 
               onClick={handleDeleteCompletely}
             >
-              Supprimer définitivement
+              Supprimer
             </Button>
             <Button 
               variant="default"
@@ -391,7 +391,7 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
                 setReassignDialogOpen(true);
               }}
             >
-              Réaffecter à un autre site
+              Réaffecter
             </Button>
           </DialogFooter>
         </DialogContent>
