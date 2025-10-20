@@ -100,7 +100,7 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                       className="text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full bg-muted/50 border border-border/30 flex items-center gap-1.5"
                       title={m.nom}
                     >
-                      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
+                      <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
                       <span className="truncate">{m.nom}</span>
                     </span>
                   ))}
@@ -123,7 +123,7 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                     className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30"
                     title={s.nom}
                   >
-                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
+                    <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
                     <span className="truncate">{s.nom}</span>
                     {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
                     {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
