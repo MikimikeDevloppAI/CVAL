@@ -47,15 +47,14 @@ export async function writeAssignments(
   console.log(`  🔎 Variables assignées (=1): ${assignedVars.length}`);
   
   // 🔍 DIAGNOSTIC 1: Répartition variables BLOC vs SITE
-  // Détection BLOC par structure: >= 7 parties avec 2 derniers UUIDs
+  // Détection BLOC robuste: 2 DERNIERS segments sont des UUIDs (avec ou sans "_bloc_")
   const blocAssignedVars = assignedVars.filter(v => {
-    const parts = v.split('_');
-    // Format BLOC attendu: assign_{sec_uuid}_{site_uuid}_{date}_{1|2}_{bloc_op_uuid}_{besoin_op_uuid}
-    return parts.length >= 7 && isUuid(parts[5]) && isUuid(parts[6]);
+    const p = v.split('_');
+    return p.length >= 7 && isUuid(p[p.length - 2]) && isUuid(p[p.length - 1]);
   });
   const siteAssignedVars = assignedVars.filter(v => {
-    const parts = v.split('_');
-    return parts.length < 7 || !isUuid(parts[5] || '') || !isUuid(parts[6] || '');
+    const p = v.split('_');
+    return !(p.length >= 7 && isUuid(p[p.length - 2]) && isUuid(p[p.length - 1]));
   });
   
   console.log(`\n📦 Variables BLOC détectées (structure): ${blocAssignedVars.length}`);
@@ -86,7 +85,7 @@ export async function writeAssignments(
     const secretaire_id = parts[1];
     const site_id = parts[2];
     const dateStr = parts[3];
-    const periodCode = parts[4]; // '1' ou '2'
+    const periodToken = parts[4]; // '1', '2', 'matin', 'apres_midi'
     
     // Validation des UUIDs de base
     if (!isUuid(secretaire_id) || !isUuid(site_id)) {
@@ -94,21 +93,25 @@ export async function writeAssignments(
       continue;
     }
     
-    // Conversion période
-    const periode: 'matin' | 'apres_midi' = periodCode === '1' ? 'matin' : 'apres_midi';
+    // Normalisation période: accepte '1'/'2' ET 'matin'/'apres_midi'
+    const periode: 'matin' | 'apres_midi' = 
+      (periodToken === '1' || periodToken === 'matin') ? 'matin' : 'apres_midi';
     
-    // Détection BLOC par structure: >= 7 parties avec 2 derniers UUIDs
+    // Détection BLOC robuste: 2 DERNIERS segments = UUIDs (avec ou sans "_bloc_")
     let bloc_operation_id: string | undefined;
     let besoin_operation_id: string | undefined;
-    const isBloc = parts.length >= 7 && isUuid(parts[5]) && isUuid(parts[6]);
+    
+    const last = parts[parts.length - 1];
+    const prev = parts[parts.length - 2];
+    const isBloc = parts.length >= 7 && isUuid(prev) && isUuid(last);
     
     if (isBloc) {
-      bloc_operation_id = parts[5].toLowerCase();
-      besoin_operation_id = parts[6].toLowerCase();
-      console.log(`  🏥 BLOC détecté: var=${varName.slice(0, 60)}...`);
-      console.log(`     → période: ${periodCode} (${periode}), bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
+      bloc_operation_id = prev.toLowerCase();
+      besoin_operation_id = last.toLowerCase();
+      console.log(`  🏥 BLOC détecté: var=${varName}`);
+      console.log(`     → parts.length=${parts.length}, période=${periodToken}→${periode}, bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
     } else {
-      console.log(`  🏢 SITE: var=${varName.slice(0, 60)}..., période: ${periodCode} (${periode})`);
+      console.log(`  🏢 SITE: var=${varName}, parts.length=${parts.length}, période=${periodToken}→${periode}`);
     }
 
     if (!secretaire_id || !site_id || !dateStr) {
@@ -185,7 +188,7 @@ export async function writeAssignments(
     updates.push(update);
   }
 
-  const updatesWithBlocIds = updates.filter(u => u.planning_genere_bloc_operatoire_id !== null);
+  const updatesWithBlocIds = updates.filter(u => !!u.planning_genere_bloc_operatoire_id && !!u.besoin_operation_id);
   console.log(`\n📝 Écriture de ${updates.length} assignations (${updatesWithBlocIds.length} BLOC)`);
   
   // Batch update
