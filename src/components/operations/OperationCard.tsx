@@ -153,9 +153,9 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
       <div className="rounded-lg border border-border p-3 space-y-3 bg-transparent hover:shadow-md transition-shadow">
         {/* Period and Room */}
         <div className="flex items-center justify-between gap-2">
-          <Badge variant="secondary" className="text-xs">
-            {operation.periode === 'matin' ? '🌅 Matin' : '🌆 Après-midi'}
-          </Badge>
+          <span className="text-xs font-medium text-muted-foreground">
+            {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}
+          </span>
           <Badge
             variant="outline"
             className={cn(
