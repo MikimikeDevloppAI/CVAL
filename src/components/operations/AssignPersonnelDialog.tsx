@@ -235,7 +235,7 @@ export const AssignPersonnelDialog = ({
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choisir une secrétaire..." />
                 </SelectTrigger>
-                <SelectContent position="popper">
+                <SelectContent position="popper" side="bottom" sideOffset={6} avoidCollisions={false} className="max-h-80 overflow-auto">
                   {availableSecretaries.map((secretary) => (
                     <SelectItem 
                       key={secretary.secretaire_id} 
