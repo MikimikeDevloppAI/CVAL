@@ -280,14 +280,13 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {assigned.map((assignment) => (
-                    <Badge
+                    <div
                       key={assignment.id}
-                      variant="outline"
-                      className="text-xs cursor-pointer hover:bg-destructive/10"
+                      className="text-xs cursor-pointer hover:text-destructive transition-colors"
                       onClick={() => handleRemoveAssignment(assignment.id)}
                     >
-                      {assignment.secretaires.first_name[0]}{assignment.secretaires.name[0]}
-                    </Badge>
+                      {assignment.secretaires.first_name} {assignment.secretaires.name}
+                    </div>
                   ))}
                   {assigned.length < required && (
                     <Badge
