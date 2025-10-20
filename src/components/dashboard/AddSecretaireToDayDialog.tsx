@@ -40,6 +40,7 @@ interface Secretaire {
   id: string;
   first_name: string;
   name: string;
+  existing_assignment?: string;
 }
 
 interface Site {
@@ -84,6 +85,12 @@ export function AddSecretaireToDayDialog({
   }, [open, siteId]);
 
   useEffect(() => {
+    if (periode) {
+      fetchData();
+    }
+  }, [periode]);
+
+  useEffect(() => {
     if (selectedSecretaireId) {
       checkExistingAssignment();
     } else {
@@ -92,6 +99,7 @@ export function AddSecretaireToDayDialog({
   }, [selectedSecretaireId, date]);
 
   const fetchData = async () => {
+    // Fetch secretaires
     const { data: secData } = await supabase
       .from('secretaires')
       .select('id, first_name, name')
@@ -99,9 +107,44 @@ export function AddSecretaireToDayDialog({
       .order('name');
 
     if (secData) {
-      setSecretaires(secData);
+      // Fetch existing assignments for this date and period
+      const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
+        ? ['matin', 'apres_midi'] 
+        : [periode as 'matin' | 'apres_midi'];
+
+      const { data: assignmentsData } = await supabase
+        .from('capacite_effective')
+        .select('secretaire_id, site_id, demi_journee, sites(nom)')
+        .eq('date', date)
+        .eq('actif', true)
+        .in('demi_journee', periodsToCheck);
+
+      // Map assignments to secretaires
+      const secretairesWithAssignments = secData.map(sec => {
+        const assignments = assignmentsData?.filter(a => a.secretaire_id === sec.id) || [];
+        let assignmentText = '';
+        
+        if (assignments.length > 0) {
+          const siteNames = [...new Set(assignments.map(a => a.sites?.nom || 'Site inconnu'))];
+          const periods = assignments.map(a => {
+            if (a.demi_journee === 'matin') return 'M';
+            if (a.demi_journee === 'apres_midi') return 'AM';
+            return '';
+          }).filter(Boolean);
+          
+          assignmentText = `(${periods.join('+')}: ${siteNames.join(', ')})`;
+        }
+
+        return {
+          ...sec,
+          existing_assignment: assignmentText
+        };
+      });
+
+      setSecretaires(secretairesWithAssignments);
     }
 
+    // Fetch sites
     const { data: sitesData } = await supabase
       .from('sites')
       .select('id, nom')
@@ -235,11 +278,11 @@ export function AddSecretaireToDayDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
+              <PopoverContent className="w-[400px] p-0">
                 <Command>
                   <CommandInput placeholder="Rechercher une secrétaire..." />
                   <CommandEmpty>Aucune secrétaire trouvée.</CommandEmpty>
-                  <CommandGroup>
+                  <CommandGroup className="max-h-[300px] overflow-y-auto">
                     {secretaires.map((secretaire) => (
                       <CommandItem
                         key={secretaire.id}
@@ -251,11 +294,18 @@ export function AddSecretaireToDayDialog({
                       >
                         <Check
                           className={cn(
-                            "mr-2 h-4 w-4",
+                            "mr-2 h-4 w-4 flex-shrink-0",
                             selectedSecretaireId === secretaire.id ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        {secretaire.first_name} {secretaire.name}
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate">{secretaire.first_name} {secretaire.name}</span>
+                          {secretaire.existing_assignment && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {secretaire.existing_assignment}
+                            </span>
+                          )}
+                        </div>
                       </CommandItem>
                     ))}
                   </CommandGroup>
