@@ -99,11 +99,17 @@ export function AddSecretaireToDayDialog({
   }, [selectedSecretaireId, date]);
 
   const fetchData = async () => {
-    // Fetch secretaires
+    // Fetch secretaires who have this site in their preferences
     const { data: secData } = await supabase
       .from('secretaires')
-      .select('id, first_name, name')
+      .select(`
+        id, 
+        first_name, 
+        name,
+        secretaires_sites!inner(site_id)
+      `)
       .eq('actif', true)
+      .eq('secretaires_sites.site_id', siteId)
       .order('name');
 
     if (secData) {
@@ -136,7 +142,9 @@ export function AddSecretaireToDayDialog({
         }
 
         return {
-          ...sec,
+          id: sec.id,
+          first_name: sec.first_name,
+          name: sec.name,
           existing_assignment: assignmentText
         };
       });
