@@ -137,22 +137,17 @@ const DashboardPage = () => {
             .order('date');
 
           // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
-          const capaciteQuery = supabase
+          const { data: capacite } = await supabase
             .from('capacite_effective')
             .select(`
               *,
               secretaires(id, first_name, name)
             `)
+            .eq('site_id', site.id)
             .gte('date', startDate)
             .lte('date', endDate)
             .eq('actif', true)
             .order('date');
-
-          if (!isAdminSite) {
-            capaciteQuery.eq('site_id', site.id);
-          }
-
-          const { data: capacite } = await capaciteQuery;
 
           // Group by date only (not by period)
           const daysMap = new Map<string, DayData>();
