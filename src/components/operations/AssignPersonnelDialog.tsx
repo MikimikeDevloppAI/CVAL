@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
-import { canPerformBlocRole } from '@/lib/blocHelpers';
 
 interface AvailableSecretary {
   capacite_id: string | null; // null si pas de capacité existante
@@ -114,13 +113,12 @@ export const AssignPersonnelDialog = ({
       const formatted: AvailableSecretary[] = [];
       
       for (const sec of secretairesData || []) {
-        const secretaire = {
-          id: sec.id,
-          besoins_operations: sec.secretaires_besoins_operations
-        };
+        // Direct match: check if the secretary has this exact besoin code
+        const hasCompetency = sec.secretaires_besoins_operations?.some(
+          sbo => sbo.besoins_operations.code === besoinCode
+        );
         
-        // Check if secretary has the required competency
-        if (!canPerformBlocRole(secretaire, besoinCode)) {
+        if (!hasCompetency) {
           continue;
         }
 

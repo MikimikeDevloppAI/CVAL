@@ -15,7 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle, RefreshCw, UserPlus, User, Trash2 } from 'lucide-react';
-import { canPerformBlocRole, getTypeBesoinLabel } from '@/lib/blocHelpers';
 
 interface ChangePersonnelDialogProps {
   open: boolean;
