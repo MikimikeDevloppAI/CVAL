@@ -49,13 +49,14 @@ export function buildMILPModelSoft(
       ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
       : `${need.site_id}_${need.date}_${need.periode}`;
     
-    console.log(`\n  📌 Besoin ${needId}:`, {
-      site_id: need.site_id,
+    // LOG POUR CHAQUE BESOIN (diagnostic complet)
+    console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
+      type: need.type,
+      site_id: need.site_id?.slice(0, 8),
       periode: need.periode,
       nombre_max: need.nombre_max,
-      type: need.type,
-      bloc_operation_id: need.bloc_operation_id,
-      besoin_operation_id: need.besoin_operation_id
+      bloc_operation_id: need.bloc_operation_id?.slice(0, 8),
+      besoin_operation_id: need.besoin_operation_id?.slice(0, 8)
     });
     
     let testedCount = 0;
@@ -64,28 +65,40 @@ export function buildMILPModelSoft(
     let acceptedCount = 0;
     
     for (const cap of todayCapacites) {
-      if (!cap.secretaire_id) continue;
+      if (!cap.secretaire_id) {
+        if (testedCount === 0) console.log(`    ⚠️ Capacité sans secretaire_id`);
+        continue;
+      }
       if (cap.demi_journee !== need.periode) continue;
       
       testedCount++;
+      
+      // LOG ELIGIBILITE pour les 3 premières secrétaires testées
+      if (testedCount <= 3) {
+        console.log(`    🔍 Test secrétaire ${cap.secretaire_id.slice(0,8)}... (cap.site=${cap.site_id?.slice(0,8)}..., need.type=${need.type})`);
+      }
       
       // Check eligibility
       const isAdminSite = need.site_id === ADMIN_SITE_ID;
       
       if (!isAdminSite) {
-        // For bloc: ONLY check competence (secretaires_besoins_operations)
+        // For bloc: ONLY check competence (secretaires_besoins)
         // No need to check site membership for bloc
         if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
+          // Check if secretary has competence for this besoin_operation
           const hasCompetence = week_data.secretaires_besoins.some(
-            sb => sb.secretaire_id === cap.secretaire_id && 
+            (sb: any) => sb.secretaire_id === cap.secretaire_id && 
                   sb.besoin_operation_id === need.besoin_operation_id
           );
           if (!hasCompetence) {
             rejectedNoCompetence++;
             if (rejectedNoCompetence <= 3) {
-              console.log(`    ❌ Secrétaire ${cap.secretaire_id.slice(0,8)}... rejetée (pas de compétence pour besoin ${need.besoin_operation_id?.slice(0,8)}...)`);
+              console.log(`    ❌ BLOC rejeté: Secrétaire ${cap.secretaire_id.slice(0,8)}... pas de compétence pour besoin_op ${need.besoin_operation_id?.slice(0,8)}...`);
+              console.log(`       (${week_data.secretaires_besoins.length} compétences chargées au total)`);
             }
             continue;
+          } else if (testedCount <= 3) {
+            console.log(`    ✅ BLOC accepté: Secrétaire ${cap.secretaire_id.slice(0,8)}... a la compétence`);
           }
         } else {
           // For regular site needs: check site membership
@@ -94,7 +107,12 @@ export function buildMILPModelSoft(
           );
           if (!isEligible) {
             rejectedNotEligible++;
+            if (testedCount <= 3) {
+              console.log(`    ❌ SITE rejeté: Secrétaire ${cap.secretaire_id.slice(0,8)}... non membre du site`);
+            }
             continue;
+          } else if (testedCount <= 3) {
+            console.log(`    ✅ SITE accepté: Secrétaire ${cap.secretaire_id.slice(0,8)}... membre du site`);
           }
         }
       }
