@@ -28,7 +28,10 @@ interface ChangeSalleDialogProps {
   onSuccess: () => void;
 }
 
-const SALLES = ['rouge', 'verte', 'jaune'];
+interface Salle {
+  id: string;
+  name: string;
+}
 
 export function ChangeSalleDialog({
   open,
@@ -37,6 +40,7 @@ export function ChangeSalleDialog({
   onSuccess,
 }: ChangeSalleDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [salles, setSalles] = useState<Salle[]>([]);
   const [selectedSalle, setSelectedSalle] = useState('');
   const [conflict, setConflict] = useState<{
     id: string;
@@ -47,11 +51,31 @@ export function ChangeSalleDialog({
 
   useEffect(() => {
     if (open) {
+      fetchSalles();
       setSelectedSalle('');
       setConflict(null);
       setAction('change');
     }
   }, [open]);
+
+  const fetchSalles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('salles_operation')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setSalles(data || []);
+    } catch (error) {
+      console.error('Error fetching salles:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Erreur lors du chargement des salles',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const checkConflict = async (salle: string) => {
     try {
@@ -162,11 +186,11 @@ export function ChangeSalleDialog({
           <div className="space-y-2">
             <Label>Nouvelle salle</Label>
             <RadioGroup value={selectedSalle} onValueChange={handleSalleChange}>
-              {SALLES.filter(s => s !== operation.salle_assignee).map((salle) => (
-                <div key={salle} className="flex items-center space-x-2">
-                  <RadioGroupItem value={salle} id={`salle-${salle}`} />
-                  <Label htmlFor={`salle-${salle}`} className="capitalize cursor-pointer">
-                    Salle {salle}
+              {salles.filter(s => s.id !== operation.salle_assignee).map((salle) => (
+                <div key={salle.id} className="flex items-center space-x-2">
+                  <RadioGroupItem value={salle.id} id={`salle-${salle.id}`} />
+                  <Label htmlFor={`salle-${salle.id}`} className="cursor-pointer">
+                    {salle.name}
                   </Label>
                 </div>
               ))}
@@ -179,7 +203,7 @@ export function ChangeSalleDialog({
               <AlertDescription>
                 <div className="space-y-2">
                   <p>
-                    La salle {selectedSalle} est déjà occupée par : <strong>{conflict.type_intervention_nom}</strong>
+                    Cette salle est déjà occupée par : <strong>{conflict.type_intervention_nom}</strong>
                   </p>
                   <div className="space-y-2 mt-3">
                     <Label>Action à effectuer</Label>
