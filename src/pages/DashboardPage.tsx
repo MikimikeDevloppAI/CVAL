@@ -64,16 +64,20 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch active sites (exclude bloc opératoire and site administratif from DB)
-      const { data: sites } = await supabase
+      // Fetch active sites (exclude bloc opératoire)
+      const { data: sitesData } = await supabase
         .from('sites')
         .select('*')
         .eq('actif', true)
         .not('nom', 'eq', 'Clinique La Vallée - Bloc opératoire')
-        .not('nom', 'ilike', '%administratif%')
         .order('nom');
 
-      if (!sites) return;
+      if (!sitesData) return;
+
+      // Filter out any administrative site from the database
+      const sites = sitesData.filter(site => 
+        !site.nom.toLowerCase().includes('administratif')
+      );
 
       // Add administrative site at the end
       const adminSite = {
