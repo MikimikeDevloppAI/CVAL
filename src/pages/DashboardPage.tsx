@@ -7,6 +7,7 @@ import { SiteCalendarCard } from '@/components/dashboard/SiteCalendarCard';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
 import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
+import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2 } from 'lucide-react';
 
@@ -38,6 +39,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
+  const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -261,7 +263,7 @@ const DashboardPage = () => {
         <QuickActionButton
           label="Absences"
           icon={<CalendarX className="h-6 w-6" />}
-          href="/absences"
+          onClick={() => setAbsencesPopupOpen(true)}
           gradient="from-green-500 to-emerald-500"
           count={stats.pendingAbsences}
         />
@@ -332,6 +334,11 @@ const DashboardPage = () => {
       <SecretairesPopup 
         open={secretairesPopupOpen} 
         onOpenChange={setSecretairesPopupOpen}
+      />
+
+      <AbsencesJoursFeriesPopup
+        open={absencesPopupOpen}
+        onOpenChange={setAbsencesPopupOpen}
       />
     </div>
   );
