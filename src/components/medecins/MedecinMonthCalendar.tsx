@@ -1,14 +1,31 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, startOfWeek, endOfWeek, addMonths, subMonths, isWeekend } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalendarIcon } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronRight, Trash2, Plus, CalendarPlus } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 interface MedecinMonthCalendarProps {
   open: boolean;
@@ -21,42 +38,58 @@ interface BesoinEffectif {
   id: string;
   date: string;
   site_id: string;
-  demi_journee: string;
-  type_intervention_id?: string;
-  sites?: {
-    id: string;
-    nom: string;
-  };
-  types_intervention?: {
-    id: string;
-    nom: string;
-  };
+  demi_journee: 'matin' | 'apres_midi';
+  type_intervention_id: string | null;
+  sites?: { nom: string };
+  types_intervention?: { nom: string };
+}
+
+interface Site {
+  id: string;
+  nom: string;
+}
+
+interface TypeIntervention {
+  id: string;
+  nom: string;
+}
+
+interface DaySlot {
+  site: string;
+  siteId: string;
+  periodes: ('matin' | 'apres_midi')[];
+  ids: string[];
+  color: string;
+  typeIntervention?: string;
 }
 
 export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom }: MedecinMonthCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [besoins, setBesoins] = useState<BesoinEffectif[]>([]);
-  const [sites, setSites] = useState<any[]>([]);
-  const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
-  const [blocOperatoireSiteId, setBlocOperatoireSiteId] = useState<string>('');
+  const [sites, setSites] = useState<Site[]>([]);
+  const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(false);
-  const [addBesoinDialog, setAddBesoinDialog] = useState<{
-    open: boolean;
-    day: number;
-    period: 'matin' | 'apres_midi';
-    besoinId?: string;
-    step: 'site' | 'intervention';
-    selectedSiteId?: string;
-  } | null>(null);
-  const [multipleCreneauxDialogOpen, setMultipleCreneauxDialogOpen] = useState(false);
-  const { toast } = useToast();
 
-  const formatDate = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+  // Add dialog states
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
+
+  // Delete dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [besoinToDelete, setBesoinToDelete] = useState<string | null>(null);
+
+  // Multiple slots dialog
+  const [multipleSlotsOpen, setMultipleSlotsOpen] = useState(false);
+
+  const SITE_COLORS = [
+    'hsl(var(--planning-event-teal))',
+    'hsl(var(--planning-event-blue))',
+    'hsl(var(--planning-event-purple))',
+    'hsl(var(--planning-event-orange))',
+    'hsl(var(--planning-event-green))',
+  ];
 
   useEffect(() => {
     if (open) {
@@ -71,501 +104,456 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       .select('id, nom')
       .eq('actif', true)
       .order('nom');
-    if (data) {
-      setSites(data);
-      const blocSite = data.find(s => s.nom.toLowerCase().includes('bloc'));
-      if (blocSite) setBlocOperatoireSiteId(blocSite.id);
-    }
+    if (data) setSites(data);
 
     const { data: typesData } = await supabase
       .from('types_intervention')
-      .select('*')
+      .select('id, nom')
       .eq('actif', true)
       .order('nom');
     if (typesData) setTypesIntervention(typesData);
   };
 
   const fetchBesoins = async () => {
-    const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    setLoading(true);
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
 
     const { data } = await supabase
       .from('besoin_effectif')
-      .select('*, sites(id, nom), types_intervention(id, nom)')
+      .select(`
+        id,
+        date,
+        site_id,
+        demi_journee,
+        type_intervention_id,
+        sites(nom),
+        types_intervention(nom)
+      `)
       .eq('medecin_id', medecinId)
-      .eq('type', 'medecin')
-      .gte('date', formatDate(startDate))
-      .lte('date', formatDate(endDate))
-      .order('date');
+      .gte('date', format(monthStart, 'yyyy-MM-dd'))
+      .lte('date', format(monthEnd, 'yyyy-MM-dd'))
+      .order('date')
+      .order('demi_journee');
 
-    if (data) setBesoins(data);
+    if (data) setBesoins(data as any);
+    setLoading(false);
   };
+
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+    setCurrentDate(subMonths(currentDate, 1));
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+    setCurrentDate(addMonths(currentDate, 1));
   };
 
-  const handleSiteChange = async (besoinId: string, newSiteId: string, period: 'matin' | 'apres_midi') => {
-    setLoading(true);
-    try {
-      const besoin = besoins.find(b => b.id === besoinId);
-      if (!besoin) throw new Error('Besoin introuvable');
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
 
-      if (besoin.demi_journee === 'toute_journee') {
-        const otherPeriod = period === 'matin' ? 'apres_midi' : 'matin';
-        const { error: updErr } = await supabase
-          .from('besoin_effectif')
-          .update({ demi_journee: otherPeriod })
-          .eq('id', besoinId);
-        if (updErr) throw updErr;
+  const getSiteColor = (siteId: string) => {
+    const index = sites.findIndex((s) => s.id === siteId);
+    return SITE_COLORS[index % SITE_COLORS.length];
+  };
 
-        const { error: insErr } = await supabase
-          .from('besoin_effectif')
-          .insert({
-            date: besoin.date,
-            type: 'medecin',
-            medecin_id: medecinId,
-            site_id: newSiteId,
-            demi_journee: period,
-            actif: true,
+  const getDaySlots = (date: Date): DaySlot[] => {
+    const matin = besoins.filter(
+      (b) => isSameDay(new Date(b.date), date) && b.demi_journee === 'matin'
+    );
+    const apresmidi = besoins.filter(
+      (b) => isSameDay(new Date(b.date), date) && b.demi_journee === 'apres_midi'
+    );
+
+    const slots: DaySlot[] = [];
+
+    // Grouper par site + type intervention pour unifier les slots
+    const siteIds = new Set([...matin.map((m) => m.site_id), ...apresmidi.map((a) => a.site_id)]);
+
+    siteIds.forEach((siteId) => {
+      const matinForSite = matin.find((m) => m.site_id === siteId);
+      const apresmidiForSite = apresmidi.find((a) => a.site_id === siteId);
+
+      // Vérifier si même type d'intervention
+      const sameType =
+        matinForSite &&
+        apresmidiForSite &&
+        matinForSite.type_intervention_id === apresmidiForSite.type_intervention_id;
+
+      if (matinForSite && apresmidiForSite && sameType) {
+        // Même site + même type → 1 ligne
+        slots.push({
+          site: matinForSite.sites?.nom || 'Site',
+          siteId,
+          periodes: ['matin', 'apres_midi'],
+          ids: [matinForSite.id, apresmidiForSite.id],
+          color: getSiteColor(siteId),
+          typeIntervention: matinForSite.types_intervention?.nom,
+        });
+      } else {
+        // Lignes séparées
+        if (matinForSite) {
+          slots.push({
+            site: matinForSite.sites?.nom || 'Site',
+            siteId,
+            periodes: ['matin'],
+            ids: [matinForSite.id],
+            color: getSiteColor(siteId),
+            typeIntervention: matinForSite.types_intervention?.nom,
           });
-        if (insErr) throw insErr;
-      } else {
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .update({ site_id: newSiteId })
-          .eq('id', besoinId);
-        if (error) throw error;
+        }
+        if (apresmidiForSite) {
+          slots.push({
+            site: apresmidiForSite.sites?.nom || 'Site',
+            siteId,
+            periodes: ['apres_midi'],
+            ids: [apresmidiForSite.id],
+            color: getSiteColor(siteId),
+            typeIntervention: apresmidiForSite.types_intervention?.nom,
+          });
+        }
       }
+    });
 
-      toast({ title: 'Succès', description: 'Besoin mis à jour' });
-      fetchBesoins();
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({ title: 'Erreur', description: "Impossible de modifier le besoin", variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleDelete = async (besoinId: string, period: 'matin' | 'apres_midi') => {
-    setLoading(true);
-    try {
-      const besoin = besoins.find(b => b.id === besoinId);
-      if (!besoin) throw new Error('Besoin introuvable');
-
-      if (besoin.demi_journee === 'toute_journee') {
-        const otherPeriod = period === 'matin' ? 'apres_midi' : 'matin';
-        const { error: updErr } = await supabase
-          .from('besoin_effectif')
-          .update({ demi_journee: otherPeriod })
-          .eq('id', besoinId);
-        if (updErr) throw updErr;
-      } else {
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('id', besoinId);
-        if (error) throw error;
-      }
-
-      toast({ title: 'Succès', description: 'Besoin mis à jour' });
-      fetchBesoins();
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({ title: 'Erreur', description: "Impossible de supprimer le besoin", variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-  const getDaysInMonth = () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    // Convertir dimanche (0) en 7, et décaler pour avoir lundi = 0
-    let startingDayOfWeek = firstDay.getDay();
-    startingDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
-
-    const days = [];
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-    return days;
+    return slots;
   };
 
-  const getBesoinForDate = (day: number, period: 'matin' | 'apres_midi') => {
-    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const dateStr = formatDate(date);
-
-    // Préférer les créneaux correspondant exactement à la période
-    const sameDate = besoins.filter(b => b.date === dateStr);
-    const exact = sameDate.filter(b => b.demi_journee === period);
-    if (exact.length > 0) {
-      console.info(`getBesoinForDate ${dateStr} [${period}] -> exact x${exact.length}`);
-      return exact;
-    }
-
-    // Sinon, fallback sur 'toute_journee' (affiché dans les deux colonnes)
-    const fullDay = sameDate.filter(b => b.demi_journee === 'toute_journee');
-    console.info(`getBesoinForDate ${dateStr} [${period}] -> full-day x${fullDay.length}`);
-    return fullDay;
+  const handleAddClick = (date: Date) => {
+    setSelectedDate(date);
+    setSelectedSiteId('');
+    setSelectedTypeInterventionId('');
+    setAddDialogOpen(true);
   };
-  const handleSiteSelect = async (siteId: string) => {
-    if (!addBesoinDialog) return;
 
-    // Si c'est le bloc opératoire, passer à l'étape de sélection du type d'intervention
-    if (siteId === blocOperatoireSiteId) {
-      setAddBesoinDialog({
-        ...addBesoinDialog,
-        step: 'intervention',
-        selectedSiteId: siteId,
-      });
+  const handleAddBesoin = async () => {
+    if (!selectedDate || !selectedSiteId) {
+      toast.error('Veuillez sélectionner un site');
       return;
     }
 
-    // Sinon, créer/modifier directement le besoin sans type d'intervention
-    await handleAddBesoin(siteId, null);
-  };
-
-  const handleInterventionSelect = async (typeInterventionId: string) => {
-    if (!addBesoinDialog?.selectedSiteId) return;
-    await handleAddBesoin(addBesoinDialog.selectedSiteId, typeInterventionId);
-  };
-
-  const handleAddBesoin = async (siteId: string, typeInterventionId: string | null) => {
-    if (!addBesoinDialog) return;
-    
     setLoading(true);
-    try {
-      if (addBesoinDialog.besoinId) {
-        // Modification d'un besoin existant
-        const besoin = besoins.find(b => b.id === addBesoinDialog.besoinId);
-        if (!besoin) throw new Error('Besoin introuvable');
 
-        // Si le besoin est "toute_journee", on doit le scinder
-        if (besoin.demi_journee === 'toute_journee') {
-          const otherPeriod = addBesoinDialog.period === 'matin' ? 'apres_midi' : 'matin';
-          
-          // Convertir le besoin existant en l'autre période (celle qu'on ne modifie PAS)
-          const { error: updErr } = await supabase
-            .from('besoin_effectif')
-            .update({ demi_journee: otherPeriod })
-            .eq('id', addBesoinDialog.besoinId);
-          if (updErr) throw updErr;
+    // Ajouter matin et après-midi pour une journée complète
+    const { error: errorMatin } = await supabase.from('besoin_effectif').insert({
+      type: 'medecin',
+      medecin_id: medecinId,
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      site_id: selectedSiteId,
+      demi_journee: 'matin',
+      type_intervention_id: selectedTypeInterventionId || null,
+    });
 
-          // Créer un nouveau besoin pour la période qu'on modifie
-          const { error: insErr } = await supabase
-            .from('besoin_effectif')
-            .insert({
-              date: besoin.date,
-              type: 'medecin',
-              medecin_id: medecinId,
-              site_id: siteId,
-              type_intervention_id: typeInterventionId,
-              demi_journee: addBesoinDialog.period,
-              actif: true,
-            });
-          if (insErr) throw insErr;
-        } else {
-          // Besoin simple, on peut le modifier directement
-          const { error } = await supabase
-            .from('besoin_effectif')
-            .update({ 
-              site_id: siteId,
-              type_intervention_id: typeInterventionId,
-            })
-            .eq('id', addBesoinDialog.besoinId);
-          
-          if (error) throw error;
-        }
-        
-        toast({
-          title: "Succès",
-          description: "Site modifié",
-        });
-      } else {
-        // Création d'un nouveau besoin
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), addBesoinDialog.day);
-        const dateStr = formatDate(date);
+    const { error: errorApresmidi } = await supabase.from('besoin_effectif').insert({
+      type: 'medecin',
+      medecin_id: medecinId,
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      site_id: selectedSiteId,
+      demi_journee: 'apres_midi',
+      type_intervention_id: selectedTypeInterventionId || null,
+    });
 
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .insert({
-            date: dateStr,
-            type: 'medecin',
-            medecin_id: medecinId,
-            site_id: siteId,
-            type_intervention_id: typeInterventionId,
-            demi_journee: addBesoinDialog.period,
-            actif: true,
-          });
-
-        if (error) throw error;
-
-        toast({
-          title: "Succès",
-          description: "Besoin ajouté",
-        });
-      }
-      
+    if (errorMatin || errorApresmidi) {
+      toast.error("Erreur lors de l'ajout");
+    } else {
+      toast.success('Journée complète ajoutée');
       fetchBesoins();
-      setAddBesoinDialog(null);
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: addBesoinDialog.besoinId ? "Impossible de modifier le site" : "Impossible d'ajouter le besoin",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      setAddDialogOpen(false);
     }
+    setLoading(false);
   };
 
-  const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-  const days = getDaysInMonth();
-  
-  const isToday = (day: number) => {
-    const today = new Date();
-    return day === today.getDate() &&
-           currentDate.getMonth() === today.getMonth() &&
-           currentDate.getFullYear() === today.getFullYear();
+  const handleDeleteClick = (besoinIds: string[]) => {
+    setBesoinToDelete(besoinIds.join(','));
+    setDeleteDialogOpen(true);
   };
 
-  const isWeekend = (index: number) => {
-    const dayOfWeek = (index % 7);
-    return dayOfWeek === 5 || dayOfWeek === 6; // Sam=5, Dim=6
+  const handleDeleteConfirm = async () => {
+    if (!besoinToDelete) return;
+
+    setLoading(true);
+    const ids = besoinToDelete.split(',');
+
+    for (const id of ids) {
+      await supabase.from('besoin_effectif').delete().eq('id', id);
+    }
+
+    toast.success('Créneau supprimé');
+    fetchBesoins();
+    setLoading(false);
+    setDeleteDialogOpen(false);
+    setBesoinToDelete(null);
   };
 
-  const renderBesoinBadge = (besoin: BesoinEffectif, period: 'matin' | 'apres_midi', day: number) => (
-    <div key={besoin.id} className="relative group/badge mb-1 animate-fade-in">
-      <button
-        className="w-full text-left px-3 py-2 rounded-md border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-all text-sm whitespace-normal h-auto min-h-[32px] cursor-pointer"
-        title={besoin.sites?.nom || 'Site'}
-        onClick={() => setAddBesoinDialog({ 
-          open: true, 
-          day, 
-          period, 
-          besoinId: besoin.id,
-          step: 'site'
-        })}
-      >
-        <span className="break-words leading-tight font-medium">
-          {besoin.sites?.nom || 'Site'}
-          {besoin.types_intervention && (
-            <span className="text-muted-foreground ml-1">({besoin.types_intervention.nom})</span>
-          )}
-        </span>
-      </button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full z-10"
-        onClick={() => handleDelete(besoin.id, period)}
-        disabled={loading}
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
-    </div>
-  );
+  // Générer les jours du mois avec padding
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
+  const calendarStart = startOfWeek(monthStart, { locale: fr, weekStartsOn: 1 });
+  const calendarEnd = endOfWeek(monthEnd, { locale: fr, weekStartsOn: 1 });
+  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex flex-col gap-4 pb-4">
-            <div className="flex items-center gap-3">
-              <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">
-                Calendrier mensuel
-              </span>
-              <Separator orientation="vertical" className="h-6" />
-              <span className="text-muted-foreground font-normal">{medecinNom}</span>
-            </div>
-            <div className="relative flex items-center justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth} className="hover:bg-primary/10">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto backdrop-blur-xl bg-card/95 border-2 border-planning-teal/30">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-planning-teal to-planning-blue bg-clip-text text-transparent">
+              Calendrier de {medecinNom}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Calendrier mensuel du médecin {medecinNom}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Navigation */}
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePrevMonth}
+                className="backdrop-blur-xl bg-card/95 border-planning-teal/30 hover:border-planning-teal/60 hover:shadow-lg hover:shadow-planning-teal/10 transition-all duration-300"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-base font-semibold capitalize min-w-[200px] text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                {monthName}
-              </span>
-              <Button variant="outline" size="sm" onClick={handleNextMonth} className="hover:bg-primary/10">
+
+              <div className="text-xl font-bold text-foreground">
+                {format(currentDate, 'MMMM yyyy', { locale: fr })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleNextMonth}
+                className="backdrop-blur-xl bg-card/95 border-planning-teal/30 hover:border-planning-teal/60 hover:shadow-lg hover:shadow-planning-teal/10 transition-all duration-300"
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
+
               <Button
-                variant="default"
-                size="sm"
-                onClick={() => setMultipleCreneauxDialogOpen(true)}
-                className="gap-2 absolute right-0"
+                variant="outline"
+                onClick={handleToday}
+                className="backdrop-blur-xl bg-card/95 border-planning-teal/30 hover:border-planning-teal/60 hover:shadow-lg hover:shadow-planning-teal/10 transition-all duration-300"
               >
-                <CalendarPlus className="h-4 w-4" />
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Aujourd'hui
+              </Button>
+
+              <Button
+                onClick={() => setMultipleSlotsOpen(true)}
+                className="backdrop-blur-xl bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90 text-white border-0 shadow-lg hover:shadow-xl hover:shadow-planning-teal/20 transition-all duration-300"
+              >
+                <Plus className="h-4 w-4 mr-2" />
                 Ajouter plusieurs créneaux
               </Button>
             </div>
-          </DialogTitle>
-        </DialogHeader>
 
-        <div className="grid grid-cols-7 gap-2 mt-2">
-          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((day, idx) => (
-            <div 
-              key={day} 
-              className={`text-center font-bold text-sm py-3 rounded-t-lg ${
-                idx >= 5 ? 'bg-accent/30' : 'bg-primary/10'
-              }`}
-            >
-              {day}
+            {/* Week days header */}
+            <div className="grid grid-cols-7 gap-2">
+              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((day, idx) => (
+                <div
+                  key={day}
+                  className={cn(
+                    'text-center text-xs font-semibold uppercase tracking-wider py-2 rounded-lg',
+                    idx >= 5 ? 'text-muted-foreground bg-accent/30' : 'text-foreground bg-muted/50'
+                  )}
+                >
+                  {day}
+                </div>
+              ))}
             </div>
-          ))}
 
-          {days.map((day, index) => {
-            const isCurrentDay = day && isToday(day);
-            const isWeekendDay = isWeekend(index);
-            
-            return (
-              <div 
-                key={index} 
-                className={`
-                  border-2 rounded-lg min-h-[140px] p-2 transition-all duration-200
-                  ${day ? 'hover:shadow-lg hover:scale-[1.02]' : ''}
-                  ${isWeekendDay ? 'bg-accent/5' : 'bg-card'}
-                  ${isCurrentDay ? 'border-primary shadow-md ring-2 ring-primary/20' : 'border-border'}
-                  group
-                `}
-              >
-                {day ? (
-                  <>
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-2">
+              {calendarDays.map((day, dayIndex) => {
+                const dayIsToday = isToday(day);
+                const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+                const isWeekendDay = isWeekend(day);
+                const slots = getDaySlots(day);
+
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      'min-h-[140px] rounded-xl border-2 backdrop-blur-xl transition-all duration-300 p-2 group animate-fade-in',
+                      dayIsToday
+                        ? 'border-planning-teal ring-2 ring-planning-teal/30 bg-planning-teal/5'
+                        : isWeekendDay
+                        ? 'border-accent/40 bg-accent/10'
+                        : 'border-border/50 bg-card/50',
+                      !isCurrentMonth && 'opacity-40'
+                    )}
+                    style={{ animationDelay: `${dayIndex * 10}ms` }}
+                  >
+                    {/* Day header */}
                     <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-bold ${isCurrentDay ? 'text-primary' : ''}`}>
-                        {day}
-                      </span>
-                      {isCurrentDay && (
-                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
-                          Aujourd'hui
+                      <div className={cn('text-sm font-bold', dayIsToday ? 'text-planning-teal' : 'text-foreground')}>
+                        {format(day, 'd')}
+                      </div>
+                      {dayIsToday && (
+                        <Badge variant="default" className="text-xs py-0 px-2 bg-planning-teal/20 text-planning-teal border-planning-teal/30">
+                          Auj.
                         </Badge>
                       )}
                     </div>
-                    
-                    {/* Matin */}
-                    <div className="mb-2">
-                      <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        Matin
-                      </div>
-                      {(() => {
-                        const besoinsList = getBesoinForDate(day, 'matin');
-                        return besoinsList.length > 0 ? (
-                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'matin', day))
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'matin', step: 'site' })}
-                            disabled={loading}
+
+                    {/* Slots */}
+                    <div className="space-y-1">
+                      {slots.map((slot, idx) => (
+                        <div
+                          key={idx}
+                          className={cn(
+                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md',
+                            slot.periodes.length === 2
+                              ? 'border-2 bg-opacity-10'
+                              : slot.periodes.includes('matin')
+                              ? 'border-l-4 bg-opacity-10'
+                              : 'border-r-4 bg-opacity-10'
+                          )}
+                          style={{
+                            borderColor: slot.color,
+                            backgroundColor: `${slot.color}15`,
+                          }}
+                        >
+                          <div className="text-xs font-medium truncate" style={{ color: slot.color }}>
+                            {slot.site}
+                          </div>
+                          {slot.typeIntervention && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              📋 {slot.typeIntervention}
+                            </div>
+                          )}
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {slot.periodes.length === 2
+                              ? '🌅 Journée'
+                              : slot.periodes.includes('matin')
+                              ? '🌅 Matin'
+                              : '🌆 AM'}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteClick(slot.ids)}
+                            className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:scale-110 shadow-lg"
                           >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Ajouter
-                          </Button>
-                        );
-                      })()}
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
 
-                    <Separator className="my-2" />
+                    {/* Add button */}
+                    {isCurrentMonth && (
+                      <button
+                        onClick={() => handleAddClick(day)}
+                        className="w-full mt-2 p-2 rounded-lg border-2 border-dashed border-planning-teal/30 opacity-0 group-hover:opacity-100 hover:border-planning-teal/60 hover:bg-planning-teal/5 transition-all duration-200 flex items-center justify-center gap-1 text-xs font-medium text-planning-teal"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Ajouter
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-                    {/* Après-midi */}
-                    <div>
-                      <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        Après-midi
-                      </div>
-                      {(() => {
-                        const besoinsList = getBesoinForDate(day, 'apres_midi');
-                        return besoinsList.length > 0 ? (
-                          besoinsList.map(besoin => renderBesoinBadge(besoin, 'apres_midi', day))
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 w-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 border-dashed"
-                            onClick={() => setAddBesoinDialog({ open: true, day, period: 'apres_midi', step: 'site' })}
-                            disabled={loading}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Ajouter
-                          </Button>
-                        );
-                      })()}
-                    </div>
-                  </>
-                ) : null}
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-6 p-4 bg-muted/20 rounded-lg text-xs flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-4 border-2 border-planning-teal rounded" style={{ backgroundColor: 'hsl(var(--planning-event-teal) / 0.1)' }} />
+                <span>Journée complète</span>
               </div>
-            );
-          })}
-        </div>
-      </DialogContent>
-
-      {/* Dialog de sélection site/intervention - rendu comme frère pour éviter les problèmes d'imbrication */}
-      <Dialog open={addBesoinDialog?.open} onOpenChange={() => setAddBesoinDialog(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {addBesoinDialog?.step === 'site' 
-                ? 'Choisir un site' 
-                : 'Type d\'intervention'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 py-4">
-            {addBesoinDialog?.step === 'intervention' ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAddBesoinDialog({ ...addBesoinDialog, step: 'site', selectedSiteId: undefined })}
-                  className="mb-2"
-                >
-                  ← Retour aux sites
-                </Button>
-                {typesIntervention.map(type => (
-                  <Button
-                    key={type.id}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => handleInterventionSelect(type.id)}
-                    disabled={loading}
-                  >
-                    {type.nom}
-                  </Button>
-                ))}
-              </>
-            ) : (
-              sites.map(site => (
-                <Button
-                  key={site.id}
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => handleSiteSelect(site.id)}
-                  disabled={loading}
-                >
-                  {site.nom}
-                </Button>
-              ))
-            )}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-4 border-l-4 border-planning-teal rounded" style={{ backgroundColor: 'hsl(var(--planning-event-teal) / 0.1)' }} />
+                <span>Matin uniquement</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-4 border-r-4 border-planning-teal rounded" style={{ backgroundColor: 'hsl(var(--planning-event-teal) / 0.1)' }} />
+                <span>Après-midi uniquement</span>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Add Besoin Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-planning-teal/30">
+          <DialogHeader>
+            <DialogTitle>Ajouter une journée</DialogTitle>
+            <DialogDescription className="sr-only">Ajouter une journée complète pour {medecinNom}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Site</label>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Type d'intervention (optionnel)</label>
+              <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleAddBesoin}
+                disabled={loading}
+                className="bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90"
+              >
+                Ajouter journée complète
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer ce créneau ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multiple Slots Dialog */}
       <AddMultipleCreneauxDialog
-        open={multipleCreneauxDialogOpen}
-        onOpenChange={setMultipleCreneauxDialogOpen}
+        open={multipleSlotsOpen}
+        onOpenChange={setMultipleSlotsOpen}
         medecinId={medecinId}
         onSuccess={fetchBesoins}
       />
-    </Dialog>
+    </>
   );
 }

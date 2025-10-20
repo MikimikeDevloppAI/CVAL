@@ -1,4 +1,4 @@
-import { MedecinWeekCalendar } from '@/components/medecins/MedecinWeekCalendar';
+import { MedecinMonthCalendar } from '@/components/medecins/MedecinMonthCalendar';
 
 interface MedecinCalendarDialogProps {
   open: boolean;
@@ -9,7 +9,7 @@ interface MedecinCalendarDialogProps {
 
 export function MedecinCalendarDialog({ open, onOpenChange, medecinId, medecinNom }: MedecinCalendarDialogProps) {
   return (
-    <MedecinWeekCalendar
+    <MedecinMonthCalendar
       open={open}
       onOpenChange={onOpenChange}
       medecinId={medecinId}
