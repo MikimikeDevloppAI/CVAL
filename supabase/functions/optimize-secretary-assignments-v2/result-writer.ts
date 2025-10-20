@@ -13,11 +13,7 @@ export async function writeAssignments(
   capacites: CapaciteEffective[],
   supabase: SupabaseClient
 ) {
-  console.log('\n📝 Écriture des résultats...');
-  console.log(`  📊 Solution trouvée: ${Object.keys(solution).length} variables`);
-  
   // ÉTAPE 0 : Reset de toutes les capacités de la date
-  console.log(`\n♻️ Réinitialisation des capacités pour ${date}...`);
   
   const { data: resetData, error: resetError } = await supabase
     .from('capacite_effective')
@@ -34,8 +30,6 @@ export async function writeAssignments(
     console.error('❌ Erreur lors du reset:', resetError);
     throw resetError;
   }
-
-  console.log(`  ✅ ${resetData?.length || 0} capacités réinitialisées`);
   
   const updates: any[] = [];
   let assignedCount = 0;
@@ -44,7 +38,6 @@ export async function writeAssignments(
   const assignedVars = Object.entries(solution)
     .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
     .map(([k]) => k);
-  console.log(`  🔎 Variables assignées (=1): ${assignedVars.length}`);
   
   // 🔍 DIAGNOSTIC 1: Répartition variables BLOC vs SITE
   // Détection BLOC robuste: 2 DERNIERS segments sont des UUIDs (avec ou sans "_bloc_")
@@ -60,10 +53,6 @@ export async function writeAssignments(
   console.log(`\n📦 Variables BLOC détectées (structure): ${blocAssignedVars.length}`);
   if (blocAssignedVars.length > 0) {
     console.log(`   Exemples (3 premiers):`, blocAssignedVars.slice(0, 3));
-  }
-  console.log(`\n🏢 Variables SITE détectées: ${siteAssignedVars.length}`);
-  if (siteAssignedVars.length > 0) {
-    console.log(`   Exemples:`, siteAssignedVars.slice(0, 3));
   }
   
   const processedCapaciteIds = new Set<string>();
@@ -119,8 +108,6 @@ export async function writeAssignments(
       bloc_operation_id = prev.toLowerCase();
       besoin_operation_id = last.toLowerCase();
       console.log(`  🏥 BLOC détecté: période=${periodToken}→${periode}, bloc_op=${bloc_operation_id.slice(0,8)}, besoin_op=${besoin_operation_id.slice(0,8)}`);
-    } else {
-      console.log(`  🏢 SITE: var=${varName}, parts.length=${parts.length}, période=${periodToken}→${periode}`);
     }
 
     if (!secretaire_id || !site_id || !dateStr) {
@@ -224,9 +211,6 @@ export async function writeAssignments(
       }
     }
   }
-  
-  console.log(`\n✅ ${successCount}/${updates.length} assignations écrites avec succès`);
-  if (errorCount > 0) console.error(`❌ ${errorCount} erreurs`);
   
   // Vérification post-écriture
   if (updatesWithBlocIds.length > 0) {
