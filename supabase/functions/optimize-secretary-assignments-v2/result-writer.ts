@@ -33,7 +33,7 @@ export async function writeAssignments(
   
   const updates: any[] = [];
   let blocCount = 0;
-  let sampleBlocVar: string | null = null;
+  let sampleBlocUpdate: any = null;
 
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('assign_')) continue;
@@ -53,11 +53,6 @@ export async function writeAssignments(
       bloc_operation_id = prev;
       besoin_operation_id = last;
       blocCount++;
-      
-      // Capture first BLOC variable for sample logging
-      if (!sampleBlocVar) {
-        sampleBlocVar = varName;
-      }
     }
 
     const need = needs.find(n => {
@@ -96,23 +91,15 @@ export async function writeAssignments(
       besoin_operation_id: besoin_operation_id
     };
     
-    // Detailed logging for sample BLOC variable
-    if (varName === sampleBlocVar) {
-      console.log(`\n🎯 ÉCHANTILLON BLOC - Variable: ${varName}`);
-      console.log(`   Parsing: prev=${prev.slice(0,8)}..., last=${last.slice(0,8)}...`);
-      console.log(`   Détection BLOC: ${isBloc}`);
-      console.log(`   Capacité ID: ${capacite.id.slice(0,8)}...`);
-      console.log(`   Payload:`, {
-        site_id: update.site_id.slice(0,8) + '...',
-        bloc_op: update.planning_genere_bloc_operatoire_id?.slice(0,8) + '...',
-        besoin_op: update.besoin_operation_id?.slice(0,8) + '...'
-      });
+    // Capture first BLOC sample for logging
+    if (isBloc && !sampleBlocUpdate) {
+      sampleBlocUpdate = update;
     }
     
     updates.push(update);
   }
 
-  console.log(`\n📝 Écriture de ${updates.length} assignations (${blocCount} BLOC)`);
+  console.log(`📝 write: total=${updates.length}, bloc=${blocCount}`);
   
   if (updates.length === 0) return;
 
@@ -127,31 +114,20 @@ export async function writeAssignments(
       .eq('id', update.id);
     
     if (error) {
-      console.error(`  ❌ Erreur update capacite ${update.id.slice(0,8)}...:`, error);
+      console.error(`❌ Erreur update capacite ${update.id.slice(0,8)}...:`, error);
     }
   }
   
   // Verify sample BLOC write
-  if (sampleBlocVar) {
-    const sampleUpdate = updates.find(u => 
-      u.planning_genere_bloc_operatoire_id && 
-      u.besoin_operation_id
-    );
+  if (sampleBlocUpdate) {
+    const { data: verifyData } = await supabase
+      .from('capacite_effective')
+      .select('id, site_id, planning_genere_bloc_operatoire_id, besoin_operation_id')
+      .eq('id', sampleBlocUpdate.id)
+      .single();
     
-    if (sampleUpdate) {
-      const { data: verifyData } = await supabase
-        .from('capacite_effective')
-        .select('id, site_id, planning_genere_bloc_operatoire_id, besoin_operation_id')
-        .eq('id', sampleUpdate.id)
-        .single();
-      
-      if (verifyData) {
-        console.log(`   ✅ Vérification post-écriture:`, {
-          site_id: verifyData.site_id?.slice(0,8) + '...',
-          bloc_op: verifyData.planning_genere_bloc_operatoire_id?.slice(0,8) + '...',
-          besoin_op: verifyData.besoin_operation_id?.slice(0,8) + '...'
-        });
-      }
+    if (verifyData) {
+      console.log(`✅ post-write: site_id=${verifyData.site_id?.slice(0,8)}..., bloc_op=${verifyData.planning_genere_bloc_operatoire_id?.slice(0,8)}..., besoin_op=${verifyData.besoin_operation_id?.slice(0,8)}...`);
     }
   }
 }

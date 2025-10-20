@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'; // redeploy trigger 2025-10-20T22:10:00Z - Numeric period codes (1=matin, 2=apres_midi)
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
@@ -12,6 +12,8 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const DEBUG_VERBOSE = false;
 
 // Helper: UUID validation
 function isUuid(str: string): boolean {
@@ -35,10 +37,12 @@ function calculateNeeds(
   types_intervention_besoins: any[],
   sites: any[]
 ): SiteNeed[] {
-  console.log('🔍 Calcul des besoins...');
-  console.log(`  📌 Besoins effectifs : ${besoins_effectifs.length}`);
-  console.log(`  📌 Planning bloc : ${planning_bloc.length}`);
-  console.log(`  📌 Sites totaux : ${sites.length}`);
+  if (DEBUG_VERBOSE) {
+    console.log('🔍 Calcul des besoins...');
+    console.log(`  📌 Besoins effectifs : ${besoins_effectifs.length}`);
+    console.log(`  📌 Planning bloc : ${planning_bloc.length}`);
+    console.log(`  📌 Sites totaux : ${sites.length}`);
+  }
   
   const needs: SiteNeed[] = [];
   
@@ -51,7 +55,9 @@ function calculateNeeds(
                   s.nom.toLowerCase().includes('opératoire'))
     .map(s => s.id);
   
-  console.log(`  📌 Sites bloc identifiés : ${blocSiteIds.join(', ')}`);
+  if (DEBUG_VERBOSE) {
+    console.log(`  📌 Sites bloc identifiés : ${blocSiteIds.join(', ')}`);
+  }
   
   // Group by site + date + demi_journee
   const siteGroups = new Map<string, any[]>();
@@ -95,39 +101,19 @@ function calculateNeeds(
       type: 'site' as const
     };
     
-    console.log(`\n  ✅ Besoin SITE calculé:`, {
-      type: need.type,
-      site_id: need.site_id,
-      date: need.date,
-      periode: need.periode,
-      nombre_suggere: need.nombre_suggere,
-      nombre_max: need.nombre_max,
-      medecins_count: need.medecins_ids.length
-    });
-    
     needs.push(need);
   }
   
   // ============================================================
   // 2. BLOC NEEDS (from planning_genere_bloc_operatoire)
   // ============================================================
-  console.log(`\n🏥 Diagnostic planning_bloc pour ce jour:`);
-  console.log(`  📋 Entrées planning_bloc: ${planning_bloc.length}`);
-  planning_bloc.forEach((bloc, idx) => {
-    if (idx < 3) {
-      console.log(`    [${idx+1}] id=${bloc.id?.slice(0,8)}, type_intervention=${bloc.type_intervention_id?.slice(0,8)}, periode=${bloc.periode}`);
-    }
-  });
-  
   const blocSite = sites.find(s => 
     s.nom.toLowerCase().includes('bloc') && 
     s.nom.toLowerCase().includes('opératoire')
   );
   
-  if (!blocSite) {
+  if (!blocSite && DEBUG_VERBOSE) {
     console.warn('⚠️ Site "Bloc opératoire" non trouvé');
-  } else {
-    console.log(`  ✅ Site bloc trouvé: ${blocSite.id.slice(0,8)} - ${blocSite.nom}`);
   }
   
   for (const bloc of planning_bloc) {
@@ -149,43 +135,8 @@ function calculateNeeds(
         besoin_operation_id: besoinPersonnel.besoin_operation_id
       };
       
-      console.log(`\n  ✅ Besoin BLOC calculé:`, {
-        type: need.type,
-        site_id: need.site_id,
-        date: need.date,
-        periode: need.periode,
-        nombre_max: need.nombre_max,
-        bloc_operation_id: need.bloc_operation_id,
-        besoin_operation_id: need.besoin_operation_id
-      });
-      
       needs.push(need);
     }
-  }
-  
-  console.log(`\n✅ Total besoins calculés: ${needs.length} (Sites: ${needs.filter(n => n.type === 'site').length}, Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length})`);
-  
-  // 🔍 Validation des besoins BLOC
-  const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire');
-  console.log(`\n🔍 Validation des ${blocNeeds.length} besoins BLOC:`);
-  let blocNeedsValid = 0;
-  let blocNeedsInvalid = 0;
-  for (const blocNeed of blocNeeds) {
-    if (!blocNeed.bloc_operation_id || !blocNeed.besoin_operation_id) {
-      console.error(`  ❌ Besoin BLOC incomplet:`, {
-        date: blocNeed.date,
-        periode: blocNeed.periode,
-        bloc_operation_id: blocNeed.bloc_operation_id,
-        besoin_operation_id: blocNeed.besoin_operation_id,
-      });
-      blocNeedsInvalid++;
-    } else {
-      console.log(`  ✅ Besoin BLOC complet: op=${blocNeed.bloc_operation_id?.slice(0,8)}..., besoin=${blocNeed.besoin_operation_id?.slice(0,8)}...`);
-      blocNeedsValid++;
-    }
-  }
-  if (blocNeeds.length > 0) {
-    console.log(`📊 Validation BLOC: ${blocNeedsValid} valides, ${blocNeedsInvalid} invalides`);
   }
   
   return needs;
@@ -205,9 +156,11 @@ async function optimizeSingleWeek(
   const dailyResults: any[] = [];
   
   for (const date of sortedDates) {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`📅 OPTIMISATION DU ${date}`);
-    console.log('='.repeat(60));
+    if (DEBUG_VERBOSE) {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`📅 OPTIMISATION DU ${date}`);
+      console.log('='.repeat(60));
+    }
     
     // Calculate needs (with bloc exclusion)
     const needs = calculateNeeds(
@@ -218,21 +171,6 @@ async function optimizeSingleWeek(
       weekData.sites
     );
     
-    console.log(`\n📋 Besoins calculés: ${needs.length} besoins`);
-    console.log(`  Sites: ${needs.filter(n => n.type === 'site').length}`);
-    console.log(`  Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length}`);
-    
-    // Détail des besoins par site
-    const needsBySite = new Map<string, number>();
-    for (const need of needs) {
-      needsBySite.set(need.site_id, (needsBySite.get(need.site_id) || 0) + 1);
-    }
-    console.log('\n  📊 Répartition par site:');
-    for (const [site_id, count] of needsBySite) {
-      const site = weekData.sites.find(s => s.id === site_id);
-      console.log(`    ${site?.nom || site_id}: ${count} besoins`);
-    }
-    
     // Get week assignments (before this day)
     const week_assignments = await getCurrentWeekAssignments(
       weekData,
@@ -240,7 +178,9 @@ async function optimizeSingleWeek(
     );
     
     // RESET: Clear all capacities for this date before optimization
-    console.log(`\n♻️ Reset des capacités pour ${date}...`);
+    if (DEBUG_VERBOSE) {
+      console.log(`\n♻️ Reset des capacités pour ${date}...`);
+    }
     const { data: resetData, error: resetError } = await supabase
       .from('capacite_effective')
       .update({
@@ -257,8 +197,6 @@ async function optimizeSingleWeek(
       throw resetError;
     }
     
-    console.log(`  ✅ ${resetData?.length || 0} capacités réinitialisées`);
-    
     // Build and solve MILP model
     const model = buildMILPModelSoft(
       date,
@@ -268,18 +206,15 @@ async function optimizeSingleWeek(
       week_assignments
     );
     
-    console.log('\n🔄 Résolution du modèle MILP...');
+    if (DEBUG_VERBOSE) {
+      console.log('\n🔄 Résolution du modèle MILP...');
+    }
     let solution;
     try {
       solution = solver.Solve(model);
       
-      console.log(`\n📊 Résultat du solveur:`);
-      console.log(`  feasible: ${solution.feasible}`);
-      console.log(`  bounded: ${solution.bounded}`);
-      console.log(`  result: ${solution.result}`);
-      
       if (!solution.feasible) {
-        console.error(`❌ Modèle infaisable - aucune solution trouvée`);
+        console.error(`[${date}] ❌ Modèle infaisable`);
         dailyResults.push({ 
           date, 
           assigned: 0, 
@@ -290,7 +225,7 @@ async function optimizeSingleWeek(
       }
       
       if (solution.result === Infinity || solution.result === -Infinity || isNaN(solution.result)) {
-        console.error(`❌ Modèle non borné ou invalide - result: ${solution.result}`);
+        console.error(`[${date}] ❌ Modèle non borné - result: ${solution.result}`);
         dailyResults.push({ 
           date, 
           assigned: 0, 
@@ -303,11 +238,25 @@ async function optimizeSingleWeek(
       const assignedVars = Object.entries(solution)
         .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
         .map(([k]) => k);
-      console.log(`  ✅ ${assignedVars.length} assignations trouvées (score: ${solution.result})`);
       
       // Count bloc assignments using structure detection
       const blocAssignedVars = assignedVars.filter(v => isBlocVar(v));
-      console.log(`  🏥 Assignations BLOC détectées (structure): ${blocAssignedVars.length}`);
+      
+      // Get BLOC site ID
+      const blocSite = weekData.sites.find(s => s.nom.toLowerCase().includes('bloc') && s.nom.toLowerCase().includes('opératoire'));
+      const blocSiteId = blocSite?.id || '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+      
+      // Essential logs only
+      console.log(`[${date}] solver: assigned=${assignedVars.length}, score=${solution.result}`);
+      console.log(`[${date}] bloc_assignments=${blocAssignedVars.length}`);
+      console.log(`[${date}] bloc_site_id=${blocSiteId}`);
+      
+      // Sample BLOC variable site_id
+      if (blocAssignedVars.length > 0) {
+        const parts = blocAssignedVars[0].split('_');
+        const siteIdFromVar = parts[2];
+        console.log(`[${date}] bloc_sample_site_id_in_var=${siteIdFromVar}`);
+      }
     } catch (error: any) {
       console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
       console.error(`  Message: ${error.message}`);
@@ -321,89 +270,70 @@ async function optimizeSingleWeek(
       continue;
     }
     
-    if (!solution.feasible) {
-      console.error(`\n❌ ÉCHEC: Aucune solution faisable trouvée pour ${date}`);
-      console.error(`  Raison possible: contraintes trop restrictives`);
-      console.error(`  Besoins: ${needs.length}, Contraintes: ${Object.keys(model.constraints).length}`);
-      dailyResults.push({ 
-        date, 
-        success: false, 
-        reason: 'infeasible',
-        needs_count: needs.length
-      });
-      continue;
-    }
-    
-    const assignedCount = Object.entries(solution).filter(([key, value]) => key.startsWith('assign_') && Number(value) > 0.5).length;
-    console.log(`\n✅ Solution trouvée!`);
-    console.log(`  🏆 Score total: ${solution.result}`);
-    console.log(`  📊 Assignations: ${assignedCount}`);
     
     // ============================================================
-    // VERIFY: Check for over-assignment
+    // VERIFY: Check for over-assignment (optional verbose)
     // ============================================================
-    console.log('\n🔍 Vérification des sur-assignations:');
-    let hasOverAssignment = false;
-    
-    // Group needs by site/date/periode to check aggregated needs
-    const needsBySlot = new Map<string, { needs: SiteNeed[], total_max: number }>();
-    for (const need of needs) {
-      const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
-      if (!needsBySlot.has(slotKey)) {
-        needsBySlot.set(slotKey, { needs: [], total_max: 0 });
-      }
-      const slot = needsBySlot.get(slotKey)!;
-      slot.needs.push(need);
-      slot.total_max += need.nombre_max;
-    }
-    
-    // Check each slot
-    for (const [slotKey, slot] of needsBySlot) {
-      const [site_id, slot_date, periode] = slotKey.split('_');
-      const site = weekData.sites.find(s => s.id === site_id);
+    if (DEBUG_VERBOSE) {
+      console.log('\n🔍 Vérification des sur-assignations:');
+      let hasOverAssignment = false;
       
-      // Count assigned secretaries for this slot
-      let assignedForSlot = 0;
-      for (const [varName, value] of Object.entries(solution)) {
-        if (!varName.startsWith('assign_')) continue;
-        if (Number(value) <= 0.5) continue;
+      // Group needs by site/date/periode to check aggregated needs
+      const needsBySlot = new Map<string, { needs: SiteNeed[], total_max: number }>();
+      for (const need of needs) {
+        const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
+        if (!needsBySlot.has(slotKey)) {
+          needsBySlot.set(slotKey, { needs: [], total_max: 0 });
+        }
+        const slot = needsBySlot.get(slotKey)!;
+        slot.needs.push(need);
+        slot.total_max += need.nombre_max;
+      }
+      
+      // Check each slot
+      for (const [slotKey, slot] of needsBySlot) {
+        const [site_id, slot_date, periode] = slotKey.split('_');
+        const site = weekData.sites.find(s => s.id === site_id);
         
-        // Check if this variable is for this slot
-        if (varName.includes(slotKey)) {
-          assignedForSlot++;
+        // Count assigned secretaries for this slot
+        let assignedForSlot = 0;
+        for (const [varName, value] of Object.entries(solution)) {
+          if (!varName.startsWith('assign_')) continue;
+          if (Number(value) <= 0.5) continue;
+          
+          // Check if this variable is for this slot
+          if (varName.includes(slotKey)) {
+            assignedForSlot++;
+          }
+        }
+        
+        // Calculate expected max (ceiling of total need)
+        const expectedMax = slot.needs.length === 1 
+          ? slot.needs[0].nombre_max 
+          : Math.ceil(slot.needs.reduce((sum, n) => sum + n.nombre_max, 0));
+        
+        if (assignedForSlot > expectedMax) {
+          console.error(`  ❌ SUR-ASSIGNATION détectée: ${site?.nom || site_id} ${periode}`);
+          console.error(`     Assigné: ${assignedForSlot}, Maximum attendu: ${expectedMax}`);
+          hasOverAssignment = true;
+        } else {
+          console.log(`  ✅ ${site?.nom || site_id} ${periode}: ${assignedForSlot}/${expectedMax} secrétaires`);
         }
       }
       
-      // Calculate expected max (ceiling of total need)
-      const expectedMax = slot.needs.length === 1 
-        ? slot.needs[0].nombre_max 
-        : Math.ceil(slot.needs.reduce((sum, n) => sum + n.nombre_max, 0));
-      
-      if (assignedForSlot > expectedMax) {
-        console.error(`  ❌ SUR-ASSIGNATION détectée: ${site?.nom || site_id} ${periode}`);
-        console.error(`     Assigné: ${assignedForSlot}, Maximum attendu: ${expectedMax}`);
-        console.error(`     Besoins dans ce créneau: ${slot.needs.length}`);
-        slot.needs.forEach((n, i) => {
-          console.error(`       [${i+1}] nombre_max=${n.nombre_max}, type=${n.type}`);
+      if (hasOverAssignment) {
+        console.error('\n❌ ERREUR: Sur-assignation détectée! Optimisation annulée.');
+        dailyResults.push({ 
+          date, 
+          success: false, 
+          reason: 'over_assignment',
+          needs_count: needs.length
         });
-        hasOverAssignment = true;
-      } else {
-        console.log(`  ✅ ${site?.nom || site_id} ${periode}: ${assignedForSlot}/${expectedMax} secrétaires`);
+        continue;
       }
+      
+      console.log('✅ Aucune sur-assignation détectée\n');
     }
-    
-    if (hasOverAssignment) {
-      console.error('\n❌ ERREUR: Sur-assignation détectée! Optimisation annulée.');
-      dailyResults.push({ 
-        date, 
-        success: false, 
-        reason: 'over_assignment',
-        needs_count: needs.length
-      });
-      continue;
-    }
-    
-    console.log('✅ Aucune sur-assignation détectée\n');
     
     // Write results
     await writeAssignments(
@@ -414,59 +344,6 @@ async function optimizeSingleWeek(
       supabase
     );
     
-    // Summary of BLOC assignments written
-    const { data: blocWrittenSummary, error: blocSummaryError } = await supabase
-      .from('capacite_effective')
-      .select('id, planning_genere_bloc_operatoire_id, besoin_operation_id')
-      .eq('date', date)
-      .eq('actif', true)
-      .not('planning_genere_bloc_operatoire_id', 'is', null);
-    
-    if (blocSummaryError) {
-      console.error('❌ Erreur lors du résumé BLOC:', blocSummaryError);
-    } else {
-      console.log(`\n🧾 Résumé écriture BLOC: ${blocWrittenSummary?.length || 0} capacités avec IDs BLOC`);
-      if (blocWrittenSummary && blocWrittenSummary.length > 0) {
-        blocWrittenSummary.slice(0, 3).forEach((c: any, i: number) => {
-          console.log(`    [${i+1}] capacite=${c.id.slice(0,8)}..., bloc_op=${c.planning_genere_bloc_operatoire_id?.slice(0,8)}..., besoin=${c.besoin_operation_id?.slice(0,8)}...`);
-        });
-      }
-    }
-    
-    // ============================================================
-    // VERIFY: Bloc assignments written correctly
-    // ============================================================
-    console.log('\n🔍 Vérification des assignations BLOC écrites:');
-    const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire' && n.bloc_operation_id);
-    
-    if (blocNeeds.length > 0) {
-      for (const blocNeed of blocNeeds) {
-        const { data: blocCapacites, error: blocCapError } = await supabase
-          .from('capacite_effective')
-          .select('id, secretaire_id, planning_genere_bloc_operatoire_id, besoin_operation_id')
-          .eq('date', date)
-          .eq('demi_journee', blocNeed.periode)
-          .eq('planning_genere_bloc_operatoire_id', blocNeed.bloc_operation_id)
-          .eq('besoin_operation_id', blocNeed.besoin_operation_id);
-        
-        if (blocCapError) {
-          console.error(`  ❌ Erreur vérification bloc ${blocNeed.bloc_operation_id}:`, blocCapError);
-        } else {
-          const assignedCount = blocCapacites?.length || 0;
-          const site = weekData.sites.find(s => s.id === blocNeed.site_id);
-          console.log(`  📋 ${site?.nom || blocNeed.site_id} - ${blocNeed.periode}: ${assignedCount}/${blocNeed.nombre_max} secrétaires assignées`);
-          if (assignedCount > 0) {
-            blocCapacites?.forEach((cap: any, i: number) => {
-              const secretaire = weekData.secretaires.find(s => s.id === cap.secretaire_id);
-              const secretaireNom = secretaire ? `${secretaire.first_name} ${secretaire.name}` : cap.secretaire_id;
-              console.log(`      [${i+1}] ${secretaireNom}`);
-            });
-          }
-        }
-      }
-    } else {
-      console.log('  ℹ️ Aucun besoin BLOC pour cette date');
-    }
     
     dailyResults.push({
       date,

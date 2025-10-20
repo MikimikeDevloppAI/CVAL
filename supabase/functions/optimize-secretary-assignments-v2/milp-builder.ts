@@ -8,6 +8,8 @@ import type {
 import { ADMIN_SITE_ID } from './types.ts';
 import { calculateDynamicScore } from './score-calculator.ts';
 
+const DEBUG_VERBOSE = false;
+
 export function buildMILPModelSoft(
   date: string,
   needs: SiteNeed[],
@@ -15,7 +17,9 @@ export function buildMILPModelSoft(
   week_data: WeekData,
   week_assignments: AssignmentSummary[]
 ) {
-  console.log(`🔧 Construction du modèle MILP pour ${date}...`);
+  if (DEBUG_VERBOSE) {
+    console.log(`🔧 Construction du modèle MILP pour ${date}...`);
+  }
   
   const todayCapacites = capacites.filter(c => c.date === date);
   
