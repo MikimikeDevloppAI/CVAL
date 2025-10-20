@@ -46,23 +46,38 @@ export async function writeAssignments(
   for (const varName of assignedVars) {
     // Format attendu:
     // - Site needs: assign_{secretaire_id}_{site_id}_{date}_{periode}
-    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periode}_bloc_{besoin_operation_id}
+    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periode}_bloc_{bloc_operation_id}_{besoin_operation_id}
     
     // Detect period first
     let periode: 'matin' | 'apres_midi' | undefined;
     let coreSansPeriode: string = '';
+    let bloc_operation_id: string | undefined;
     let besoin_operation_id: string | undefined;
     
     if (varName.includes('_apres_midi_bloc_')) {
       periode = 'apres_midi';
       const parts = varName.split('_apres_midi_bloc_');
       coreSansPeriode = parts[0].slice('assign_'.length);
-      besoin_operation_id = parts[1];
+      // Extract bloc_operation_id and besoin_operation_id
+      const blocParts = parts[1].split('_');
+      if (blocParts.length >= 2) {
+        bloc_operation_id = blocParts[0];
+        besoin_operation_id = blocParts[1];
+      } else {
+        besoin_operation_id = parts[1]; // fallback for old format
+      }
     } else if (varName.includes('_matin_bloc_')) {
       periode = 'matin';
       const parts = varName.split('_matin_bloc_');
       coreSansPeriode = parts[0].slice('assign_'.length);
-      besoin_operation_id = parts[1];
+      // Extract bloc_operation_id and besoin_operation_id
+      const blocParts = parts[1].split('_');
+      if (blocParts.length >= 2) {
+        bloc_operation_id = blocParts[0];
+        besoin_operation_id = blocParts[1];
+      } else {
+        besoin_operation_id = parts[1]; // fallback for old format
+      }
     } else if (varName.endsWith('_apres_midi')) {
       periode = 'apres_midi';
       const core = varName.slice('assign_'.length);
@@ -108,25 +123,43 @@ export async function writeAssignments(
     }
 
     // Recherche du besoin correspondant
-    // For bloc needs, match by besoin_operation_id if available
-    let need = besoin_operation_id 
-      ? needs.find(
-          (n) => n.type === 'bloc_operatoire' && 
-                 n.besoin_operation_id === besoin_operation_id &&
-                 n.date === date && 
-                 n.periode === periode
-        )
-      : needs.find(
-          (n) => n.site_id === site_id && n.date === date && n.periode === periode
-        );
+    // For bloc needs, match by bloc_operation_id + besoin_operation_id + date + periode
+    let need;
+    if (bloc_operation_id && besoin_operation_id) {
+      need = needs.find(
+        (n) => n.type === 'bloc_operatoire' && 
+               n.bloc_operation_id === bloc_operation_id &&
+               n.besoin_operation_id === besoin_operation_id &&
+               n.date === date && 
+               n.periode === periode
+      );
+    } else {
+      // For site needs: match by site_id + date + periode
+      need = needs.find(
+        (n) => n.site_id === site_id && n.date === date && n.periode === periode
+      );
+    }
 
     if (!need) {
       console.warn(`⚠️ Besoin non trouvé pour ${varName}`);
-      const dayNeedsForSite = needs
-        .filter((n) => n.site_id === site_id && n.date === date)
-        .map((n) => ({ periode: n.periode, type: n.type, nombre_max: n.nombre_max, besoin_operation_id: n.besoin_operation_id }))
-        .slice(0, 10);
-      console.warn(`   🔍 Besoins connus ce jour pour site ${site_id}:`, dayNeedsForSite);
+      if (bloc_operation_id) {
+        const blocNeeds = needs
+          .filter((n) => n.type === 'bloc_operatoire' && n.date === date)
+          .map((n) => ({ 
+            periode: n.periode, 
+            bloc_operation_id: n.bloc_operation_id, 
+            besoin_operation_id: n.besoin_operation_id,
+            nombre_max: n.nombre_max
+          }))
+          .slice(0, 10);
+        console.warn(`   🔍 Besoins BLOC connus ce jour:`, blocNeeds);
+      } else {
+        const dayNeedsForSite = needs
+          .filter((n) => n.site_id === site_id && n.date === date)
+          .map((n) => ({ periode: n.periode, type: n.type, nombre_max: n.nombre_max }))
+          .slice(0, 10);
+        console.warn(`   🔍 Besoins connus ce jour pour site ${site_id}:`, dayNeedsForSite);
+      }
       continue;
     }
 

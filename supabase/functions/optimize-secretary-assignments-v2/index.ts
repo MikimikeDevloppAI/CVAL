@@ -257,6 +257,10 @@ async function optimizeSingleWeek(
         .map(([k]) => k);
       console.log(`  ✅ ${assignedVars.length} assignations trouvées (score: ${solution.result})`);
       
+      // Count bloc assignments
+      const blocAssignedVars = assignedVars.filter(v => v.includes('_bloc_'));
+      console.log(`  🏥 Assignations BLOC: ${blocAssignedVars.length}`);
+      
       if (assignedVars.length > 0) {
         assignedVars.slice(0, 10).forEach((v, i) => console.log(`    [${i+1}] ${v}`));
         if (assignedVars.length > 10) {
@@ -370,6 +374,41 @@ async function optimizeSingleWeek(
       weekData.capacites_effective.filter(c => c.date === date),
       supabase
     );
+    
+    // ============================================================
+    // VERIFY: Bloc assignments written correctly
+    // ============================================================
+    console.log('\n🔍 Vérification des assignations BLOC écrites:');
+    const blocNeeds = needs.filter(n => n.type === 'bloc_operatoire' && n.bloc_operation_id);
+    
+    if (blocNeeds.length > 0) {
+      for (const blocNeed of blocNeeds) {
+        const { data: blocCapacites, error: blocCapError } = await supabase
+          .from('capacite_effective')
+          .select('id, secretaire_id, planning_genere_bloc_operatoire_id, besoin_operation_id')
+          .eq('date', date)
+          .eq('demi_journee', blocNeed.periode)
+          .eq('planning_genere_bloc_operatoire_id', blocNeed.bloc_operation_id)
+          .eq('besoin_operation_id', blocNeed.besoin_operation_id);
+        
+        if (blocCapError) {
+          console.error(`  ❌ Erreur vérification bloc ${blocNeed.bloc_operation_id}:`, blocCapError);
+        } else {
+          const assignedCount = blocCapacites?.length || 0;
+          const site = weekData.sites.find(s => s.id === blocNeed.site_id);
+          console.log(`  📋 ${site?.nom || blocNeed.site_id} - ${blocNeed.periode}: ${assignedCount}/${blocNeed.nombre_max} secrétaires assignées`);
+          if (assignedCount > 0) {
+            blocCapacites?.forEach((cap: any, i: number) => {
+              const secretaire = weekData.secretaires.find(s => s.id === cap.secretaire_id);
+              const secretaireNom = secretaire ? `${secretaire.first_name} ${secretaire.name}` : cap.secretaire_id;
+              console.log(`      [${i+1}] ${secretaireNom}`);
+            });
+          }
+        }
+      }
+    } else {
+      console.log('  ℹ️ Aucun besoin BLOC pour cette date');
+    }
     
     dailyResults.push({
       date,

@@ -40,18 +40,22 @@ export function buildMILPModelSoft(
   // VARIABLES AND COEFFICIENTS
   // ============================================================
   let variableCount = 0;
+  let blocVariableCount = 0;
+  
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
     const need = needs[needIndex];
-    // Create unique need ID that includes index to avoid collisions
-    const needId = need.type === 'bloc_operatoire' && need.besoin_operation_id
-      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.besoin_operation_id}`
+    // Create unique need ID - for bloc include BOTH bloc_operation_id AND besoin_operation_id
+    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
       : `${need.site_id}_${need.date}_${need.periode}`;
     
     console.log(`\n  📌 Besoin ${needId}:`, {
       site_id: need.site_id,
       periode: need.periode,
       nombre_max: need.nombre_max,
-      type: need.type
+      type: need.type,
+      bloc_operation_id: need.bloc_operation_id,
+      besoin_operation_id: need.besoin_operation_id
     });
     
     for (const cap of todayCapacites) {
@@ -62,20 +66,21 @@ export function buildMILPModelSoft(
       const isAdminSite = need.site_id === ADMIN_SITE_ID;
       
       if (!isAdminSite) {
-        const isEligible = week_data.secretaires_sites.some(
-          ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === need.site_id
-        );
-        
-        // For bloc: also check secretaires_besoins_operations
+        // For bloc: ONLY check competence (secretaires_besoins_operations)
+        // No need to check site membership for bloc
         if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
           const hasCompetence = week_data.secretaires_besoins.some(
             sb => sb.secretaire_id === cap.secretaire_id && 
                   sb.besoin_operation_id === need.besoin_operation_id
           );
           if (!hasCompetence) continue;
+        } else {
+          // For regular site needs: check site membership
+          const isEligible = week_data.secretaires_sites.some(
+            ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === need.site_id
+          );
+          if (!isEligible) continue;
         }
-        
-        if (!isEligible) continue;
       }
       
       // Binary variable
@@ -99,6 +104,10 @@ export function buildMILPModelSoft(
       model.variables[varName] = { score_total: score };
       variableCount++;
       
+      if (need.type === 'bloc_operatoire') {
+        blocVariableCount++;
+      }
+      
       if (variableCount <= 10) {
         console.log(`    ✅ Variable ${varName} créée avec score: ${score.toFixed(2)}`);
       }
@@ -107,6 +116,32 @@ export function buildMILPModelSoft(
   
   if (variableCount > 10) {
     console.log(`    ... et ${variableCount - 10} autres variables créées`);
+  }
+  console.log(`  🏥 Variables BLOC: ${blocVariableCount}`);
+  
+  // ============================================================
+  // CONSTRAINT: Max per individual need
+  // ============================================================
+  console.log(`\n📏 Contraintes par besoin individuel...`);
+  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
+    const need = needs[needIndex];
+    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
+      : `${need.site_id}_${need.date}_${need.periode}`;
+    
+    const constraintName = `max_need_${needId}`;
+    model.constraints[constraintName] = { max: need.nombre_max };
+    
+    // Add all variables for this specific need
+    for (const varName of Object.keys(model.variables)) {
+      if (varName.startsWith('assign_') && varName.endsWith(`_${needId}`)) {
+        model.variables[varName][constraintName] = 1;
+      }
+    }
+    
+    if (needIndex < 5) {
+      console.log(`  📊 Contrainte ${constraintName}: max ${need.nombre_max}`);
+    }
   }
   
   // ============================================================
@@ -161,8 +196,8 @@ export function buildMILPModelSoft(
   
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
     const need = needs[needIndex];
-    const needId = need.type === 'bloc_operatoire' && need.besoin_operation_id
-      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.besoin_operation_id}`
+    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
       : `${need.site_id}_${need.date}_${need.periode}`;
     
     for (const cap of todayCapacites) {
@@ -213,11 +248,11 @@ export function buildMILPModelSoft(
       const fullDayVars: string[] = [];
       
       for (const cap of todayCapacites.filter(c => c.secretaire_id)) {
-        const morningNeedId = morningNeed.type === 'bloc_operatoire' && morningNeed.besoin_operation_id
-          ? `${site.id}_${date}_matin_bloc_${morningNeed.besoin_operation_id}`
+        const morningNeedId = morningNeed.type === 'bloc_operatoire' && morningNeed.bloc_operation_id && morningNeed.besoin_operation_id
+          ? `${site.id}_${date}_matin_bloc_${morningNeed.bloc_operation_id}_${morningNeed.besoin_operation_id}`
           : `${site.id}_${date}_matin`;
-        const afternoonNeedId = afternoonNeed.type === 'bloc_operatoire' && afternoonNeed.besoin_operation_id
-          ? `${site.id}_${date}_apres_midi_bloc_${afternoonNeed.besoin_operation_id}`
+        const afternoonNeedId = afternoonNeed.type === 'bloc_operatoire' && afternoonNeed.bloc_operation_id && afternoonNeed.besoin_operation_id
+          ? `${site.id}_${date}_apres_midi_bloc_${afternoonNeed.bloc_operation_id}_${afternoonNeed.besoin_operation_id}`
           : `${site.id}_${date}_apres_midi`;
         
         const morningVar = `assign_${cap.secretaire_id}_${morningNeedId}`;
