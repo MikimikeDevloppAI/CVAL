@@ -324,7 +324,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             className="h-8 flex-1 text-xs rounded-md border border-cyan-200/50 bg-background px-2"
           />
           
-          <div className="flex gap-1 ml-2">
+          <div className="flex gap-1 ml-0.5">
             <Button
               type="button"
               variant="ghost"
