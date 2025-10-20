@@ -64,14 +64,17 @@ export function buildMILPModelSoft(
   let blocVariableCount = 0;
   
   for (let needIndex = 0; needIndex < needs.length; needIndex++) {
-    const need = needs[needIndex];
-    // Create unique need ID - for bloc include BOTH bloc_operation_id AND besoin_operation_id
-    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
-      : `${need.site_id}_${need.date}_${need.periode}`;
+    console.log(`\n🔵 DÉBUT traitement besoin [${needIndex + 1}/${needs.length}]...`);
     
-    // 🔍 LOG DÉTAILLÉ POUR CHAQUE BESOIN
-    console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
+    try {
+      const need = needs[needIndex];
+      // Create unique need ID - for bloc include BOTH bloc_operation_id AND besoin_operation_id
+      const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+        ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.bloc_operation_id}_${need.besoin_operation_id}`
+        : `${need.site_id}_${need.date}_${need.periode}`;
+      
+      // 🔍 LOG DÉTAILLÉ POUR CHAQUE BESOIN
+      console.log(`\n  📋 Besoin [${needIndex + 1}/${needs.length}]:`, {
       type: need.type,
       site_id: need.site_id?.slice(0, 8),
       periode: need.periode,
@@ -204,13 +207,36 @@ export function buildMILPModelSoft(
       }
     }
     
-    // 📊 RÉSUMÉ APRÈS CHAQUE BESOIN
-    const needIdShort = needId.slice(0, 35);
-    console.log(`\n  ✅ Résumé besoin ${needIdShort}...`);
-    console.log(`     Type: ${need.type}, Période: ${need.periode}`);
-    console.log(`     Testés: ${testedCount}, Rejetés site: ${rejectedNotEligible}, Rejetés compétence: ${rejectedNoCompetence}, Acceptés: ${acceptedCount}`);
-    if (need.type === 'bloc_operatoire') {
-      console.log(`     🏥 BLOC: ${acceptedCount} variables créées pour ce besoin opératoire`);
+      // 📊 RÉSUMÉ APRÈS CHAQUE BESOIN
+      const needIdShort = needId.slice(0, 35);
+      console.log(`\n  ✅ Résumé besoin ${needIdShort}...`);
+      console.log(`     Type: ${need.type}, Période: ${need.periode}`);
+      console.log(`     Testés: ${testedCount}, Rejetés site: ${rejectedNotEligible}, Rejetés compétence: ${rejectedNoCompetence}, Acceptés: ${acceptedCount}`);
+      if (need.type === 'bloc_operatoire') {
+        console.log(`     🏥 BLOC: ${acceptedCount} variables créées pour ce besoin opératoire`);
+      }
+      
+      console.log(`\n✅ FIN traitement besoin [${needIndex + 1}/${needs.length}]: ${acceptedCount} variables créées`);
+      
+    } catch (error) {
+      const err = error as Error;
+      console.error(`\n❌ ERREUR lors du traitement du besoin [${needIndex + 1}/${needs.length}]:`);
+      console.error(`   Type: ${err.name}`);
+      console.error(`   Message: ${err.message}`);
+      console.error(`   Stack: ${err.stack}`);
+      
+      // Log du besoin qui a causé l'erreur
+      const failedNeed = needs[needIndex];
+      console.error(`   Besoin en erreur:`, {
+        type: failedNeed.type,
+        site_id: failedNeed.site_id?.slice(0, 8),
+        periode: failedNeed.periode,
+        bloc_op: failedNeed.bloc_operation_id?.slice(0, 8),
+        besoin_op: failedNeed.besoin_operation_id?.slice(0, 8)
+      });
+      
+      // Continue avec le besoin suivant au lieu d'arrêter tout
+      continue;
     }
   }
   
