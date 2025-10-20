@@ -23,22 +23,40 @@ export async function writeAssignments(
 
   // Parcours des variables assignées
   for (const varName of assignedVars) {
-    // Format attendu: assign_{secretaire_id}_{site_id}_{date}_{periode}
-    // Note: periode peut contenir un underscore ("apres_midi") → on détecte par suffixe
+    // Format attendu:
+    // - Site needs: assign_{secretaire_id}_{site_id}_{date}_{periode}
+    // - Bloc needs: assign_{secretaire_id}_{site_id}_{date}_{periode}_bloc_{besoin_operation_id}
+    
+    // Detect period first
     let periode: 'matin' | 'apres_midi' | undefined;
-    if (varName.endsWith('_apres_midi')) {
+    let coreSansPeriode: string = '';
+    let besoin_operation_id: string | undefined;
+    
+    if (varName.includes('_apres_midi_bloc_')) {
       periode = 'apres_midi';
+      const parts = varName.split('_apres_midi_bloc_');
+      coreSansPeriode = parts[0].slice('assign_'.length);
+      besoin_operation_id = parts[1];
+    } else if (varName.includes('_matin_bloc_')) {
+      periode = 'matin';
+      const parts = varName.split('_matin_bloc_');
+      coreSansPeriode = parts[0].slice('assign_'.length);
+      besoin_operation_id = parts[1];
+    } else if (varName.endsWith('_apres_midi')) {
+      periode = 'apres_midi';
+      const core = varName.slice('assign_'.length);
+      coreSansPeriode = core.slice(0, -('_apres_midi').length);
     } else if (varName.endsWith('_matin')) {
       periode = 'matin';
+      const core = varName.slice('assign_'.length);
+      coreSansPeriode = core.slice(0, -('_matin').length);
     }
 
-    if (!periode) {
-      console.warn(`⚠️ Période introuvable dans le nom de variable: ${varName}`);
+    if (!periode || !coreSansPeriode) {
+      console.warn(`⚠️ Période ou format invalide dans le nom de variable: ${varName}`);
       continue;
     }
 
-    const core = varName.slice('assign_'.length);
-    const coreSansPeriode = core.slice(0, -('_' + periode).length);
     const [secretaire_id, site_id, dateStr] = coreSansPeriode.split('_');
 
     if (!secretaire_id || !site_id || !dateStr) {
@@ -69,15 +87,23 @@ export async function writeAssignments(
     }
 
     // Recherche du besoin correspondant
-    const need = needs.find(
-      (n) => n.site_id === site_id && n.date === date && n.periode === periode
-    );
+    // For bloc needs, match by besoin_operation_id if available
+    let need = besoin_operation_id 
+      ? needs.find(
+          (n) => n.type === 'bloc_operatoire' && 
+                 n.besoin_operation_id === besoin_operation_id &&
+                 n.date === date && 
+                 n.periode === periode
+        )
+      : needs.find(
+          (n) => n.site_id === site_id && n.date === date && n.periode === periode
+        );
 
     if (!need) {
       console.warn(`⚠️ Besoin non trouvé pour ${varName}`);
       const dayNeedsForSite = needs
         .filter((n) => n.site_id === site_id && n.date === date)
-        .map((n) => ({ periode: n.periode, type: n.type, nombre_max: n.nombre_max }))
+        .map((n) => ({ periode: n.periode, type: n.type, nombre_max: n.nombre_max, besoin_operation_id: n.besoin_operation_id }))
         .slice(0, 10);
       console.warn(`   🔍 Besoins connus ce jour pour site ${site_id}:`, dayNeedsForSite);
       continue;

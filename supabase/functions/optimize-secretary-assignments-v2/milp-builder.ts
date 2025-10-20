@@ -40,8 +40,13 @@ export function buildMILPModelSoft(
   // VARIABLES AND COEFFICIENTS
   // ============================================================
   let variableCount = 0;
-  for (const need of needs) {
-    const needId = `${need.site_id}_${need.date}_${need.periode}`;
+  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
+    const need = needs[needIndex];
+    // Create unique need ID that includes index to avoid collisions
+    const needId = need.type === 'bloc_operatoire' && need.besoin_operation_id
+      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.besoin_operation_id}`
+      : `${need.site_id}_${need.date}_${need.periode}`;
+    
     console.log(`\n  📌 Besoin ${needId}:`, {
       site_id: need.site_id,
       periode: need.periode,
@@ -105,20 +110,45 @@ export function buildMILPModelSoft(
   }
   
   // ============================================================
-  // CONSTRAINT: Max nombre_max per need (HARD)
+  // CONSTRAINT: Max total assignments per slot (site+date+periode)
   // ============================================================
   let constraintCount = 0;
+  
+  // Group needs by slot to create aggregated constraints
+  const slotNeeds = new Map<string, SiteNeed[]>();
   for (const need of needs) {
-    const needId = `${need.site_id}_${need.date}_${need.periode}`;
-    const constraintName = `max_need_${needId}`;
-    model.constraints[constraintName] = { max: need.nombre_max };
+    const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
+    if (!slotNeeds.has(slotKey)) {
+      slotNeeds.set(slotKey, []);
+    }
+    slotNeeds.get(slotKey)!.push(need);
+  }
+  
+  // Create one constraint per slot that limits TOTAL assignments
+  for (const [slotKey, needsInSlot] of slotNeeds) {
+    // Calculate max for this slot (should be the ceiling of sum of all needs)
+    // But since each need is already a separate entity, we take the max of all nombre_max
+    // For site needs: should be 1 need per slot, nombre_max is already correct
+    // For bloc needs: multiple needs possible, sum their nombre_max
+    const totalMax = needsInSlot.length === 1 
+      ? needsInSlot[0].nombre_max 
+      : Math.ceil(needsInSlot.reduce((sum, n) => sum + n.nombre_max, 0));
+    
+    const constraintName = `max_slot_${slotKey}`;
+    model.constraints[constraintName] = { max: totalMax };
     constraintCount++;
     
-    // Add coefficients to each variable for this constraint
+    console.log(`  📊 Contrainte ${constraintName}: max ${totalMax} secrétaires (${needsInSlot.length} besoins)`);
+    
+    // Add ALL variables for this slot to this constraint
     for (const cap of todayCapacites) {
-      if (!cap.secretaire_id || cap.demi_journee !== need.periode) continue;
+      if (!cap.secretaire_id) continue;
       
-      const varName = `assign_${cap.secretaire_id}_${needId}`;
+      // Check if this cap's period matches the slot's period
+      const [site_id, slot_date, periode] = slotKey.split('_');
+      if (cap.demi_journee !== periode) continue;
+      
+      const varName = `assign_${cap.secretaire_id}_${slotKey}`;
       if (model.variables[varName]) {
         model.variables[varName][constraintName] = 1;
       }
@@ -130,12 +160,17 @@ export function buildMILPModelSoft(
   // ============================================================
   const secretairesByPeriode = new Map<string, string[]>();
   
-  for (const need of needs) {
+  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
+    const need = needs[needIndex];
+    const needId = need.type === 'bloc_operatoire' && need.besoin_operation_id
+      ? `${need.site_id}_${need.date}_${need.periode}_bloc_${need.besoin_operation_id}`
+      : `${need.site_id}_${need.date}_${need.periode}`;
+    
     for (const cap of todayCapacites) {
       if (!cap.secretaire_id || cap.demi_journee !== need.periode) continue;
       
       const key = `${cap.secretaire_id}_${need.periode}`;
-      const varName = `assign_${cap.secretaire_id}_${need.site_id}_${need.date}_${need.periode}`;
+      const varName = `assign_${cap.secretaire_id}_${needId}`;
       
       if (!model.variables[varName]) continue;
       
@@ -179,8 +214,15 @@ export function buildMILPModelSoft(
       const fullDayVars: string[] = [];
       
       for (const cap of todayCapacites.filter(c => c.secretaire_id)) {
-        const morningVar = `assign_${cap.secretaire_id}_${site.id}_${date}_matin`;
-        const afternoonVar = `assign_${cap.secretaire_id}_${site.id}_${date}_apres_midi`;
+        const morningNeedId = morningNeed.type === 'bloc_operatoire' && morningNeed.besoin_operation_id
+          ? `${site.id}_${date}_matin_bloc_${morningNeed.besoin_operation_id}`
+          : `${site.id}_${date}_matin`;
+        const afternoonNeedId = afternoonNeed.type === 'bloc_operatoire' && afternoonNeed.besoin_operation_id
+          ? `${site.id}_${date}_apres_midi_bloc_${afternoonNeed.besoin_operation_id}`
+          : `${site.id}_${date}_apres_midi`;
+        
+        const morningVar = `assign_${cap.secretaire_id}_${morningNeedId}`;
+        const afternoonVar = `assign_${cap.secretaire_id}_${afternoonNeedId}`;
         
         if (model.variables[morningVar] && model.variables[afternoonVar]) {
           const fullDayVar = `fullday_${cap.secretaire_id}_${site.id}_${date}`;

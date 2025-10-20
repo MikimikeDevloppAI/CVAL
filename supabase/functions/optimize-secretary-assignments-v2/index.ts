@@ -276,6 +276,72 @@ async function optimizeSingleWeek(
     console.log(`  🏆 Score total: ${solution.result}`);
     console.log(`  📊 Assignations: ${assignedCount}`);
     
+    // ============================================================
+    // VERIFY: Check for over-assignment
+    // ============================================================
+    console.log('\n🔍 Vérification des sur-assignations:');
+    let hasOverAssignment = false;
+    
+    // Group needs by site/date/periode to check aggregated needs
+    const needsBySlot = new Map<string, { needs: SiteNeed[], total_max: number }>();
+    for (const need of needs) {
+      const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
+      if (!needsBySlot.has(slotKey)) {
+        needsBySlot.set(slotKey, { needs: [], total_max: 0 });
+      }
+      const slot = needsBySlot.get(slotKey)!;
+      slot.needs.push(need);
+      slot.total_max += need.nombre_max;
+    }
+    
+    // Check each slot
+    for (const [slotKey, slot] of needsBySlot) {
+      const [site_id, slot_date, periode] = slotKey.split('_');
+      const site = weekData.sites.find(s => s.id === site_id);
+      
+      // Count assigned secretaries for this slot
+      let assignedForSlot = 0;
+      for (const [varName, value] of Object.entries(solution)) {
+        if (!varName.startsWith('assign_')) continue;
+        if (value !== 1) continue;
+        
+        // Check if this variable is for this slot
+        if (varName.includes(slotKey)) {
+          assignedForSlot++;
+        }
+      }
+      
+      // Calculate expected max (ceiling of total need)
+      const expectedMax = slot.needs.length === 1 
+        ? slot.needs[0].nombre_max 
+        : Math.ceil(slot.needs.reduce((sum, n) => sum + n.nombre_max, 0));
+      
+      if (assignedForSlot > expectedMax) {
+        console.error(`  ❌ SUR-ASSIGNATION détectée: ${site?.nom || site_id} ${periode}`);
+        console.error(`     Assigné: ${assignedForSlot}, Maximum attendu: ${expectedMax}`);
+        console.error(`     Besoins dans ce créneau: ${slot.needs.length}`);
+        slot.needs.forEach((n, i) => {
+          console.error(`       [${i+1}] nombre_max=${n.nombre_max}, type=${n.type}`);
+        });
+        hasOverAssignment = true;
+      } else {
+        console.log(`  ✅ ${site?.nom || site_id} ${periode}: ${assignedForSlot}/${expectedMax} secrétaires`);
+      }
+    }
+    
+    if (hasOverAssignment) {
+      console.error('\n❌ ERREUR: Sur-assignation détectée! Optimisation annulée.');
+      dailyResults.push({ 
+        date, 
+        success: false, 
+        reason: 'over_assignment',
+        needs_count: needs.length
+      });
+      continue;
+    }
+    
+    console.log('✅ Aucune sur-assignation détectée\n');
+    
     // Write results
     await writeAssignments(
       solution,
