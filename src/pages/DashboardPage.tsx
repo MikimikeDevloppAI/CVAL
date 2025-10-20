@@ -428,22 +428,6 @@ const DashboardPage = () => {
         </Button>
       </div>
 
-      {/* Color Legend */}
-      <div className="flex items-center justify-center gap-6 bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border-2 border-amber-500 bg-amber-500/20" />
-          <span className="text-sm text-muted-foreground">Matin</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border-2 border-blue-500 bg-blue-500/20" />
-          <span className="text-sm text-muted-foreground">Après-midi</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border-2 border-purple-500 bg-purple-500/20" />
-          <span className="text-sm text-muted-foreground">Journée complète</span>
-        </div>
-      </div>
-
       {/* Sites Calendar Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
