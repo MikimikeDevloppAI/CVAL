@@ -676,6 +676,7 @@ export type Database = {
       }
       planning_genere_bloc_operatoire: {
         Row: {
+          besoin_effectif_id: string | null
           created_at: string
           date: string
           id: string
@@ -689,6 +690,7 @@ export type Database = {
           validated: boolean
         }
         Insert: {
+          besoin_effectif_id?: string | null
           created_at?: string
           date: string
           id?: string
@@ -702,6 +704,7 @@ export type Database = {
           validated?: boolean
         }
         Update: {
+          besoin_effectif_id?: string | null
           created_at?: string
           date?: string
           id?: string
@@ -720,6 +723,13 @@ export type Database = {
             columns: ["salle_assignee"]
             isOneToOne: false
             referencedRelation: "salles_operation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_besoin_effectif_id_fkey"
+            columns: ["besoin_effectif_id"]
+            isOneToOne: false
+            referencedRelation: "besoin_effectif"
             referencedColumns: ["id"]
           },
           {
