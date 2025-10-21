@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
+import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 
 interface PersonnePresence {
   id: string;
@@ -594,7 +595,16 @@ const DashboardPage = () => {
         </TabsContent>
       </Tabs>
 
-      <MedecinsPopup 
+      {/* Unfilled Needs Panel */}
+      {!loading && (
+        <UnfilledNeedsPanel
+          startDate={startDate}
+          endDate={endDate}
+          onRefresh={fetchDashboardData}
+        />
+      )}
+
+      <MedecinsPopup
         open={medecinsPopupOpen} 
         onOpenChange={setMedecinsPopupOpen}
       />
