@@ -149,8 +149,8 @@ export function calculateDynamicScore(
         score += adminBonus;
         console.log(`  💼💼 Admin PRÉFÉRÉ (${totalAdminCount}/2): Bonus ${adminBonus}`);
       } else {
-        // Après 2 demi-journées, bonus dégressif plus faible
-        const adminBonus = Math.max(0, 10 - (totalAdminCount - 2) * 2);
+        // À partir de la 3ème demi-journée admin : bonus fixe de 6 points
+        const adminBonus = 6;
         score += adminBonus;
         console.log(`  💼 Admin PRÉFÉRÉ (${totalAdminCount} ≥ 2): Bonus ${adminBonus}`);
       }
