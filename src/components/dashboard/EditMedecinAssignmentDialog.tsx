@@ -64,7 +64,12 @@ export function EditMedecinAssignmentDialog({
       .order('nom');
 
     if (sitesData) {
-      setSites(sitesData);
+      // Filter out administrative and bloc opératoire sites
+      const filteredSites = sitesData.filter(site => {
+        const nomLower = site.nom.toLowerCase();
+        return !nomLower.includes('administratif') && !nomLower.includes('bloc opératoire');
+      });
+      setSites(filteredSites);
     }
   };
 

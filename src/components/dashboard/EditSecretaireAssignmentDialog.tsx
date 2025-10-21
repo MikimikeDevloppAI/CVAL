@@ -80,11 +80,12 @@ export function EditSecretaireAssignmentDialog({
       .order('nom');
 
     if (sitesData) {
-      const adminSite = {
-        id: '00000000-0000-0000-0000-000000000001',
-        nom: 'Site Administratif',
-      };
-      setSites([...sitesData, adminSite]);
+      // Filter out administrative and bloc opératoire sites
+      const filteredSites = sitesData.filter(site => {
+        const nomLower = site.nom.toLowerCase();
+        return !nomLower.includes('administratif') && !nomLower.includes('bloc opératoire');
+      });
+      setSites(filteredSites);
     }
   };
 
