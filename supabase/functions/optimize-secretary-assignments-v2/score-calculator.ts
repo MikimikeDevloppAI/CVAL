@@ -5,7 +5,7 @@ import type {
   Secretaire,
   TodayAssignment
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES } from './types.ts';
+import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES } from './types.ts';
 
 function countTodayAdminAssignments(
   secretaire_id: string,
@@ -140,10 +140,26 @@ export function calculateDynamicScore(
     
     const totalAdminCount = weekAdminCount + todayAdminCount;
     
-    // Bonus dégressif : 10, 9, 8, ..., 0
-    const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
-    score += adminBonus;
-    console.log(`  💼 Admin: ${totalAdminCount} assignations → Bonus: ${adminBonus}`);
+    // Bonus spécial pour les secrétaires avec prefered_admin
+    if (secretaire.prefered_admin) {
+      // Objectif : 2 demi-journées admin minimum
+      if (totalAdminCount < 2) {
+        // Bonus fixe de 90 pour les 2 premières demi-journées
+        const adminBonus = 90;
+        score += adminBonus;
+        console.log(`  💼💼 Admin PRÉFÉRÉ (${totalAdminCount}/2): Bonus ${adminBonus}`);
+      } else {
+        // Après 2 demi-journées, bonus dégressif plus faible
+        const adminBonus = Math.max(0, 10 - (totalAdminCount - 2) * 2);
+        score += adminBonus;
+        console.log(`  💼 Admin PRÉFÉRÉ (${totalAdminCount} ≥ 2): Bonus ${adminBonus}`);
+      }
+    } else {
+      // Bonus dégressif standard pour les autres (10, 9, 8, 7...)
+      const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
+      score += adminBonus;
+      console.log(`  💼 Admin standard: ${totalAdminCount} assignations → Bonus: ${adminBonus}`);
+    }
   }
   
   // ============================================================
@@ -170,8 +186,17 @@ export function calculateDynamicScore(
           need.site_id === ADMIN_SITE_ID;
         
         if (!isAdminInvolved) {
-          score += PENALTIES.CHANGEMENT_SITE;
-          console.log(`  ⚠️ Changement de site détecté (${morning_site_id} → ${need.site_id}): ${PENALTIES.CHANGEMENT_SITE}`);
+          // Vérifier si un des deux sites est Centre Esplanade ou Vieille ville
+          const morningIsHighPenalty = HIGH_PENALTY_SITES.includes(morning_site_id);
+          const afternoonIsHighPenalty = HIGH_PENALTY_SITES.includes(need.site_id);
+          
+          if (morningIsHighPenalty || afternoonIsHighPenalty) {
+            score += PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY;
+            console.log(`  ⚠️⚠️ Changement de site HIGH PENALTY (Centre Esplanade ou Vieille ville): ${PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY}`);
+          } else {
+            score += PENALTIES.CHANGEMENT_SITE;
+            console.log(`  ⚠️ Changement de site standard: ${PENALTIES.CHANGEMENT_SITE}`);
+          }
         }
       }
     }
