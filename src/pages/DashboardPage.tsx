@@ -551,6 +551,15 @@ const DashboardPage = () => {
           </TabsList>
         </div>
 
+        {/* Unfilled Needs Panel */}
+        {!loading && (
+          <UnfilledNeedsPanel
+            startDate={startDate}
+            endDate={endDate}
+            onRefresh={fetchDashboardData}
+          />
+        )}
+
         {/* Sites Calendar Grid */}
         <TabsContent value="site">
           {loading ? (
@@ -594,15 +603,6 @@ const DashboardPage = () => {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Unfilled Needs Panel */}
-      {!loading && (
-        <UnfilledNeedsPanel
-          startDate={startDate}
-          endDate={endDate}
-          onRefresh={fetchDashboardData}
-        />
-      )}
 
       <MedecinsPopup
         open={medecinsPopupOpen} 

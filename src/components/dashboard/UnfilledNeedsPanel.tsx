@@ -420,32 +420,27 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   });
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className="border-2 border-orange-500/50 bg-orange-50/10 dark:bg-orange-950/10">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-6">
+      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 ease-out">
         <CollapsibleTrigger className="w-full">
-          <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 text-orange-500" />
-                <div className="text-left">
-                  <CardTitle className="text-lg">Besoins non satisfaits</CardTitle>
-                  <CardDescription>
-                    {unfilledNeeds.length} besoin{unfilledNeeds.length > 1 ? 's' : ''} non rempli{unfilledNeeds.length > 1 ? 's' : ''} cette semaine
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="destructive" className="text-sm">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/10 transition-all duration-200">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-primary" />
+              <h3 className="text-base font-semibold text-foreground">
+                Besoins non satisfaits
+              </h3>
+              {unfilledNeeds.length > 0 && (
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                   {unfilledNeeds.length}
                 </Badge>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-              </div>
+              )}
             </div>
-          </CardHeader>
+            <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+          </div>
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <CardContent className="pt-6 space-y-6">
+          <div className="bg-background p-6 space-y-6">
             {Array.from(needsByDate.entries()).map(([date, needs]) => (
               <div key={date} className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -454,90 +449,91 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 </div>
 
                 {needs.map((need, idx) => (
-                  <div key={`${need.date}-${need.periode}-${need.site_id}-${idx}`} className="ml-6 space-y-3 pb-4 border-b last:border-b-0">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">└─</span>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant={need.periode === 'matin' ? 'default' : 'secondary'}>
-                            {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                  <div key={`${need.date}-${need.periode}-${need.site_id}-${idx}`} className="p-4 rounded-lg bg-card border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={need.periode === 'matin' ? 'default' : 'secondary'}>
+                          {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                        </Badge>
+                        <span className="font-medium">{need.site_nom}</span>
+                        {need.besoin_operation_nom && (
+                          <Badge variant="outline" className="ml-2">
+                            {need.besoin_operation_nom}
                           </Badge>
-                          <span className="font-medium">{need.site_nom}</span>
-                          {need.besoin_operation_nom && (
-                            <Badge variant="outline" className="ml-2">
-                              {need.besoin_operation_nom}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Manque : <span className="font-semibold text-destructive">{need.manque}</span> assistant{need.manque > 1 ? 's' : ''} médica{need.manque > 1 ? 'ux' : 'l'}
-                        </p>
-
-                        {need.suggestions.length > 0 ? (
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-muted-foreground">Suggestions :</p>
-                            <div className="space-y-2">
-                              {need.suggestions.map((suggestion) => {
-                                const assignKey = `${need.date}-${need.periode}-${need.site_id}-${suggestion.secretaire_id}`;
-                                const isAssigning = assigningId === assignKey;
-
-                                return (
-                                  <div
-                                    key={suggestion.secretaire_id}
-                                    className="flex items-center justify-between gap-3 p-2 rounded-lg bg-accent/50 hover:bg-accent transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2 flex-1">
-                                      {suggestion.est_en_admin_ce_jour ? (
-                                        <span className="text-lg" title="En admin">🟢</span>
-                                      ) : (
-                                        <span className="text-lg" title="Disponible">🔵</span>
-                                      )}
-                                      <span className="text-sm font-medium">{suggestion.secretaire_nom}</span>
-                                      {suggestion.est_en_admin_ce_jour && (
-                                        <Badge variant="default" className="text-xs">En admin</Badge>
-                                      )}
-                                      {(suggestion.priorite_site || suggestion.preference_besoin) && (
-                                        <Badge variant="outline" className="text-xs">
-                                          Préf {suggestion.priorite_site || suggestion.preference_besoin}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      onClick={() => handleQuickAssign(need, suggestion)}
-                                      disabled={isAssigning}
-                                      className="gap-1"
-                                    >
-                                      {isAssigning ? (
-                                        <>
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                          <span className="text-xs">Assignation...</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <UserPlus className="h-3 w-3" />
-                                          <span className="text-xs">Assigner</span>
-                                        </>
-                                      )}
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">
-                            Aucune suggestion disponible
-                          </p>
                         )}
                       </div>
+                      <p className="text-sm text-muted-foreground">
+                        Manque : <span className="font-semibold text-destructive">{need.manque}</span> assistant{need.manque > 1 ? 's' : ''} médica{need.manque > 1 ? 'ux' : 'l'}
+                      </p>
+
+                      {need.suggestions.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Suggestions :</p>
+                          <div className="space-y-2">
+                            {need.suggestions.map((suggestion) => {
+                              const assignKey = `${need.date}-${need.periode}-${need.site_id}-${suggestion.secretaire_id}`;
+                              const isAssigning = assigningId === assignKey;
+
+                              return (
+                                <div
+                                  key={suggestion.secretaire_id}
+                                  className="flex items-center justify-between gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 flex-1">
+                                    {suggestion.est_en_admin_ce_jour ? (
+                                      <span className="text-lg" title="En admin">🟢</span>
+                                    ) : (
+                                      <span className="text-lg" title="Disponible">🔵</span>
+                                    )}
+                                    <span className="text-sm font-medium">{suggestion.secretaire_nom}</span>
+                                    {suggestion.est_en_admin_ce_jour && (
+                                      <Badge variant="default" className="text-xs">En admin</Badge>
+                                    )}
+                                    {(suggestion.priorite_site || suggestion.preference_besoin) && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Préf {suggestion.priorite_site || suggestion.preference_besoin}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleQuickAssign(need, suggestion)}
+                                    disabled={isAssigning}
+                                    className={`gap-1 shrink-0 ${
+                                      suggestion.est_en_admin_ce_jour 
+                                        ? 'bg-primary/5 hover:bg-primary/10 border-primary/30 text-primary' 
+                                        : 'bg-muted/5 hover:bg-muted/20'
+                                    }`}
+                                  >
+                                    {isAssigning ? (
+                                      <>
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <span className="text-xs">Assignation...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <UserPlus className="h-3 w-3" />
+                                        <span className="text-xs">Assigner</span>
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">
+                          Aucune suggestion disponible
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             ))}
-          </CardContent>
+          </div>
         </CollapsibleContent>
       </Card>
     </Collapsible>
