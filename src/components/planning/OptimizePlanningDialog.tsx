@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar as CalendarIcon, ChevronDown, ChevronUp, Users, Check } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, isSameDay } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, isSameDay, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,16 +24,23 @@ interface FlexibleSecretary {
   pourcentage_temps: number;
 }
 
-interface SecretaryAssignment {
-  secretaire_id: string;
-  jours_requis: number;
-}
-
 interface WeekData {
   weekStart: Date;
   weekEnd: Date;
   days: Date[];
   label: string;
+}
+
+interface Absence {
+  secretaire_id: string;
+  date_debut: string;
+  date_fin: string;
+  heure_debut: string | null;
+  heure_fin: string | null;
+}
+
+interface Holiday {
+  date: string;
 }
 
 export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningDialogProps) {
@@ -42,7 +49,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [weeks, setWeeks] = useState<WeekData[]>([]);
   const [flexibleSecretaries, setFlexibleSecretaries] = useState<FlexibleSecretary[]>([]);
-  const [secretaryAssignments, setSecretaryAssignments] = useState<Map<string, number>>(new Map());
+  const [absences, setAbsences] = useState<Absence[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  
+  // Map<weekIndex, Map<secretaireId, joursRequis>>
+  const [weekAssignments, setWeekAssignments] = useState<Map<number, Map<string, number>>>(new Map());
+  
   const { toast } = useToast();
 
   // Generate 12 weeks starting from current week
@@ -67,16 +79,17 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     setWeeks(generatedWeeks);
   }, []);
 
-  // Load flexible secretaries
+  // Load data when dialog opens
   useEffect(() => {
     if (open) {
-      loadFlexibleSecretaries();
+      loadData();
     }
   }, [open]);
 
-  const loadFlexibleSecretaries = async () => {
+  const loadData = async () => {
     try {
-      const { data, error } = await supabase
+      // Load flexible secretaries
+      const { data: secData, error: secError } = await supabase
         .from('secretaires')
         .select('id, name, first_name, pourcentage_temps')
         .eq('actif', true)
@@ -84,46 +97,99 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         .gt('pourcentage_temps', 0)
         .order('name');
 
-      if (error) throw error;
-      setFlexibleSecretaries(data || []);
+      if (secError) throw secError;
+      setFlexibleSecretaries(secData || []);
+
+      // Load absences for flexible secretaries
+      if (secData && secData.length > 0) {
+        const { data: absData, error: absError } = await supabase
+          .from('absences')
+          .select('secretaire_id, date_debut, date_fin, heure_debut, heure_fin')
+          .in('secretaire_id', secData.map(s => s.id))
+          .eq('type_personne', 'secretaire')
+          .in('statut', ['approuve', 'en_attente']);
+
+        if (absError) throw absError;
+        setAbsences(absData || []);
+      }
+
+      // Load holidays
+      const { data: holData, error: holError } = await supabase
+        .from('jours_feries')
+        .select('date')
+        .eq('actif', true);
+
+      if (holError) throw holError;
+      setHolidays(holData || []);
+
     } catch (error) {
-      console.error('Error loading flexible secretaries:', error);
+      console.error('Error loading data:', error);
     }
   };
 
-  // Calculate required days for each flexible secretary
-  useEffect(() => {
-    if (selectedDates.length > 0) {
-      const newAssignments = new Map<string, number>();
-      
-      // Count weekdays (M-F) in selected dates
-      const weekdaysCount = selectedDates.filter(date => {
-        const day = date.getDay();
-        return day !== 0 && day !== 6; // Not Sunday or Saturday
-      }).length;
-
-      const weeksCount = Math.max(1, Math.ceil(weekdaysCount / 5));
-
-      flexibleSecretaries.forEach(sec => {
-        // Calculate required days based on percentage
-        const requiredDays = Math.round((sec.pourcentage_temps / 100) * 5 * weeksCount);
-        newAssignments.set(sec.id, Math.min(requiredDays, weekdaysCount));
-      });
-
-      setSecretaryAssignments(newAssignments);
-    } else {
-      setSecretaryAssignments(new Map());
-    }
-  }, [selectedDates, flexibleSecretaries]);
-
-  const updateSecretaryDays = (secretaireId: string, days: number) => {
-    setSecretaryAssignments(prev => {
-      const newMap = new Map(prev);
-      newMap.set(secretaireId, days);
-      return newMap;
+  // Calculate available days for a secretary in a specific week
+  const calculateAvailableDays = (secretary: FlexibleSecretary, week: WeekData): number => {
+    const weekDays = week.days.filter(day => {
+      const dayOfWeek = day.getDay();
+      return dayOfWeek !== 0 && dayOfWeek !== 6; // Only weekdays
     });
+
+    let availableDays = weekDays.length;
+
+    // Subtract holidays
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      if (holidays.some(h => h.date === dateStr)) {
+        availableDays--;
+      }
+    });
+
+    // Subtract absences
+    const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
+    
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      
+      for (const absence of secAbsences) {
+        const absStart = new Date(absence.date_debut);
+        const absEnd = new Date(absence.date_fin);
+        
+        if (isWithinInterval(day, { start: absStart, end: absEnd })) {
+          if (!absence.heure_debut && !absence.heure_fin) {
+            // Full day absence
+            availableDays--;
+            break;
+          } else {
+            // Partial day absence - check if both periods are blocked
+            const affectsMatin = absence.heure_debut < '12:30:00' && absence.heure_fin > '07:30:00';
+            const affectsApresMidi = absence.heure_debut < '18:00:00' && absence.heure_fin > '13:00:00';
+            
+            if (affectsMatin && affectsApresMidi) {
+              availableDays--;
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    return Math.max(0, availableDays);
   };
 
+  // Calculate suggested days for a secretary in a week
+  const calculateSuggestedDays = (secretary: FlexibleSecretary, week: WeekData): number => {
+    const availableDays = calculateAvailableDays(secretary, week);
+    
+    if (availableDays === 0) return 0;
+
+    // Calculate required days based on percentage (for 1 week)
+    const requiredDays = Math.round((secretary.pourcentage_temps / 100) * 5);
+    
+    // Return minimum of required and available
+    return Math.min(requiredDays, availableDays);
+  };
+
+  // When a week is toggled, calculate assignments for all secretaries
   const toggleWeek = (weekIndex: number) => {
     const week = weeks[weekIndex];
     const allSelected = week.days.every(day => 
@@ -135,6 +201,13 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       setSelectedDates(prev => 
         prev.filter(date => !week.days.some(day => isSameDay(day, date)))
       );
+      
+      // Remove assignments for this week
+      setWeekAssignments(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(weekIndex);
+        return newMap;
+      });
     } else {
       // Select all days of this week
       const newDates = [...selectedDates];
@@ -144,10 +217,23 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         }
       });
       setSelectedDates(newDates);
+
+      // Calculate assignments for this week
+      const weekAssignmentsMap = new Map<string, number>();
+      flexibleSecretaries.forEach(sec => {
+        const suggestedDays = calculateSuggestedDays(sec, week);
+        weekAssignmentsMap.set(sec.id, suggestedDays);
+      });
+
+      setWeekAssignments(prev => {
+        const newMap = new Map(prev);
+        newMap.set(weekIndex, weekAssignmentsMap);
+        return newMap;
+      });
     }
   };
 
-  const toggleDay = (day: Date) => {
+  const toggleDay = (day: Date, weekIndex: number) => {
     const isSelected = selectedDates.some(d => isSameDay(d, day));
     
     if (isSelected) {
@@ -166,6 +252,16 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         newSet.add(weekIndex);
       }
       return newSet;
+    });
+  };
+
+  const updateSecretaryDays = (weekIndex: number, secretaireId: string, days: number) => {
+    setWeekAssignments(prev => {
+      const newMap = new Map(prev);
+      const weekMap = newMap.get(weekIndex) || new Map();
+      weekMap.set(secretaireId, days);
+      newMap.set(weekIndex, weekMap);
+      return newMap;
     });
   };
 
@@ -201,16 +297,27 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
       console.log('🚀 Lancement optimisation MILP v2 pour:', dates);
 
+      // Prepare secretary assignments by combining all weeks
+      const allAssignments = new Map<string, number>();
+      
+      for (const [weekIndex, weekMap] of weekAssignments.entries()) {
+        for (const [secId, days] of weekMap.entries()) {
+          const current = allAssignments.get(secId) || 0;
+          allAssignments.set(secId, current + days);
+        }
+      }
+
+      const secretaryAssignmentsArray = Array.from(allAssignments.entries()).map(([id, days]) => ({
+        secretaire_id: id,
+        jours_requis: days
+      }));
+
+      console.log('📊 Secretary assignments:', secretaryAssignmentsArray);
+
       const weekStart = dates[0];
       const weekEnd = dates[dates.length - 1];
 
       console.log('📅 Optimizing flexible secretaries for week:', weekStart, 'to', weekEnd);
-
-      // Prepare secretary assignments for the algorithm
-      const secretaryAssignmentsArray = Array.from(secretaryAssignments.entries()).map(([id, days]) => ({
-        secretaire_id: id,
-        jours_requis: days
-      }));
 
       const { data: flexData, error: flexError } = await supabase.functions.invoke('optimize-planning-milp-flexible', {
         body: { 
@@ -241,6 +348,7 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         
         onOpenChange(false);
         setSelectedDates([]);
+        setWeekAssignments(new Map());
         setExpandedWeeks(new Set());
         
         setTimeout(() => window.location.reload(), 1000);
@@ -261,221 +369,192 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
             Planifier les secrétaires
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez une ou plusieurs semaines pour planifier automatiquement les secrétaires flexibles.
+            Sélectionnez une ou plusieurs semaines et configurez les assignations des secrétaires flexibles.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden grid grid-cols-3 gap-6">
-          {/* Week Selector - 2 columns */}
-          <div className="col-span-2 flex flex-col">
-            <div className="mb-4">
-              <Label className="text-base font-semibold">Semaines disponibles</Label>
-              <p className="text-sm text-muted-foreground">
-                Cliquez sur une semaine pour sélectionner tous les jours, puis étendez pour personnaliser
-              </p>
-            </div>
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full pr-4">
+            <div className="space-y-2">
+              {weeks.map((week, index) => {
+                const isExpanded = expandedWeeks.has(index);
+                const isFullySelected = isWeekFullySelected(week);
+                const isPartiallySelected = isWeekPartiallySelected(week);
+                const weekAssignmentsForWeek = weekAssignments.get(index);
 
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-2">
-                {weeks.map((week, index) => {
-                  const isExpanded = expandedWeeks.has(index);
-                  const isFullySelected = isWeekFullySelected(week);
-                  const isPartiallySelected = isWeekPartiallySelected(week);
-
-                  return (
-                    <div key={index} className="border rounded-lg overflow-hidden">
-                      {/* Week Header */}
-                      <div
-                        className={cn(
-                          "flex items-center justify-between p-3 cursor-pointer transition-colors",
-                          isFullySelected && "bg-primary/10 border-l-4 border-l-primary",
-                          isPartiallySelected && "bg-primary/5 border-l-4 border-l-primary/50",
-                          !isFullySelected && !isPartiallySelected && "hover:bg-muted/50"
-                        )}
-                        onClick={() => toggleWeek(index)}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className={cn(
-                            "h-5 w-5 rounded border-2 flex items-center justify-center",
-                            isFullySelected && "bg-primary border-primary",
-                            isPartiallySelected && "bg-primary/50 border-primary/50"
-                          )}>
-                            {isFullySelected && <Check className="h-3 w-3 text-white" />}
-                            {isPartiallySelected && <span className="text-white text-xs">−</span>}
-                          </div>
-                          <span className="text-sm font-medium">{week.label}</span>
+                return (
+                  <div key={index} className="border rounded-lg overflow-hidden">
+                    {/* Week Header */}
+                    <div
+                      className={cn(
+                        "flex items-center justify-between p-3 cursor-pointer transition-colors",
+                        isFullySelected && "bg-primary/10 border-l-4 border-l-primary",
+                        isPartiallySelected && "bg-primary/5 border-l-4 border-l-primary/50",
+                        !isFullySelected && !isPartiallySelected && "hover:bg-muted/50"
+                      )}
+                      onClick={() => toggleWeek(index)}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={cn(
+                          "h-5 w-5 rounded border-2 flex items-center justify-center",
+                          isFullySelected && "bg-primary border-primary",
+                          isPartiallySelected && "bg-primary/50 border-primary/50"
+                        )}>
+                          {isFullySelected && <Check className="h-3 w-3 text-white" />}
+                          {isPartiallySelected && <span className="text-white text-xs">−</span>}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleWeekExpanded(index);
-                          }}
-                        >
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
+                        <span className="text-sm font-medium">{week.label}</span>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleWeekExpanded(index);
+                        }}
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
 
-                      {/* Days List */}
-                      {isExpanded && (
-                        <div className="p-3 pt-0 space-y-1 bg-muted/20">
-                          {week.days.map((day, dayIndex) => {
-                            const isSelected = selectedDates.some(d => isSameDay(d, day));
+                    {/* Flexible Secretaries for this week */}
+                    {(isFullySelected || isPartiallySelected) && weekAssignmentsForWeek && (
+                      <div className="px-3 pb-3 bg-muted/10 border-t">
+                        <div className="flex items-center gap-2 py-2">
+                          <Users className="h-4 w-4 text-primary" />
+                          <span className="text-xs font-semibold text-muted-foreground">Secrétaires flexibles</span>
+                        </div>
+                        <div className="space-y-2">
+                          {flexibleSecretaries.map(sec => {
+                            const assignedDays = weekAssignmentsForWeek.get(sec.id) || 0;
+                            const availableDays = calculateAvailableDays(sec, week);
+                            const suggestedDays = calculateSuggestedDays(sec, week);
+
                             return (
-                              <div
-                                key={dayIndex}
-                                className={cn(
-                                  "flex items-center gap-3 p-2 rounded cursor-pointer transition-colors",
-                                  isSelected && "bg-primary/10",
-                                  !isSelected && "hover:bg-muted/50"
-                                )}
-                                onClick={() => toggleDay(day)}
-                              >
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => toggleDay(day)}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <span className="text-sm">
-                                  {format(day, 'EEEE dd MMMM', { locale: fr })}
-                                </span>
+                              <div key={sec.id} className="p-2 bg-background rounded border text-xs space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">
+                                    {sec.first_name} {sec.name}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {sec.pourcentage_temps}% • {availableDays}j dispo
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label htmlFor={`days-${index}-${sec.id}`} className="text-xs text-muted-foreground whitespace-nowrap">
+                                    Jours:
+                                  </Label>
+                                  <input
+                                    id={`days-${index}-${sec.id}`}
+                                    type="number"
+                                    min="0"
+                                    max={availableDays}
+                                    value={assignedDays}
+                                    onChange={(e) => updateSecretaryDays(index, sec.id, parseInt(e.target.value) || 0)}
+                                    className="flex-1 h-7 px-2 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {assignedDays !== suggestedDays && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSecretaryDays(index, sec.id, suggestedDays);
+                                      }}
+                                    >
+                                      Suggéré: {suggestedDays}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
+                      </div>
+                    )}
 
-          {/* Sidebar - 1 column */}
-          <div className="flex flex-col gap-4">
-            {/* Flexible Secretaries Configuration */}
-            {flexibleSecretaries.length > 0 && selectedDates.length > 0 && (
-              <div className="p-4 bg-muted/50 rounded-lg border">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="h-5 w-5 text-primary" />
-                  <h3 className="text-sm font-semibold">Configuration des secrétaires</h3>
-                </div>
-                <ScrollArea className="max-h-[300px]">
-                  <div className="space-y-3">
-                    {flexibleSecretaries.map(sec => {
-                      const assignedDays = secretaryAssignments.get(sec.id) || 0;
-                      return (
-                        <div key={sec.id} className="p-3 bg-background rounded-lg border space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">
-                              {sec.first_name} {sec.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {sec.pourcentage_temps}%
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`days-${sec.id}`} className="text-xs text-muted-foreground whitespace-nowrap">
-                              Jours requis:
-                            </Label>
-                            <input
-                              id={`days-${sec.id}`}
-                              type="number"
-                              min="0"
-                              max={selectedDates.filter(d => {
-                                const day = d.getDay();
-                                return day !== 0 && day !== 6;
-                              }).length}
-                              value={assignedDays}
-                              onChange={(e) => updateSecretaryDays(sec.id, parseInt(e.target.value) || 0)}
-                              className="flex-1 h-8 px-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {/* Days List (expandable) */}
+                    {isExpanded && (
+                      <div className="p-3 pt-0 space-y-1 bg-muted/20">
+                        {week.days.map((day, dayIndex) => {
+                          const isSelected = selectedDates.some(d => isSameDay(d, day));
+                          const dateStr = format(day, 'yyyy-MM-dd');
+                          const isHoliday = holidays.some(h => h.date === dateStr);
+                          
+                          return (
+                            <div
+                              key={dayIndex}
+                              className={cn(
+                                "flex items-center gap-3 p-2 rounded cursor-pointer transition-colors",
+                                isSelected && "bg-primary/10",
+                                !isSelected && "hover:bg-muted/50"
+                              )}
+                              onClick={() => toggleDay(day, index)}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleDay(day, index)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-sm">
+                                {format(day, 'EEEE dd MMMM', { locale: fr })}
+                                {isHoliday && <span className="ml-2 text-xs text-muted-foreground">(férié)</span>}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </ScrollArea>
-              </div>
-            )}
-            
-            {/* Info card when no dates selected */}
-            {flexibleSecretaries.length > 0 && selectedDates.length === 0 && (
-              <div className="p-4 bg-muted/50 rounded-lg border">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  <h3 className="text-sm font-semibold">Secrétaires flexibles</h3>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {flexibleSecretaries.length} secrétaire{flexibleSecretaries.length > 1 ? 's' : ''} disponible{flexibleSecretaries.length > 1 ? 's' : ''}
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Sélectionnez des dates pour configurer les assignations
-                </p>
-              </div>
-            )}
-
-            {/* Selected Summary */}
-            {selectedDates.length > 0 && (
-              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                <p className="text-sm font-semibold mb-2">
-                  {selectedDates.length} jour{selectedDates.length > 1 ? 's' : ''} sélectionné{selectedDates.length > 1 ? 's' : ''}
-                </p>
-                <ScrollArea className="max-h-[200px]">
-                  <div className="space-y-1">
-                    {selectedDates
-                      .sort((a, b) => a.getTime() - b.getTime())
-                      .map((date, idx) => (
-                        <div
-                          key={idx}
-                          className="text-xs px-2 py-1 bg-primary/10 text-primary rounded"
-                        >
-                          {format(date, 'EEE dd/MM', { locale: fr })}
-                        </div>
-                      ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={() => {
-              onOpenChange(false);
-              setSelectedDates([]);
-              setExpandedWeeks(new Set());
-            }}
-            disabled={isOptimizing}
-          >
-            Annuler
-          </Button>
-          <Button
-            onClick={handleOptimize}
-            disabled={isOptimizing || selectedDates.length === 0}
-          >
-            {isOptimizing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Optimisation en cours...
-              </>
-            ) : (
-              <>
-                <CalendarIcon className="h-4 w-4" />
-                Planifier
-              </>
-            )}
-          </Button>
+        <div className="flex justify-between items-center pt-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            {selectedDates.length} jour{selectedDates.length > 1 ? 's' : ''} sélectionné{selectedDates.length > 1 ? 's' : ''}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setSelectedDates([]);
+                setWeekAssignments(new Map());
+                setExpandedWeeks(new Set());
+              }}
+              disabled={isOptimizing}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleOptimize}
+              disabled={isOptimizing || selectedDates.length === 0}
+            >
+              {isOptimizing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Optimisation en cours...
+                </>
+              ) : (
+                <>
+                  <CalendarIcon className="h-4 w-4" />
+                  Planifier
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
