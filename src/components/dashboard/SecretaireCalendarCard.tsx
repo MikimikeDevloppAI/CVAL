@@ -107,13 +107,46 @@ export function SecretaireCalendarCard({
       );
     }
 
-    // Journée complète (matin ET après-midi)
+    // Get unique sites for matin and après-midi
+    const sitesMatinSet = new Set(day.data?.matin.map(a => a.site_nom).filter(Boolean) || []);
+    const sitesAMSet = new Set(day.data?.apres_midi.map(a => a.site_nom).filter(Boolean) || []);
+    
+    const sitesMatin = Array.from(sitesMatinSet).join(', ');
+    const sitesAM = Array.from(sitesAMSet).join(', ');
+
+    // Journée complète avec le MÊME site
+    if (hasMatin && hasApresMidi && sitesMatin === sitesAM && sitesMatin) {
+      return (
+        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center justify-center cursor-pointer hover:shadow-md transition-all px-2">
+          <div className="flex items-center gap-1 w-full">
+            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+            <span className="text-xs font-medium truncate">{sitesMatin}</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Sites différents ou présence partielle → afficher deux lignes séparées
     if (hasMatin && hasApresMidi) {
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center justify-center cursor-pointer hover:shadow-md transition-all">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs font-medium">Journée</span>
+        <div className="space-y-1">
+          {/* Matin */}
+          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className="text-xs font-medium truncate">
+                {sitesMatin || 'Matin'}
+              </span>
+            </div>
+          </div>
+          {/* Après-midi */}
+          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
+              <span className="text-xs font-medium truncate">
+                {sitesAM || 'Après-midi'}
+              </span>
+            </div>
           </div>
         </div>
       );
@@ -122,10 +155,12 @@ export function SecretaireCalendarCard({
     // Matin uniquement
     if (hasMatin) {
       return (
-        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center justify-center cursor-pointer hover:shadow-md transition-all">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-xs font-medium">Matin</span>
+        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+          <div className="flex items-center gap-1 w-full min-w-0">
+            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <span className="text-xs font-medium truncate">
+              {sitesMatin || 'Matin'}
+            </span>
           </div>
         </div>
       );
@@ -133,10 +168,12 @@ export function SecretaireCalendarCard({
 
     // Après-midi uniquement
     return (
-      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center justify-center cursor-pointer hover:shadow-md transition-all">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 rounded-full bg-yellow-500" />
-          <span className="text-xs font-medium">Après-midi</span>
+      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+        <div className="flex items-center gap-1 w-full min-w-0">
+          <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
+          <span className="text-xs font-medium truncate">
+            {sitesAM || 'Après-midi'}
+          </span>
         </div>
       </div>
     );
