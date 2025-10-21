@@ -34,6 +34,18 @@ export async function fetchAvailableSecretairesForExchange(
   currentBesoinOperationId?: string | null
 ): Promise<SecretaireForExchange[]> {
   try {
+    const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+    
+    // Get site info to check if it's bloc opératoire
+    const { data: currentSiteData } = await supabase
+      .from('sites')
+      .select('nom')
+      .eq('id', currentSiteId)
+      .single();
+    
+    const isCurrentSiteBlocOp = currentSiteData?.nom?.toLowerCase().includes('bloc opératoire') || false;
+    const isCurrentSiteAdmin = currentSiteId === ADMIN_SITE_ID;
+
     // Fetch current secretaire's compatible sites and besoins
     const { data: currentSecretaireSites } = await supabase
       .from('secretaires_sites')
@@ -41,6 +53,14 @@ export async function fetchAvailableSecretairesForExchange(
       .eq('secretaire_id', currentSecretaireId);
 
     const currentCompatibleSiteIds = currentSecretaireSites?.map(s => s.site_id) || [];
+
+    // Fetch current secretaire's besoins operations if needed
+    const { data: currentSecretaireBesoins } = await supabase
+      .from('secretaires_besoins_operations')
+      .select('besoin_operation_id')
+      .eq('secretaire_id', currentSecretaireId);
+
+    const currentBesoinIds = currentSecretaireBesoins?.map(b => b.besoin_operation_id) || [];
 
     // Fetch all capacites for the date
     const { data: capacites } = await supabase
@@ -121,7 +141,20 @@ export async function fetchAvailableSecretairesForExchange(
       if (exchangeType === 'matin' && !sec.capacites.some(c => c.demi_journee === 'matin')) continue;
       if (exchangeType === 'apres_midi' && !sec.capacites.some(c => c.demi_journee === 'apres_midi')) continue;
 
-      // Check bidirectional site compatibility
+      const otherSiteId = sec.capacites[0]?.site_id;
+      const otherBesoinOperationId = sec.capacites[0]?.besoin_operation_id;
+
+      // Check if other's site is admin or bloc opératoire
+      const { data: otherSiteData } = await supabase
+        .from('sites')
+        .select('nom')
+        .eq('id', otherSiteId)
+        .single();
+      
+      const isOtherSiteBlocOp = otherSiteData?.nom?.toLowerCase().includes('bloc opératoire') || false;
+      const isOtherSiteAdmin = otherSiteId === ADMIN_SITE_ID;
+
+      // Get other secretaire's site preferences and besoins
       const { data: otherSecretaireSites } = await supabase
         .from('secretaires_sites')
         .select('site_id')
@@ -129,22 +162,37 @@ export async function fetchAvailableSecretairesForExchange(
 
       const otherCompatibleSiteIds = otherSecretaireSites?.map(s => s.site_id) || [];
 
-      // Current secretaire must be able to work at other's site
-      const otherSiteId = sec.capacites[0]?.site_id;
-      if (otherSiteId && !currentCompatibleSiteIds.includes(otherSiteId)) continue;
+      const { data: otherSecretaireBesoins } = await supabase
+        .from('secretaires_besoins_operations')
+        .select('besoin_operation_id')
+        .eq('secretaire_id', sec.secretaire_id);
 
-      // Other secretaire must be able to work at current site
-      if (!otherCompatibleSiteIds.includes(currentSiteId)) continue;
+      const otherBesoinIds = otherSecretaireBesoins?.map(b => b.besoin_operation_id) || [];
 
-      // If there's a besoin operation, check competency
-      if (currentBesoinOperationId) {
-        const { data: otherBesoins } = await supabase
-          .from('secretaires_besoins_operations')
-          .select('besoin_operation_id')
-          .eq('secretaire_id', sec.secretaire_id);
+      // RULE 1: Current secretaire can work at other's site
+      // - If other site is admin or bloc opératoire: always OK
+      // - Otherwise: check if in current secretaire's site preferences
+      if (!isOtherSiteAdmin && !isOtherSiteBlocOp) {
+        if (otherSiteId && !currentCompatibleSiteIds.includes(otherSiteId)) continue;
+      }
 
-        const otherBesoinIds = otherBesoins?.map(b => b.besoin_operation_id) || [];
-        if (!otherBesoinIds.includes(currentBesoinOperationId)) continue;
+      // RULE 2: For bloc opératoire, check besoins operations
+      if (isOtherSiteBlocOp && otherBesoinOperationId) {
+        if (!currentBesoinIds.includes(otherBesoinOperationId)) continue;
+      }
+
+      // RULE 3: Other secretaire can work at current site
+      // - If current site is admin: always OK (no check needed)
+      // - If current site is bloc opératoire: check besoins operations
+      // - Otherwise: check if in other secretaire's site preferences
+      if (isCurrentSiteAdmin) {
+        // Admin site: everyone can work here, no check needed
+      } else if (isCurrentSiteBlocOp) {
+        // Bloc opératoire: check if other secretaire has the required besoin operation
+        if (currentBesoinOperationId && !otherBesoinIds.includes(currentBesoinOperationId)) continue;
+      } else {
+        // Regular site: check site preferences
+        if (!otherCompatibleSiteIds.includes(currentSiteId)) continue;
       }
 
       filtered.push(sec);

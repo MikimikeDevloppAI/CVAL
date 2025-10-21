@@ -73,32 +73,29 @@ export function EditSecretaireAssignmentDialog({
   }, [open, secretaire, siteId]);
 
   const fetchSites = async () => {
+    const adminSiteId = '00000000-0000-0000-0000-000000000001';
+    
     // 1. Récupérer les sites de préférence de la secrétaire
     const { data: preferencesData } = await supabase
       .from('secretaires_sites')
       .select('site_id, sites(id, nom)')
       .eq('secretaire_id', secretaire.id);
 
-    // 2. Extraire les sites uniques
+    // 2. Extraire les sites uniques (sans exclure le bloc opératoire)
     const siteIds = new Set<string>();
     const sitesFromPreferences: Site[] = [];
     
     preferencesData?.forEach((pref: any) => {
       if (pref.sites && !siteIds.has(pref.sites.id)) {
-        const nomLower = pref.sites.nom.toLowerCase();
-        // Exclure bloc opératoire
-        if (!nomLower.includes('bloc opératoire')) {
-          siteIds.add(pref.sites.id);
-          sitesFromPreferences.push({
-            id: pref.sites.id,
-            nom: pref.sites.nom
-          });
-        }
+        siteIds.add(pref.sites.id);
+        sitesFromPreferences.push({
+          id: pref.sites.id,
+          nom: pref.sites.nom
+        });
       }
     });
 
-    // 3. Ajouter le site Administratif s'il n'est pas déjà présent
-    const adminSiteId = '00000000-0000-0000-0000-000000000001';
+    // 3. Ajouter le site Administratif s'il n'est pas déjà présent (tout le monde peut y être affecté)
     if (!siteIds.has(adminSiteId)) {
       const { data: adminSite } = await supabase
         .from('sites')
@@ -112,7 +109,28 @@ export function EditSecretaireAssignmentDialog({
       }
     }
 
-    // 4. Trier par nom
+    // 4. Ajouter le bloc opératoire si la secrétaire a des besoins opératoires
+    const { data: besoinOps } = await supabase
+      .from('secretaires_besoins_operations')
+      .select('besoin_operation_id')
+      .eq('secretaire_id', secretaire.id);
+    
+    if (besoinOps && besoinOps.length > 0) {
+      // La secrétaire a des besoins opératoires, on peut ajouter le bloc opératoire
+      const { data: blocSite } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .ilike('nom', '%bloc opératoire%')
+        .eq('actif', true)
+        .limit(1)
+        .single();
+      
+      if (blocSite && !siteIds.has(blocSite.id)) {
+        sitesFromPreferences.push(blocSite);
+      }
+    }
+
+    // 5. Trier par nom
     sitesFromPreferences.sort((a, b) => a.nom.localeCompare(b.nom));
     setSites(sitesFromPreferences);
   };
