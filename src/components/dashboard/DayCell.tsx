@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 interface PersonnePresence {
   id: string;
   nom: string;
+  prenom?: string;
   matin: boolean;
   apres_midi: boolean;
   validated?: boolean;
@@ -26,10 +27,11 @@ interface DayCellProps {
   date: Date;
   data: DayData | null;
   onOpenDetail?: (date: Date, data: DayData) => void;
-  onSecretaireClick?: (secretaireId: string, secretaireNom: string) => void;
+  onSecretaireClick?: (secretaireId: string, secretaireNom: string, secretairePrenom: string) => void;
+  onMedecinClick?: (medecinId: string, medecinNom: string, medecinPrenom: string) => void;
 }
 
-export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick }: DayCellProps) => {
+export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecinClick }: DayCellProps) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (data && onOpenDetail) {
@@ -40,7 +42,14 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick }: DayCell
   const handleSecretaireClick = (e: React.MouseEvent, secretaire: PersonnePresence) => {
     e.stopPropagation();
     if (onSecretaireClick) {
-      onSecretaireClick(secretaire.id, secretaire.nom);
+      onSecretaireClick(secretaire.id, secretaire.nom, secretaire.prenom || '');
+    }
+  };
+
+  const handleMedecinClick = (e: React.MouseEvent, medecin: PersonnePresence) => {
+    e.stopPropagation();
+    if (onMedecinClick) {
+      onMedecinClick(medecin.id, medecin.nom, medecin.prenom || '');
     }
   };
 
@@ -110,16 +119,20 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick }: DayCell
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {data.medecins.map((m) => (
-              <span
-                key={m.id}
-                className="text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full bg-muted/50 border border-border/30 flex items-center gap-1.5"
-                title={m.nom}
-              >
-                <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
-                <span className="truncate">{m.nom}</span>
-              </span>
-            ))}
+            {data.medecins.map((m) => {
+              const nomComplet = m.prenom ? `${m.prenom} ${m.nom}` : m.nom;
+              return (
+                <span
+                  key={m.id}
+                  onClick={(e) => handleMedecinClick(e, m)}
+                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full bg-muted/50 border border-border/30 flex items-center gap-1.5 hover:bg-primary/10 cursor-pointer"
+                  title={nomComplet}
+                >
+                  <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
+                  <span className="truncate">{m.nom}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -133,20 +146,23 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick }: DayCell
           </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {sortedSecretaires.map((s) => (
-            <span
-              key={s.id}
-              onClick={(e) => handleSecretaireClick(e, s)}
-              className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
-              title={s.nom}
-            >
-              <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
-              <span className="truncate">{s.nom}</span>
-              {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
-              {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
-              {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
-            </span>
-          ))}
+          {sortedSecretaires.map((s) => {
+            const nomComplet = s.prenom ? `${s.prenom} ${s.nom}` : s.nom;
+            return (
+              <span
+                key={s.id}
+                onClick={(e) => handleSecretaireClick(e, s)}
+                className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
+                title={nomComplet}
+              >
+                <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
+                <span className="truncate">{s.nom}</span>
+                {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
+                {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
+                {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>

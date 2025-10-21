@@ -18,6 +18,7 @@ import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 interface PersonnePresence {
   id: string;
   nom: string;
+  prenom?: string;
   matin: boolean;
   apres_midi: boolean;
   validated?: boolean;
@@ -202,6 +203,7 @@ const DashboardPage = () => {
             
             if (besoin.medecins) {
               const medecinNom = besoin.medecins.name || '';
+              const medecinPrenom = besoin.medecins.first_name || '';
               const periode = besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
               // Check if medecin already exists
@@ -212,6 +214,7 @@ const DashboardPage = () => {
                 day.medecins.push({
                   id: besoin.medecins.id,
                   nom: medecinNom,
+                  prenom: medecinPrenom,
                   matin: periode === 'matin',
                   apres_midi: periode === 'apres_midi'
                 });
@@ -244,6 +247,7 @@ const DashboardPage = () => {
             
             if (cap.secretaires) {
               const secretaireNom = cap.secretaires.name || '';
+              const secretairePrenom = cap.secretaires.first_name || '';
               const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
               // Check if secretaire already exists
@@ -257,6 +261,7 @@ const DashboardPage = () => {
                 day.secretaires.push({
                   id: cap.secretaires.id,
                   nom: secretaireNom,
+                  prenom: secretairePrenom,
                   matin: periode === 'matin',
                   apres_midi: periode === 'apres_midi',
                   is_1r: cap.is_1r,

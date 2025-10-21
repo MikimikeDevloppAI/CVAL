@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -20,13 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface Medecin {
-  id: string;
-  besoin_id: string;
-  nom: string;
-  periode: 'matin' | 'apres_midi' | 'journee';
-}
-
 interface Site {
   id: string;
   nom: string;
@@ -35,88 +27,82 @@ interface Site {
 interface EditMedecinAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  medecin: Medecin;
+  medecinId: string;
+  medecinNom: string;
   date: string;
-  siteId: string;
+  currentSiteId: string;
+  periode: 'matin' | 'apres_midi' | 'journee';
   onSuccess: () => void;
 }
 
 export function EditMedecinAssignmentDialog({
   open,
   onOpenChange,
-  medecin,
+  medecinId,
+  medecinNom,
   date,
-  siteId,
+  currentSiteId,
+  periode,
   onSuccess,
 }: EditMedecinAssignmentDialogProps) {
   const [sites, setSites] = useState<Site[]>([]);
-  const [selectedSiteId, setSelectedSiteId] = useState(siteId);
-  const [periode, setPeriode] = useState(medecin.periode);
+  const [selectedSiteId, setSelectedSiteId] = useState(currentSiteId);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
       fetchSites();
-      setSelectedSiteId(siteId);
-      setPeriode(medecin.periode);
+      setSelectedSiteId(currentSiteId);
     }
-  }, [open, medecin, siteId]);
+  }, [open, currentSiteId]);
 
   const fetchSites = async () => {
-    const { data } = await supabase
+    const { data: sitesData } = await supabase
       .from('sites')
       .select('id, nom')
       .eq('actif', true)
       .order('nom');
 
-    if (data) {
-      setSites(data);
+    if (sitesData) {
+      setSites(sitesData);
     }
   };
 
   const handleSubmit = async () => {
+    if (selectedSiteId === currentSiteId) {
+      toast({
+        title: 'Information',
+        description: 'Aucune modification à effectuer',
+      });
+      onOpenChange(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      // Delete old assignments
-      const { error: deleteError } = await supabase
+      // Update site_id for all besoins effectifs of this medecin on this date
+      const { error } = await supabase
         .from('besoin_effectif')
-        .delete()
-        .eq('medecin_id', medecin.id)
-        .eq('date', date);
+        .update({ site_id: selectedSiteId })
+        .eq('medecin_id', medecinId)
+        .eq('date', date)
+        .eq('site_id', currentSiteId)
+        .eq('type', 'medecin');
 
-      if (deleteError) throw deleteError;
-
-      // Create new assignments
-      const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
-        ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
-        : [{ demi_journee: periode as 'matin' | 'apres_midi' }];
-
-      for (const entry of entries) {
-        const { error } = await supabase
-          .from('besoin_effectif')
-          .insert([{
-            date,
-            medecin_id: medecin.id,
-            site_id: selectedSiteId,
-            type: 'medecin',
-            demi_journee: entry.demi_journee,
-            actif: true,
-          }]);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       toast({
         title: 'Succès',
-        description: 'Assignation modifiée avec succès',
+        description: 'Médecin réaffecté avec succès',
       });
 
       onSuccess();
-    } catch (error) {
+      onOpenChange(false);
+    } catch (error: any) {
       console.error('Error updating medecin:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de modifier l\'assignation',
+        description: error.message || 'Impossible de réaffecter le médecin',
         variant: 'destructive',
       });
     } finally {
@@ -126,19 +112,19 @@ export function EditMedecinAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-transparent">
-            Modifier l'assignation
+          <DialogTitle className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+            Réaffecter le médecin
           </DialogTitle>
           <DialogDescription>
-            Médecin : {medecin.nom}
+            Médecin : {medecinNom}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Site</Label>
+            <Label>Nouveau site</Label>
             <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
               <SelectTrigger>
                 <SelectValue />
@@ -152,30 +138,6 @@ export function EditMedecinAssignmentDialog({
               </SelectContent>
             </Select>
           </div>
-
-          <div className="space-y-2">
-            <Label>Période</Label>
-            <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="matin" id="edit-matin" />
-                <Label htmlFor="edit-matin" className="font-normal cursor-pointer">
-                  Matin
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apres_midi" id="edit-apres_midi" />
-                <Label htmlFor="edit-apres_midi" className="font-normal cursor-pointer">
-                  Après-midi
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="journee" id="edit-journee" />
-                <Label htmlFor="edit-journee" className="font-normal cursor-pointer">
-                  Journée complète
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
@@ -185,10 +147,10 @@ export function EditMedecinAssignmentDialog({
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="bg-gradient-to-r from-cyan-500 to-teal-600"
+            className="bg-gradient-to-r from-teal-500 to-cyan-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Enregistrer
+            Réaffecter
           </Button>
         </div>
       </DialogContent>

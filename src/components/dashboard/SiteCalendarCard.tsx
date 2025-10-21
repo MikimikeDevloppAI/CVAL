@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import { DayCell } from './DayCell';
 import { DayDetailDialog } from './DayDetailDialog';
 import { SecretaireActionsDialog } from './SecretaireActionsDialog';
+import { MedecinActionsDialog } from './MedecinActionsDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 interface PersonnePresence {
   id: string;
   nom: string;
+  prenom?: string;
   matin: boolean;
   apres_midi: boolean;
   validated?: boolean;
@@ -49,9 +51,17 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
   const [selectedSecretaire, setSelectedSecretaire] = useState<{
     id: string;
     nom: string;
+    prenom: string;
     date: Date;
     periode: 'matin' | 'apres_midi' | 'journee';
     besoinOperationId?: string | null;
+  } | null>(null);
+  const [selectedMedecin, setSelectedMedecin] = useState<{
+    id: string;
+    nom: string;
+    prenom: string;
+    date: Date;
+    periode: 'matin' | 'apres_midi' | 'journee';
   } | null>(null);
 
   // Filter out Sundays (day 0)
@@ -69,7 +79,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
     setSelectedDay({ date, data });
   };
 
-  const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, date: Date) => {
+  const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, secretairePrenom: string, date: Date) => {
     // Fetch capacite data to determine periode and besoin
     const dateStr = format(date, 'yyyy-MM-dd');
     const { data: capacites } = await supabase
@@ -87,11 +97,39 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
       setSelectedSecretaire({
         id: secretaireId,
         nom: secretaireNom,
+        prenom: secretairePrenom,
         date,
         periode,
         besoinOperationId: capacites[0].besoin_operation_id,
       });
     }
+  };
+
+  const handleMedecinClick = (medecinId: string, medecinNom: string, medecinPrenom: string, date: Date) => {
+    // Fetch besoin_effectif data to determine periode
+    const dateStr = format(date, 'yyyy-MM-dd');
+    supabase
+      .from('besoin_effectif')
+      .select('demi_journee')
+      .eq('medecin_id', medecinId)
+      .eq('date', dateStr)
+      .eq('site_id', site.site_id)
+      .eq('type', 'medecin')
+      .then(({ data: besoins }) => {
+        if (besoins && besoins.length > 0) {
+          const hasMatin = besoins.some(b => b.demi_journee === 'matin');
+          const hasAM = besoins.some(b => b.demi_journee === 'apres_midi');
+          const periode = hasMatin && hasAM ? 'journee' : hasMatin ? 'matin' : 'apres_midi';
+          
+          setSelectedMedecin({
+            id: medecinId,
+            nom: medecinNom,
+            prenom: medecinPrenom,
+            date,
+            periode,
+          });
+        }
+      });
   };
 
   const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
@@ -184,7 +222,8 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 date={day}
                 data={dayData}
                 onOpenDetail={handleOpenDetail}
-                onSecretaireClick={(id, nom) => handleSecretaireClick(id, nom, day)}
+                onSecretaireClick={(id, nom, prenom) => handleSecretaireClick(id, nom, prenom, day)}
+                onMedecinClick={(id, nom, prenom) => handleMedecinClick(id, nom, prenom, day)}
               />
             );
           })}
@@ -207,11 +246,25 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           open={!!selectedSecretaire}
           onOpenChange={(open) => !open && setSelectedSecretaire(null)}
           secretaireId={selectedSecretaire.id}
-          secretaireNom={selectedSecretaire.nom}
+          secretaireNom={`${selectedSecretaire.prenom} ${selectedSecretaire.nom}`}
           date={format(selectedSecretaire.date, 'yyyy-MM-dd')}
           siteId={site.site_id}
           periode={selectedSecretaire.periode}
           besoinOperationId={selectedSecretaire.besoinOperationId}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {selectedMedecin && (
+        <MedecinActionsDialog
+          open={!!selectedMedecin}
+          onOpenChange={(open) => !open && setSelectedMedecin(null)}
+          medecinId={selectedMedecin.id}
+          medecinNom={selectedMedecin.nom}
+          medecinPrenom={selectedMedecin.prenom}
+          date={format(selectedMedecin.date, 'yyyy-MM-dd')}
+          siteId={site.site_id}
+          periode={selectedMedecin.periode}
           onRefresh={onRefresh}
         />
       )}

@@ -424,9 +424,11 @@ export function DayDetailDialog({
         <EditMedecinAssignmentDialog
           open={!!editMedecin}
           onOpenChange={(open) => !open && setEditMedecin(null)}
-          medecin={editMedecin}
+          medecinId={editMedecin.id}
+          medecinNom={editMedecin.nom}
           date={dateStr}
-          siteId={siteId}
+          currentSiteId={siteId}
+          periode={editMedecin.periode}
           onSuccess={handleSuccess}
         />
       )}
