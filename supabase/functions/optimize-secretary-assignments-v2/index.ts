@@ -374,10 +374,21 @@ async function optimizeSingleWeek(
     // Appeler assign-closing-responsibles pour cette journée
     console.log(`\n🔐 Assignation des responsables de fermeture pour ${date}...`);
     try {
+      // Calculer la semaine (lundi-dimanche) pour la date courante
+      const d = new Date(date);
+      const day = d.getDay(); // 0 = dimanche, 1 = lundi
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(d);
+      monday.setDate(monday.getDate() + diffToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const week_start = monday.toISOString().split('T')[0];
+      const week_end = sunday.toISOString().split('T')[0];
+
       const { data: closingResult, error: closingError } = await supabase.functions.invoke(
         'assign-closing-responsibles',
         {
-          body: { dates: [date] }
+          body: { week_start, week_end, selected_dates: [date] }
         }
       );
       

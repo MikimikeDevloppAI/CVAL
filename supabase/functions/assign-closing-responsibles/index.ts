@@ -28,14 +28,32 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end, selected_dates } = await req.json();
+    const body = await req.json();
+    let { week_start, week_end, selected_dates, dates } = body || {};
+
+    // Fallback: si on a un tableau dates, en déduire la semaine et selected_dates
+    if ((!week_start || !week_end) && Array.isArray(dates) && dates.length > 0) {
+      // Utiliser la plus petite date comme référence (ou la première)
+      const sorted = [...dates].sort();
+      const ref = new Date(sorted[0]);
+      const day = ref.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(ref);
+      monday.setDate(monday.getDate() + diffToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      week_start = monday.toISOString().split('T')[0];
+      week_end = sunday.toISOString().split('T')[0];
+      selected_dates = dates;
+      console.log(`📅 Fallback: calculé week_start=${week_start}, week_end=${week_end} depuis dates`);
+    }
     
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end parameters are required');
     }
 
     if (selected_dates && selected_dates.length > 0) {
-      console.log(`📅 Assigning closing responsibles for ${selected_dates.length} date(s):`, selected_dates);
+      console.log(`📅 Mode sélection: ${selected_dates.length} date(s) - ${selected_dates.join(', ')}`);
     } else {
       console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
     }
@@ -170,21 +188,31 @@ serve(async (req) => {
       }
     }
 
-    console.log(`🔒 Found ${sitesNeedingClosing.length} site/date combinations needing closing responsibles`);
+    console.log(`🔒 Found ${sitesNeedingClosing.length} site/date combinations needing closing responsibles (before filter)`);
+    
+    // Filtrer selon selected_dates si fourni
+    let sitesNeedingClosingFiltered = sitesNeedingClosing;
+    if (selected_dates && selected_dates.length > 0) {
+      const sel = new Set(selected_dates);
+      sitesNeedingClosingFiltered = sitesNeedingClosing.filter(s => sel.has(s.date));
+      console.log(`🎯 Mode sélection actif: ${sitesNeedingClosingFiltered.length} sites après filtre selected_dates`);
+    }
     
     // Log détaillé de chaque site/date nécessitant des responsables
-    for (const siteDay of sitesNeedingClosing) {
+    for (const siteDay of sitesNeedingClosingFiltered) {
       console.log(`  📍 ${siteDay.site_nom} - ${siteDay.date}: nécessite 1R et 2F/3F`);
     }
 
     // Sort by date to ensure day-by-day processing in chronological order
-    sitesNeedingClosing.sort((a, b) => a.date.localeCompare(b.date));
-    console.log(`📅 Processing in chronological order from ${sitesNeedingClosing[0]?.date} to ${sitesNeedingClosing[sitesNeedingClosing.length - 1]?.date}`);
+    sitesNeedingClosingFiltered.sort((a, b) => a.date.localeCompare(b.date));
+    if (sitesNeedingClosingFiltered.length > 0) {
+      console.log(`📅 Processing in chronological order from ${sitesNeedingClosingFiltered[0]?.date} to ${sitesNeedingClosingFiltered[sitesNeedingClosingFiltered.length - 1]?.date}`);
+    }
 
     let assignmentCount = 0;
 
     // Step 6: Assign closing responsibles for each site/date
-    for (const siteDay of sitesNeedingClosing) {
+    for (const siteDay of sitesNeedingClosingFiltered) {
       const { date, site_id } = siteDay;
       const dayOfWeek = new Date(date).getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, ...
 
@@ -233,6 +261,7 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'matin')
+        .eq('actif', true)
         .not('secretaire_id', 'is', null);
 
       if (amError) throw amError;
@@ -243,6 +272,7 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'apres_midi')
+        .eq('actif', true)
         .not('secretaire_id', 'is', null);
 
       if (pmError) throw pmError;
@@ -275,7 +305,8 @@ serve(async (req) => {
           .from('capacite_effective')
           .update({ is_1r: false, is_2f: false, is_3f: false })
           .eq('date', date)
-          .eq('site_id', site_id);
+          .eq('site_id', site_id)
+          .eq('actif', true);
         
         // Set 2F/3F morning
         await supabase
@@ -284,7 +315,8 @@ serve(async (req) => {
           .eq('date', date)
           .eq('site_id', site_id)
           .eq('demi_journee', 'matin')
-          .eq('secretaire_id', singleSecId);
+          .eq('secretaire_id', singleSecId)
+          .eq('actif', true);
         
         // Set 2F/3F afternoon
         await supabase
@@ -293,7 +325,8 @@ serve(async (req) => {
           .eq('date', date)
           .eq('site_id', site_id)
           .eq('demi_journee', 'apres_midi')
-          .eq('secretaire_id', singleSecId);
+          .eq('secretaire_id', singleSecId)
+          .eq('actif', true);
         
         console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (1R impossible)`);
         assignmentCount += 1;
@@ -417,7 +450,8 @@ serve(async (req) => {
         .from('capacite_effective')
         .update({ is_1r: false, is_2f: false, is_3f: false })
         .eq('date', date)
-        .eq('site_id', site_id);
+        .eq('site_id', site_id)
+        .eq('actif', true);
 
       if (resetError) throw resetError;
 
@@ -428,7 +462,8 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'matin')
-        .eq('secretaire_id', responsable1R);
+        .eq('secretaire_id', responsable1R)
+        .eq('actif', true);
 
       if (update1RMorningError) throw update1RMorningError;
 
@@ -440,7 +475,8 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'matin')
-        .eq('secretaire_id', responsable2F3F);
+        .eq('secretaire_id', responsable2F3F)
+        .eq('actif', true);
 
       if (update2F3FMorningError) throw update2F3FMorningError;
 
@@ -451,7 +487,8 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'apres_midi')
-        .eq('secretaire_id', responsable1R);
+        .eq('secretaire_id', responsable1R)
+        .eq('actif', true);
 
       if (update1RAfternoonError) throw update1RAfternoonError;
 
@@ -462,7 +499,8 @@ serve(async (req) => {
         .eq('date', date)
         .eq('site_id', site_id)
         .eq('demi_journee', 'apres_midi')
-        .eq('secretaire_id', responsable2F3F);
+        .eq('secretaire_id', responsable2F3F)
+        .eq('actif', true);
 
       if (update2F3FAfternoonError) throw update2F3FAfternoonError;
 
