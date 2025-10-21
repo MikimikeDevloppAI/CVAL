@@ -12,6 +12,7 @@ interface Assignment {
   site_nom?: string;
   medecin_nom?: string;
   besoin_operation_nom?: string;
+  type_intervention_nom?: string;
   salle_nom?: string;
   is_1r?: boolean;
   is_2f?: boolean;
@@ -122,23 +123,23 @@ export function SecretaireCalendarCard({
       
       const assignment = assignments[0];
       
-      // Bloc opératoire: show site, besoin, role and salle
-      if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f) {
+      // Bloc opératoire: show type intervention, besoin, role and salle
+      if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f || assignment.type_intervention_nom) {
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
         if (assignment.is_3f) roles.push('3F');
         
-        const siteName = assignment.site_nom || '';
+        const typeInterventionName = assignment.type_intervention_nom || '';
         const salleName = assignment.salle_nom 
           ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
           : '';
         const besoinName = assignment.besoin_operation_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
-        // Build display text with available elements
+        // Build display text: type intervention - besoin - role - salle
         const parts = [];
-        if (siteName) parts.push(siteName);
+        if (typeInterventionName) parts.push(typeInterventionName);
         if (besoinName) parts.push(besoinName);
         if (roleText) parts.push(roleText);
         if (salleName) parts.push(salleName);
