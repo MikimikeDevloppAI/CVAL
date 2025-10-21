@@ -87,6 +87,30 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     }
   }, [open]);
 
+  // Auto-update weekAssignments when selectedDates change
+  useEffect(() => {
+    if (flexibleSecretaries.length === 0 || weeks.length === 0) return;
+
+    const newWeekAssignments = new Map<number, Map<string, number>>();
+
+    weeks.forEach((week, weekIndex) => {
+      const hasSelectedDays = week.days.some(day => 
+        selectedDates.some(selected => isSameDay(selected, day))
+      );
+
+      if (hasSelectedDays) {
+        const weekAssignmentsMap = new Map<string, number>();
+        flexibleSecretaries.forEach(sec => {
+          const suggestedDays = calculateSuggestedDays(sec, week);
+          weekAssignmentsMap.set(sec.id, suggestedDays);
+        });
+        newWeekAssignments.set(weekIndex, weekAssignmentsMap);
+      }
+    });
+
+    setWeekAssignments(newWeekAssignments);
+  }, [selectedDates, flexibleSecretaries, capacities, holidays, absences]);
+
   const loadData = async () => {
     try {
       // Load flexible secretaries
@@ -187,6 +211,87 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     });
 
     return Math.max(0, availableDays);
+  };
+
+  // Get detailed information for a secretary in a week
+  const getSecretaryWeekDetails = (secretary: FlexibleSecretary, week: WeekData) => {
+    const weekDays = week.days.filter(day => {
+      const dayOfWeek = day.getDay();
+      return dayOfWeek !== 0 && dayOfWeek !== 6; // Only weekdays
+    });
+
+    let holidaysCount = 0;
+    let absencesCount = 0;
+    let daysWorkedOutsideSelection = 0;
+
+    const selectedInWeek = weekDays.filter(day => 
+      selectedDates.some(selected => isSameDay(selected, day))
+    );
+    const nonSelectedInWeek = weekDays.filter(day => 
+      !selectedDates.some(selected => isSameDay(selected, day))
+    );
+
+    // Count holidays
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      if (holidays.some(h => h.date === dateStr)) {
+        holidaysCount++;
+      }
+    });
+
+    // Count absences
+    const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      
+      for (const absence of secAbsences) {
+        const absStart = new Date(absence.date_debut);
+        const absEnd = new Date(absence.date_fin);
+        
+        if (isWithinInterval(day, { start: absStart, end: absEnd })) {
+          if (!absence.heure_debut && !absence.heure_fin) {
+            absencesCount++;
+            break;
+          } else {
+            const affectsMatin = absence.heure_debut < '12:30:00' && absence.heure_fin > '07:30:00';
+            const affectsApresMidi = absence.heure_debut < '18:00:00' && absence.heure_fin > '13:00:00';
+            
+            if (affectsMatin && affectsApresMidi) {
+              absencesCount++;
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    // Count days worked outside selection
+    for (const day of nonSelectedInWeek) {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const hasMatin = capacities.some(
+        cap => cap.secretaire_id === secretary.id && 
+               cap.date === dateStr && 
+               cap.demi_journee === 'matin' &&
+               cap.actif
+      );
+      const hasApresMidi = capacities.some(
+        cap => cap.secretaire_id === secretary.id && 
+               cap.date === dateStr && 
+               cap.demi_journee === 'apres_midi' &&
+               cap.actif
+      );
+      
+      if (hasMatin && hasApresMidi) {
+        daysWorkedOutsideSelection++;
+      }
+    }
+
+    return {
+      holidaysCount,
+      absencesCount,
+      daysWorkedOutsideSelection,
+      hasPartialSelection: selectedInWeek.length > 0 && selectedInWeek.length < weekDays.length
+    };
   };
 
   // Calculate suggested days for a secretary in a week
@@ -293,6 +398,20 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     } else {
       setSelectedDates(prev => [...prev, day]);
     }
+    
+    // Recalculate assignments for affected week
+    const week = weeks[weekIndex];
+    const weekAssignmentsMap = new Map<string, number>();
+    flexibleSecretaries.forEach(sec => {
+      const suggestedDays = calculateSuggestedDays(sec, week);
+      weekAssignmentsMap.set(sec.id, suggestedDays);
+    });
+
+    setWeekAssignments(prev => {
+      const newMap = new Map(prev);
+      newMap.set(weekIndex, weekAssignmentsMap);
+      return newMap;
+    });
   };
 
   const toggleWeekExpanded = (weekIndex: number) => {
@@ -484,10 +603,11 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
                           <span className="text-xs font-semibold text-muted-foreground">Secrétaires flexibles</span>
                         </div>
                         <div className="space-y-2">
-                          {flexibleSecretaries.map(sec => {
+                           {flexibleSecretaries.map(sec => {
                             const assignedDays = weekAssignmentsForWeek.get(sec.id) || 0;
                             const availableDays = calculateAvailableDays(sec, week);
                             const suggestedDays = calculateSuggestedDays(sec, week);
+                            const details = getSecretaryWeekDetails(sec, week);
 
                             return (
                               <div key={sec.id} className="p-2 bg-background rounded border text-xs space-y-1">
@@ -495,8 +615,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
                                   <span className="font-medium">
                                     {sec.first_name} {sec.name}
                                   </span>
-                                  <span className="text-muted-foreground">
-                                    {sec.pourcentage_temps}% • {availableDays}j dispo
+                                  <span className="text-muted-foreground text-[10px]">
+                                    {details.holidaysCount > 0 && `${details.holidaysCount}j férié • `}
+                                    {details.absencesCount > 0 && `${details.absencesCount}j congé • `}
+                                    {details.hasPartialSelection && details.daysWorkedOutsideSelection > 0 && 
+                                      `${details.daysWorkedOutsideSelection}j déjà • `}
+                                    {availableDays}j dispo
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
