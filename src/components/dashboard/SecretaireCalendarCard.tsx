@@ -107,26 +107,54 @@ export function SecretaireCalendarCard({
       );
     }
 
-    // Get unique sites for matin and après-midi
-    const sitesMatinSet = new Set(day.data?.matin.map(a => a.site_nom).filter(Boolean) || []);
-    const sitesAMSet = new Set(day.data?.apres_midi.map(a => a.site_nom).filter(Boolean) || []);
-    
-    const sitesMatin = Array.from(sitesMatinSet).join(', ');
-    const sitesAM = Array.from(sitesAMSet).join(', ');
+    // Helper function to get display info
+    const getDisplayInfo = (assignments: Assignment[]) => {
+      if (!assignments || assignments.length === 0) return null;
+      
+      const assignment = assignments[0];
+      
+      // Bloc opératoire: show besoin and role
+      if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f) {
+        const roles = [];
+        if (assignment.is_1r) roles.push('1R');
+        if (assignment.is_2f) roles.push('2F');
+        if (assignment.is_3f) roles.push('3F');
+        
+        const besoinName = assignment.besoin_operation_nom || '';
+        const roleText = roles.length > 0 ? roles.join('/') : '';
+        
+        return {
+          text: roleText ? `${besoinName} - ${roleText}` : besoinName,
+          isBloc: true,
+          role: roleText
+        };
+      }
+      
+      // Regular site
+      const sitesSet = new Set(assignments.map(a => a.site_nom).filter(Boolean));
+      return {
+        text: Array.from(sitesSet).join(', '),
+        isBloc: false,
+        role: null
+      };
+    };
 
-    // Journée complète avec le MÊME site
-    if (hasMatin && hasApresMidi && sitesMatin === sitesAM && sitesMatin) {
+    const matinInfo = hasMatin ? getDisplayInfo(day.data!.matin) : null;
+    const amInfo = hasApresMidi ? getDisplayInfo(day.data!.apres_midi) : null;
+
+    // Both periods with SAME site/role
+    if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center justify-center cursor-pointer hover:shadow-md transition-all px-2">
-          <div className="flex items-center gap-1 w-full">
+        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+          <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs font-medium truncate">{sitesMatin}</span>
+            <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
           </div>
         </div>
       );
     }
 
-    // Sites différents ou présence partielle → afficher deux lignes séparées
+    // Different sites/roles OR partial presence → show two lines
     if (hasMatin && hasApresMidi) {
       return (
         <div className="space-y-1">
@@ -134,8 +162,8 @@ export function SecretaireCalendarCard({
           <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className="text-xs font-medium truncate">
-                {sitesMatin || 'Matin'}
+              <span className="text-[10px] font-medium truncate">
+                {matinInfo?.text || 'Matin'}
               </span>
             </div>
           </div>
@@ -143,8 +171,8 @@ export function SecretaireCalendarCard({
           <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-              <span className="text-xs font-medium truncate">
-                {sitesAM || 'Après-midi'}
+              <span className="text-[10px] font-medium truncate">
+                {amInfo?.text || 'Après-midi'}
               </span>
             </div>
           </div>
@@ -152,27 +180,27 @@ export function SecretaireCalendarCard({
       );
     }
 
-    // Matin uniquement
+    // Matin only
     if (hasMatin) {
       return (
         <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">
-              {sitesMatin || 'Matin'}
+              {matinInfo?.text || 'Matin'}
             </span>
           </div>
         </div>
       );
     }
 
-    // Après-midi uniquement
+    // Après-midi only
     return (
       <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
         <div className="flex items-center gap-1 w-full min-w-0">
           <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
           <span className="text-xs font-medium truncate">
-            {sitesAM || 'Après-midi'}
+            {amInfo?.text || 'Après-midi'}
           </span>
         </div>
       </div>
