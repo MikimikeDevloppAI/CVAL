@@ -73,20 +73,48 @@ export function EditSecretaireAssignmentDialog({
   }, [open, secretaire, siteId]);
 
   const fetchSites = async () => {
-    const { data: sitesData } = await supabase
-      .from('sites')
-      .select('id, nom')
-      .eq('actif', true)
-      .order('nom');
+    // 1. Récupérer les sites de préférence de la secrétaire
+    const { data: preferencesData } = await supabase
+      .from('secretaires_sites')
+      .select('site_id, sites(id, nom)')
+      .eq('secretaire_id', secretaire.id);
 
-    if (sitesData) {
-      // Filter out administrative and bloc opératoire sites
-      const filteredSites = sitesData.filter(site => {
-        const nomLower = site.nom.toLowerCase();
-        return !nomLower.includes('administratif') && !nomLower.includes('bloc opératoire');
-      });
-      setSites(filteredSites);
+    // 2. Extraire les sites uniques
+    const siteIds = new Set<string>();
+    const sitesFromPreferences: Site[] = [];
+    
+    preferencesData?.forEach((pref: any) => {
+      if (pref.sites && !siteIds.has(pref.sites.id)) {
+        const nomLower = pref.sites.nom.toLowerCase();
+        // Exclure bloc opératoire
+        if (!nomLower.includes('bloc opératoire')) {
+          siteIds.add(pref.sites.id);
+          sitesFromPreferences.push({
+            id: pref.sites.id,
+            nom: pref.sites.nom
+          });
+        }
+      }
+    });
+
+    // 3. Ajouter le site Administratif s'il n'est pas déjà présent
+    const adminSiteId = '00000000-0000-0000-0000-000000000001';
+    if (!siteIds.has(adminSiteId)) {
+      const { data: adminSite } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('id', adminSiteId)
+        .eq('actif', true)
+        .single();
+      
+      if (adminSite) {
+        sitesFromPreferences.push(adminSite);
+      }
     }
+
+    // 4. Trier par nom
+    sitesFromPreferences.sort((a, b) => a.nom.localeCompare(b.nom));
+    setSites(sitesFromPreferences);
   };
 
   const handleSubmit = async () => {
