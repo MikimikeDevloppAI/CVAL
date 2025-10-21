@@ -130,47 +130,35 @@ export function EditSecretaireAssignmentDialog({
 
     setLoading(true);
     try {
-      // Determine which periods to delete based on the original period clicked
-      const periodsToDelete: ('matin' | 'apres_midi')[] = secretaire.periode === 'journee' 
-        ? ['matin', 'apres_midi']
-        : [secretaire.periode];
-
-      // Delete only the specific period(s) that were originally clicked
-      let deleteQuery = supabase
+      // 1. Récupérer les capacités existantes pour cette secrétaire à cette date
+      const { data: existingCapacites } = await supabase
         .from('capacite_effective')
-        .delete()
+        .select('id, demi_journee')
         .eq('secretaire_id', secretaire.id)
         .eq('date', date);
 
-      if (periodsToDelete.length === 1) {
-        deleteQuery = deleteQuery.eq('demi_journee', periodsToDelete[0] as any);
-      } else {
-        deleteQuery = deleteQuery.in('demi_journee', periodsToDelete as any);
-      }
+      // 2. Déterminer quelles demi-journées UPDATE
+      const targetPeriods: ('matin' | 'apres_midi')[] = 
+        periode === 'journee' ? ['matin', 'apres_midi'] : [periode];
 
-      const { error: deleteError } = await deleteQuery;
-      if (deleteError) throw deleteError;
+      // 3. UPDATE chaque demi-journée concernée
+      for (const targetPeriod of targetPeriods) {
+        const existingCapacite = existingCapacites?.find(c => c.demi_journee === targetPeriod);
+        
+        if (existingCapacite) {
+          // UPDATE la ligne existante
+          const { error } = await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: selectedSiteId,
+              is_1r: responsibility === '1r',
+              is_2f: responsibility === '2f',
+              is_3f: responsibility === '3f',
+            })
+            .eq('id', existingCapacite.id);
 
-      // Create new assignments based on the new periode selection
-      const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
-        ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
-        : [{ demi_journee: periode as 'matin' | 'apres_midi' }];
-
-      for (const entry of entries) {
-        const { error } = await supabase
-          .from('capacite_effective')
-          .insert([{
-            date,
-            secretaire_id: secretaire.id,
-            site_id: selectedSiteId,
-            demi_journee: entry.demi_journee,
-            is_1r: responsibility === '1r',
-            is_2f: responsibility === '2f',
-            is_3f: responsibility === '3f',
-            actif: true,
-          }]);
-
-        if (error) throw error;
+          if (error) throw error;
+        }
       }
 
       toast({
