@@ -28,6 +28,7 @@ interface SecretaireDayActionsDialogProps {
   secretaireId: string;
   secretaireNom: string;
   date: string;
+  initialPeriode?: 'matin' | 'apres_midi' | 'journee';
   onRefresh: () => void;
 }
 
@@ -37,6 +38,7 @@ export function SecretaireDayActionsDialog({
   secretaireId,
   secretaireNom,
   date,
+  initialPeriode,
   onRefresh,
 }: SecretaireDayActionsDialogProps) {
   const [exchangeOpen, setExchangeOpen] = useState(false);
@@ -50,11 +52,14 @@ export function SecretaireDayActionsDialog({
 
   useEffect(() => {
     if (open) {
-      fetchCapaciteData();
+      if (initialPeriode) {
+        setPeriode(initialPeriode);
+      }
+      fetchCapaciteData(initialPeriode);
     }
-  }, [open, secretaireId, date]);
+  }, [open, secretaireId, date, initialPeriode]);
 
-  const fetchCapaciteData = async () => {
+  const fetchCapaciteData = async (preferredPeriode?: 'matin' | 'apres_midi' | 'journee') => {
     setLoading(true);
     try {
       const { data: capacites } = await supabase
@@ -68,16 +73,18 @@ export function SecretaireDayActionsDialog({
         setSiteId(capacites[0].site_id);
         setBesoinOperationId(capacites[0].besoin_operation_id);
         
-        // Determine periode
+        // Determine periode only if not provided
         const hasMatin = capacites.some(c => c.demi_journee === 'matin');
         const hasAM = capacites.some(c => c.demi_journee === 'apres_midi');
         
-        if (hasMatin && hasAM) {
-          setPeriode('journee');
-        } else if (hasMatin) {
-          setPeriode('matin');
-        } else {
-          setPeriode('apres_midi');
+        if (!preferredPeriode) {
+          if (hasMatin && hasAM) {
+            setPeriode('journee');
+          } else if (hasMatin) {
+            setPeriode('matin');
+          } else if (hasAM) {
+            setPeriode('apres_midi');
+          }
         }
       }
     } catch (error) {

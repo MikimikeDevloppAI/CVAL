@@ -50,7 +50,7 @@ export function SecretaireCalendarCard({
   index,
   onDayClick
 }: SecretaireCalendarCardProps) {
-  const [selectedDay, setSelectedDay] = useState<{ date: string; nom: string } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{ date: string; nom: string; periode: 'matin' | 'apres_midi' | 'journee' } | null>(null);
   const weekStart = startOfWeek(new Date(startDate), { locale: fr });
   
   // Create a map of days for easy lookup
@@ -67,6 +67,9 @@ export function SecretaireCalendarCard({
     };
   });
 
+  const openActions = (date: string, periode: 'matin' | 'apres_midi' | 'journee') => {
+    setSelectedDay({ date, nom: secretaire.nom_complet, periode });
+  };
   const getTooltipContent = (day: typeof weekDays[0]) => {
     if (!day.data) return 'Aucune assignation';
     
@@ -185,7 +188,7 @@ export function SecretaireCalendarCard({
     // Both periods with SAME site/role
     if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all px-2">
+        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'journee')}>
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
@@ -199,7 +202,7 @@ export function SecretaireCalendarCard({
       return (
         <div className="space-y-1">
           {/* Matin */}
-          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2">
+          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'matin')}>
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -208,7 +211,7 @@ export function SecretaireCalendarCard({
             </div>
           </div>
           {/* Après-midi */}
-          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2">
+          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'apres_midi')}>
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -223,7 +226,7 @@ export function SecretaireCalendarCard({
     // Matin only
     if (hasMatin) {
       return (
-        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2">
+        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'matin')}>
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">
@@ -235,16 +238,16 @@ export function SecretaireCalendarCard({
     }
 
     // Après-midi only
-    return (
-      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2">
-        <div className="flex items-center gap-1 w-full min-w-0">
-          <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-          <span className="text-xs font-medium truncate">
-            {amInfo?.text || 'Après-midi'}
-          </span>
-        </div>
+  return (
+    <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'apres_midi')}>
+      <div className="flex items-center gap-1 w-full min-w-0">
+        <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
+        <span className="text-xs font-medium truncate">
+          {amInfo?.text || 'Après-midi'}
+        </span>
       </div>
-    );
+    </div>
+  );
   };
 
   return (
@@ -284,7 +287,6 @@ export function SecretaireCalendarCard({
               <TooltipTrigger asChild>
                 <div 
                   className="space-y-1"
-                  onClick={() => setSelectedDay({ date: day.date, nom: secretaire.nom_complet })}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground capitalize">
@@ -312,6 +314,7 @@ export function SecretaireCalendarCard({
           secretaireId={secretaire.id}
           secretaireNom={selectedDay.nom}
           date={selectedDay.date}
+          initialPeriode={selectedDay.periode}
           onRefresh={onDayClick ? () => onDayClick(secretaire.id, selectedDay.date) : () => {}}
         />
       )}
