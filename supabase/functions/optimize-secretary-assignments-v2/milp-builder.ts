@@ -168,19 +168,9 @@ export function buildMILPModelSoft(
     const constraintName = `max_need_${needId}`;
     model.constraints[constraintName] = { max: need.nombre_max };
     
-    // For productive sites (not ADMIN), add min constraint to guarantee full satisfaction
-    if (!isAdminSite) {
-      const minConstraintName = `min_need_${needId}`;
-      model.constraints[minConstraintName] = { min: need.nombre_max };
-    }
-    
     for (const varName of Object.keys(model.variables)) {
       if (varName.startsWith('assign_') && varName.endsWith(`_${needId}`)) {
         model.variables[varName][constraintName] = 1;
-        if (!isAdminSite) {
-          const minConstraintName = `min_need_${needId}`;
-          model.variables[varName][minConstraintName] = 1;
-        }
       }
     }
   }

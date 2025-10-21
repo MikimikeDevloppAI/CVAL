@@ -270,6 +270,33 @@ async function optimizeSingleWeek(
       continue;
     }
     
+    // ============================================================
+    // ANALYZE: Report needs satisfaction (Best Effort mode)
+    // ============================================================
+    console.log(`\n📊 Analyse des assignations pour ${date}:`);
+    for (const need of needs) {
+      if (need.site_id === ADMIN_SITE_ID) continue;
+      
+      const periodCode = need.periode === 'matin' ? '1' : '2';
+      const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+        ? `${need.site_id}_${date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
+        : `${need.site_id}_${date}_${periodCode}`;
+      
+      const assigned = Object.entries(solution)
+        .filter(([varName]) => varName.startsWith('assign_') && varName.endsWith(`_${needId}`))
+        .filter(([, value]) => Number(value) > 0.5)
+        .length;
+      
+      const site = weekData.sites.find(s => s.id === need.site_id);
+      const siteName = site?.nom || need.site_id;
+      
+      if (assigned < need.nombre_max) {
+        console.log(`  ⚠️ Besoin partiel: ${siteName} ${need.periode} - ${assigned}/${need.nombre_max} assignés`);
+      } else {
+        console.log(`  ✅ Besoin satisfait: ${siteName} ${need.periode} - ${assigned}/${need.nombre_max}`);
+      }
+    }
+    
     
     // ============================================================
     // VERIFY: Check for over-assignment (optional verbose)
