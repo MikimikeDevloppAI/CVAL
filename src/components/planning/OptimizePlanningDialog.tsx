@@ -51,6 +51,7 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
   const [flexibleSecretaries, setFlexibleSecretaries] = useState<FlexibleSecretary[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [capacities, setCapacities] = useState<any[]>([]);
   
   // Map<weekIndex, Map<secretaireId, joursRequis>>
   const [weekAssignments, setWeekAssignments] = useState<Map<number, Map<string, number>>>(new Map());
@@ -122,6 +123,18 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       if (holError) throw holError;
       setHolidays(holData || []);
 
+      // Load existing capacities for flexible secretaries
+      if (secData && secData.length > 0) {
+        const { data: capData, error: capError } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id, date, demi_journee, actif, site_id')
+          .in('secretaire_id', secData.map(s => s.id))
+          .eq('actif', true);
+
+        if (capError) throw capError;
+        setCapacities(capData || []);
+      }
+
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -185,7 +198,46 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     // Calculate required days based on percentage (for 1 week)
     const requiredDays = Math.round((secretary.pourcentage_temps / 100) * 5);
     
-    // Return minimum of required and available
+    // Check if this is a partial week selection
+    const weekDays = week.days;
+    const selectedInWeek = weekDays.filter(day => 
+      selectedDates.some(selected => isSameDay(selected, day))
+    );
+    const nonSelectedInWeek = weekDays.filter(day => 
+      !selectedDates.some(selected => isSameDay(selected, day))
+    );
+
+    // If partial week, count existing capacities on non-selected days
+    if (selectedInWeek.length > 0 && selectedInWeek.length < weekDays.length) {
+      // Count full days already worked on non-selected days
+      let daysAlreadyWorked = 0;
+      
+      for (const day of nonSelectedInWeek) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const hasMatin = capacities.some(
+          cap => cap.secretaire_id === secretary.id && 
+                 cap.date === dateStr && 
+                 cap.demi_journee === 'matin' &&
+                 cap.actif
+        );
+        const hasApresMidi = capacities.some(
+          cap => cap.secretaire_id === secretary.id && 
+                 cap.date === dateStr && 
+                 cap.demi_journee === 'apres_midi' &&
+                 cap.actif
+        );
+        
+        // Count as full day if both periods are present
+        if (hasMatin && hasApresMidi) {
+          daysAlreadyWorked++;
+        }
+      }
+      
+      // Suggest: max(0, requiredDays - daysAlreadyWorked)
+      return Math.max(0, Math.min(requiredDays - daysAlreadyWorked, availableDays));
+    }
+    
+    // Full week selection: return minimum of required and available
     return Math.min(requiredDays, availableDays);
   };
 

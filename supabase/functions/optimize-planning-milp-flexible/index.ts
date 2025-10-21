@@ -36,7 +36,14 @@ serve(async (req) => {
       throw new Error('week_start and week_end are required');
     }
 
+    // Filter selected_dates to keep only weekdays (Monday-Friday)
+    const selectedWeekdays = (selected_dates || []).filter((date: string) => {
+      const dayOfWeek = new Date(date).getDay();
+      return dayOfWeek >= 1 && dayOfWeek <= 5; // Exclude Saturday (6) and Sunday (0)
+    });
+
     console.log(`📅 Analyzing week ${week_start} to ${week_end}`);
+    console.log(`📅 Selected weekdays for optimization: ${selectedWeekdays.length > 0 ? selectedWeekdays.join(', ') : 'ALL'}`);
 
     // ==================== FETCH DATA ====================
     
@@ -59,6 +66,27 @@ serve(async (req) => {
     }
 
     console.log(`Found ${allSecretaires.length} flexible secretaries`);
+
+    // DELETE existing capacities for flexible secretaries on selected weekdays ONLY
+    if (selectedWeekdays.length > 0) {
+      console.log(`\n🗑️ Deleting existing capacities for flexible secretaries on selected dates...`);
+      
+      for (const secretary of allSecretaires) {
+        const { error: deleteError } = await supabase
+          .from('capacite_effective')
+          .delete()
+          .eq('secretaire_id', secretary.id)
+          .in('date', selectedWeekdays);
+        
+        if (deleteError) {
+          console.error(`❌ Error deleting capacities for ${secretary.first_name}:`, deleteError);
+        } else {
+          console.log(`   Deleted capacities for ${secretary.first_name} ${secretary.name} on ${selectedWeekdays.length} selected days`);
+        }
+      }
+      
+      console.log(`✅ Deletion complete\n`);
+    }
 
     // 2. Get holidays
     const { data: holidays } = await supabase
@@ -158,7 +186,6 @@ serve(async (req) => {
 
       // Calculate required days
       const absencesForSec = absenceMap.get(secretary.id) || new Set();
-      const existingCapsForSec = existingCapacitiesMap.get(secretary.id) || new Set();
 
       // Generate week dates
       const weekDates: string[] = [];
@@ -166,26 +193,6 @@ serve(async (req) => {
       const end = new Date(week_end);
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         weekDates.push(d.toISOString().split('T')[0]);
-      }
-
-      // Count existing M-F days (not Saturday)
-      const existingMFDays = new Set<string>();
-      for (const capKey of existingCapsForSec) {
-        const [date, periode] = capKey.split('_');
-        const dayOfWeek = new Date(date).getDay();
-        if (dayOfWeek !== 6 && dayOfWeek !== 0) { // Not Saturday or Sunday
-          existingMFDays.add(date);
-        }
-      }
-
-      // Count full days (both periods)
-      const fullDaysWorked = new Set<string>();
-      for (const date of existingMFDays) {
-        const hasMatin = existingCapsForSec.has(`${date}_matin`);
-        const hasApresMidi = existingCapsForSec.has(`${date}_apres_midi`);
-        if (hasMatin && hasApresMidi) {
-          fullDaysWorked.add(date);
-        }
       }
 
       // Count holidays and absences
@@ -206,7 +213,7 @@ serve(async (req) => {
 
       const totalRequired = Math.round((secretary.pourcentage_temps / 100) * 5);
       const availableDays = 5 - holidaysCount - absenceDaysCount;
-      const joursRequis = Math.max(0, Math.min(totalRequired, availableDays) - fullDaysWorked.size);
+      const joursRequis = Math.max(0, Math.min(totalRequired, availableDays));
 
       // Override with custom assignment if provided
       let finalJoursRequis = joursRequis;
@@ -222,7 +229,6 @@ serve(async (req) => {
 
       console.log(`  ${secretary.pourcentage_temps}% = ${totalRequired} days total`);
       console.log(`  ${holidaysCount} holidays, ${absenceDaysCount} absence days`);
-      console.log(`  ${fullDaysWorked.size} days already worked (M-F)`);
       console.log(`  ${finalJoursRequis} days needed`);
 
       if (finalJoursRequis <= 0) {
@@ -280,13 +286,6 @@ serve(async (req) => {
 
       // Create capacities for selected days
       for (const day of selectedDays) {
-        // Delete existing capacities for this secretary on this date (if re-optimizing)
-        await supabase
-          .from('capacite_effective')
-          .delete()
-          .eq('secretaire_id', secretary.id)
-          .eq('date', day.date);
-
         // Insert new capacities
         const capacitiesToInsert = [];
 
