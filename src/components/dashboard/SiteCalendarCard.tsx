@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DayCell } from './DayCell';
 import { DayDetailDialog } from './DayDetailDialog';
+import { SecretaireActionsDialog } from './SecretaireActionsDialog';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -44,6 +46,13 @@ interface SiteCalendarCardProps {
 
 export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }: SiteCalendarCardProps) => {
   const [selectedDay, setSelectedDay] = useState<{ date: Date; data: DayData } | null>(null);
+  const [selectedSecretaire, setSelectedSecretaire] = useState<{
+    id: string;
+    nom: string;
+    date: Date;
+    periode: 'matin' | 'apres_midi' | 'journee';
+    besoinOperationId?: string | null;
+  } | null>(null);
 
   // Filter out Sundays (day 0)
   const days = eachDayOfInterval({
@@ -58,6 +67,31 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
   const handleOpenDetail = (date: Date, data: DayData) => {
     setSelectedDay({ date, data });
+  };
+
+  const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, date: Date) => {
+    // Fetch capacite data to determine periode and besoin
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const { data: capacites } = await supabase
+      .from('capacite_effective')
+      .select('besoin_operation_id, demi_journee')
+      .eq('secretaire_id', secretaireId)
+      .eq('date', dateStr)
+      .eq('actif', true);
+
+    if (capacites && capacites.length > 0) {
+      const hasMatin = capacites.some(c => c.demi_journee === 'matin');
+      const hasAM = capacites.some(c => c.demi_journee === 'apres_midi');
+      const periode = hasMatin && hasAM ? 'journee' : hasMatin ? 'matin' : 'apres_midi';
+      
+      setSelectedSecretaire({
+        id: secretaireId,
+        nom: secretaireNom,
+        date,
+        periode,
+        besoinOperationId: capacites[0].besoin_operation_id,
+      });
+    }
   };
 
   const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
@@ -150,6 +184,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 date={day}
                 data={dayData}
                 onOpenDetail={handleOpenDetail}
+                onSecretaireClick={(id, nom) => handleSecretaireClick(id, nom, day)}
               />
             );
           })}
@@ -163,6 +198,20 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           date={selectedDay.date}
           siteId={site.site_id}
           siteName={site.site_nom}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {selectedSecretaire && (
+        <SecretaireActionsDialog
+          open={!!selectedSecretaire}
+          onOpenChange={(open) => !open && setSelectedSecretaire(null)}
+          secretaireId={selectedSecretaire.id}
+          secretaireNom={selectedSecretaire.nom}
+          date={format(selectedSecretaire.date, 'yyyy-MM-dd')}
+          siteId={site.site_id}
+          periode={selectedSecretaire.periode}
+          besoinOperationId={selectedSecretaire.besoinOperationId}
           onRefresh={onRefresh}
         />
       )}

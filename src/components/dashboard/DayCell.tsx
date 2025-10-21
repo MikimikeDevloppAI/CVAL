@@ -32,14 +32,38 @@ interface DayCellProps {
   date: Date;
   data: DayData | null;
   onOpenDetail?: (date: Date, data: DayData) => void;
+  onSecretaireClick?: (secretaireId: string, secretaireNom: string) => void;
 }
 
-export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
+export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick }: DayCellProps) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (data && onOpenDetail) {
       onOpenDetail(date, data);
     }
+  };
+
+  const handleSecretaireClick = (e: React.MouseEvent, secretaire: PersonnePresence) => {
+    e.stopPropagation();
+    if (onSecretaireClick) {
+      onSecretaireClick(secretaire.id, secretaire.nom);
+    }
+  };
+
+  // Sort secretaires: journee > matin > apres_midi, then alphabetically
+  const sortSecretaires = (secretaires: PersonnePresence[]) => {
+    return [...secretaires].sort((a, b) => {
+      // Priority: journee (3) > matin (2) > apres_midi (1)
+      const getPriority = (s: PersonnePresence) => {
+        if (s.matin && s.apres_midi) return 3; // vert
+        if (s.matin) return 2; // bleu
+        return 1; // jaune
+      };
+      const priorityDiff = getPriority(b) - getPriority(a);
+      if (priorityDiff !== 0) return priorityDiff;
+      // Same priority, sort alphabetically
+      return a.nom.localeCompare(b.nom);
+    });
   };
 
   if (!data || (data.medecins.length === 0 && data.secretaires.length === 0)) {
@@ -65,15 +89,16 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
   const manquantAM = Math.max(0, Math.ceil(data.besoin_secretaires_apres_midi) - data.secretaires.filter(s => s.apres_midi).length);
   const totalManquant = manquantMatin + manquantAM;
 
+  const sortedSecretaires = sortSecretaires(data.secretaires);
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
-            onClick={handleClick}
             className={cn(
               "min-h-[140px] rounded-xl border-2 p-3 transition-all duration-300",
-              "hover:shadow-lg hover:scale-[1.02] cursor-pointer",
+              "hover:shadow-lg hover:scale-[1.02]",
               "bg-card/50 backdrop-blur-sm border-border/40"
             )}
           >
@@ -109,7 +134,7 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
             )}
 
             {/* Secrétaires Section */}
-            <div>
+            <div onClick={handleClick} className="cursor-pointer">
               <div className="flex items-center gap-1.5 mb-2">
                 <Users className="h-3.5 w-3.5 text-primary" />
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase">
@@ -117,10 +142,11 @@ export const DayCell = ({ date, data, onOpenDetail }: DayCellProps) => {
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {data.secretaires.map((s) => (
+                {sortedSecretaires.map((s) => (
                   <span
                     key={s.id}
-                    className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30"
+                    onClick={(e) => handleSecretaireClick(e, s)}
+                    className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
                     title={s.nom}
                   >
                     <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />

@@ -397,7 +397,9 @@ const DashboardPage = () => {
         })
       );
 
-      setDashboardSecretaires(secretairesWeekData);
+      setDashboardSecretaires(
+        secretairesWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
+      );
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {

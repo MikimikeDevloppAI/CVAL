@@ -10,12 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Stethoscope, Users, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Stethoscope, Users, Plus, Pencil, Trash2, Loader2, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
 import { AddSecretaireToDayDialog } from './AddSecretaireToDayDialog';
 import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
 import { EditSecretaireAssignmentDialog } from './EditSecretaireAssignmentDialog';
+import { ExchangeSecretaireDialog } from './ExchangeSecretaireDialog';
 import { toast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -69,6 +70,7 @@ export function DayDetailDialog({
   const [addSecretaireOpen, setAddSecretaireOpen] = useState(false);
   const [editMedecin, setEditMedecin] = useState<Medecin | null>(null);
   const [editSecretaire, setEditSecretaire] = useState<Secretaire | null>(null);
+  const [exchangeSecretaire, setExchangeSecretaire] = useState<Secretaire | null>(null);
   const [deleteItem, setDeleteItem] = useState<{ type: 'medecin' | 'secretaire'; id: string } | null>(null);
 
   const dateStr = format(date, 'yyyy-MM-dd');
@@ -242,6 +244,7 @@ export function DayDetailDialog({
     setAddSecretaireOpen(false);
     setEditMedecin(null);
     setEditSecretaire(null);
+    setExchangeSecretaire(null);
   };
 
   return (
@@ -370,6 +373,14 @@ export function DayDetailDialog({
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => setExchangeSecretaire(secretaire)}
+                            title="Échanger"
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => setEditSecretaire(secretaire)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -427,6 +438,19 @@ export function DayDetailDialog({
           secretaire={editSecretaire}
           date={dateStr}
           siteId={siteId}
+          onSuccess={handleSuccess}
+        />
+      )}
+
+      {exchangeSecretaire && (
+        <ExchangeSecretaireDialog
+          open={!!exchangeSecretaire}
+          onOpenChange={(open) => !open && setExchangeSecretaire(null)}
+          secretaireId={exchangeSecretaire.id}
+          secretaireNom={exchangeSecretaire.nom}
+          date={dateStr}
+          siteId={siteId}
+          periode={exchangeSecretaire.periode}
           onSuccess={handleSuccess}
         />
       )}

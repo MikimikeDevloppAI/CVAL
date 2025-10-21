@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
+import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 import {
   Tooltip,
   TooltipContent,
@@ -48,6 +50,7 @@ export function SecretaireCalendarCard({
   index,
   onDayClick
 }: SecretaireCalendarCardProps) {
+  const [selectedDay, setSelectedDay] = useState<{ date: string; nom: string } | null>(null);
   const weekStart = startOfWeek(new Date(startDate), { locale: fr });
   
   // Create a map of days for easy lookup
@@ -281,7 +284,7 @@ export function SecretaireCalendarCard({
               <TooltipTrigger asChild>
                 <div 
                   className="space-y-1"
-                  onClick={() => onDayClick?.(secretaire.id, day.date)}
+                  onClick={() => setSelectedDay({ date: day.date, nom: secretaire.nom_complet })}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground capitalize">
@@ -301,6 +304,17 @@ export function SecretaireCalendarCard({
           ))}
         </TooltipProvider>
       </div>
+
+      {selectedDay && (
+        <SecretaireDayActionsDialog
+          open={!!selectedDay}
+          onOpenChange={(open) => !open && setSelectedDay(null)}
+          secretaireId={secretaire.id}
+          secretaireNom={selectedDay.nom}
+          date={selectedDay.date}
+          onRefresh={onDayClick ? () => onDayClick(secretaire.id, selectedDay.date) : () => {}}
+        />
+      )}
     </div>
   );
 }
