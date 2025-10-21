@@ -40,43 +40,13 @@ serve(async (req) => {
       console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
     }
 
-    // Step 1: Get the 4 previous weeks to calculate 3F history ONLY
-    const fourWeeksAgo = new Date(week_start);
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-    const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
-
-    // Step 2: Calculate 3F history (only for 3F assignments)
-    const { data: pastAssignments, error: pastError } = await supabase
-      .from('planning_genere_personnel')
-      .select('secretaire_id, is_3f')
-      .eq('type_assignation', 'site')
-      .gte('date', fourWeeksAgoStr)
-      .lt('date', week_start)
-      .eq('is_3f', true)
-      .not('secretaire_id', 'is', null);
-
-    if (pastError) throw pastError;
-
-    // Calculate 3F historical scores (15 points per 3F)
-    const historical3FScores = new Map<string, number>();
-    for (const assignment of pastAssignments || []) {
-      const secId = assignment.secretaire_id;
-      if (!secId) continue;
-      
-      if (!historical3FScores.has(secId)) historical3FScores.set(secId, 0);
-      historical3FScores.set(secId, historical3FScores.get(secId)! + 15);
-    }
-
-    console.log(`📊 Calculated 3F historical scores for ${historical3FScores.size} secretaries`);
-
     // Track scores for current week with new point system (1R=2pts, 2F=10pts, 3F=15pts)
     const currentWeekScores = new Map<string, SecretaryScore>();
     
     // Get current week assignments to count scores (excluding selected dates being re-optimized)
     const { data: currentWeekAssignments, error: cwError } = await supabase
-      .from('planning_genere_personnel')
+      .from('capacite_effective')
       .select('secretaire_id, is_1r, is_2f, is_3f, date')
-      .eq('type_assignation', 'site')
       .gte('date', week_start)
       .lte('date', week_end)
       .not('secretaire_id', 'is', null);
@@ -258,23 +228,21 @@ serve(async (req) => {
 
       // Get secretaries assigned to this site on this date (morning and afternoon)
       const { data: assignedMorning, error: amError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .select('secretaire_id, secretaires!secretaire_id(id, first_name, name)')
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'matin')
-        .eq('type_assignation', 'site')
+        .eq('demi_journee', 'matin')
         .not('secretaire_id', 'is', null);
 
       if (amError) throw amError;
 
       const { data: assignedAfternoon, error: pmError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .select('secretaire_id, secretaires!secretaire_id(id, first_name, name)')
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'apres_midi')
-        .eq('type_assignation', 'site')
+        .eq('demi_journee', 'apres_midi')
         .not('secretaire_id', 'is', null);
 
       if (pmError) throw pmError;
@@ -302,36 +270,30 @@ serve(async (req) => {
         // Assigner uniquement 2F ou 3F (pas 1R)
         const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
         
-        // Reset flags (ONLY non-validated)
+        // Reset flags
         await supabase
-          .from('planning_genere_personnel')
+          .from('capacite_effective')
           .update({ is_1r: false, is_2f: false, is_3f: false })
           .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('type_assignation', 'site')
-          .eq('validated', false);
+          .eq('site_id', site_id);
         
-        // Set 2F/3F morning (ONLY non-validated)
+        // Set 2F/3F morning
         await supabase
-          .from('planning_genere_personnel')
+          .from('capacite_effective')
           .update(update2F3FData)
           .eq('date', date)
           .eq('site_id', site_id)
-          .eq('periode', 'matin')
-          .eq('secretaire_id', singleSecId)
-          .eq('type_assignation', 'site')
-          .eq('validated', false);
+          .eq('demi_journee', 'matin')
+          .eq('secretaire_id', singleSecId);
         
-        // Set 2F/3F afternoon (ONLY non-validated)
+        // Set 2F/3F afternoon
         await supabase
-          .from('planning_genere_personnel')
+          .from('capacite_effective')
           .update(update2F3FData)
           .eq('date', date)
           .eq('site_id', site_id)
-          .eq('periode', 'apres_midi')
-          .eq('secretaire_id', singleSecId)
-          .eq('type_assignation', 'site')
-          .eq('validated', false);
+          .eq('demi_journee', 'apres_midi')
+          .eq('secretaire_id', singleSecId);
         
         console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (1R impossible)`);
         assignmentCount += 1;
@@ -363,23 +325,21 @@ serve(async (req) => {
       
       // STEP 1: Assign 2F or 3F
       // Priority: choose someone with lowest score who doesn't have 2F/3F already this week
-      // For 3F: also consider historical score
       let responsable2F3F = null;
       
       if (needsThreeF) {
-        // For 3F: consider historical 3F assignments + current week score
+        // For 3F: use only current week score (no historical)
         const candidates3F = bothPeriods.map(id => {
-          const historical = historical3FScores.get(id) || 0;
           const current = currentWeekScores.get(id)!;
           return {
             id,
-            totalScore: historical + current.score,
+            score: current.score,
             has2F3F: current.count_2f > 0 || current.count_3f > 0
           };
         }).sort((a, b) => {
           // Prioritize those without 2F/3F this week
           if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
-          return a.totalScore - b.totalScore;
+          return a.score - b.score;
         });
         
         responsable2F3F = candidates3F[0].id;
@@ -452,67 +412,57 @@ serve(async (req) => {
       
       console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${score1R.score}, 1R:${score1R.count_1r}, 2F:${score1R.count_2f}, 3F:${score1R.count_3f}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${score2F3F.score}, 1R:${score2F3F.count_1r}, 2F:${score2F3F.count_2f}, 3F:${score2F3F.count_3f})`);
 
-      // First, reset all responsable flags for this site/date (ONLY non-validated)
+      // First, reset all responsable flags for this site/date
       const { error: resetError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .update({ is_1r: false, is_2f: false, is_3f: false })
         .eq('date', date)
-        .eq('site_id', site_id)
-        .eq('type_assignation', 'site')
-        .eq('validated', false); // Only non-validated
+        .eq('site_id', site_id);
 
       if (resetError) throw resetError;
 
-      // Update morning records - set 1R flag (ONLY non-validated)
+      // Update morning records - set 1R flag
       const { error: update1RMorningError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .update({ is_1r: true })
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'matin')
-        .eq('secretaire_id', responsable1R)
-        .eq('type_assignation', 'site')
-        .eq('validated', false); // Only non-validated
+        .eq('demi_journee', 'matin')
+        .eq('secretaire_id', responsable1R);
 
       if (update1RMorningError) throw update1RMorningError;
 
-      // Update morning records - set 2F or 3F flag (ONLY non-validated)
+      // Update morning records - set 2F or 3F flag
       const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
       const { error: update2F3FMorningError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .update(update2F3FData)
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'matin')
-        .eq('secretaire_id', responsable2F3F)
-        .eq('type_assignation', 'site')
-        .eq('validated', false); // Only non-validated
+        .eq('demi_journee', 'matin')
+        .eq('secretaire_id', responsable2F3F);
 
       if (update2F3FMorningError) throw update2F3FMorningError;
 
-      // Update afternoon records - set 1R flag (ONLY non-validated)
+      // Update afternoon records - set 1R flag
       const { error: update1RAfternoonError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .update({ is_1r: true })
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'apres_midi')
-        .eq('secretaire_id', responsable1R)
-        .eq('type_assignation', 'site')
-        .eq('validated', false); // Only non-validated
+        .eq('demi_journee', 'apres_midi')
+        .eq('secretaire_id', responsable1R);
 
       if (update1RAfternoonError) throw update1RAfternoonError;
 
-      // Update afternoon records - set 2F or 3F flag (ONLY non-validated)
+      // Update afternoon records - set 2F or 3F flag
       const { error: update2F3FAfternoonError } = await supabase
-        .from('planning_genere_personnel')
+        .from('capacite_effective')
         .update(update2F3FData)
         .eq('date', date)
         .eq('site_id', site_id)
-        .eq('periode', 'apres_midi')
-        .eq('secretaire_id', responsable2F3F)
-        .eq('type_assignation', 'site')
-        .eq('validated', false); // Only non-validated
+        .eq('demi_journee', 'apres_midi')
+        .eq('secretaire_id', responsable2F3F);
 
       if (update2F3FAfternoonError) throw update2F3FAfternoonError;
 
