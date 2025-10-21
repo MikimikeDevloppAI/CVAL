@@ -606,6 +606,7 @@ const DashboardPage = () => {
                   days={secretaire.days}
                   startDate={startDate}
                   index={index}
+                  onDayClick={() => fetchDashboardData()}
                 />
               ))}
             </div>
