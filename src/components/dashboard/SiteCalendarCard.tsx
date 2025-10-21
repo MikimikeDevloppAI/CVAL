@@ -127,12 +127,12 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                   <div className="mt-1 space-y-0.5">
                     {hasManqueMatin && (
                       <p className="text-[10px] font-semibold text-destructive">
-                        M: {besoinMatin}/{capaciteMatin}
+                        M: {capaciteMatin}/{besoinMatin}
                       </p>
                     )}
                     {hasManqueAM && (
                       <p className="text-[10px] font-semibold text-destructive">
-                        AM: {besoinAM}/{capaciteAM}
+                        AM: {capaciteAM}/{besoinAM}
                       </p>
                     )}
                   </div>
