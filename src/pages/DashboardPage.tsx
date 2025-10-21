@@ -11,6 +11,8 @@ import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFe
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3 } from 'lucide-react';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
 
 interface PersonnePresence {
   id: string;
@@ -40,10 +42,38 @@ interface DashboardSite {
   days: DayData[];
 }
 
+interface SecretaireAssignment {
+  site_nom?: string;
+  medecin_nom?: string;
+  besoin_operation_nom?: string;
+  is_1r?: boolean;
+  is_2f?: boolean;
+  is_3f?: boolean;
+  validated?: boolean;
+}
+
+interface SecretaireDayData {
+  date: string;
+  matin: SecretaireAssignment[];
+  apres_midi: SecretaireAssignment[];
+}
+
+interface DashboardSecretaire {
+  id: string;
+  nom_complet: string;
+  actif: boolean;
+  horaire_flexible: boolean;
+  flexible_jours_supplementaires: boolean;
+  nombre_jours_supplementaires?: number;
+  days: SecretaireDayData[];
+}
+
 const DashboardPage = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
+  const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'site' | 'secretaire'>('site');
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
@@ -257,6 +287,87 @@ const DashboardPage = () => {
       );
 
       setDashboardSites(dashboardData);
+
+      // Fetch secretaires data
+      const { data: secretairesData } = await supabase
+        .from('secretaires')
+        .select('*')
+        .eq('actif', true)
+        .order('first_name');
+
+      if (!secretairesData) return;
+
+      // Fetch secretaires week data
+      const secretairesWeekData = await Promise.all(
+        secretairesData.map(async (secretaire) => {
+          const { data: capacite } = await supabase
+            .from('capacite_effective')
+            .select(`
+              *,
+              sites(nom),
+              planning_genere_bloc_operatoire(
+                validated,
+                medecin_id,
+                medecins(first_name, name),
+                type_intervention_id,
+                types_intervention(nom)
+              )
+            `)
+            .eq('secretaire_id', secretaire.id)
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .eq('actif', true)
+            .order('date');
+
+          const daysMap = new Map<string, SecretaireDayData>();
+
+          capacite?.forEach((cap) => {
+            const date = cap.date;
+            if (!daysMap.has(date)) {
+              daysMap.set(date, {
+                date,
+                matin: [],
+                apres_midi: []
+              });
+            }
+            const day = daysMap.get(date)!;
+            const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
+
+            const assignment: SecretaireAssignment = {
+              site_nom: cap.sites?.nom,
+              is_1r: cap.is_1r,
+              is_2f: cap.is_2f,
+              is_3f: cap.is_3f,
+              validated: cap.planning_genere_bloc_operatoire?.validated
+            };
+
+            // Add medecin info if available
+            if (cap.planning_genere_bloc_operatoire?.medecins) {
+              const medecin = cap.planning_genere_bloc_operatoire.medecins;
+              assignment.medecin_nom = medecin.name || '';
+            }
+
+            // Add besoin operation info if available
+            if (cap.planning_genere_bloc_operatoire?.types_intervention) {
+              assignment.besoin_operation_nom = cap.planning_genere_bloc_operatoire.types_intervention.nom;
+            }
+
+            day[periode].push(assignment);
+          });
+
+          return {
+            id: secretaire.id,
+            nom_complet: `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim(),
+            actif: secretaire.actif,
+            horaire_flexible: secretaire.horaire_flexible,
+            flexible_jours_supplementaires: secretaire.flexible_jours_supplementaires,
+            nombre_jours_supplementaires: secretaire.nombre_jours_supplementaires,
+            days: Array.from(daysMap.values())
+          };
+        })
+      );
+
+      setDashboardSecretaires(secretairesWeekData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -401,25 +512,58 @@ const DashboardPage = () => {
         </Button>
       </div>
 
-      {/* Sites Calendar Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      {/* View Mode Tabs */}
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire')} className="w-full">
+        <div className="flex justify-center mb-6">
+          <TabsList className="bg-card/50 backdrop-blur-xl border border-border/50">
+            <TabsTrigger value="site">Vue par site</TabsTrigger>
+            <TabsTrigger value="secretaire">Vue par assistant médical</TabsTrigger>
+          </TabsList>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {dashboardSites.map((site, index) => (
-            <SiteCalendarCard
-              key={site.site_id}
-              site={site}
-              startDate={startDate}
-              endDate={endDate}
-              index={index}
-              onRefresh={fetchDashboardData}
-            />
-          ))}
-        </div>
-      )}
+
+        {/* Sites Calendar Grid */}
+        <TabsContent value="site">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {dashboardSites.map((site, index) => (
+                <SiteCalendarCard
+                  key={site.site_id}
+                  site={site}
+                  startDate={startDate}
+                  endDate={endDate}
+                  index={index}
+                  onRefresh={fetchDashboardData}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Secretaires Calendar Grid */}
+        <TabsContent value="secretaire">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {dashboardSecretaires.map((secretaire, index) => (
+                <SecretaireCalendarCard
+                  key={secretaire.id}
+                  secretaire={secretaire}
+                  days={secretaire.days}
+                  startDate={startDate}
+                  index={index}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <MedecinsPopup 
         open={medecinsPopupOpen} 
