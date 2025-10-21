@@ -132,17 +132,20 @@ export function SecretaireCalendarCard({
         const salleName = assignment.salle_nom 
           ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
           : '';
-        const besoinName = assignment.besoin_operation_nom || 'Bloc';
+        const besoinName = assignment.besoin_operation_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
-        // Build display text: "Besoin - Role - Salle" or at minimum show the besoin
+        // Build display text with available elements
         const parts = [];
-        parts.push(besoinName); // Always show besoin name
+        if (besoinName) parts.push(besoinName);
         if (roleText) parts.push(roleText);
         if (salleName) parts.push(salleName);
         
+        // If nothing to show, fallback to "Bloc"
+        const displayText = parts.length > 0 ? parts.join(' - ') : 'Bloc';
+        
         return {
-          text: parts.join(' - '),
+          text: displayText,
           isBloc: true,
           role: roleText
         };
