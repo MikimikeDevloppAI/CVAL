@@ -133,11 +133,11 @@ export function SecretaireCalendarCard({
         const besoinName = assignment.besoin_operation_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
-        // Build display text: "Salle X - Besoin - Role"
+        // Build display text: "🔬 Besoin - Role - Salle"
         const parts = [];
-        if (salleName) parts.push(salleName);
-        if (besoinName) parts.push(besoinName);
+        if (besoinName) parts.push(`🔬 ${besoinName}`);
         if (roleText) parts.push(roleText);
+        if (salleName) parts.push(salleName);
         
         return {
           text: parts.join(' - '),
