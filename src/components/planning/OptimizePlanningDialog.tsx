@@ -24,6 +24,11 @@ interface FlexibleSecretary {
   pourcentage_temps: number;
 }
 
+interface SecretaryAssignment {
+  secretaire_id: string;
+  jours_requis: number;
+}
+
 interface WeekData {
   weekStart: Date;
   weekEnd: Date;
@@ -37,6 +42,7 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [weeks, setWeeks] = useState<WeekData[]>([]);
   const [flexibleSecretaries, setFlexibleSecretaries] = useState<FlexibleSecretary[]>([]);
+  const [secretaryAssignments, setSecretaryAssignments] = useState<Map<string, number>>(new Map());
   const { toast } = useToast();
 
   // Generate 12 weeks starting from current week
@@ -83,6 +89,39 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     } catch (error) {
       console.error('Error loading flexible secretaries:', error);
     }
+  };
+
+  // Calculate required days for each flexible secretary
+  useEffect(() => {
+    if (selectedDates.length > 0) {
+      const newAssignments = new Map<string, number>();
+      
+      // Count weekdays (M-F) in selected dates
+      const weekdaysCount = selectedDates.filter(date => {
+        const day = date.getDay();
+        return day !== 0 && day !== 6; // Not Sunday or Saturday
+      }).length;
+
+      const weeksCount = Math.max(1, Math.ceil(weekdaysCount / 5));
+
+      flexibleSecretaries.forEach(sec => {
+        // Calculate required days based on percentage
+        const requiredDays = Math.round((sec.pourcentage_temps / 100) * 5 * weeksCount);
+        newAssignments.set(sec.id, Math.min(requiredDays, weekdaysCount));
+      });
+
+      setSecretaryAssignments(newAssignments);
+    } else {
+      setSecretaryAssignments(new Map());
+    }
+  }, [selectedDates, flexibleSecretaries]);
+
+  const updateSecretaryDays = (secretaireId: string, days: number) => {
+    setSecretaryAssignments(prev => {
+      const newMap = new Map(prev);
+      newMap.set(secretaireId, days);
+      return newMap;
+    });
   };
 
   const toggleWeek = (weekIndex: number) => {
@@ -167,11 +206,18 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
       console.log('📅 Optimizing flexible secretaries for week:', weekStart, 'to', weekEnd);
 
+      // Prepare secretary assignments for the algorithm
+      const secretaryAssignmentsArray = Array.from(secretaryAssignments.entries()).map(([id, days]) => ({
+        secretaire_id: id,
+        jours_requis: days
+      }));
+
       const { data: flexData, error: flexError } = await supabase.functions.invoke('optimize-planning-milp-flexible', {
         body: { 
           week_start: weekStart,
           week_end: weekEnd,
-          selected_dates: dates
+          selected_dates: dates,
+          secretary_assignments: secretaryAssignmentsArray
         }
       });
 
@@ -315,23 +361,65 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
           {/* Sidebar - 1 column */}
           <div className="flex flex-col gap-4">
-            {/* Flexible Secretaries */}
-            {flexibleSecretaries.length > 0 && (
+            {/* Flexible Secretaries Configuration */}
+            {flexibleSecretaries.length > 0 && selectedDates.length > 0 && (
               <div className="p-4 bg-muted/50 rounded-lg border">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="h-5 w-5 text-primary" />
-                  <h3 className="text-sm font-semibold">Secrétaires flexibles</h3>
+                  <h3 className="text-sm font-semibold">Configuration des secrétaires</h3>
                 </div>
-                <ScrollArea className="max-h-[200px]">
-                  <div className="space-y-2">
-                    {flexibleSecretaries.map(sec => (
-                      <div key={sec.id} className="text-sm flex items-center justify-between p-2 bg-background rounded">
-                        <span className="text-xs">{sec.first_name} {sec.name}</span>
-                        <span className="text-xs font-medium text-primary">{sec.pourcentage_temps}%</span>
-                      </div>
-                    ))}
+                <ScrollArea className="max-h-[300px]">
+                  <div className="space-y-3">
+                    {flexibleSecretaries.map(sec => {
+                      const assignedDays = secretaryAssignments.get(sec.id) || 0;
+                      return (
+                        <div key={sec.id} className="p-3 bg-background rounded-lg border space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {sec.first_name} {sec.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {sec.pourcentage_temps}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`days-${sec.id}`} className="text-xs text-muted-foreground whitespace-nowrap">
+                              Jours requis:
+                            </Label>
+                            <input
+                              id={`days-${sec.id}`}
+                              type="number"
+                              min="0"
+                              max={selectedDates.filter(d => {
+                                const day = d.getDay();
+                                return day !== 0 && day !== 6;
+                              }).length}
+                              value={assignedDays}
+                              onChange={(e) => updateSecretaryDays(sec.id, parseInt(e.target.value) || 0)}
+                              className="flex-1 h-8 px-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
+              </div>
+            )}
+            
+            {/* Info card when no dates selected */}
+            {flexibleSecretaries.length > 0 && selectedDates.length === 0 && (
+              <div className="p-4 bg-muted/50 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-semibold">Secrétaires flexibles</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {flexibleSecretaries.length} secrétaire{flexibleSecretaries.length > 1 ? 's' : ''} disponible{flexibleSecretaries.length > 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Sélectionnez des dates pour configurer les assignations
+                </p>
               </div>
             )}
 

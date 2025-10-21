@@ -30,7 +30,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end, selected_dates } = await req.json();
+    const { week_start, week_end, selected_dates, secretary_assignments } = await req.json();
     
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end are required');
@@ -208,12 +208,24 @@ serve(async (req) => {
       const availableDays = 5 - holidaysCount - absenceDaysCount;
       const joursRequis = Math.max(0, Math.min(totalRequired, availableDays) - fullDaysWorked.size);
 
+      // Override with custom assignment if provided
+      let finalJoursRequis = joursRequis;
+      if (secretary_assignments && Array.isArray(secretary_assignments)) {
+        const customAssignment = secretary_assignments.find(
+          (a: any) => a.secretaire_id === secretary.id
+        );
+        if (customAssignment && typeof customAssignment.jours_requis === 'number') {
+          finalJoursRequis = customAssignment.jours_requis;
+          console.log(`  ⚙️ Using custom assignment: ${finalJoursRequis} days (instead of calculated ${joursRequis})`);
+        }
+      }
+
       console.log(`  ${secretary.pourcentage_temps}% = ${totalRequired} days total`);
       console.log(`  ${holidaysCount} holidays, ${absenceDaysCount} absence days`);
       console.log(`  ${fullDaysWorked.size} days already worked (M-F)`);
-      console.log(`  ${joursRequis} days needed`);
+      console.log(`  ${finalJoursRequis} days needed`);
 
-      if (joursRequis <= 0) {
+      if (finalJoursRequis <= 0) {
         console.log(`  ✅ Already fulfilled requirement`);
         continue;
       }
@@ -257,9 +269,9 @@ serve(async (req) => {
 
       // Sort by score (descending) and select top N days
       dayScores.sort((a, b) => b.score_total - a.score_total);
-      const selectedDays = dayScores.slice(0, joursRequis);
+      const selectedDays = dayScores.slice(0, finalJoursRequis);
 
-      console.log(`\n  📊 Top ${joursRequis} days selected:`);
+      console.log(`\n  📊 Top ${finalJoursRequis} days selected:`);
       for (const day of selectedDays) {
         console.log(`    ${day.date}: ${day.score_total} pts (M: ${day.score_matin}, AM: ${day.score_apres_midi})`);
         console.log(`      Matin: ${day.details_matin}`);
