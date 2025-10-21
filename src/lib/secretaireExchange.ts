@@ -213,6 +213,34 @@ export async function fetchAvailableSecretairesForExchange(
           break;
         }
 
+        // Get current secretaire's capacity for this specific half-day
+        const { data: currentCapForPeriod } = await supabase
+          .from('capacite_effective')
+          .select('site_id, besoin_operation_id')
+          .eq('secretaire_id', currentSecretaireId)
+          .eq('date', date)
+          .eq('demi_journee', dj)
+          .eq('actif', true)
+          .single();
+
+        if (!currentCapForPeriod) {
+          isCompatible = false;
+          break;
+        }
+
+        const currentSiteIdForPeriod = currentCapForPeriod.site_id;
+        const currentBesoinOperationIdForPeriod = currentCapForPeriod.besoin_operation_id;
+
+        // Get current site info for this specific period
+        const { data: currentSiteDataForPeriod } = await supabase
+          .from('sites')
+          .select('nom')
+          .eq('id', currentSiteIdForPeriod)
+          .single();
+
+        const isCurrentSiteBlocOpForPeriod = currentSiteDataForPeriod?.nom?.toLowerCase().includes('bloc opératoire') || false;
+        const isCurrentSiteAdminForPeriod = currentSiteIdForPeriod === ADMIN_SITE_ID;
+
         const otherSiteIdForPeriod = otherCapForPeriod.site_id;
         const otherBesoinOperationIdForPeriod = otherCapForPeriod.besoin_operation_id;
         const otherSiteNom = siteMap.get(otherSiteIdForPeriod);
@@ -238,16 +266,16 @@ export async function fetchAvailableSecretairesForExchange(
         }
 
         // RULE 2: Other secretaire can work at current site for this period
-        if (!isCurrentSiteAdmin) {
-          if (isCurrentSiteBlocOp) {
-            // Bloc opératoire: check if other secretaire has the required besoin operation
-            if (currentBesoinOperationId && !otherBesoinIds.includes(currentBesoinOperationId)) {
+        if (!isCurrentSiteAdminForPeriod) {
+          if (isCurrentSiteBlocOpForPeriod) {
+            // Bloc opératoire: check if other secretaire has the required besoin operation for this specific period
+            if (currentBesoinOperationIdForPeriod && !otherBesoinIds.includes(currentBesoinOperationIdForPeriod)) {
               isCompatible = false;
               break;
             }
           } else {
             // Regular site: check site preferences
-            if (!otherCompatibleSiteIds.includes(currentSiteId)) {
+            if (!otherCompatibleSiteIds.includes(currentSiteIdForPeriod)) {
               isCompatible = false;
               break;
             }
