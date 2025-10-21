@@ -545,7 +545,7 @@ const DashboardPage = () => {
       {/* View Mode Tabs */}
       <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire')} className="w-full">
         <div className="flex justify-center mb-6">
-          <TabsList className="bg-card/50 backdrop-blur-xl border border-border/50">
+          <TabsList>
             <TabsTrigger value="site">Vue par site</TabsTrigger>
             <TabsTrigger value="secretaire">Vue par assistant médical</TabsTrigger>
           </TabsList>
