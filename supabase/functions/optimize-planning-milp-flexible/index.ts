@@ -1,30 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
-interface Position {
-  personnel_row_id: string;
-  besoin_id: string;
+const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+
+interface DayScore {
   date: string;
-  periode: 'matin' | 'apres_midi';
-  site_id: string;
-  site_nom: string;
-  is_manquant: boolean;
-  current_secretaire_id: string | null;
-  current_secretaire_info: {
-    is_flexible: boolean;
-    prefere_port_en_truie: boolean;
-    name: string;
-    first_name: string;
-    admin_count: number;
-    medecin_assigne_id: string | null;
-  } | null;
-  medecins_ids: string[];
+  score_matin: number;
+  score_apres_midi: number;
+  score_total: number;
+  details_matin: string;
+  details_apres_midi: string;
 }
 
 serve(async (req) => {
@@ -33,154 +23,66 @@ serve(async (req) => {
   }
 
   try {
-    console.log('👥 Starting Flexible Secretaries MILP optimization');
+    console.log('🎯 Starting Flexible Secretaries Tension-Based Assignment');
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { week_start, week_end, planning_id, selected_dates } = await req.json();
+    const { week_start, week_end, selected_dates } = await req.json();
     
     if (!week_start || !week_end) {
       throw new Error('week_start and week_end are required');
     }
 
-    if (selected_dates && selected_dates.length > 0) {
-      console.log(`📅 Optimizing flexible secretaries for ${selected_dates.length} date(s):`, selected_dates);
-    } else {
-      console.log(`📅 Optimizing flexible secretaries for week ${week_start} to ${week_end}`);
-    }
+    console.log(`📅 Analyzing week ${week_start} to ${week_end}`);
 
-    // ==================== DATA COLLECTION ====================
+    // ==================== FETCH DATA ====================
     
-    // 1. Fetch ALL secretaries (for preferences)
-    const { data: allSecretaires, error: allSecError } = await supabase
+    // 1. Get all flexible secretaries
+    const { data: allSecretaires, error: secError } = await supabase
       .from('secretaires')
-      .select('id, name, first_name, prefere_port_en_truie, horaire_flexible, pourcentage_temps, medecin_assigne_id')
-      .eq('actif', true);
+      .select('id, name, first_name, horaire_flexible, pourcentage_temps, prefered_admin')
+      .eq('actif', true)
+      .eq('horaire_flexible', true)
+      .gt('pourcentage_temps', 0);
 
-    if (allSecError) throw allSecError;
+    if (secError) throw secError;
 
-    // Build secretary map for quick lookup
-    const secretaryMap = new Map(allSecretaires?.map(s => [s.id, s]) || []);
-
-    // 1.4. Fetch secretaires_sites associations for site priority
-    const { data: secretairesSites } = await supabase
-      .from('secretaires_sites')
-      .select('secretaire_id, site_id, priorite');
-
-    const secSitePriorityMap = new Map<string, string>();
-    for (const ss of secretairesSites || []) {
-      secSitePriorityMap.set(`${ss.secretaire_id}_${ss.site_id}`, ss.priorite);
-    }
-
-    // 1.5. Fetch admin history for the week
-    const { data: adminHistory } = await supabase
-      .from('planning_genere')
-      .select('secretaire_id, date, periode')
-      .eq('type', 'administratif')
-      .gte('date', week_start)
-      .lte('date', week_end);
-
-    // Count admin periods per secretary
-    const adminCountMap = new Map<string, number>();
-    for (const admin of adminHistory || []) {
-      const count = adminCountMap.get(admin.secretaire_id) || 0;
-      adminCountMap.set(admin.secretaire_id, count + 1);
-    }
-
-    // 1.6. Fetch medecins_ids from besoins (for doctor assignment priority)
-    const { data: besoinsWithMedecins } = await supabase
-      .from('planning_genere_site_besoin')
-      .select('id, medecins_ids')
-      .gte('date', week_start)
-      .lte('date', week_end);
-
-    const besoinsMap = new Map(besoinsWithMedecins?.map(b => [b.id, b.medecins_ids || []]) || []);
-
-    // 1.7. Fetch bloc assignments for geographic constraints
-    const { data: blocAssignmentsData } = await supabase
-      .from('planning_genere_bloc_personnel')
-      .select(`
-        secretaire_id,
-        planning_genere_bloc_operatoire!inner(date, periode)
-      `)
-      .gte('planning_genere_bloc_operatoire.date', week_start)
-      .lte('planning_genere_bloc_operatoire.date', week_end);
-
-    const blocMap = new Map<string, Set<string>>();
-    for (const bloc of blocAssignmentsData || []) {
-      const key = `${bloc.secretaire_id}_${(bloc.planning_genere_bloc_operatoire as any).date}`;
-      if (!blocMap.has(key)) {
-        blocMap.set(key, new Set());
-      }
-      blocMap.get(key)!.add((bloc.planning_genere_bloc_operatoire as any).periode);
-    }
-
-    // 2. Get flexible secretaries
-    const flexibleSecretaries = allSecretaires?.filter(s => 
-      s.horaire_flexible && s.pourcentage_temps && s.pourcentage_temps > 0
-    ) || [];
-
-    if (flexibleSecretaries.length === 0) {
-      console.log('ℹ️ No flexible secretaries found');
+    if (!allSecretaires || allSecretaires.length === 0) {
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'No flexible secretaries to optimize',
-        flexible_assigned: 0,
-        secretaries_processed: 0
+        message: 'No flexible secretaries found',
+        assignments_created: 0
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log(`Found ${flexibleSecretaries.length} flexible secretaries`);
+    console.log(`Found ${allSecretaires.length} flexible secretaries`);
 
-    // Filter out those already assigned this week
-    const { data: existingAssignments } = await supabase
-      .from('planning_genere_site_personnel')
-      .select(`
-        secretaire_id,
-        planning_genere_site_besoin!inner(date, periode)
-      `)
-      .gte('planning_genere_site_besoin.date', week_start)
-      .lte('planning_genere_site_besoin.date', week_end)
-      .in('secretaire_id', flexibleSecretaries.map(s => s.id));
+    // 2. Get holidays
+    const { data: holidays } = await supabase
+      .from('jours_feries')
+      .select('date')
+      .eq('actif', true)
+      .gte('date', week_start)
+      .lte('date', week_end);
 
-    const assignedSecretaryIds = new Set(existingAssignments?.map(a => a.secretaire_id) || []);
-    const unassignedFlexible = flexibleSecretaries.filter(s => !assignedSecretaryIds.has(s.id));
+    const holidaySet = new Set((holidays || []).map(h => h.date));
 
-    if (unassignedFlexible.length === 0) {
-      console.log('ℹ️ All flexible secretaries already assigned');
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'All flexible secretaries already assigned',
-        flexible_assigned: 0,
-        secretaries_processed: 0
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    console.log(`${unassignedFlexible.length} flexible secretaries to assign`);
-
-    // Fetch absences for flexible secretaries in the optimization period
-    const { data: absencesData, error: absencesError } = await supabase
+    // 3. Get absences for flexible secretaries
+    const { data: absences } = await supabase
       .from('absences')
       .select('secretaire_id, date_debut, date_fin, heure_debut, heure_fin')
-      .in('secretaire_id', unassignedFlexible.map(s => s.id))
+      .in('secretaire_id', allSecretaires.map(s => s.id))
       .eq('type_personne', 'secretaire')
       .in('statut', ['approuve', 'en_attente'])
       .gte('date_fin', week_start)
       .lte('date_debut', week_end);
 
-    if (absencesError) {
-      console.error('Error fetching absences:', absencesError);
-      throw absencesError;
-    }
-
-    // Build absence map: Map<secretaire_id, Set<date_periode>>
-    // Format: "YYYY-MM-DD" for full-day, "YYYY-MM-DD_matin" or "YYYY-MM-DD_apres_midi" for partial
+    // Build absence map
     const absenceMap = new Map<string, Set<string>>();
-    
-    for (const absence of absencesData || []) {
+    for (const absence of absences || []) {
       if (!absenceMap.has(absence.secretaire_id)) {
         absenceMap.set(absence.secretaire_id, new Set());
       }
@@ -189,653 +91,383 @@ serve(async (req) => {
       const startDate = new Date(absence.date_debut);
       const endDate = new Date(absence.date_fin);
       
-      // Iterate through all dates in the absence period
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
         
         if (absence.heure_debut && absence.heure_fin) {
-          // Partial-day absence: determine which period(s) it affects
-          const heureDebut = absence.heure_debut;
-          const heureFin = absence.heure_fin;
+          const affectsMatin = absence.heure_debut < '12:30:00' && absence.heure_fin > '07:30:00';
+          const affectsApresMidi = absence.heure_debut < '18:00:00' && absence.heure_fin > '13:00:00';
           
-          // Morning period: 07:30 - 12:30
-          // Afternoon period: 13:00 - 18:00
-          const affectsMatin = heureDebut < '12:30:00' && heureFin > '07:30:00';
-          const affectsApresMidi = heureDebut < '18:00:00' && heureFin > '13:00:00';
-          
-          if (affectsMatin) {
-            absenceSet.add(`${dateStr}_matin`);
-          }
-          if (affectsApresMidi) {
-            absenceSet.add(`${dateStr}_apres_midi`);
-          }
+          if (affectsMatin) absenceSet.add(`${dateStr}_matin`);
+          if (affectsApresMidi) absenceSet.add(`${dateStr}_apres_midi`);
         } else {
-          // Full-day absence
           absenceSet.add(dateStr);
         }
       }
     }
 
-    console.log(`📅 Absence data loaded for ${absenceMap.size} secretaries`);
-    for (const [secId, absences] of absenceMap.entries()) {
-      const sec = unassignedFlexible.find(s => s.id === secId);
-      if (sec) {
-        console.log(`  ${sec.first_name} ${sec.name}: ${absences.size} période(s) d'absence`);
+    // 4. Get secretaire preferences
+    const { data: secSites } = await supabase
+      .from('secretaires_sites')
+      .select('secretaire_id, site_id')
+      .in('secretaire_id', allSecretaires.map(s => s.id));
+
+    const secSitesMap = new Map<string, Set<string>>();
+    for (const ss of secSites || []) {
+      if (!secSitesMap.has(ss.secretaire_id)) {
+        secSitesMap.set(ss.secretaire_id, new Set());
       }
+      secSitesMap.get(ss.secretaire_id)!.add(ss.site_id);
     }
 
-    // Calculate days already worked this week (excluding selected_dates)
-    const daysAlreadyWorked = new Map<string, number>();
-    
-    for (const secretary of unassignedFlexible) {
-      // Query ALL existing assignments (site, bloc, administratif)
-      const { data: existingAssignments } = await supabase
-        .from('planning_genere_personnel')
-        .select('date, periode, type_assignation')
-        .eq('secretaire_id', secretary.id)
-        .in('type_assignation', ['site', 'bloc', 'administratif'])
-        .gte('date', week_start)
-        .lte('date', week_end);
-      
-      // Count unique FULL days (both matin + apres_midi), excluding selected_dates
-      const periodsByDate = new Map<string, Set<string>>();
-      
-      for (const assignment of existingAssignments || []) {
-        // Skip dates being re-optimized
-        if (selected_dates && selected_dates.includes(assignment.date)) {
-          continue;
-        }
-        
-        if (!periodsByDate.has(assignment.date)) {
-          periodsByDate.set(assignment.date, new Set());
-        }
-        periodsByDate.get(assignment.date)!.add(assignment.periode);
+    const { data: secBesoins } = await supabase
+      .from('secretaires_besoins_operations')
+      .select('secretaire_id, besoin_operation_id')
+      .in('secretaire_id', allSecretaires.map(s => s.id));
+
+    const secBesoinsMap = new Map<string, Set<string>>();
+    for (const sb of secBesoins || []) {
+      if (!secBesoinsMap.has(sb.secretaire_id)) {
+        secBesoinsMap.set(sb.secretaire_id, new Set());
       }
-      
-      // Count only FULL days
-      const daysSet = new Set<string>();
-      for (const [date, periods] of periodsByDate.entries()) {
-        if (periods.has('matin') && periods.has('apres_midi')) {
-          daysSet.add(date);
-        }
-      }
-      
-      daysAlreadyWorked.set(secretary.id, daysSet.size);
+      secBesoinsMap.get(sb.secretaire_id)!.add(sb.besoin_operation_id);
     }
 
-    // Calculate required days for each, considering days already worked AND absences
-    const secretariesWithDays = unassignedFlexible.map(sec => {
-      // Count available days (5 days - full-day absences in the week)
-      const absencesForSec = absenceMap.get(sec.id) || new Set();
-      const fullDayAbsences = new Set<string>();
-      
-      // Get unique dates from selected_dates or generate week dates
-      const weekDates: string[] = [];
-      if (selected_dates && selected_dates.length > 0) {
-        weekDates.push(...selected_dates);
-      } else {
-        const start = new Date(week_start);
-        const end = new Date(week_end);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          weekDates.push(d.toISOString().split('T')[0]);
-        }
-      }
-      
-      for (const date of weekDates) {
-        // If full-day absence OR both periods absent, count as full day
-        if (absencesForSec.has(date) || 
-            (absencesForSec.has(`${date}_matin`) && absencesForSec.has(`${date}_apres_midi`))) {
-          fullDayAbsences.add(date);
-        }
-      }
-      
-      const joursDisponibles = weekDates.length - fullDayAbsences.size;
-      const totalRequired = Math.round((sec.pourcentage_temps / 100) * 5);
-      const alreadyWorked = daysAlreadyWorked.get(sec.id) || 0;
-      
-      // Required days = min(total required, available days) - already worked
-      const remaining = Math.max(0, Math.min(totalRequired, joursDisponibles) - alreadyWorked);
-      
-      return {
-        ...sec,
-        jours_requis: remaining,
-        jours_deja_travailles: alreadyWorked,
-        jours_total: totalRequired,
-        jours_disponibles: joursDisponibles,
-        jours_absence: fullDayAbsences.size
-      };
-    });
-    
-    for (const sec of secretariesWithDays) {
-      console.log(`  ${sec.first_name} ${sec.name}: ${sec.pourcentage_temps}% = ${sec.jours_total} jours total, ${sec.jours_absence} jour(s) d'absence, ${sec.jours_disponibles} jour(s) disponible(s), déjà ${sec.jours_deja_travailles} jours → reste ${sec.jours_requis} jours à assigner`);
-    }
-    
-    // Filter out secretaries who already met their weekly requirement
-    const secretariesNeedingAssignment = secretariesWithDays.filter(s => s.jours_requis > 0);
-
-    if (secretariesNeedingAssignment.length === 0) {
-      console.log('ℹ️ All flexible secretaries already fulfilled their weekly requirement');
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'All flexible secretaries already fulfilled requirements',
-        flexible_assigned: 0,
-        secretaries_processed: 0
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    
-    console.log(`${secretariesNeedingAssignment.length} flexible secretaries need assignment`);
-
-    // 3. Fetch ALL site besoins for the week
-    const { data: allSiteBesoins, error: besoinsError } = await supabase
-      .from('planning_genere_site_besoin')
-      .select(`
-        id,
-        date,
-        periode,
-        site_id,
-        nombre_secretaires_requis,
-        sites!inner(nom)
-      `)
+    // 5. Get existing capacities for flexible secretaries
+    const { data: existingCapacities } = await supabase
+      .from('capacite_effective')
+      .select('secretaire_id, date, demi_journee')
+      .in('secretaire_id', allSecretaires.map(s => s.id))
       .gte('date', week_start)
       .lte('date', week_end);
 
-    if (besoinsError) throw besoinsError;
+    const existingCapacitiesMap = new Map<string, Set<string>>();
+    for (const cap of existingCapacities || []) {
+      if (!existingCapacitiesMap.has(cap.secretaire_id)) {
+        existingCapacitiesMap.set(cap.secretaire_id, new Set());
+      }
+      existingCapacitiesMap.get(cap.secretaire_id)!.add(`${cap.date}_${cap.demi_journee}`);
+    }
 
-    // 4. Fetch ALL personnel assignments (assigned AND unassigned)
-    const { data: allPersonnelRows, error: personnelError } = await supabase
-      .from('planning_genere_site_personnel')
-      .select(`
-        id,
-        planning_genere_site_besoin_id,
-        secretaire_id,
-        ordre
-      `)
-      .in('planning_genere_site_besoin_id', allSiteBesoins?.map(b => b.id) || []);
+    // ==================== PROCESS EACH FLEXIBLE SECRETARY ====================
 
-    if (personnelError) throw personnelError;
+    let totalAssignmentsCreated = 0;
 
-    // 5. Get Port-en-Truie ID
-    const { data: portEnTruieSite } = await supabase
-      .from('sites')
-      .select('id')
-      .ilike('nom', '%Port-en-Truie%')
-      .single();
-    const PORT_EN_TRUIE_ID = portEnTruieSite?.id;
+    for (const secretary of allSecretaires) {
+      console.log(`\n👤 Processing ${secretary.first_name} ${secretary.name}`);
 
-    // ==================== BUILD POSITIONS ====================
-    
-    const positions: Position[] = [];
+      // Calculate required days
+      const absencesForSec = absenceMap.get(secretary.id) || new Set();
+      const existingCapsForSec = existingCapacitiesMap.get(secretary.id) || new Set();
 
-    for (const besoin of allSiteBesoins || []) {
-      // Skip if not in selected_dates (when doing partial optimization)
-      if (selected_dates && !selected_dates.includes(besoin.date)) {
+      // Generate week dates
+      const weekDates: string[] = [];
+      const start = new Date(week_start);
+      const end = new Date(week_end);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        weekDates.push(d.toISOString().split('T')[0]);
+      }
+
+      // Count existing M-F days (not Saturday)
+      const existingMFDays = new Set<string>();
+      for (const capKey of existingCapsForSec) {
+        const [date, periode] = capKey.split('_');
+        const dayOfWeek = new Date(date).getDay();
+        if (dayOfWeek !== 6 && dayOfWeek !== 0) { // Not Saturday or Sunday
+          existingMFDays.add(date);
+        }
+      }
+
+      // Count full days (both periods)
+      const fullDaysWorked = new Set<string>();
+      for (const date of existingMFDays) {
+        const hasMatin = existingCapsForSec.has(`${date}_matin`);
+        const hasApresMidi = existingCapsForSec.has(`${date}_apres_midi`);
+        if (hasMatin && hasApresMidi) {
+          fullDaysWorked.add(date);
+        }
+      }
+
+      // Count holidays and absences
+      let holidaysCount = 0;
+      let absenceDaysCount = 0;
+
+      for (const date of weekDates) {
+        const dayOfWeek = new Date(date).getDay();
+        if (dayOfWeek === 6 || dayOfWeek === 0) continue; // Skip weekends
+
+        if (holidaySet.has(date)) {
+          holidaysCount++;
+        } else if (absencesForSec.has(date) || 
+                   (absencesForSec.has(`${date}_matin`) && absencesForSec.has(`${date}_apres_midi`))) {
+          absenceDaysCount++;
+        }
+      }
+
+      const totalRequired = Math.round((secretary.pourcentage_temps / 100) * 5);
+      const availableDays = 5 - holidaysCount - absenceDaysCount;
+      const joursRequis = Math.max(0, Math.min(totalRequired, availableDays) - fullDaysWorked.size);
+
+      console.log(`  ${secretary.pourcentage_temps}% = ${totalRequired} days total`);
+      console.log(`  ${holidaysCount} holidays, ${absenceDaysCount} absence days`);
+      console.log(`  ${fullDaysWorked.size} days already worked (M-F)`);
+      console.log(`  ${joursRequis} days needed`);
+
+      if (joursRequis <= 0) {
+        console.log(`  ✅ Already fulfilled requirement`);
         continue;
       }
-      
-      const personnelRows = allPersonnelRows?.filter(
-        p => p.planning_genere_site_besoin_id === besoin.id
-      ) || [];
-      
-      for (const row of personnelRows) {
-// ... keep existing code
-        const currentSecretary = row.secretaire_id ? secretaryMap.get(row.secretaire_id) : null;
+
+      // Calculate scores for each eligible day
+      const dayScores: DayScore[] = [];
+
+      for (const date of weekDates) {
+        const dayOfWeek = new Date(date).getDay();
         
-        positions.push({
-          personnel_row_id: row.id,
-          besoin_id: besoin.id,
-          date: besoin.date,
-          periode: besoin.periode,
-          site_id: besoin.site_id,
-          site_nom: (besoin.sites as any).nom,
-          is_manquant: row.secretaire_id === null,
-          current_secretaire_id: row.secretaire_id,
-          current_secretaire_info: currentSecretary ? {
-            is_flexible: currentSecretary.horaire_flexible || false,
-            prefere_port_en_truie: currentSecretary.prefere_port_en_truie || false,
-            name: currentSecretary.name || '',
-            first_name: currentSecretary.first_name || '',
-            admin_count: adminCountMap.get(currentSecretary.id) || 0,
-            medecin_assigne_id: currentSecretary.medecin_assigne_id || null
-          } : null,
-          medecins_ids: besoinsMap.get(besoin.id) || []
-        });
-      }
-    }
-
-    console.log(`Built ${positions.length} positions (${positions.filter(p => p.is_manquant).length} manquants, ${positions.filter(p => !p.is_manquant).length} occupés)`);
-
-    if (positions.length === 0) {
-      console.log('ℹ️ No positions available');
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'No positions available',
-        flexible_assigned: 0,
-        secretaries_processed: 0
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    // ==================== BUILD MILP MODEL ====================
-    
-    console.log('🧮 Building MILP model...');
-    
-    const model: any = {
-      optimize: 'score',
-      opType: 'max',
-      constraints: {},
-      variables: {},
-      ints: {}
-    };
-
-    const PENALTY_DISPLACEMENT = 20;
-
-    // Get unique dates from positions
-    const allDates = [...new Set(positions.map(p => p.date))].sort();
-    
-    console.log(`  Processing ${allDates.length} dates for optimization`);
-
-    // For each flexible secretary
-    for (const secretary of secretariesNeedingAssignment) {
-      const f_id = secretary.id;
-      const jours_requis = secretary.jours_requis;
-      
-      // Track day variables for this secretary
-      const dayVars: string[] = [];
-      
-      // For each date
-      for (const date of allDates) {
-        // Create day variable: day_<f_id>_<date>
-        const dayVarName = `day_${f_id}_${date}`;
-        model.variables[dayVarName] = { score: 0 };
-        model.ints[dayVarName] = 1;
-        dayVars.push(dayVarName);
+        // Skip weekends, holidays, and absence days
+        if (dayOfWeek === 6 || dayOfWeek === 0) continue;
+        if (holidaySet.has(date)) continue;
+        if (absencesForSec.has(date)) continue;
         
-        // Track matin and apres_midi position variables for this date
-        const matinPositionVars: string[] = [];
-        const apresMidiPositionVars: string[] = [];
-        
-        // Process positions for this date
-        const datePositions = positions.filter(p => p.date === date);
-        
-        for (const pos of datePositions) {
-          // Check if secretary has absence on this date/period
-          const absencesForSec = absenceMap.get(secretary.id);
-          if (absencesForSec) {
-            const dateStr = pos.date;
-            const periodKey = `${dateStr}_${pos.periode}`;
-            
-            // Skip if full-day absence OR specific period absence
-            if (absencesForSec.has(dateStr) || absencesForSec.has(periodKey)) {
-              continue; // Secretary is absent, skip this position
-            }
-          }
-          
-          // Check site compatibility via new secretaires_sites table
-          const prioriteKey = `${secretary.id}_${pos.site_id}`;
-          const priorite = secSitePriorityMap.get(prioriteKey);
-          
-          // Skip if site not assigned to this secretary
-          if (!priorite) continue;
-          
-          // Check geographic constraint (bloc + CLV compatibility)
-          const blocKey = `${secretary.id}_${pos.date}`;
-          const blocPeriods = blocMap.get(blocKey) || new Set();
-          const otherPeriode = pos.periode === 'matin' ? 'apres_midi' : 'matin';
-          const isAtBlocOtherPeriod = blocPeriods.has(otherPeriode);
+        // Check if both periods are blocked by absence
+        const matinBlocked = absencesForSec.has(`${date}_matin`);
+        const apresMidiBlocked = absencesForSec.has(`${date}_apres_midi`);
+        if (matinBlocked && apresMidiBlocked) continue;
 
-          const isCLVCompatible = !isAtBlocOtherPeriod || 
-            pos.site_nom.includes('Clinique La Vallée');
+        // Calculate score for this day
+        const scoreMatin = matinBlocked 
+          ? { score: -9999, details: 'Blocked by absence' }
+          : await calculatePeriodScore(supabase, date, 'matin', secretary.id, secSitesMap, secBesoinsMap);
 
-          if (!isCLVCompatible) {
-            continue; // Skip this position
-          }
-          
-          const periode_key = pos.periode === 'matin' ? 'matin' : 'apres_midi';
-          const varName = `x_${f_id}_${date}_${periode_key}_${pos.personnel_row_id}`;
-          
-          // Calculate coefficient (score) with new hierarchy
-          let coefficient = 0;
-          
-          // PRIORITY 1: Secretary linked to doctor working at this site (-10000)
-          if (secretary.medecin_assigne_id && pos.medecins_ids.includes(secretary.medecin_assigne_id)) {
-            coefficient -= 10000;
-          }
+        const scoreApresMidi = apresMidiBlocked 
+          ? { score: -9999, details: 'Blocked by absence' }
+          : await calculatePeriodScore(supabase, date, 'apres_midi', secretary.id, secSitesMap, secBesoinsMap);
 
-          // PRIORITY 2: Fill missing need (+1000)
-          if (pos.is_manquant) {
-            coefficient += 1000;
-          }
+        const scoreTotal = scoreMatin.score + scoreApresMidi.score;
 
-          // PRIORITY 3: Reduce admin overload (+200 * admin_count)
-          if (!pos.is_manquant && pos.current_secretaire_info && pos.current_secretaire_info.admin_count >= 2) {
-            coefficient += 200 * pos.current_secretaire_info.admin_count;
-          }
-
-          // PRIORITY 4: Beneficial PET swap (+150)
-          if (!pos.is_manquant && 
-              secretary.prefere_port_en_truie && 
-              pos.site_id === PORT_EN_TRUIE_ID && 
-              pos.current_secretaire_info &&
-              !pos.current_secretaire_info.prefere_port_en_truie) {
-            coefficient += 150;
-          }
-
-          // PRIORITY 5: PET preference for flexible (+80)
-          if (secretary.prefere_port_en_truie && pos.site_id === PORT_EN_TRUIE_ID) {
-            coefficient += 80;
-          }
-
-          // PENALTY: Don't displace someone from preferred PET (-100)
-          if (!pos.is_manquant && 
-              pos.current_secretaire_info &&
-              pos.current_secretaire_info.prefere_port_en_truie &&
-              pos.site_id === PORT_EN_TRUIE_ID &&
-              !secretary.prefere_port_en_truie) {
-            coefficient -= 100;
-          }
-
-          // BONUS: Compatible site (+20)
-          if (!pos.is_manquant && 
-              pos.current_secretaire_info &&
-              !pos.current_secretaire_info.prefere_port_en_truie) {
-            coefficient += 20;
-          }
-          
-          // Create variable
-          model.variables[varName] = { score: coefficient };
-          model.ints[varName] = 1;
-          
-          // Track for period
-          if (pos.periode === 'matin') {
-            matinPositionVars.push(varName);
-          } else {
-            apresMidiPositionVars.push(varName);
-          }
-          
-          // Constraint: one secretary per period
-          const constraintCapacity = `capacity_${f_id}_${date}_${periode_key}`;
-          if (!model.constraints[constraintCapacity]) {
-            model.constraints[constraintCapacity] = { max: 1 };
-          }
-          model.variables[varName][constraintCapacity] = 1;
-          
-          // Constraint: if occupied position, only one person can take it
-          if (!pos.is_manquant) {
-            const constraintOccupied = `occupied_${pos.personnel_row_id}`;
-            if (!model.constraints[constraintOccupied]) {
-              model.constraints[constraintOccupied] = { max: 1 };
-            }
-            model.variables[varName][constraintOccupied] = 1;
-          }
-        }
-        
-        // Constraint: day <= sum(matin positions)
-        if (matinPositionVars.length > 0) {
-          const constraintDayMatin = `day_leq_matin_${f_id}_${date}`;
-          model.constraints[constraintDayMatin] = { max: 0 };
-          model.variables[dayVarName][constraintDayMatin] = 1;
-          for (const mv of matinPositionVars) {
-            model.variables[mv][constraintDayMatin] = -1;
-          }
-        }
-        
-        // Constraint: day <= sum(apres_midi positions)
-        if (apresMidiPositionVars.length > 0) {
-          const constraintDayAM = `day_leq_am_${f_id}_${date}`;
-          model.constraints[constraintDayAM] = { max: 0 };
-          model.variables[dayVarName][constraintDayAM] = 1;
-          for (const amv of apresMidiPositionVars) {
-            model.variables[amv][constraintDayAM] = -1;
-          }
-        }
-        
-        // NEW Constraint: day >= sum(matin) + sum(apres_midi) - 1
-        // Forces day=1 only if BOTH matin AND apres_midi are assigned
-        // Rewritten as: sum(matin) + sum(apres_midi) - day <= 1
-        if (matinPositionVars.length > 0 && apresMidiPositionVars.length > 0) {
-          const constraintDayBoth = `day_geq_both_${f_id}_${date}`;
-          model.constraints[constraintDayBoth] = { max: 1 };
-          model.variables[dayVarName][constraintDayBoth] = -1; // -day
-          for (const mv of matinPositionVars) {
-            model.variables[mv][constraintDayBoth] = 1; // +matin
-          }
-          for (const amv of apresMidiPositionVars) {
-            model.variables[amv][constraintDayBoth] = 1; // +apres_midi
-          }
-        }
-      }
-      
-      // Constraint: sum(days) = jours_requis
-      const constraintJoursRequis = `jours_requis_${f_id}`;
-      model.constraints[constraintJoursRequis] = { equal: jours_requis };
-      for (const dayVar of dayVars) {
-        model.variables[dayVar][constraintJoursRequis] = 1;
-      }
-    }
-    
-    // PENALTY: Site change between morning and afternoon (-500)
-    for (const secretary of secretariesNeedingAssignment) {
-      for (const date of allDates) {
-        const matinPositions = positions.filter(p => p.date === date && p.periode === 'matin');
-        const amPositions = positions.filter(p => p.date === date && p.periode === 'apres_midi');
-        
-        for (const matinPos of matinPositions) {
-          for (const amPos of amPositions) {
-            if (matinPos.site_id !== amPos.site_id) {
-              const matinVar = `x_${secretary.id}_${date}_matin_${matinPos.personnel_row_id}`;
-              const amVar = `x_${secretary.id}_${date}_apres_${amPos.personnel_row_id}`;
-              
-              if (model.variables[matinVar] && model.variables[amVar]) {
-                const penaltyVar = `site_change_${secretary.id}_${date}`;
-                model.variables[penaltyVar] = { score: -500 };
-                model.ints[penaltyVar] = 1;
-                
-                // penalty >= matin + am - 1
-                const constraintChange = `site_change_constraint_${secretary.id}_${date}_${matinPos.site_id}_${amPos.site_id}`;
-                model.constraints[constraintChange] = { max: 1 };
-                model.variables[penaltyVar][constraintChange] = -1;
-                model.variables[matinVar][constraintChange] = 1;
-                model.variables[amVar][constraintChange] = 1;
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    // Add displacement penalties
-    for (const pos of positions) {
-      if (pos.is_manquant || !pos.current_secretaire_id) continue;
-      
-      const displaceVarName = `displaced_${pos.current_secretaire_id}_${pos.date}_${pos.periode}`;
-      model.variables[displaceVarName] = { score: -PENALTY_DISPLACEMENT };
-      model.ints[displaceVarName] = 1;
-      
-      // displaced = 1 if any flexible takes this position
-      const constraintDisplace = `displace_${pos.personnel_row_id}`;
-      model.constraints[constraintDisplace] = { max: 0 };
-      model.variables[displaceVarName][constraintDisplace] = -1;
-      
-      // Link to position variables
-      for (const secretary of secretariesNeedingAssignment) {
-        const periode_key = pos.periode === 'matin' ? 'matin' : 'apres_midi';
-        const posVarName = `x_${secretary.id}_${pos.date}_${periode_key}_${pos.personnel_row_id}`;
-        if (model.variables[posVarName]) {
-          model.variables[posVarName][constraintDisplace] = 1;
-        }
-      }
-    }
-
-    console.log(`  📊 Variables: ${Object.keys(model.variables).length}`);
-    console.log(`  📊 Constraints: ${Object.keys(model.constraints).length}`);
-
-    // ==================== SOLVE MILP ====================
-    
-    console.log('⚡ Solving MILP...');
-    const solution = solver.Solve(model);
-
-    if (!solution.feasible) {
-      console.log('❌ MILP infeasible - no valid solution found');
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'No feasible solution found for flexible secretaries',
-        flexible_assigned: 0,
-        secretaries_processed: 0
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    console.log(`✅ MILP solution found with score: ${solution.result}`);
-
-    // ==================== PARSE SOLUTION ====================
-    
-    const assignments: { 
-      flexible_id: string; 
-      personnel_row_id: string; 
-      date: string; 
-      periode: string;
-      site_nom: string;
-    }[] = [];
-    const displacements: { 
-      displaced_id: string; 
-      date: string; 
-      periode: 'matin' | 'apres_midi';
-      displaced_name: string;
-    }[] = [];
-
-    for (const [varName, value] of Object.entries(solution)) {
-      if (!varName.startsWith('x_') || value !== 1) continue;
-      
-      // Parse: x_<f_id>_<date>_<periode>_<personnel_row_id>
-      const parts = varName.split('_');
-      if (parts.length < 5) continue;
-      
-      const f_id = parts[1];
-      const date = parts[2];
-      const periode_key = parts[3]; // 'matin' or 'apres' or 'midi'
-      const personnel_row_id = parts.slice(4).join('_'); // Handle UUIDs with underscores
-      
-      const position = positions.find(p => p.personnel_row_id === personnel_row_id);
-      if (!position) continue;
-      
-      const periode: 'matin' | 'apres_midi' = periode_key === 'matin' ? 'matin' : 'apres_midi';
-      
-      assignments.push({
-        flexible_id: f_id,
-        personnel_row_id,
-        date,
-        periode,
-        site_nom: position.site_nom
-      });
-      
-      // If swap, record displacement
-      if (!position.is_manquant && position.current_secretaire_id) {
-        const displaced = secretaryMap.get(position.current_secretaire_id);
-        displacements.push({
-          displaced_id: position.current_secretaire_id,
+        dayScores.push({
           date,
-          periode,
-          displaced_name: displaced ? `${displaced.first_name} ${displaced.name}` : 'Unknown'
+          score_matin: scoreMatin.score,
+          score_apres_midi: scoreApresMidi.score,
+          score_total: scoreTotal,
+          details_matin: scoreMatin.details,
+          details_apres_midi: scoreApresMidi.details
         });
       }
-    }
 
-    console.log(`📝 Applying ${assignments.length} assignments (${displacements.length} swaps)`);
+      // Sort by score (descending) and select top N days
+      dayScores.sort((a, b) => b.score_total - a.score_total);
+      const selectedDays = dayScores.slice(0, joursRequis);
 
-    // ==================== APPLY SOLUTION ====================
-    
-    // 1. Update personnel assignments
-    for (const assignment of assignments) {
-      await supabase
-        .from('planning_genere_site_personnel')
-        .update({ secretaire_id: assignment.flexible_id })
-        .eq('id', assignment.personnel_row_id);
-      
-      const secretary = secretaryMap.get(assignment.flexible_id);
-      console.log(`  ✓ Assigned ${secretary?.first_name} ${secretary?.name} to ${assignment.site_nom} on ${assignment.date} ${assignment.periode}`);
-    }
+      console.log(`\n  📊 Top ${joursRequis} days selected:`);
+      for (const day of selectedDays) {
+        console.log(`    ${day.date}: ${day.score_total} pts (M: ${day.score_matin}, AM: ${day.score_apres_midi})`);
+        console.log(`      Matin: ${day.details_matin}`);
+        console.log(`      Après-midi: ${day.details_apres_midi}`);
+      }
 
-    // 2. Create administrative entries for displaced secretaries
-    if (displacements.length > 0) {
-      const adminEntries = displacements.map(d => ({
-        planning_id,
-        date: d.date,
-        periode: d.periode,
-        type: 'administratif',
-        secretaire_id: d.displaced_id,
-        statut: 'planifie'
-      }));
+      // Create capacities for selected days
+      for (const day of selectedDays) {
+        // Delete existing capacities for this secretary on this date (if re-optimizing)
+        await supabase
+          .from('capacite_effective')
+          .delete()
+          .eq('secretaire_id', secretary.id)
+          .eq('date', day.date);
 
-      const { error: adminError } = await supabase
-        .from('planning_genere')
-        .insert(adminEntries);
-      
-      if (adminError) {
-        console.error('❌ Error creating admin entries:', adminError);
-      } else {
-        console.log(`  ✅ Created ${adminEntries.length} admin entries for displaced secretaries`);
-        for (const d of displacements) {
-          console.log(`    🔄 ${d.displaced_name} displaced on ${d.date} ${d.periode}`);
+        // Insert new capacities
+        const capacitiesToInsert = [];
+
+        if (day.score_matin > -9999) {
+          capacitiesToInsert.push({
+            secretaire_id: secretary.id,
+            date: day.date,
+            demi_journee: 'matin',
+            site_id: ADMIN_SITE_ID,
+            actif: true
+          });
+        }
+
+        if (day.score_apres_midi > -9999) {
+          capacitiesToInsert.push({
+            secretaire_id: secretary.id,
+            date: day.date,
+            demi_journee: 'apres_midi',
+            site_id: ADMIN_SITE_ID,
+            actif: true
+          });
+        }
+
+        if (capacitiesToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('capacite_effective')
+            .insert(capacitiesToInsert);
+
+          if (insertError) {
+            console.error(`    ❌ Error inserting capacities for ${day.date}:`, insertError);
+          } else {
+            totalAssignmentsCreated += capacitiesToInsert.length;
+            console.log(`    ✅ Created ${capacitiesToInsert.length} capacities for ${day.date}`);
+          }
         }
       }
     }
 
-    // 3. Delete old administrative assignments for flexibles now assigned
-    const actuallyAssignedFlexibleIds = [...new Set(assignments.map(a => a.flexible_id))];
-    if (actuallyAssignedFlexibleIds.length > 0) {
-      await supabase
-        .from('planning_genere')
-        .delete()
-        .eq('type', 'administratif')
-        .in('secretaire_id', actuallyAssignedFlexibleIds)
-        .gte('date', week_start)
-        .lte('date', week_end);
-      
-      console.log(`  🗑️ Deleted old admin entries for ${actuallyAssignedFlexibleIds.length} flexibles`);
-    }
+    console.log(`\n✅ Optimization complete: ${totalAssignmentsCreated} capacities created`);
 
-    // ==================== STATISTICS ====================
-    
-    const statsBySecretary = new Map<string, { jours: Set<string>; sites: Set<string> }>();
-    for (const assignment of assignments) {
-      if (!statsBySecretary.has(assignment.flexible_id)) {
-        statsBySecretary.set(assignment.flexible_id, { jours: new Set(), sites: new Set() });
-      }
-      const stats = statsBySecretary.get(assignment.flexible_id)!;
-      
-      // Count full days
-      const otherPeriode = assignment.periode === 'matin' ? 'apres_midi' : 'matin';
-      const hasOtherPeriode = assignments.some(a => 
-        a.flexible_id === assignment.flexible_id && 
-        a.date === assignment.date && 
-        a.periode === otherPeriode
-      );
-      
-      if (hasOtherPeriode) {
-        stats.jours.add(assignment.date);
-      }
-      
-      stats.sites.add(assignment.site_nom);
-    }
-
-    console.log('✅ Flexible secretaries optimization complete');
-    for (const [sec_id, stats] of statsBySecretary) {
-      const secretary = secretaryMap.get(sec_id);
-      console.log(`  📊 ${secretary?.first_name} ${secretary?.name}: ${stats.jours.size} jours sur ${Array.from(stats.sites).join(', ')}`);
-    }
-
-    return new Response(JSON.stringify({
+    return new Response(JSON.stringify({ 
       success: true,
-      flexible_assigned: assignments.length,
-      secretaries_processed: statsBySecretary.size,
-      optimization_score: solution.result,
-      swaps_executed: displacements.length
+      message: `Created ${totalAssignmentsCreated} capacities for flexible secretaries`,
+      assignments_created: totalAssignmentsCreated
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-  } catch (error) {
-    console.error('❌ Error in flexible MILP optimization:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+  } catch (error: any) {
+    console.error('❌ Error:', error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error?.message || 'Unknown error'
+    }), { 
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }
 });
+
+async function calculatePeriodScore(
+  supabase: any,
+  date: string,
+  periode: 'matin' | 'apres_midi',
+  secretaire_id: string,
+  secSitesMap: Map<string, Set<string>>,
+  secBesoinsMap: Map<string, Set<string>>
+): Promise<{ score: number; details: string }> {
+  
+  const preferredSites = secSitesMap.get(secretaire_id) || new Set();
+  const competentBesoins = secBesoinsMap.get(secretaire_id) || new Set();
+
+  let totalScore = 0;
+  const details: string[] = [];
+
+  // ==================== SITE SCORE ====================
+  
+  // Get all site needs for this date/period
+  const { data: siteBesoins } = await supabase
+    .from('besoin_effectif')
+    .select(`
+      site_id,
+      medecin_id,
+      medecins!inner(besoin_secretaires)
+    `)
+    .eq('date', date)
+    .eq('demi_journee', periode)
+    .eq('type', 'medecin')
+    .eq('actif', true)
+    .in('site_id', Array.from(preferredSites));
+
+  // Group by site and sum needs
+  const siteNeedsMap = new Map<string, number>();
+  for (const besoin of siteBesoins || []) {
+    const current = siteNeedsMap.get(besoin.site_id) || 0;
+    siteNeedsMap.set(besoin.site_id, current + (besoin.medecins?.besoin_secretaires || 1.2));
+  }
+
+  // Get available capacities for each site
+  for (const [siteId, need] of siteNeedsMap) {
+    const { data: availableCapacities } = await supabase
+      .from('capacite_effective')
+      .select('secretaire_id')
+      .eq('date', date)
+      .eq('demi_journee', periode)
+      .eq('actif', true);
+
+    // Count how many of these secretaries have this site in preferences
+    const { data: secWithSite } = await supabase
+      .from('secretaires_sites')
+      .select('secretaire_id')
+      .eq('site_id', siteId)
+      .in('secretaire_id', (availableCapacities || []).map((c: any) => c.secretaire_id));
+
+    const capacitiesCount = secWithSite?.length || 0;
+    const ecart = need - capacitiesCount;
+
+    let siteScore = 0;
+    if (ecart > 0) {
+      // Shortage: heavy penalty
+      siteScore = Math.pow(ecart, 2) * 100;
+      details.push(`Site manque ${ecart.toFixed(1)} → +${siteScore}`);
+    } else if (ecart === 0) {
+      // Just right
+      siteScore = 50;
+      details.push(`Site équilibré → +${siteScore}`);
+    } else {
+      // Surplus: regressive score
+      siteScore = Math.max(0, 50 + (ecart * 10));
+      details.push(`Site surplus ${Math.abs(ecart).toFixed(1)} → +${siteScore}`);
+    }
+
+    totalScore += siteScore;
+  }
+
+  // ==================== BLOC SCORE ====================
+  
+  // Get all bloc needs for this date/period
+  const { data: blocBesoins } = await supabase
+    .from('planning_genere_bloc_operatoire')
+    .select(`
+      id,
+      type_intervention_id,
+      types_intervention_besoins_personnel!inner(
+        besoin_operation_id,
+        nombre_requis
+      )
+    `)
+    .eq('date', date)
+    .eq('periode', periode)
+    .in('types_intervention_besoins_personnel.besoin_operation_id', Array.from(competentBesoins));
+
+  for (const bloc of blocBesoins || []) {
+    for (const besoin of (bloc as any).types_intervention_besoins_personnel || []) {
+      const besoinOpId = besoin.besoin_operation_id;
+      const nombreRequis = besoin.nombre_requis;
+
+      // Get available capacities
+      const { data: availableCapacities } = await supabase
+        .from('capacite_effective')
+        .select('secretaire_id')
+        .eq('date', date)
+        .eq('demi_journee', periode)
+        .eq('actif', true);
+
+      // Count how many have this competence
+      const { data: secWithCompetence } = await supabase
+        .from('secretaires_besoins_operations')
+        .select('secretaire_id')
+        .eq('besoin_operation_id', besoinOpId)
+        .in('secretaire_id', (availableCapacities || []).map((c: any) => c.secretaire_id));
+
+      const capacitiesCount = secWithCompetence?.length || 0;
+      const ecart = nombreRequis - capacitiesCount;
+
+      let blocScore = 0;
+      if (ecart > 0) {
+        // Shortage: very heavy penalty for blocs
+        blocScore = Math.pow(ecart, 2) * 150;
+        details.push(`Bloc manque ${ecart} → +${blocScore}`);
+      } else if (ecart === 0) {
+        // Just right
+        blocScore = 60;
+        details.push(`Bloc équilibré → +${blocScore}`);
+      } else {
+        // Surplus: regressive score
+        blocScore = Math.max(0, 60 + (ecart * 12));
+        details.push(`Bloc surplus ${Math.abs(ecart)} → +${blocScore}`);
+      }
+
+      totalScore += blocScore;
+    }
+  }
+
+  const detailsStr = details.length > 0 ? details.join(', ') : 'No tension';
+
+  return { score: totalScore, details: detailsStr };
+}
