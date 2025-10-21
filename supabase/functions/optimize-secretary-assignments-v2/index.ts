@@ -371,6 +371,27 @@ async function optimizeSingleWeek(
       supabase
     );
     
+    // Appeler assign-closing-responsibles pour cette journée
+    console.log(`\n🔐 Assignation des responsables de fermeture pour ${date}...`);
+    try {
+      const { data: closingResult, error: closingError } = await supabase.functions.invoke(
+        'assign-closing-responsibles',
+        {
+          body: { dates: [date] }
+        }
+      );
+      
+      if (closingError) {
+        console.error(`❌ Erreur assign-closing-responsibles pour ${date}:`, closingError);
+      } else {
+        console.log(`✅ Responsables de fermeture assignés pour ${date}`);
+        if (closingResult?.details) {
+          console.log(`   📋 Détails:`, closingResult.details);
+        }
+      }
+    } catch (closingErr: any) {
+      console.error(`❌ Exception lors de l'appel assign-closing-responsibles:`, closingErr.message);
+    }
     
     dailyResults.push({
       date,
