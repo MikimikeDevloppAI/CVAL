@@ -427,7 +427,8 @@ const DashboardPage = () => {
           schema: 'public',
           table: 'capacite_effective'
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Real-time update capacite_effective:', payload);
           fetchDashboardData();
         }
       )
@@ -438,7 +439,8 @@ const DashboardPage = () => {
           schema: 'public',
           table: 'besoin_effectif'
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Real-time update besoin_effectif:', payload);
           fetchDashboardData();
         }
       )

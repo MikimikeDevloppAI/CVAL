@@ -87,6 +87,13 @@ export function SecretaireDayActionsDialog({
     }
   };
 
+  const handleSuccess = () => {
+    onRefresh();
+    onOpenChange(false);
+    setExchangeOpen(false);
+    setReassignOpen(false);
+  };
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -115,8 +122,7 @@ export function SecretaireDayActionsDialog({
         description: 'Secrétaire retirée avec succès',
       });
 
-      onRefresh();
-      onOpenChange(false);
+      handleSuccess();
     } catch (error) {
       console.error('Error deleting:', error);
       toast({
@@ -203,7 +209,7 @@ export function SecretaireDayActionsDialog({
         secretaire={{ id: secretaireId, capacite_id: '', nom: secretaireNom, periode, is_1r: false, is_2f: false, is_3f: false }}
         date={date}
         siteId={siteId || ''}
-        onSuccess={onRefresh}
+        onSuccess={handleSuccess}
       />
 
       <ExchangeSecretaireDialog
@@ -215,7 +221,7 @@ export function SecretaireDayActionsDialog({
         siteId={siteId}
         periode={periode}
         besoinOperationId={besoinOperationId}
-        onSuccess={onRefresh}
+        onSuccess={handleSuccess}
       />
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
