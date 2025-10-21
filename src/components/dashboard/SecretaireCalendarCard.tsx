@@ -122,13 +122,14 @@ export function SecretaireCalendarCard({
       
       const assignment = assignments[0];
       
-      // Bloc opératoire: show besoin, role and salle
+      // Bloc opératoire: show site, besoin, role and salle
       if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f) {
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
         if (assignment.is_3f) roles.push('3F');
         
+        const siteName = assignment.site_nom || '';
         const salleName = assignment.salle_nom 
           ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
           : '';
@@ -137,6 +138,7 @@ export function SecretaireCalendarCard({
         
         // Build display text with available elements
         const parts = [];
+        if (siteName) parts.push(siteName);
         if (besoinName) parts.push(besoinName);
         if (roleText) parts.push(roleText);
         if (salleName) parts.push(salleName);
