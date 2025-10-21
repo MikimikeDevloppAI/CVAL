@@ -114,14 +114,25 @@ export function EditMedecinAssignmentDialog({
 
     setLoading(true);
     try {
-      // Update site_id for all besoins effectifs of this medecin on this date
-      const { error } = await supabase
+      // Build the query to filter by the specific period(s)
+      let query = supabase
         .from('besoin_effectif')
         .update({ site_id: selectedSiteId })
         .eq('medecin_id', medecinId)
         .eq('date', date)
         .eq('site_id', currentSiteId)
         .eq('type', 'medecin');
+
+      // Filter by the specific demi-journee(s)
+      if (periode === 'journee') {
+        // For full day, update both periods
+        query = query.in('demi_journee', ['matin', 'apres_midi']);
+      } else {
+        // For specific half-day, only update that period
+        query = query.eq('demi_journee', periode);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 

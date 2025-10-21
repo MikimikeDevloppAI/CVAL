@@ -130,16 +130,28 @@ export function EditSecretaireAssignmentDialog({
 
     setLoading(true);
     try {
-      // Delete old assignments
-      const { error: deleteError } = await supabase
+      // Determine which periods to delete based on the original period clicked
+      const periodsToDelete: ('matin' | 'apres_midi')[] = secretaire.periode === 'journee' 
+        ? ['matin', 'apres_midi']
+        : [secretaire.periode];
+
+      // Delete only the specific period(s) that were originally clicked
+      let deleteQuery = supabase
         .from('capacite_effective')
         .delete()
         .eq('secretaire_id', secretaire.id)
         .eq('date', date);
 
+      if (periodsToDelete.length === 1) {
+        deleteQuery = deleteQuery.eq('demi_journee', periodsToDelete[0] as any);
+      } else {
+        deleteQuery = deleteQuery.in('demi_journee', periodsToDelete as any);
+      }
+
+      const { error: deleteError } = await deleteQuery;
       if (deleteError) throw deleteError;
 
-      // Create new assignments
+      // Create new assignments based on the new periode selection
       const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
         ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
         : [{ demi_journee: periode as 'matin' | 'apres_midi' }];

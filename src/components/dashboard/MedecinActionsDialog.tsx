@@ -51,12 +51,24 @@ export function MedecinActionsDialog({
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      const { error } = await supabase
+      // Build the query to filter by the specific period(s)
+      let query = supabase
         .from('besoin_effectif')
         .delete()
         .eq('medecin_id', medecinId)
         .eq('date', date)
         .eq('site_id', siteId);
+
+      // Filter by the specific demi-journee(s)
+      if (periode === 'journee') {
+        // For full day, delete both periods
+        query = query.in('demi_journee', ['matin', 'apres_midi']);
+      } else {
+        // For specific half-day, only delete that period
+        query = query.eq('demi_journee', periode);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
