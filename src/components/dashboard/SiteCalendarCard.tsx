@@ -96,13 +96,21 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           {days.map((day) => {
             const dayData = getDayData(day);
             
-            // Calculate missing secretaries for the day
-            let totalManquant = 0;
+            // Calculate needs and capacities for morning and afternoon
+            let besoinMatin = 0;
+            let capaciteMatin = 0;
+            let besoinAM = 0;
+            let capaciteAM = 0;
+            
             if (dayData) {
-              const manquantMatin = Math.max(0, Math.ceil(dayData.besoin_secretaires_matin) - dayData.secretaires.filter(s => s.matin).length);
-              const manquantAM = Math.max(0, Math.ceil(dayData.besoin_secretaires_apres_midi) - dayData.secretaires.filter(s => s.apres_midi).length);
-              totalManquant = manquantMatin + manquantAM;
+              besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+              capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
+              besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
+              capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
             }
+
+            const hasManqueMatin = besoinMatin > capaciteMatin;
+            const hasManqueAM = besoinAM > capaciteAM;
 
             return (
               <div
@@ -115,10 +123,19 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 <p className="text-sm font-semibold text-foreground mt-1">
                   {format(day, 'd', { locale: fr })}
                 </p>
-                {totalManquant > 0 && (
-                  <p className="text-[10px] text-red-600 font-semibold mt-1">
-                    -{totalManquant}
-                  </p>
+                {dayData && (hasManqueMatin || hasManqueAM) && (
+                  <div className="mt-1 space-y-0.5">
+                    {hasManqueMatin && (
+                      <p className="text-[10px] font-semibold text-destructive">
+                        M: {besoinMatin}/{capaciteMatin}
+                      </p>
+                    )}
+                    {hasManqueAM && (
+                      <p className="text-[10px] font-semibold text-destructive">
+                        AM: {besoinAM}/{capaciteAM}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             );
