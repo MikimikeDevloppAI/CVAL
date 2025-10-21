@@ -24,6 +24,27 @@ function getWeekBounds(dates: string[]): { start: string; end: string } {
   };
 }
 
+function generateAdminNeeds(dates: string[]): any[] {
+  const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+  const adminNeeds: any[] = [];
+  
+  for (const date of dates) {
+    for (const periode of ['matin', 'apres_midi']) {
+      adminNeeds.push({
+        site_id: ADMIN_SITE_ID,
+        date,
+        periode,
+        nombre_suggere: 0,
+        nombre_max: 999,
+        medecins_ids: [],
+        type: 'site'
+      });
+    }
+  }
+  
+  return adminNeeds;
+}
+
 export async function loadWeekData(
   dates: string[],
   supabase: SupabaseClient
@@ -127,6 +148,9 @@ export async function loadWeekData(
     });
   }
 
+  const admin_needs = generateAdminNeeds(dates);
+  console.log(`  ✅ Besoins ADMIN générés : ${admin_needs.length}`);
+
   return {
     secretaires: secretairesRes.data || [],
     medecins,
@@ -139,7 +163,8 @@ export async function loadWeekData(
     capacites_effective: capacitesRes.data || [],
     besoins_effectifs: besoinsEffRes.data || [],
     planning_bloc: planningBlocRes.data || [],
-    types_intervention_besoins: typesIntervRes.data || []
+    types_intervention_besoins: typesIntervRes.data || [],
+    admin_needs
   };
 }
 

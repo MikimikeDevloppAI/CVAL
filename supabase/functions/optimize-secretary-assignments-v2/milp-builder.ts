@@ -21,6 +21,14 @@ export function buildMILPModelSoft(
     console.log(`🔧 Construction du modèle MILP pour ${date}...`);
   }
   
+  // Merge ADMIN needs with regular needs
+  const adminNeedsForDate = week_data.admin_needs.filter((n: SiteNeed) => n.date === date);
+  const allNeeds = [...needs, ...adminNeedsForDate];
+  
+  if (DEBUG_VERBOSE) {
+    console.log(`  📊 Besoins sites/bloc: ${needs.length}, Besoins ADMIN: ${adminNeedsForDate.length}`);
+  }
+  
   const todayCapacites = capacites.filter(c => c.date === date);
   
   const model: any = {
@@ -44,9 +52,9 @@ export function buildMILPModelSoft(
   let variableCount = 0;
   let blocVariableCount = 0;
   
-  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
+  for (let needIndex = 0; needIndex < allNeeds.length; needIndex++) {
     try {
-      const need = needs[needIndex];
+      const need = allNeeds[needIndex];
       
       const isTargetBlocSite = need.site_id === '86f1047f-c4ff-441f-a064-42ee2f8ef37a' && need.type === 'bloc_operatoire';
       
@@ -124,13 +132,13 @@ export function buildMILPModelSoft(
       
     } catch (error) {
       const err = error as Error;
-      console.error(`\n❌ ERREUR lors du traitement du besoin [${needIndex + 1}/${needs.length}]:`);
+      console.error(`\n❌ ERREUR lors du traitement du besoin [${needIndex + 1}/${allNeeds.length}]:`);
       console.error(`   Type: ${err.name}`);
       console.error(`   Message: ${err.message}`);
       console.error(`   Stack: ${err.stack}`);
       
       // Log du besoin qui a causé l'erreur
-      const failedNeed = needs[needIndex];
+      const failedNeed = allNeeds[needIndex];
       console.error(`   Besoin en erreur:`, {
         type: failedNeed.type,
         site_id: failedNeed.site_id?.slice(0, 8),
@@ -145,26 +153,40 @@ export function buildMILPModelSoft(
   }
   
   
-  
-  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
-    const need = needs[needIndex];
+  // ============================================================
+  // CONSTRAINTS: Need satisfaction (min=max for productive sites, max only for ADMIN)
+  // ============================================================
+  for (let needIndex = 0; needIndex < allNeeds.length; needIndex++) {
+    const need = allNeeds[needIndex];
     const periodCode = need.periode === 'matin' ? '1' : '2';
     const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
       ? `${need.site_id}_${need.date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
       : `${need.site_id}_${need.date}_${periodCode}`;
     
+    const isAdminSite = need.site_id === ADMIN_SITE_ID;
+    
     const constraintName = `max_need_${needId}`;
     model.constraints[constraintName] = { max: need.nombre_max };
+    
+    // For productive sites (not ADMIN), add min constraint to guarantee full satisfaction
+    if (!isAdminSite) {
+      const minConstraintName = `min_need_${needId}`;
+      model.constraints[minConstraintName] = { min: need.nombre_max };
+    }
     
     for (const varName of Object.keys(model.variables)) {
       if (varName.startsWith('assign_') && varName.endsWith(`_${needId}`)) {
         model.variables[varName][constraintName] = 1;
+        if (!isAdminSite) {
+          const minConstraintName = `min_need_${needId}`;
+          model.variables[varName][minConstraintName] = 1;
+        }
       }
     }
   }
   
   const slotNeeds = new Map<string, SiteNeed[]>();
-  for (const need of needs) {
+  for (const need of allNeeds) {
     const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
     if (!slotNeeds.has(slotKey)) {
       slotNeeds.set(slotKey, []);
@@ -189,8 +211,8 @@ export function buildMILPModelSoft(
   
   const secretairesByPeriode = new Map<string, string[]>();
   
-  for (let needIndex = 0; needIndex < needs.length; needIndex++) {
-    const need = needs[needIndex];
+  for (let needIndex = 0; needIndex < allNeeds.length; needIndex++) {
+    const need = allNeeds[needIndex];
     const periodCode = need.periode === 'matin' ? '1' : '2';
     const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
       ? `${need.site_id}_${need.date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
@@ -228,10 +250,10 @@ export function buildMILPModelSoft(
   const closureSites = week_data.sites.filter(s => s.fermeture);
   
   for (const site of closureSites) {
-    const morningNeed = needs.find(
+    const morningNeed = allNeeds.find(
       n => n.site_id === site.id && n.date === date && n.periode === 'matin'
     );
-    const afternoonNeed = needs.find(
+    const afternoonNeed = allNeeds.find(
       n => n.site_id === site.id && n.date === date && n.periode === 'apres_midi'
     );
     

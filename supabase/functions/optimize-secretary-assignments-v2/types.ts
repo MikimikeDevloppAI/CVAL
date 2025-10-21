@@ -142,6 +142,7 @@ export interface WeekData {
   besoins_effectifs: BesoinEffectif[];
   planning_bloc: PlanningBlocOp[];
   types_intervention_besoins: TypeInterventionBesoin[];
+  admin_needs: SiteNeed[];
 }
 
 export const SCORE_WEIGHTS = {
