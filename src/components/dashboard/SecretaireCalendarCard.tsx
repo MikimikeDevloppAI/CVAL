@@ -123,26 +123,27 @@ export function SecretaireCalendarCard({
       
       const assignment = assignments[0];
       
-      // Bloc opératoire (with type_intervention): show type intervention, besoin, role and salle
-      if (assignment.type_intervention_nom || assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f) {
+      // Strict Bloc detection: only if besoin_operation_nom OR type_intervention_nom exists
+      const isBloc = Boolean(assignment.besoin_operation_nom || assignment.type_intervention_nom);
+      
+      if (isBloc) {
+        // BLOC OPÉRATOIRE: Display order is Salle - Besoin - Rôle
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
         if (assignment.is_3f) roles.push('3F');
         
-        const typeInterventionName = assignment.type_intervention_nom || '';
         const salleName = assignment.salle_nom 
           ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
           : '';
-        const besoinName = assignment.besoin_operation_nom || '';
+        const besoinName = assignment.besoin_operation_nom || assignment.type_intervention_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
-        // Build display text: type intervention - besoin - role - salle
+        // Build display text: Salle - Besoin - Rôle
         const parts = [];
-        if (typeInterventionName) parts.push(typeInterventionName);
+        if (salleName) parts.push(salleName);
         if (besoinName) parts.push(besoinName);
         if (roleText) parts.push(roleText);
-        if (salleName) parts.push(salleName);
         
         // If nothing to show, fallback to "Bloc"
         const displayText = parts.length > 0 ? parts.join(' - ') : 'Bloc';
@@ -154,12 +155,24 @@ export function SecretaireCalendarCard({
         };
       }
       
-      // Regular site
+      // SITE: Display order is Site - Rôle (if 1R/2F/3F present)
       const sitesSet = new Set(assignments.map(a => a.site_nom).filter(Boolean));
+      const siteName = Array.from(sitesSet).join(', ');
+      
+      const roles = [];
+      if (assignment.is_1r) roles.push('1R');
+      if (assignment.is_2f) roles.push('2F');
+      if (assignment.is_3f) roles.push('3F');
+      const roleText = roles.length > 0 ? roles.join('/') : '';
+      
+      const parts = [];
+      if (siteName) parts.push(siteName);
+      if (roleText) parts.push(roleText);
+      
       return {
-        text: Array.from(sitesSet).join(', '),
+        text: parts.length > 0 ? parts.join(' - ') : siteName || '-',
         isBloc: false,
-        role: null
+        role: roleText || null
       };
     };
 
