@@ -130,6 +130,30 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
   const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
 
+  // Realtime refresh for exchanges and updates affecting this site in the visible range
+  useEffect(() => {
+    const channel = supabase
+      .channel(`site-card-${site.site_id}-${startDate}-${endDate}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'capacite_effective' },
+        (payload) => {
+          const d = (payload.new as any)?.date || (payload.old as any)?.date;
+          const newSiteId = (payload.new as any)?.site_id;
+          const oldSiteId = (payload.old as any)?.site_id;
+          if (!d) return;
+          if (d >= startDate && d <= endDate && (newSiteId === site.site_id || oldSiteId === site.site_id)) {
+            onRefresh();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [site.site_id, startDate, endDate, onRefresh]);
+
   return (
     <div
       className={cn(
