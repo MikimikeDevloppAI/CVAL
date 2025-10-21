@@ -208,29 +208,38 @@ export function EditSecretaireAssignmentDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Période</Label>
-            <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="matin" id="edit-sec-matin" />
-                <Label htmlFor="edit-sec-matin" className="font-normal cursor-pointer">
-                  Matin
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apres_midi" id="edit-sec-apres_midi" />
-                <Label htmlFor="edit-sec-apres_midi" className="font-normal cursor-pointer">
-                  Après-midi
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="journee" id="edit-sec-journee" />
-                <Label htmlFor="edit-sec-journee" className="font-normal cursor-pointer">
-                  Journée complète
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
+          {secretaire.periode === 'journee' ? (
+            <div className="space-y-2">
+              <Label>Période</Label>
+              <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="matin" id="edit-sec-matin" />
+                  <Label htmlFor="edit-sec-matin" className="font-normal cursor-pointer">
+                    Matin
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="apres_midi" id="edit-sec-apres_midi" />
+                  <Label htmlFor="edit-sec-apres_midi" className="font-normal cursor-pointer">
+                    Après-midi
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="journee" id="edit-sec-journee" />
+                  <Label htmlFor="edit-sec-journee" className="font-normal cursor-pointer">
+                    Journée complète
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Période</Label>
+              <p className="text-sm text-muted-foreground">
+                {secretaire.periode === 'matin' ? 'Matin' : 'Après-midi'}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Responsabilité (optionnelle)</Label>
