@@ -322,6 +322,22 @@ const DashboardPage = () => {
             .eq('actif', true)
             .order('date');
 
+          // Build besoins_operations map to resolve besoin_operation_nom from capacite_effective.besoin_operation_id
+          const besoinIds = Array.from(
+            new Set((capacite || []).map((c: any) => c.besoin_operation_id).filter(Boolean))
+          );
+
+          const besoinsMap = new Map<string, string>();
+          if (besoinIds.length > 0) {
+            const { data: besoinsOps } = await supabase
+              .from('besoins_operations')
+              .select('id, nom')
+              .in('id', besoinIds as string[]);
+            besoinsOps?.forEach((b: any) => {
+              besoinsMap.set(b.id, b.nom);
+            });
+          }
+
           const daysMap = new Map<string, SecretaireDayData>();
 
           capacite?.forEach((cap) => {
@@ -350,8 +366,13 @@ const DashboardPage = () => {
               assignment.medecin_nom = medecin.name || '';
             }
 
-            // Add besoin operation info if available
-            if (cap.planning_genere_bloc_operatoire?.types_intervention) {
+            // Prefer besoin operation name from besoins_operations via capacite_effective.besoin_operation_id
+            if (cap.besoin_operation_id) {
+              const nom = besoinsMap.get(cap.besoin_operation_id);
+              if (nom) assignment.besoin_operation_nom = nom;
+            }
+            // Fallback to type d'intervention if no besoin operation is linked
+            if (!assignment.besoin_operation_nom && cap.planning_genere_bloc_operatoire?.types_intervention) {
               assignment.besoin_operation_nom = cap.planning_genere_bloc_operatoire.types_intervention.nom;
             }
 
