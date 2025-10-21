@@ -27,7 +27,7 @@ interface DayCellProps {
   date: Date;
   data: DayData | null;
   onOpenDetail?: (date: Date, data: DayData) => void;
-  onSecretaireClick?: (secretaireId: string, secretaireNom: string, secretairePrenom: string) => void;
+  onSecretaireClick?: (secretaireId: string, secretaireNom: string, secretairePrenom: string, periode: 'matin' | 'apres_midi' | 'journee') => void;
   onMedecinClick?: (medecinId: string, medecinNom: string, medecinPrenom: string) => void;
 }
 
@@ -42,7 +42,8 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
   const handleSecretaireClick = (e: React.MouseEvent, secretaire: PersonnePresence) => {
     e.stopPropagation();
     if (onSecretaireClick) {
-      onSecretaireClick(secretaire.id, secretaire.nom, secretaire.prenom || '');
+      const periode = secretaire.matin && secretaire.apres_midi ? 'journee' : secretaire.matin ? 'matin' : 'apres_midi';
+      onSecretaireClick(secretaire.id, secretaire.nom, secretaire.prenom || '', periode);
     }
   };
 

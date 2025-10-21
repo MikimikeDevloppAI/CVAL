@@ -79,30 +79,26 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
     setSelectedDay({ date, data });
   };
 
-  const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, secretairePrenom: string, date: Date) => {
-    // Fetch capacite data to determine periode and besoin
+  const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, secretairePrenom: string, periode: 'matin' | 'apres_midi' | 'journee', date: Date) => {
+    // Fetch capacite data to determine besoin
     const dateStr = format(date, 'yyyy-MM-dd');
     const { data: capacites } = await supabase
       .from('capacite_effective')
-      .select('besoin_operation_id, demi_journee')
+      .select('besoin_operation_id')
       .eq('secretaire_id', secretaireId)
       .eq('date', dateStr)
-      .eq('actif', true);
+      .eq('actif', true)
+      .limit(1)
+      .maybeSingle();
 
-    if (capacites && capacites.length > 0) {
-      const hasMatin = capacites.some(c => c.demi_journee === 'matin');
-      const hasAM = capacites.some(c => c.demi_journee === 'apres_midi');
-      const periode = hasMatin && hasAM ? 'journee' : hasMatin ? 'matin' : 'apres_midi';
-      
-      setSelectedSecretaire({
-        id: secretaireId,
-        nom: secretaireNom,
-        prenom: secretairePrenom,
-        date,
-        periode,
-        besoinOperationId: capacites[0].besoin_operation_id,
-      });
-    }
+    setSelectedSecretaire({
+      id: secretaireId,
+      nom: secretaireNom,
+      prenom: secretairePrenom,
+      date,
+      periode,
+      besoinOperationId: capacites?.besoin_operation_id || null,
+    });
   };
 
   const handleMedecinClick = (medecinId: string, medecinNom: string, medecinPrenom: string, date: Date) => {
@@ -222,7 +218,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 date={day}
                 data={dayData}
                 onOpenDetail={handleOpenDetail}
-                onSecretaireClick={(id, nom, prenom) => handleSecretaireClick(id, nom, prenom, day)}
+                onSecretaireClick={(id, nom, prenom, periode) => handleSecretaireClick(id, nom, prenom, periode, day)}
                 onMedecinClick={(id, nom, prenom) => handleMedecinClick(id, nom, prenom, day)}
               />
             );
