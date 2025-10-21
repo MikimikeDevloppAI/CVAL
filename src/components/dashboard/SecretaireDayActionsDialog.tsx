@@ -6,10 +6,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ArrowLeftRight, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, Trash2, Loader2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { ExchangeSecretaireDialog } from './ExchangeSecretaireDialog';
+import { EditSecretaireAssignmentDialog } from './EditSecretaireAssignmentDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,7 @@ export function SecretaireDayActionsDialog({
   onRefresh,
 }: SecretaireDayActionsDialogProps) {
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -136,40 +138,63 @@ export function SecretaireDayActionsDialog({
             <DialogTitle>Actions pour {secretaireNom}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3 py-4">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => {
-                setExchangeOpen(true);
-                onOpenChange(false);
-              }}
-            >
-              <ArrowLeftRight className="h-4 w-4 mr-2" />
-              Échanger
-            </Button>
+            <div className="space-y-3 py-4">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setReassignOpen(true);
+                  onOpenChange(false);
+                }}
+                disabled={!siteId}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Réaffecter
+              </Button>
 
-            <Button
-              variant="outline"
-              className="w-full justify-start text-destructive hover:text-destructive"
-              onClick={() => setDeleteConfirmOpen(true)}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Suppression...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer
-                </>
-              )}
-            </Button>
-          </div>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setExchangeOpen(true);
+                  onOpenChange(false);
+                }}
+                disabled={!siteId}
+              >
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Échanger
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start text-destructive hover:text-destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Supprimer
+                  </>
+                )}
+              </Button>
+            </div>
         </DialogContent>
       </Dialog>
+
+      <EditSecretaireAssignmentDialog
+        open={reassignOpen}
+        onOpenChange={setReassignOpen}
+        secretaire={{ id: secretaireId, capacite_id: '', nom: secretaireNom, periode, is_1r: false, is_2f: false, is_3f: false }}
+        date={date}
+        siteId={siteId || ''}
+        onSuccess={onRefresh}
+      />
 
       <ExchangeSecretaireDialog
         open={exchangeOpen}

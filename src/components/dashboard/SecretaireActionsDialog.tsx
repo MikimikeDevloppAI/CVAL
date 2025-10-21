@@ -10,6 +10,7 @@ import { Trash2, Edit, ArrowLeftRight, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { ExchangeSecretaireDialog } from './ExchangeSecretaireDialog';
+import { EditSecretaireAssignmentDialog } from './EditSecretaireAssignmentDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +46,7 @@ export function SecretaireActionsDialog({
   onRefresh,
 }: SecretaireActionsDialogProps) {
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -92,6 +94,18 @@ export function SecretaireActionsDialog({
               variant="outline"
               className="w-full justify-start"
               onClick={() => {
+                setReassignOpen(true);
+                onOpenChange(false);
+              }}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Réaffecter
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => {
                 setExchangeOpen(true);
                 onOpenChange(false);
               }}
@@ -121,6 +135,15 @@ export function SecretaireActionsDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditSecretaireAssignmentDialog
+        open={reassignOpen}
+        onOpenChange={setReassignOpen}
+        secretaire={{ id: secretaireId, capacite_id: '', nom: secretaireNom, periode, is_1r: false, is_2f: false, is_3f: false }}
+        date={date}
+        siteId={siteId}
+        onSuccess={onRefresh}
+      />
 
       <ExchangeSecretaireDialog
         open={exchangeOpen}
