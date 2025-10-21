@@ -220,7 +220,15 @@ export function ExchangeSecretaireDialog({
                       <div className="flex items-center gap-2">
                         <span>{sec.nom}</span>
                         <span className="text-xs text-muted-foreground">
-                          ({sec.site_nom} - {sec.periode === 'journee' ? 'Journée' : sec.periode === 'matin' ? 'Matin' : 'Après-midi'})
+                          {sec.has_different_sites ? (
+                            <>
+                              ({sec.matin_site_nom} / {sec.apres_midi_site_nom} - Journée)
+                            </>
+                          ) : (
+                            <>
+                              ({sec.site_nom} - {sec.periode === 'journee' ? 'Journée' : sec.periode === 'matin' ? 'Matin' : 'Après-midi'})
+                            </>
+                          )}
                         </span>
                         {sec.is_1r && (
                           <Badge variant="outline" className="text-[10px]">1R</Badge>

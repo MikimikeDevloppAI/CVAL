@@ -21,6 +21,9 @@ export interface SecretaireForExchange {
   is_1r: boolean;
   is_2f: boolean;
   is_3f: boolean;
+  matin_site_nom?: string;
+  apres_midi_site_nom?: string;
+  has_different_sites: boolean;
 }
 
 /**
@@ -93,17 +96,19 @@ export async function fetchAvailableSecretairesForExchange(
       const secretaireId = cap.secretaire_id!;
       const nom = `${cap.secretaires.first_name || ''} ${cap.secretaires.name || ''}`.trim();
       const siteNom = cap.sites.nom;
+      const demiJournee = cap.demi_journee as 'matin' | 'apres_midi';
 
       if (!secretairesMap.has(secretaireId)) {
         secretairesMap.set(secretaireId, {
           secretaire_id: secretaireId,
           nom,
           site_nom: siteNom,
-          periode: cap.demi_journee === 'matin' ? 'matin' : 'apres_midi',
+          periode: demiJournee,
           capacites: [],
           is_1r: cap.is_1r || false,
           is_2f: cap.is_2f || false,
           is_3f: cap.is_3f || false,
+          has_different_sites: false,
         });
       }
 
@@ -117,13 +122,32 @@ export async function fetchAvailableSecretairesForExchange(
         is_1r: cap.is_1r || false,
         is_2f: cap.is_2f || false,
         is_3f: cap.is_3f || false,
-        demi_journee: cap.demi_journee as 'matin' | 'apres_midi',
+        demi_journee: demiJournee,
       });
 
+      // Store site names for each half-day
+      if (demiJournee === 'matin') {
+        sec.matin_site_nom = siteNom;
+      } else {
+        sec.apres_midi_site_nom = siteNom;
+      }
+
       // Update periode if both morning and afternoon
-      if (sec.capacites.some(c => c.demi_journee === 'matin') && 
-          sec.capacites.some(c => c.demi_journee === 'apres_midi')) {
+      const hasMatin = sec.capacites.some(c => c.demi_journee === 'matin');
+      const hasApresMidi = sec.capacites.some(c => c.demi_journee === 'apres_midi');
+      
+      if (hasMatin && hasApresMidi) {
         sec.periode = 'journee';
+        
+        // Check if different sites
+        const matinSiteId = sec.capacites.find(c => c.demi_journee === 'matin')?.site_id;
+        const apresMidiSiteId = sec.capacites.find(c => c.demi_journee === 'apres_midi')?.site_id;
+        sec.has_different_sites = matinSiteId !== apresMidiSiteId;
+        
+        // Update display name
+        if (sec.has_different_sites) {
+          sec.site_nom = `${sec.matin_site_nom} / ${sec.apres_midi_site_nom}`;
+        }
       }
 
       // Update role badges
@@ -136,25 +160,26 @@ export async function fetchAvailableSecretairesForExchange(
     const filtered: SecretaireForExchange[] = [];
 
     for (const sec of Array.from(secretairesMap.values())) {
-      // Check if secretaire has the required period
-      if (exchangeType === 'journee' && sec.periode !== 'journee') continue;
-      if (exchangeType === 'matin' && !sec.capacites.some(c => c.demi_journee === 'matin')) continue;
-      if (exchangeType === 'apres_midi' && !sec.capacites.some(c => c.demi_journee === 'apres_midi')) continue;
-
-      const otherSiteId = sec.capacites[0]?.site_id;
-      const otherBesoinOperationId = sec.capacites[0]?.besoin_operation_id;
-
-      // Check if other's site is admin or bloc opératoire
-      const { data: otherSiteData } = await supabase
-        .from('sites')
-        .select('nom')
-        .eq('id', otherSiteId)
-        .single();
+      // Check if secretaire has the required period(s)
+      const hasMatin = sec.capacites.some(c => c.demi_journee === 'matin');
+      const hasApresMidi = sec.capacites.some(c => c.demi_journee === 'apres_midi');
       
-      const isOtherSiteBlocOp = otherSiteData?.nom?.toLowerCase().includes('bloc opératoire') || false;
-      const isOtherSiteAdmin = otherSiteId === ADMIN_SITE_ID;
+      if (exchangeType === 'journee') {
+        // For full day exchange, must have both morning AND afternoon
+        if (!hasMatin || !hasApresMidi) continue;
+      } else if (exchangeType === 'matin') {
+        if (!hasMatin) continue;
+      } else if (exchangeType === 'apres_midi') {
+        if (!hasApresMidi) continue;
+      }
 
-      // Get other secretaire's site preferences and besoins
+      // Determine which half-days to check for compatibility
+      const demisJourneesToCheck: ('matin' | 'apres_midi')[] = 
+        exchangeType === 'journee' ? ['matin', 'apres_midi'] :
+        exchangeType === 'matin' ? ['matin'] :
+        ['apres_midi'];
+
+      // Get other secretaire's site preferences and besoins operations
       const { data: otherSecretaireSites } = await supabase
         .from('secretaires_sites')
         .select('site_id')
@@ -169,31 +194,68 @@ export async function fetchAvailableSecretairesForExchange(
 
       const otherBesoinIds = otherSecretaireBesoins?.map(b => b.besoin_operation_id) || [];
 
-      // RULE 1: Current secretaire can work at other's site
-      // - If other site is admin or bloc opératoire: always OK
-      // - Otherwise: check if in current secretaire's site preferences
-      if (!isOtherSiteAdmin && !isOtherSiteBlocOp) {
-        if (otherSiteId && !currentCompatibleSiteIds.includes(otherSiteId)) continue;
+      // Fetch all site information for the capacities we need to check
+      const allSiteIds = new Set(sec.capacites.map(c => c.site_id));
+      const { data: allSites } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .in('id', Array.from(allSiteIds));
+      
+      const siteMap = new Map(allSites?.map(s => [s.id, s.nom]) || []);
+
+      // Check compatibility for each half-day
+      let isCompatible = true;
+
+      for (const dj of demisJourneesToCheck) {
+        const otherCapForPeriod = sec.capacites.find(c => c.demi_journee === dj);
+        if (!otherCapForPeriod) {
+          isCompatible = false;
+          break;
+        }
+
+        const otherSiteIdForPeriod = otherCapForPeriod.site_id;
+        const otherBesoinOperationIdForPeriod = otherCapForPeriod.besoin_operation_id;
+        const otherSiteNom = siteMap.get(otherSiteIdForPeriod);
+        
+        const isOtherSiteBlocOp = otherSiteNom?.toLowerCase().includes('bloc opératoire') || false;
+        const isOtherSiteAdmin = otherSiteIdForPeriod === ADMIN_SITE_ID;
+
+        // RULE 1: Current secretaire can work at other's site for this period
+        if (!isOtherSiteAdmin) {
+          if (isOtherSiteBlocOp) {
+            // Bloc opératoire: check besoins operations
+            if (otherBesoinOperationIdForPeriod && !currentBesoinIds.includes(otherBesoinOperationIdForPeriod)) {
+              isCompatible = false;
+              break;
+            }
+          } else {
+            // Regular site: check site preferences
+            if (!currentCompatibleSiteIds.includes(otherSiteIdForPeriod)) {
+              isCompatible = false;
+              break;
+            }
+          }
+        }
+
+        // RULE 2: Other secretaire can work at current site for this period
+        if (!isCurrentSiteAdmin) {
+          if (isCurrentSiteBlocOp) {
+            // Bloc opératoire: check if other secretaire has the required besoin operation
+            if (currentBesoinOperationId && !otherBesoinIds.includes(currentBesoinOperationId)) {
+              isCompatible = false;
+              break;
+            }
+          } else {
+            // Regular site: check site preferences
+            if (!otherCompatibleSiteIds.includes(currentSiteId)) {
+              isCompatible = false;
+              break;
+            }
+          }
+        }
       }
 
-      // RULE 2: For bloc opératoire, check besoins operations
-      if (isOtherSiteBlocOp && otherBesoinOperationId) {
-        if (!currentBesoinIds.includes(otherBesoinOperationId)) continue;
-      }
-
-      // RULE 3: Other secretaire can work at current site
-      // - If current site is admin: always OK (no check needed)
-      // - If current site is bloc opératoire: check besoins operations
-      // - Otherwise: check if in other secretaire's site preferences
-      if (isCurrentSiteAdmin) {
-        // Admin site: everyone can work here, no check needed
-      } else if (isCurrentSiteBlocOp) {
-        // Bloc opératoire: check if other secretaire has the required besoin operation
-        if (currentBesoinOperationId && !otherBesoinIds.includes(currentBesoinOperationId)) continue;
-      } else {
-        // Regular site: check site preferences
-        if (!otherCompatibleSiteIds.includes(currentSiteId)) continue;
-      }
+      if (!isCompatible) continue;
 
       filtered.push(sec);
     }
