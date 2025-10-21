@@ -144,7 +144,6 @@ export function SecretaireDayActionsDialog({
                 className="w-full justify-start"
                 onClick={() => {
                   setReassignOpen(true);
-                  onOpenChange(false);
                 }}
                 disabled={!siteId}
               >
@@ -157,7 +156,6 @@ export function SecretaireDayActionsDialog({
                 className="w-full justify-start"
                 onClick={() => {
                   setExchangeOpen(true);
-                  onOpenChange(false);
                 }}
                 disabled={!siteId}
               >

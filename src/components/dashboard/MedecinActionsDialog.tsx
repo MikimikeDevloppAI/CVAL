@@ -96,7 +96,6 @@ export function MedecinActionsDialog({
               className="w-full justify-start"
               onClick={() => {
                 setReassignOpen(true);
-                onOpenChange(false);
               }}
             >
               <Edit className="h-4 w-4 mr-2" />

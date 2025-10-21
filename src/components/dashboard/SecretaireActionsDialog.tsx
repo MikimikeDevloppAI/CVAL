@@ -95,7 +95,6 @@ export function SecretaireActionsDialog({
               className="w-full justify-start"
               onClick={() => {
                 setReassignOpen(true);
-                onOpenChange(false);
               }}
             >
               <Edit className="h-4 w-4 mr-2" />
@@ -107,7 +106,6 @@ export function SecretaireActionsDialog({
               className="w-full justify-start"
               onClick={() => {
                 setExchangeOpen(true);
-                onOpenChange(false);
               }}
             >
               <ArrowLeftRight className="h-4 w-4 mr-2" />
