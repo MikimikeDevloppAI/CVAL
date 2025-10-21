@@ -46,6 +46,7 @@ interface SecretaireAssignment {
   site_nom?: string;
   medecin_nom?: string;
   besoin_operation_nom?: string;
+  salle_nom?: string;
   is_1r?: boolean;
   is_2f?: boolean;
   is_3f?: boolean;
@@ -310,7 +311,9 @@ const DashboardPage = () => {
                 medecin_id,
                 medecins(first_name, name),
                 type_intervention_id,
-                types_intervention(nom)
+                types_intervention(nom),
+                salle_assignee,
+                salles_operation(name)
               )
             `)
             .eq('secretaire_id', secretaire.id)
@@ -350,6 +353,11 @@ const DashboardPage = () => {
             // Add besoin operation info if available
             if (cap.planning_genere_bloc_operatoire?.types_intervention) {
               assignment.besoin_operation_nom = cap.planning_genere_bloc_operatoire.types_intervention.nom;
+            }
+
+            // Add salle info if available
+            if (cap.planning_genere_bloc_operatoire?.salles_operation) {
+              assignment.salle_nom = cap.planning_genere_bloc_operatoire.salles_operation.name;
             }
 
             day[periode].push(assignment);

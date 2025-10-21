@@ -12,6 +12,7 @@ interface Assignment {
   site_nom?: string;
   medecin_nom?: string;
   besoin_operation_nom?: string;
+  salle_nom?: string;
   is_1r?: boolean;
   is_2f?: boolean;
   is_3f?: boolean;
@@ -72,9 +73,13 @@ export function SecretaireCalendarCard({
       day.data.matin.forEach(a => {
         if (a.site_nom) content.push(`  📍 ${a.site_nom}`);
         if (a.medecin_nom) content.push(`  🩺 ${a.medecin_nom}`);
-        if (a.besoin_operation_nom) {
+        if (a.besoin_operation_nom || a.salle_nom) {
+          const parts = [];
+          if (a.salle_nom) parts.push(a.salle_nom);
+          if (a.besoin_operation_nom) parts.push(a.besoin_operation_nom);
           const badges = [a.is_1r && '1R', a.is_2f && '2F', a.is_3f && '3F'].filter(Boolean).join(' ');
-          content.push(`  💼 ${a.besoin_operation_nom}${badges ? ` (${badges})` : ''}`);
+          if (badges) parts.push(`(${badges})`);
+          content.push(`  💼 ${parts.join(' - ')}`);
         }
       });
     }
@@ -85,9 +90,13 @@ export function SecretaireCalendarCard({
       day.data.apres_midi.forEach(a => {
         if (a.site_nom) content.push(`  📍 ${a.site_nom}`);
         if (a.medecin_nom) content.push(`  🩺 ${a.medecin_nom}`);
-        if (a.besoin_operation_nom) {
+        if (a.besoin_operation_nom || a.salle_nom) {
+          const parts = [];
+          if (a.salle_nom) parts.push(a.salle_nom);
+          if (a.besoin_operation_nom) parts.push(a.besoin_operation_nom);
           const badges = [a.is_1r && '1R', a.is_2f && '2F', a.is_3f && '3F'].filter(Boolean).join(' ');
-          content.push(`  💼 ${a.besoin_operation_nom}${badges ? ` (${badges})` : ''}`);
+          if (badges) parts.push(`(${badges})`);
+          content.push(`  💼 ${parts.join(' - ')}`);
         }
       });
     }
@@ -113,18 +122,25 @@ export function SecretaireCalendarCard({
       
       const assignment = assignments[0];
       
-      // Bloc opératoire: show besoin and role
+      // Bloc opératoire: show salle, besoin and role
       if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f) {
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
         if (assignment.is_3f) roles.push('3F');
         
+        const salleName = assignment.salle_nom || '';
         const besoinName = assignment.besoin_operation_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
+        // Build display text: "Salle X - Besoin - Role"
+        const parts = [];
+        if (salleName) parts.push(salleName);
+        if (besoinName) parts.push(besoinName);
+        if (roleText) parts.push(roleText);
+        
         return {
-          text: roleText ? `${besoinName} - ${roleText}` : besoinName,
+          text: parts.join(' - '),
           isBloc: true,
           role: roleText
         };
