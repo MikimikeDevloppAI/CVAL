@@ -56,21 +56,48 @@ export function EditSecretaireAssignmentDialog({
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState(siteId);
   const [periode, setPeriode] = useState(secretaire.periode);
-  const [responsibility, setResponsibility] = useState<'1r' | '2f' | '3f' | null>(
-    secretaire.is_1r ? '1r' : secretaire.is_2f ? '2f' : secretaire.is_3f ? '3f' : null
-  );
+  const [responsibility, setResponsibility] = useState<'1r' | '2f' | '3f' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(true);
 
   useEffect(() => {
     if (open) {
-      fetchSites();
-      setSelectedSiteId(siteId);
-      setPeriode(secretaire.periode);
-      setResponsibility(
-        secretaire.is_1r ? '1r' : secretaire.is_2f ? '2f' : secretaire.is_3f ? '3f' : null
-      );
+      fetchInitialData();
     }
   }, [open, secretaire, siteId]);
+
+  const fetchInitialData = async () => {
+    setFetchingData(true);
+    try {
+      // Fetch capacite_effective to get real responsibility values
+      const { data: capacites } = await supabase
+        .from('capacite_effective')
+        .select('is_1r, is_2f, is_3f, demi_journee')
+        .eq('secretaire_id', secretaire.id)
+        .eq('date', date)
+        .eq('actif', true);
+
+      // Determine actual responsibility from capacite_effective
+      let actualResponsibility: '1r' | '2f' | '3f' | null = null;
+      if (capacites && capacites.length > 0) {
+        const hasAny1r = capacites.some(c => c.is_1r);
+        const hasAny2f = capacites.some(c => c.is_2f);
+        const hasAny3f = capacites.some(c => c.is_3f);
+        
+        if (hasAny1r) actualResponsibility = '1r';
+        else if (hasAny2f) actualResponsibility = '2f';
+        else if (hasAny3f) actualResponsibility = '3f';
+      }
+
+      setSelectedSiteId(siteId);
+      setPeriode(secretaire.periode);
+      setResponsibility(actualResponsibility);
+      
+      await fetchSites();
+    } finally {
+      setFetchingData(false);
+    }
+  };
 
   const fetchSites = async () => {
     const adminSiteId = '00000000-0000-0000-0000-000000000001';
@@ -209,114 +236,120 @@ export function EditSecretaireAssignmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Site</Label>
-            <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {fetchingData ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-
-          {secretaire.periode === 'journee' ? (
+        ) : (
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Période</Label>
-              <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="matin" id="edit-sec-matin" />
-                  <Label htmlFor="edit-sec-matin" className="font-normal cursor-pointer">
-                    Matin
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="apres_midi" id="edit-sec-apres_midi" />
-                  <Label htmlFor="edit-sec-apres_midi" className="font-normal cursor-pointer">
-                    Après-midi
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="journee" id="edit-sec-journee" />
-                  <Label htmlFor="edit-sec-journee" className="font-normal cursor-pointer">
-                    Journée complète
-                  </Label>
-                </div>
-              </RadioGroup>
+              <Label>Site</Label>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <Label>Période</Label>
-              <p className="text-sm text-muted-foreground">
-                {secretaire.periode === 'matin' ? 'Matin' : 'Après-midi'}
-              </p>
-            </div>
-          )}
 
-          <div className="space-y-2">
-            <Label>Responsabilité (optionnelle)</Label>
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-resp-1r"
-                  checked={responsibility === '1r'}
-                  onCheckedChange={(checked) => {
-                    setResponsibility(checked ? '1r' : null);
-                    if (checked) setPeriode('journee');
-                  }}
-                />
-                <Label htmlFor="edit-resp-1r" className="font-normal cursor-pointer">
-                  1R
-                </Label>
+            {secretaire.periode === 'journee' ? (
+              <div className="space-y-2">
+                <Label>Période</Label>
+                <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="matin" id="edit-sec-matin" />
+                    <Label htmlFor="edit-sec-matin" className="font-normal cursor-pointer">
+                      Matin
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="apres_midi" id="edit-sec-apres_midi" />
+                    <Label htmlFor="edit-sec-apres_midi" className="font-normal cursor-pointer">
+                      Après-midi
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="journee" id="edit-sec-journee" />
+                    <Label htmlFor="edit-sec-journee" className="font-normal cursor-pointer">
+                      Journée complète
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-resp-2f"
-                  checked={responsibility === '2f'}
-                  onCheckedChange={(checked) => {
-                    setResponsibility(checked ? '2f' : null);
-                    if (checked) setPeriode('journee');
-                  }}
-                />
-                <Label htmlFor="edit-resp-2f" className="font-normal cursor-pointer">
-                  2F
-                </Label>
+            ) : (
+              <div className="space-y-2">
+                <Label>Période</Label>
+                <p className="text-sm text-muted-foreground">
+                  {secretaire.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-resp-3f"
-                  checked={responsibility === '3f'}
-                  onCheckedChange={(checked) => {
-                    setResponsibility(checked ? '3f' : null);
-                    if (checked) setPeriode('journee');
-                  }}
-                />
-                <Label htmlFor="edit-resp-3f" className="font-normal cursor-pointer">
-                  3F
-                </Label>
-              </div>
-            </div>
-            {responsibility && (
-              <p className="text-xs text-muted-foreground">
-                Une responsabilité implique automatiquement une présence toute la journée
-              </p>
             )}
+
+            <div className="space-y-2">
+              <Label>Responsabilité (optionnelle)</Label>
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-resp-1r"
+                    checked={responsibility === '1r'}
+                    onCheckedChange={(checked) => {
+                      setResponsibility(checked ? '1r' : null);
+                      if (checked) setPeriode('journee');
+                    }}
+                  />
+                  <Label htmlFor="edit-resp-1r" className="font-normal cursor-pointer">
+                    1R
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-resp-2f"
+                    checked={responsibility === '2f'}
+                    onCheckedChange={(checked) => {
+                      setResponsibility(checked ? '2f' : null);
+                      if (checked) setPeriode('journee');
+                    }}
+                  />
+                  <Label htmlFor="edit-resp-2f" className="font-normal cursor-pointer">
+                    2F
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-resp-3f"
+                    checked={responsibility === '3f'}
+                    onCheckedChange={(checked) => {
+                      setResponsibility(checked ? '3f' : null);
+                      if (checked) setPeriode('journee');
+                    }}
+                  />
+                  <Label htmlFor="edit-resp-3f" className="font-normal cursor-pointer">
+                    3F
+                  </Label>
+                </div>
+              </div>
+              {responsibility && (
+                <p className="text-xs text-muted-foreground">
+                  Une responsabilité implique automatiquement une présence toute la journée
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || fetchingData}>
             Annuler
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || fetchingData}
             className="bg-gradient-to-r from-teal-500 to-cyan-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
