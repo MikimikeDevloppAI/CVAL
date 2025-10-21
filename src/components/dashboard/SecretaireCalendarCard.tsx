@@ -185,7 +185,7 @@ export function SecretaireCalendarCard({
     // Both periods with SAME site/role
     if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all px-2">
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
@@ -199,7 +199,7 @@ export function SecretaireCalendarCard({
       return (
         <div className="space-y-1">
           {/* Matin */}
-          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2">
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -208,7 +208,7 @@ export function SecretaireCalendarCard({
             </div>
           </div>
           {/* Après-midi */}
-          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2">
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -223,7 +223,7 @@ export function SecretaireCalendarCard({
     // Matin only
     if (hasMatin) {
       return (
-        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2">
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">
@@ -236,7 +236,7 @@ export function SecretaireCalendarCard({
 
     // Après-midi only
     return (
-      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer hover:shadow-md transition-all px-2">
+      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2">
         <div className="flex items-center gap-1 w-full min-w-0">
           <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
           <span className="text-xs font-medium truncate">
@@ -249,7 +249,7 @@ export function SecretaireCalendarCard({
 
   return (
     <div 
-      className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-xl"
+      className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden"
       style={{
         animation: `fadeIn 0.5s ease-out ${index * 0.05}s both`
       }}

@@ -101,7 +101,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
       className={cn(
         "rounded-xl overflow-hidden",
         "bg-card/50 backdrop-blur-xl border border-border/50",
-        "shadow-lg hover:shadow-xl",
+        "shadow-lg",
         "transition-all duration-300 ease-out",
         "animate-fade-in"
       )}
