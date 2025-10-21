@@ -28,9 +28,8 @@ export const QuickActionButton = ({ label, icon, href, onClick, gradient, count 
       className={cn(
         "group relative overflow-hidden rounded-xl p-6",
         "bg-card/50 backdrop-blur-xl border border-border/50",
-        "shadow-lg hover:shadow-2xl",
+        "shadow-lg hover:shadow-xl",
         "transition-all duration-300 ease-out",
-        "hover:scale-105 hover:-translate-y-1",
         "focus:outline-none focus:ring-2 focus:ring-primary/50"
       )}
     >
