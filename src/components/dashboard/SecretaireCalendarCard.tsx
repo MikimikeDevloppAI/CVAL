@@ -123,8 +123,8 @@ export function SecretaireCalendarCard({
       
       const assignment = assignments[0];
       
-      // Bloc opératoire: show type intervention, besoin, role and salle
-      if (assignment.besoin_operation_nom || assignment.is_1r || assignment.is_2f || assignment.is_3f || assignment.type_intervention_nom) {
+      // Bloc opératoire (with type_intervention): show type intervention, besoin, role and salle
+      if (assignment.type_intervention_nom || assignment.besoin_operation_nom) {
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
