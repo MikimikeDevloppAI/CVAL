@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Calendar as CalendarIcon, ChevronDown, ChevronUp, Users } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks } from 'date-fns';
+import { Loader2, Calendar as CalendarIcon, ChevronDown, ChevronUp, Users, Check } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface OptimizePlanningDialogProps {
   open: boolean;
@@ -23,13 +24,42 @@ interface FlexibleSecretary {
   pourcentage_temps: number;
 }
 
+interface WeekData {
+  weekStart: Date;
+  weekEnd: Date;
+  days: Date[];
+  label: string;
+}
+
 export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningDialogProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [selectedWeek, setSelectedWeek] = useState<Date | null>(null);
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
+  const [weeks, setWeeks] = useState<WeekData[]>([]);
   const [flexibleSecretaries, setFlexibleSecretaries] = useState<FlexibleSecretary[]>([]);
   const { toast } = useToast();
+
+  // Generate 12 weeks starting from current week
+  useEffect(() => {
+    const today = new Date();
+    const generatedWeeks: WeekData[] = [];
+
+    for (let i = 0; i < 12; i++) {
+      const weekDate = addWeeks(today, i);
+      const weekStart = startOfWeek(weekDate, { locale: fr, weekStartsOn: 1 });
+      const weekEnd = endOfWeek(weekDate, { locale: fr, weekStartsOn: 1 });
+      const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
+      generatedWeeks.push({
+        weekStart,
+        weekEnd,
+        days,
+        label: `Semaine du ${format(weekStart, 'dd MMM', { locale: fr })} au ${format(weekEnd, 'dd MMM yyyy', { locale: fr })}`
+      });
+    }
+
+    setWeeks(generatedWeeks);
+  }, []);
 
   // Load flexible secretaries
   useEffect(() => {
@@ -55,21 +85,62 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     }
   };
 
-  // When week is selected, auto-select all days
-  const handleWeekSelect = (date: Date | undefined) => {
-    if (!date) {
-      setSelectedWeek(null);
-      setSelectedDates([]);
-      return;
+  const toggleWeek = (weekIndex: number) => {
+    const week = weeks[weekIndex];
+    const allSelected = week.days.every(day => 
+      selectedDates.some(selected => isSameDay(selected, day))
+    );
+
+    if (allSelected) {
+      // Deselect all days of this week
+      setSelectedDates(prev => 
+        prev.filter(date => !week.days.some(day => isSameDay(day, date)))
+      );
+    } else {
+      // Select all days of this week
+      const newDates = [...selectedDates];
+      week.days.forEach(day => {
+        if (!newDates.some(d => isSameDay(d, day))) {
+          newDates.push(day);
+        }
+      });
+      setSelectedDates(newDates);
     }
+  };
 
-    const weekStart = startOfWeek(date, { locale: fr, weekStartsOn: 1 });
-    const weekEnd = endOfWeek(date, { locale: fr, weekStartsOn: 1 });
-    const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const toggleDay = (day: Date) => {
+    const isSelected = selectedDates.some(d => isSameDay(d, day));
+    
+    if (isSelected) {
+      setSelectedDates(prev => prev.filter(d => !isSameDay(d, day)));
+    } else {
+      setSelectedDates(prev => [...prev, day]);
+    }
+  };
 
-    setSelectedWeek(weekStart);
-    setSelectedDates(daysInWeek);
-    setIsAdvancedOpen(false);
+  const toggleWeekExpanded = (weekIndex: number) => {
+    setExpandedWeeks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(weekIndex)) {
+        newSet.delete(weekIndex);
+      } else {
+        newSet.add(weekIndex);
+      }
+      return newSet;
+    });
+  };
+
+  const isWeekFullySelected = (week: WeekData) => {
+    return week.days.every(day => 
+      selectedDates.some(selected => isSameDay(selected, day))
+    );
+  };
+
+  const isWeekPartiallySelected = (week: WeekData) => {
+    const selectedCount = week.days.filter(day => 
+      selectedDates.some(selected => isSameDay(selected, day))
+    ).length;
+    return selectedCount > 0 && selectedCount < week.days.length;
   };
 
   const handleOptimize = async () => {
@@ -85,14 +156,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     setIsOptimizing(true);
 
     try {
-      // Format dates to YYYY-MM-DD
       const dates = selectedDates
         .map(d => format(d, 'yyyy-MM-dd'))
         .sort();
 
       console.log('🚀 Lancement optimisation MILP v2 pour:', dates);
 
-      // First optimize flexible secretaries
       const weekStart = dates[0];
       const weekEnd = dates[dates.length - 1];
 
@@ -112,7 +181,6 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         console.log('✅ Flexible secretaries optimized:', flexData);
       }
 
-      // Then optimize regular assignments
       const { data, error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
         body: { dates }
       });
@@ -127,10 +195,8 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         
         onOpenChange(false);
         setSelectedDates([]);
-        setSelectedWeek(null);
-        setIsAdvancedOpen(false);
+        setExpandedWeeks(new Set());
         
-        // Refresh the page to show updated planning
         setTimeout(() => window.location.reload(), 1000);
       } else {
         throw new Error('Échec de l\'optimisation');
@@ -149,134 +215,179 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
             Planifier les secrétaires
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez une semaine pour planifier automatiquement les secrétaires flexibles et optimiser les assignations.
+            Sélectionnez une ou plusieurs semaines pour planifier automatiquement les secrétaires flexibles.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Week Selector */}
-          <div className="space-y-4">
-            <div>
-              <Label className="text-base font-semibold">Sélection de la semaine</Label>
+        <div className="flex-1 overflow-hidden grid grid-cols-3 gap-6">
+          {/* Week Selector - 2 columns */}
+          <div className="col-span-2 flex flex-col">
+            <div className="mb-4">
+              <Label className="text-base font-semibold">Semaines disponibles</Label>
               <p className="text-sm text-muted-foreground">
-                Choisissez une semaine pour sélectionner automatiquement tous les jours
+                Cliquez sur une semaine pour sélectionner tous les jours, puis étendez pour personnaliser
               </p>
             </div>
 
-            <div className="flex justify-center">
-              <Calendar
-                mode="single"
-                selected={selectedWeek || undefined}
-                onSelect={handleWeekSelect}
-                locale={fr}
-                className="rounded-md border"
-              />
-            </div>
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-2">
+                {weeks.map((week, index) => {
+                  const isExpanded = expandedWeeks.has(index);
+                  const isFullySelected = isWeekFullySelected(week);
+                  const isPartiallySelected = isWeekPartiallySelected(week);
+
+                  return (
+                    <div key={index} className="border rounded-lg overflow-hidden">
+                      {/* Week Header */}
+                      <div
+                        className={cn(
+                          "flex items-center justify-between p-3 cursor-pointer transition-colors",
+                          isFullySelected && "bg-primary/10 border-l-4 border-l-primary",
+                          isPartiallySelected && "bg-primary/5 border-l-4 border-l-primary/50",
+                          !isFullySelected && !isPartiallySelected && "hover:bg-muted/50"
+                        )}
+                        onClick={() => toggleWeek(index)}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className={cn(
+                            "h-5 w-5 rounded border-2 flex items-center justify-center",
+                            isFullySelected && "bg-primary border-primary",
+                            isPartiallySelected && "bg-primary/50 border-primary/50"
+                          )}>
+                            {isFullySelected && <Check className="h-3 w-3 text-white" />}
+                            {isPartiallySelected && <span className="text-white text-xs">−</span>}
+                          </div>
+                          <span className="text-sm font-medium">{week.label}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleWeekExpanded(index);
+                          }}
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                      </div>
+
+                      {/* Days List */}
+                      {isExpanded && (
+                        <div className="p-3 pt-0 space-y-1 bg-muted/20">
+                          {week.days.map((day, dayIndex) => {
+                            const isSelected = selectedDates.some(d => isSameDay(d, day));
+                            return (
+                              <div
+                                key={dayIndex}
+                                className={cn(
+                                  "flex items-center gap-3 p-2 rounded cursor-pointer transition-colors",
+                                  isSelected && "bg-primary/10",
+                                  !isSelected && "hover:bg-muted/50"
+                                )}
+                                onClick={() => toggleDay(day)}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleDay(day)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <span className="text-sm">
+                                  {format(day, 'EEEE dd MMMM', { locale: fr })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           </div>
 
-          {/* Flexible Secretaries Info */}
-          {flexibleSecretaries.length > 0 && (
-            <div className="p-4 bg-muted/50 rounded-lg border">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold">Secrétaires flexibles ({flexibleSecretaries.length})</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {flexibleSecretaries.map(sec => (
-                  <div key={sec.id} className="text-sm flex items-center justify-between p-2 bg-background rounded">
-                    <span>{sec.first_name} {sec.name}</span>
-                    <span className="text-xs text-muted-foreground">{sec.pourcentage_temps}%</span>
+          {/* Sidebar - 1 column */}
+          <div className="flex flex-col gap-4">
+            {/* Flexible Secretaries */}
+            {flexibleSecretaries.length > 0 && (
+              <div className="p-4 bg-muted/50 rounded-lg border">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-semibold">Secrétaires flexibles</h3>
+                </div>
+                <ScrollArea className="max-h-[200px]">
+                  <div className="space-y-2">
+                    {flexibleSecretaries.map(sec => (
+                      <div key={sec.id} className="text-sm flex items-center justify-between p-2 bg-background rounded">
+                        <span className="text-xs">{sec.first_name} {sec.name}</span>
+                        <span className="text-xs font-medium text-primary">{sec.pourcentage_temps}%</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </ScrollArea>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Advanced Day Selection */}
-          <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full flex items-center justify-between">
-                <span className="text-sm font-medium">Sélection avancée (jours individuels)</span>
-                {isAdvancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-4">
-              <div className="flex justify-center">
-                <Calendar
-                  mode="multiple"
-                  selected={selectedDates}
-                  onSelect={(dates) => {
-                    setSelectedDates(dates || []);
-                    setSelectedWeek(null);
-                  }}
-                  locale={fr}
-                  className="rounded-md border"
-                />
+            {/* Selected Summary */}
+            {selectedDates.length > 0 && (
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <p className="text-sm font-semibold mb-2">
+                  {selectedDates.length} jour{selectedDates.length > 1 ? 's' : ''} sélectionné{selectedDates.length > 1 ? 's' : ''}
+                </p>
+                <ScrollArea className="max-h-[200px]">
+                  <div className="space-y-1">
+                    {selectedDates
+                      .sort((a, b) => a.getTime() - b.getTime())
+                      .map((date, idx) => (
+                        <div
+                          key={idx}
+                          className="text-xs px-2 py-1 bg-primary/10 text-primary rounded"
+                        >
+                          {format(date, 'EEE dd/MM', { locale: fr })}
+                        </div>
+                      ))}
+                  </div>
+                </ScrollArea>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Selected Dates Display */}
-          {selectedDates.length > 0 && (
-            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-              <p className="text-sm font-medium mb-2">
-                {selectedWeek 
-                  ? `Semaine du ${format(selectedWeek, 'dd MMMM yyyy', { locale: fr })}`
-                  : `Dates sélectionnées (${selectedDates.length})`
-                }
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {selectedDates
-                  .sort((a, b) => a.getTime() - b.getTime())
-                  .map((date, idx) => (
-                    <span
-                      key={idx}
-                      className="px-3 py-1.5 bg-primary/10 text-primary rounded-md text-xs font-medium"
-                    >
-                      {format(date, 'EEE dd/MM', { locale: fr })}
-                    </span>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                setSelectedDates([]);
-                setSelectedWeek(null);
-                setIsAdvancedOpen(false);
-              }}
-              disabled={isOptimizing}
-            >
-              Annuler
-            </Button>
-            <Button
-              onClick={handleOptimize}
-              disabled={isOptimizing || selectedDates.length === 0}
-            >
-              {isOptimizing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Optimisation en cours...
-                </>
-              ) : (
-                <>
-                  <CalendarIcon className="h-4 w-4" />
-                  Planifier
-                </>
-              )}
-            </Button>
+            )}
           </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              setSelectedDates([]);
+              setExpandedWeeks(new Set());
+            }}
+            disabled={isOptimizing}
+          >
+            Annuler
+          </Button>
+          <Button
+            onClick={handleOptimize}
+            disabled={isOptimizing || selectedDates.length === 0}
+          >
+            {isOptimizing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Optimisation en cours...
+              </>
+            ) : (
+              <>
+                <CalendarIcon className="h-4 w-4" />
+                Planifier
+              </>
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
