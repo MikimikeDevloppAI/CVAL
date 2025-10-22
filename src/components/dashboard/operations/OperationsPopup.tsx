@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Clipboard } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
+import { AddBesoinOperationDialog } from '@/components/operations/AddBesoinOperationDialog';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface OperationsPopupProps {
@@ -13,6 +14,7 @@ interface OperationsPopupProps {
 
 export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
   const [activeView, setActiveView] = useState<'types' | 'flux'>('types');
+  const [showBesoinDialog, setShowBesoinDialog] = useState(false);
   const typesManagementRef = useRef<TypesInterventionManagementRef>(null);
   const { canManage } = useCanManagePlanning();
 
@@ -59,15 +61,24 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
                 </button>
               </div>
 
-              {/* Add button only for Types view */}
+              {/* Add buttons only for Types view */}
               {activeView === 'types' && canManage && (
-                <Button
-                  onClick={() => typesManagementRef.current?.openAddDialog()}
-                  className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                >
-                  <Plus className="h-4 w-4" />
-                  Ajouter un type
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowBesoinDialog(true)}
+                    className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  >
+                    <Clipboard className="h-4 w-4" />
+                    Ajouter des besoins opération
+                  </Button>
+                  <Button
+                    onClick={() => typesManagementRef.current?.openAddDialog()}
+                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter une opération
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -82,6 +93,15 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
           </div>
         </div>
       </DialogContent>
+
+      <AddBesoinOperationDialog
+        open={showBesoinDialog}
+        onOpenChange={setShowBesoinDialog}
+        onSuccess={() => {
+          // Refresh data if needed
+          setShowBesoinDialog(false);
+        }}
+      />
     </Dialog>
   );
 }
