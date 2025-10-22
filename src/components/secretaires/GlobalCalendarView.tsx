@@ -569,14 +569,14 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                               </div>
                             ))}
                             <button
-                              className="absolute -top-1 -right-1 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full flex items-center justify-center z-10 cursor-pointer disabled:opacity-50"
+                              className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer disabled:opacity-50"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenDeleteDialog(capacitesToDisplay[0]);
                               }}
                               disabled={loading}
                             >
-                              <X className="h-3 w-3" />
+                              <X className="h-2.5 w-2.5" />
                             </button>
                           </div>
                         ) : (
