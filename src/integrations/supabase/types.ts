@@ -1167,6 +1167,7 @@ export type Database = {
           nombre_assigne: number | null
           nombre_requis: number | null
           periode: Database["public"]["Enums"]["demi_journee"] | null
+          planning_genere_bloc_operatoire_id: string | null
           site_id: string | null
           site_nom: string | null
           type_besoin: string | null
