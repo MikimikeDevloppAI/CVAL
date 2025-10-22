@@ -526,6 +526,19 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           }
         }
       } else {
+        // Pour site: identifier les secrétaires déjà assignées sur un site NON-ADMINISTRATIF
+        const { data: nonAdminAssignments } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id')
+          .eq('date', date)
+          .eq('demi_journee', periode)
+          .neq('site_id', '00000000-0000-0000-0000-000000000001')
+          .eq('actif', true);
+
+        const assignedNonAdminIds = new Set(
+          nonAdminAssignments?.map((a) => a.secretaire_id).filter(Boolean) || []
+        );
+        
         // Catégorie 1: Admin avec compétence site
         const { data: adminSecretaires } = await supabase
           .from('capacite_effective')
@@ -539,7 +552,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           .eq('actif', true);
 
         for (const as of adminSecretaires || []) {
-          if (assignedIds.includes(as.secretaire_id)) continue;
+          // Exclure uniquement si assignée à un site non-admin
+          if (assignedNonAdminIds.has(as.secretaire_id)) continue;
           
           const sec = as.secretaires as any;
           const sites = sec?.secretaires_sites || [];
@@ -848,15 +862,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                     </div>
                     {need.full_day_suggestions.suggestions_admin.map(sug => (
                       <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                        <div className="flex items-center gap-2">
-                          <span>{sug.secretaire_nom}</span>
-                          {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
-                            <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
-                          )}
-                          {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
-                            <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
-                          )}
-                        </div>
+                        <span>{sug.secretaire_nom}</span>
                       </SelectItem>
                     ))}
                   </>
@@ -870,15 +876,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                     </div>
                     {need.full_day_suggestions.suggestions_not_working.map(sug => (
                       <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                        <div className="flex items-center gap-2">
-                          <span>{sug.secretaire_nom}</span>
-                          {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
-                            <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
-                          )}
-                          {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
-                            <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
-                          )}
-                        </div>
+                        <span>{sug.secretaire_nom}</span>
                       </SelectItem>
                     ))}
                   </>
@@ -1009,15 +1007,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   </div>
                   {periodData.suggestions_admin.map(sug => (
                     <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                      <div className="flex items-center gap-2">
-                        <span>{sug.secretaire_nom}</span>
-                        {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
-                          <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
-                        )}
-                        {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
-                          <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
-                        )}
-                      </div>
+                      <span>{sug.secretaire_nom}</span>
                     </SelectItem>
                   ))}
                 </>
@@ -1031,15 +1021,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   </div>
                   {periodData.suggestions_not_working.map(sug => (
                     <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                      <div className="flex items-center gap-2">
-                        <span>{sug.secretaire_nom}</span>
-                        {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
-                          <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
-                        )}
-                        {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
-                          <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
-                        )}
-                      </div>
+                      <span>{sug.secretaire_nom}</span>
                     </SelectItem>
                   ))}
                 </>
@@ -1210,18 +1192,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           </div>
                                           {besoin.suggestions_matin.suggestions_admin.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                              <div className="flex items-center gap-2">
-                                                <span>{sug.secretaire_nom}</span>
-                                                {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
-                                                )}
-                                                {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
-                                                )}
-                                                {sug.preference_besoin === 3 && (
-                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
-                                                )}
-                                              </div>
+                                              <span>{sug.secretaire_nom}</span>
                                             </SelectItem>
                                           ))}
                                         </>
@@ -1233,18 +1204,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           </div>
                                           {besoin.suggestions_matin.suggestions_not_working.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground">{sug.secretaire_nom}</span>
-                                                {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
-                                                )}
-                                                {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
-                                                )}
-                                                {sug.preference_besoin === 3 && (
-                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
-                                                )}
-                                              </div>
+                                              <span className="text-muted-foreground">{sug.secretaire_nom}</span>
                                             </SelectItem>
                                           ))}
                                         </>
@@ -1330,18 +1290,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_admin.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                              <div className="flex items-center gap-2">
-                                                <span>{sug.secretaire_nom}</span>
-                                                {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
-                                                )}
-                                                {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
-                                                )}
-                                                {sug.preference_besoin === 3 && (
-                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
-                                                )}
-                                              </div>
+                                              <span>{sug.secretaire_nom}</span>
                                             </SelectItem>
                                           ))}
                                         </>
@@ -1353,18 +1302,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_not_working.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground">{sug.secretaire_nom}</span>
-                                                {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
-                                                )}
-                                                {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
-                                                )}
-                                                {sug.preference_besoin === 3 && (
-                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
-                                                )}
-                                              </div>
+                                              <span className="text-muted-foreground">{sug.secretaire_nom}</span>
                                             </SelectItem>
                                           ))}
                                         </>
