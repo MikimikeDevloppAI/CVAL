@@ -303,6 +303,225 @@ export function buildMILPModelSoft(
   }
   
   
+  // ============================================================
+  // CONSTRAINT: Bloc + forbidden site on same day (Big-M)
+  // ============================================================
+  const FORBIDDEN_SITES = [
+    '7723c334-d06c-413d-96f0-be281d76520d', // Vieille ville
+    '043899a1-a232-4c4b-9d7d-0eb44dad00ad'  // Centre Esplanade
+  ];
+
+  const secretairesWithCapacites = new Set(
+    todayCapacites.filter(c => c.secretaire_id).map(c => c.secretaire_id)
+  );
+
+  for (const secretaire_id of secretairesWithCapacites) {
+    // Collect all BLOC assignment variables for this secretary
+    const blocVarsMatin: string[] = [];
+    const blocVarsAM: string[] = [];
+    
+    for (const varName of Object.keys(model.variables)) {
+      if (!varName.startsWith(`assign_${secretaire_id}_`)) continue;
+      
+      // Check if this is a bloc variable
+      const isBlocVar = allNeeds.some(need => {
+        const periodCode = need.periode === 'matin' ? '1' : '2';
+        const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+          ? `${need.site_id}_${need.date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
+          : `${need.site_id}_${need.date}_${periodCode}`;
+        
+        return varName === `assign_${secretaire_id}_${needId}` && 
+               need.type === 'bloc_operatoire';
+      });
+      
+      if (isBlocVar) {
+        if (varName.includes('_1_')) blocVarsMatin.push(varName);
+        if (varName.includes('_2_')) blocVarsAM.push(varName);
+      }
+    }
+    
+    // Collect all FORBIDDEN SITE assignment variables for this secretary
+    const forbiddenVarsMatin: string[] = [];
+    const forbiddenVarsAM: string[] = [];
+    
+    for (const varName of Object.keys(model.variables)) {
+      if (!varName.startsWith(`assign_${secretaire_id}_`)) continue;
+      
+      // Check if this is a forbidden site variable
+      const isForbiddenVar = FORBIDDEN_SITES.some(siteId => 
+        varName.includes(`_${siteId}_`)
+      );
+      
+      if (isForbiddenVar) {
+        if (varName.includes('_1_')) forbiddenVarsMatin.push(varName);
+        if (varName.includes('_2_')) forbiddenVarsAM.push(varName);
+      }
+    }
+    
+    // Create auxiliary variable: bloc_forbidden_secretaireId_date
+    // This variable = 1 if (bloc_matin AND forbidden_AM) OR (forbidden_matin AND bloc_AM)
+    const auxVar = `bloc_forbidden_${secretaire_id}_${date}`;
+    model.binaries[auxVar] = 1;
+    model.variables[auxVar] = { 
+      score_total: -10000 // PENALTIES.BLOC_EXCLUSION
+    };
+    
+    // Linking constraint 1: auxVar >= bloc_matin + forbidden_AM - 1
+    if (blocVarsMatin.length > 0 && forbiddenVarsAM.length > 0) {
+      const constraint1 = `bloc_forbidden_1_${secretaire_id}_${date}`;
+      model.constraints[constraint1] = { min: -1 };
+      
+      model.variables[auxVar][constraint1] = -1;
+      for (const varName of blocVarsMatin) {
+        model.variables[varName][constraint1] = 1;
+      }
+      for (const varName of forbiddenVarsAM) {
+        model.variables[varName][constraint1] = 1;
+      }
+    }
+    
+    // Linking constraint 2: auxVar >= forbidden_matin + bloc_AM - 1
+    if (forbiddenVarsMatin.length > 0 && blocVarsAM.length > 0) {
+      const constraint2 = `bloc_forbidden_2_${secretaire_id}_${date}`;
+      model.constraints[constraint2] = { min: -1 };
+      
+      model.variables[auxVar][constraint2] = -1;
+      for (const varName of forbiddenVarsMatin) {
+        model.variables[varName][constraint2] = 1;
+      }
+      for (const varName of blocVarsAM) {
+        model.variables[varName][constraint2] = 1;
+      }
+    }
+    
+    // Linking constraint 3: auxVar <= bloc_matin + forbidden_AM
+    if (blocVarsMatin.length > 0 && forbiddenVarsAM.length > 0) {
+      const constraint3 = `bloc_forbidden_3_${secretaire_id}_${date}`;
+      model.constraints[constraint3] = { max: 0 };
+      
+      model.variables[auxVar][constraint3] = 1;
+      for (const varName of blocVarsMatin) {
+        model.variables[varName][constraint3] = -1;
+      }
+      for (const varName of forbiddenVarsAM) {
+        model.variables[varName][constraint3] = -1;
+      }
+    }
+    
+    // Linking constraint 4: auxVar <= forbidden_matin + bloc_AM
+    if (forbiddenVarsMatin.length > 0 && blocVarsAM.length > 0) {
+      const constraint4 = `bloc_forbidden_4_${secretaire_id}_${date}`;
+      model.constraints[constraint4] = { max: 0 };
+      
+      model.variables[auxVar][constraint4] = 1;
+      for (const varName of forbiddenVarsMatin) {
+        model.variables[varName][constraint4] = -1;
+      }
+      for (const varName of blocVarsAM) {
+        model.variables[varName][constraint4] = -1;
+      }
+    }
+  }
+
+  // ============================================================
+  // CONSTRAINT: Site change penalty (Big-M)
+  // ============================================================
+  const HIGH_PENALTY_SITES = [
+    '043899a1-a232-4c4b-9d7d-0eb44dad00ad', // Centre Esplanade
+    '7723c334-d06c-413d-96f0-be281d76520d'  // Vieille ville
+  ];
+
+  for (const secretaire_id of secretairesWithCapacites) {
+    // Group variables by site for morning and afternoon
+    const siteVarsMatin = new Map<string, string[]>();
+    const siteVarsAM = new Map<string, string[]>();
+    
+    for (const varName of Object.keys(model.variables)) {
+      if (!varName.startsWith(`assign_${secretaire_id}_`)) continue;
+      
+      // Extract site_id from variable name
+      const need = allNeeds.find(n => {
+        const periodCode = n.periode === 'matin' ? '1' : '2';
+        const needId = n.type === 'bloc_operatoire' && n.bloc_operation_id && n.besoin_operation_id
+          ? `${n.site_id}_${n.date}_${periodCode}_${n.bloc_operation_id}_${n.besoin_operation_id}`
+          : `${n.site_id}_${n.date}_${periodCode}`;
+        return varName === `assign_${secretaire_id}_${needId}`;
+      });
+      
+      if (!need) continue;
+      
+      // Skip ADMIN site (no penalty for admin changes)
+      if (need.site_id === ADMIN_SITE_ID) continue;
+      
+      if (need.periode === 'matin') {
+        if (!siteVarsMatin.has(need.site_id)) {
+          siteVarsMatin.set(need.site_id, []);
+        }
+        siteVarsMatin.get(need.site_id)!.push(varName);
+      } else {
+        if (!siteVarsAM.has(need.site_id)) {
+          siteVarsAM.set(need.site_id, []);
+        }
+        siteVarsAM.get(need.site_id)!.push(varName);
+      }
+    }
+    
+    // For each pair of different sites (morning vs afternoon)
+    for (const [siteIdMatin, varsMatin] of siteVarsMatin) {
+      for (const [siteIdAM, varsAM] of siteVarsAM) {
+        if (siteIdMatin === siteIdAM) continue; // Same site = no change
+        
+        // Determine penalty
+        const isHighPenalty = 
+          HIGH_PENALTY_SITES.includes(siteIdMatin) || 
+          HIGH_PENALTY_SITES.includes(siteIdAM);
+        const penalty = isHighPenalty ? -60 : -40;
+        
+        // Create auxiliary variable: site_change_secretaireId_date_siteMatin_siteAM
+        const auxVar = `site_change_${secretaire_id}_${date}_${siteIdMatin.slice(0,8)}_${siteIdAM.slice(0,8)}`;
+        model.binaries[auxVar] = 1;
+        model.variables[auxVar] = { 
+          score_total: penalty 
+        };
+        
+        // Linking constraint 1: auxVar >= site_matin + site_AM - 1
+        const constraint1 = `site_change_1_${auxVar}`;
+        model.constraints[constraint1] = { min: -1 };
+        model.variables[auxVar][constraint1] = -1;
+        
+        for (const varName of varsMatin) {
+          model.variables[varName][constraint1] = 1;
+        }
+        for (const varName of varsAM) {
+          model.variables[varName][constraint1] = 1;
+        }
+        
+        // Linking constraint 2: auxVar <= sum(site_matin)
+        const constraint2 = `site_change_2_${auxVar}`;
+        model.constraints[constraint2] = { max: 0 };
+        model.variables[auxVar][constraint2] = 1;
+        
+        for (const varName of varsMatin) {
+          model.variables[varName][constraint2] = -1;
+        }
+        
+        // Linking constraint 3: auxVar <= sum(site_AM)
+        const constraint3 = `site_change_3_${auxVar}`;
+        model.constraints[constraint3] = { max: 0 };
+        model.variables[auxVar][constraint3] = 1;
+        
+        for (const varName of varsAM) {
+          model.variables[varName][constraint3] = -1;
+        }
+      }
+    }
+  }
+
+  console.log(`\n🔧 Variables auxiliaires créées pour ${date}:`);
+  const auxVarsBloc = Object.keys(model.variables).filter(v => v.startsWith('bloc_forbidden_')).length;
+  const auxVarsSite = Object.keys(model.variables).filter(v => v.startsWith('site_change_')).length;
+  console.log(`   🚫 ${auxVarsBloc} variables bloc_forbidden`);
+  console.log(`   🔄 ${auxVarsSite} variables site_change`);
   
   return model;
 }

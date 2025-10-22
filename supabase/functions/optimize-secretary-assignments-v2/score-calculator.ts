@@ -163,44 +163,10 @@ export function calculateDynamicScore(
   }
   
   // ============================================================
-  // 3. PÉNALITÉ CHANGEMENT DE SITE (DYNAMIQUE)
+  // 3. PÉNALITÉ CHANGEMENT DE SITE (DÉSACTIVÉE - géré par MILP)
   // ============================================================
-  if (need.periode === 'apres_midi') {
-    // Check morning assignment (today or existing)
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const morningAssignment = todayAssignment?.matin || 
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === 'matin'
-      );
-    
-    if (morningAssignment) {
-      const morning_site_id = morningAssignment.site_id;
-      
-      // Site change detected
-      if (morning_site_id !== need.site_id) {
-        // Don't penalize if admin is involved
-        const isAdminInvolved = 
-          morning_site_id === ADMIN_SITE_ID ||
-          need.site_id === ADMIN_SITE_ID;
-        
-        if (!isAdminInvolved) {
-          // Vérifier si un des deux sites est Centre Esplanade ou Vieille ville
-          const morningIsHighPenalty = HIGH_PENALTY_SITES.includes(morning_site_id);
-          const afternoonIsHighPenalty = HIGH_PENALTY_SITES.includes(need.site_id);
-          
-          if (morningIsHighPenalty || afternoonIsHighPenalty) {
-            score += PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY;
-            console.log(`  ⚠️⚠️ Changement de site HIGH PENALTY (Centre Esplanade ou Vieille ville): ${PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY}`);
-          } else {
-            score += PENALTIES.CHANGEMENT_SITE;
-            console.log(`  ⚠️ Changement de site standard: ${PENALTIES.CHANGEMENT_SITE}`);
-          }
-        }
-      }
-    }
-  }
+  // Cette pénalité est maintenant gérée par les variables auxiliaires
+  // dans milp-builder.ts avec des contraintes Big-M
   
   // ============================================================
   // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3 (DYNAMIQUE)
@@ -232,46 +198,10 @@ export function calculateDynamicScore(
   }
   
   // ============================================================
-  // 5. PÉNALITÉ BLOC -> SITES INTERDITS (DYNAMIQUE)
+  // 5. PÉNALITÉ BLOC -> SITES INTERDITS (DÉSACTIVÉE - géré par MILP)
   // ============================================================
-  
-  // If this assignment is to a forbidden site
-  if (FORBIDDEN_SITES.includes(need.site_id)) {
-    // Check if assigned to bloc on the OTHER half-day
-    const otherPeriode = need.periode === 'matin' ? 'apres_midi' : 'matin';
-    
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const otherAssignment = todayAssignment?.[otherPeriode] ||
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === otherPeriode
-      );
-    
-    if (otherAssignment && otherAssignment.is_bloc) {
-      score += PENALTIES.BLOC_EXCLUSION;
-      console.log(`  ⚠️ Exclusion bloc détectée (site interdit + bloc sur autre période): ${PENALTIES.BLOC_EXCLUSION}`);
-    }
-  }
-  
-  // If this assignment is to BLOC
-  if (need.type === 'bloc_operatoire') {
-    // Check if assigned to forbidden site on the OTHER half-day
-    const otherPeriode = need.periode === 'matin' ? 'apres_midi' : 'matin';
-    
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const otherAssignment = todayAssignment?.[otherPeriode] ||
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === otherPeriode
-      );
-    
-    if (otherAssignment && FORBIDDEN_SITES.includes(otherAssignment.site_id)) {
-      score += PENALTIES.BLOC_EXCLUSION;
-      console.log(`  ⚠️ Exclusion bloc détectée (bloc + site interdit sur autre période): ${PENALTIES.BLOC_EXCLUSION}`);
-    }
-  }
+  // Cette pénalité est maintenant gérée par les variables auxiliaires
+  // dans milp-builder.ts avec des contraintes Big-M
   
   console.log(`  🎯 SCORE TOTAL: ${score}`);
   
