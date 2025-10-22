@@ -89,7 +89,7 @@ export const AddBesoinOperationTypeDialog = ({
                 <FormItem>
                   <FormLabel>Nom *</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: Responsable 1R" />
+                    <Input {...field} placeholder="Ex: Infirmier instrumentiste" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -103,7 +103,7 @@ export const AddBesoinOperationTypeDialog = ({
                 <FormItem>
                   <FormLabel>Code *</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: 1R" />
+                    <Input {...field} placeholder="Ex: INST" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -117,7 +117,7 @@ export const AddBesoinOperationTypeDialog = ({
                 <FormItem>
                   <FormLabel>Catégorie</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Ex: Responsable" />
+                    <Input {...field} placeholder="Ex: Personnel de bloc" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -133,7 +133,7 @@ export const AddBesoinOperationTypeDialog = ({
                   <FormControl>
                     <Textarea 
                       {...field} 
-                      placeholder="Description du besoin opérationnel"
+                      placeholder="Ex: Prépare et assiste le chirurgien pendant l'intervention"
                       rows={3}
                     />
                   </FormControl>
