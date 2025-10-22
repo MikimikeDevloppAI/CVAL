@@ -47,132 +47,42 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
     try {
-      const needs: UnfilledNeed[] = [];
-
-      // Fetch all sites (excluding bloc opératoire and admin)
-      const { data: sites } = await supabase
-        .from('sites')
-        .select('id, nom')
-        .eq('actif', true)
-        .not('nom', 'eq', 'Clinique La Vallée - Bloc opératoire')
-        .not('id', 'eq', '00000000-0000-0000-0000-000000000001');
-
-      if (!sites) return;
-
-      // 1. Check regular sites needs
-      for (const site of sites) {
-        for (const periode of ['matin', 'apres_midi'] as const) {
-          // Get besoins effectifs grouped by date
-          const { data: besoins } = await supabase
-            .from('besoin_effectif')
-            .select('date, medecins(besoin_secretaires)')
-            .eq('site_id', site.id)
-            .eq('type', 'medecin')
-            .eq('demi_journee', periode)
-            .gte('date', startDate)
-            .lte('date', endDate);
-
-          // Group by date and sum besoins
-          const besoinsByDate = new Map<string, number>();
-          besoins?.forEach((b: any) => {
-            const besoin = b.medecins?.besoin_secretaires || 1.2;
-            besoinsByDate.set(b.date, (besoinsByDate.get(b.date) || 0) + besoin);
-          });
-
-          // Check capacite for each date with besoins
-          for (const [date, totalBesoin] of besoinsByDate.entries()) {
-            const { data: capacite } = await supabase
-              .from('capacite_effective')
-              .select('secretaire_id')
-              .eq('site_id', site.id)
-              .eq('date', date)
-              .eq('demi_journee', periode)
-              .eq('actif', true);
-
-            const assigned = capacite?.length || 0;
-            const needed = Math.ceil(totalBesoin);
-
-            if (assigned < needed) {
-              const suggestions = await generateSuggestions(date, periode, site.id, undefined);
-              needs.push({
-                date,
-                periode,
-                site_id: site.id,
-                site_nom: site.nom,
-                manque: needed - assigned,
-                suggestions
-              });
-            }
-          }
-        }
-      }
-
-      // 2. Check bloc opératoire needs
-      const { data: blocNeeds } = await supabase
-        .from('besoin_effectif')
-        .select(`
-          date,
-          demi_journee,
-          type_intervention_id,
-          types_intervention(nom),
-          id
-        `)
-        .eq('type', 'bloc_operatoire')
+      // Une seule requête pour récupérer tous les besoins non satisfaits depuis la materialized view
+      const { data: needs, error } = await supabase
+        .from('besoins_non_satisfaits_summary')
+        .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .not('type_intervention_id', 'is', null);
+        .gt('manque', 0)
+        .order('date', { ascending: true })
+        .order('periode', { ascending: true });
 
-      for (const besoin of blocNeeds || []) {
-        // Get required personnel for this intervention type
-        const { data: besoinsPersonnel } = await supabase
-          .from('types_intervention_besoins_personnel')
-          .select('besoin_operation_id, nombre_requis, besoins_operations(nom)')
-          .eq('type_intervention_id', besoin.type_intervention_id)
-          .eq('actif', true);
+      if (error) throw error;
 
-        for (const bp of besoinsPersonnel || []) {
-          // Count assigned secretaries for this besoin
-          const { data: assignedCapacite } = await supabase
-            .from('capacite_effective')
-            .select('secretaire_id')
-            .eq('besoin_operation_id', bp.besoin_operation_id)
-            .eq('date', besoin.date)
-            .eq('demi_journee', besoin.demi_journee)
-            .eq('actif', true);
+      // Générer les suggestions pour chaque besoin
+      const needsWithSuggestions = await Promise.all(
+        (needs || []).map(async (need) => {
+          const suggestions = await generateSuggestions(
+            need.date,
+            need.periode as 'matin' | 'apres_midi',
+            need.site_id,
+            need.besoin_operation_id
+          );
+          
+          return {
+            date: need.date,
+            periode: need.periode as 'matin' | 'apres_midi',
+            site_id: need.site_id,
+            site_nom: need.site_nom,
+            besoin_operation_id: need.besoin_operation_id,
+            besoin_operation_nom: need.besoin_operation_nom,
+            manque: need.manque,
+            suggestions
+          };
+        })
+      );
 
-          const assigned = assignedCapacite?.length || 0;
-          const needed = bp.nombre_requis;
-
-          if (assigned < needed) {
-            // Get bloc site
-            const { data: blocSite } = await supabase
-              .from('sites')
-              .select('id, nom')
-              .eq('nom', 'Clinique La Vallée - Bloc opératoire')
-              .single();
-
-            const suggestions = await generateSuggestions(
-              besoin.date,
-              besoin.demi_journee as 'matin' | 'apres_midi',
-              blocSite?.id || '',
-              bp.besoin_operation_id
-            );
-
-            needs.push({
-              date: besoin.date,
-              periode: besoin.demi_journee as 'matin' | 'apres_midi',
-              site_id: blocSite?.id || '',
-              site_nom: `Bloc opératoire - ${besoin.types_intervention?.nom || ''}`,
-              besoin_operation_id: bp.besoin_operation_id,
-              besoin_operation_nom: (bp.besoins_operations as any)?.nom,
-              manque: needed - assigned,
-              suggestions
-            });
-          }
-        }
-      }
-
-      setUnfilledNeeds(needs);
+      setUnfilledNeeds(needsWithSuggestions);
     } catch (error) {
       console.error('Error fetching unfilled needs:', error);
       toast.error('Erreur lors du chargement des besoins non remplis');

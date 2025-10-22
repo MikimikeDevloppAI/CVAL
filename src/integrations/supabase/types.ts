@@ -1157,7 +1157,22 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      besoins_non_satisfaits_summary: {
+        Row: {
+          besoin_operation_id: string | null
+          besoin_operation_nom: string | null
+          date: string | null
+          is_fermeture_incomplete: boolean | null
+          manque: number | null
+          nombre_assigne: number | null
+          nombre_requis: number | null
+          periode: Database["public"]["Enums"]["demi_journee"] | null
+          site_id: string | null
+          site_nom: string | null
+          type_besoin: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       assign_room_for_operation: {
@@ -1241,6 +1256,10 @@ export type Database = {
           p_date_fin: string
           p_secretaire_id: string
         }
+        Returns: undefined
+      }
+      refresh_besoins_non_satisfaits: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       should_doctor_work: {
