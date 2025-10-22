@@ -10,7 +10,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit2, Trash2, MapPin } from "lucide-react";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
-import { ConfigurationsMultiFluxManagement } from "./ConfigurationsMultiFluxManagement";
 
 interface TypeIntervention {
   id: string;
@@ -404,8 +403,6 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
           <p className="text-muted-foreground text-sm">Aucun type d'intervention configuré</p>
         </div>
       )}
-
-      <ConfigurationsMultiFluxManagement />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
