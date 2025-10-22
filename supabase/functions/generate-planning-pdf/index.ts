@@ -250,7 +250,7 @@ serve(async (req) => {
 
     // Convert to PDF via ConvertAPI
     const convertResponse = await fetch(
-      `https://v2.convertapi.com/convert/html/to/pdf?Secret=${convertApiSecret}`,
+      `https://v2.convertapi.com/convert/html/to/pdf?Secret=${convertApiSecret}&StoreFile=true`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -267,7 +267,8 @@ serve(async (req) => {
             { Name: 'MarginTop', Value: '10' },
             { Name: 'MarginBottom', Value: '10' },
             { Name: 'MarginLeft', Value: '10' },
-            { Name: 'MarginRight', Value: '10' }
+            { Name: 'MarginRight', Value: '10' },
+            { Name: 'StoreFile', Value: 'true' }
           ]
         })
       }
