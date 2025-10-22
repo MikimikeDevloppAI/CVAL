@@ -1123,7 +1123,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             {Array.from(needsByDate.entries()).map(([date, needs]) => (
               <div key={date} className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-semibold">
-                  <span>📅</span>
                   {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
                 </div>
 
