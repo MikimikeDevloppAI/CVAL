@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -19,6 +19,7 @@ interface WeekSelectorProps {
 export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
   const [open, setOpen] = useState(false);
   const [weeks, setWeeks] = useState<Date[]>([]);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Generate 26 weeks before and 26 weeks after current week (total 53 weeks)
@@ -46,6 +47,32 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
     setOpen(false);
   };
 
+  // Auto-scroll to current week when dropdown opens
+  useEffect(() => {
+    if (open && scrollAreaRef.current && weeks.length > 0) {
+      // Find the index of the current week in the list
+      const currentWeekIndex = weeks.findIndex(w => 
+        isSameWeek(w, currentDate, { locale: fr, weekStartsOn: 1 })
+      );
+      
+      if (currentWeekIndex !== -1) {
+        // Each item is approximately 44px tall (py-2 + text)
+        const itemHeight = 44;
+        const scrollPosition = currentWeekIndex * itemHeight;
+        
+        // Scroll to position with current week near the top
+        setTimeout(() => {
+          if (scrollAreaRef.current) {
+            const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+            if (viewport) {
+              viewport.scrollTop = Math.max(0, scrollPosition - 50);
+            }
+          }
+        }, 0);
+      }
+    }
+  }, [open, weeks, currentDate]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -67,7 +94,7 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
         className="w-[320px] p-0 backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50"
         align="center"
       >
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[300px]" ref={scrollAreaRef}>
           <div className="p-2 space-y-1">
             {weeks.map((weekDate, index) => {
               const weekStart = startOfWeek(weekDate, { locale: fr, weekStartsOn: 1 });
