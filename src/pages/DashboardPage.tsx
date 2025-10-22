@@ -153,14 +153,15 @@ const DashboardPage = () => {
         .from('sites')
         .select('*')
         .eq('actif', true)
-        .not('nom', 'eq', 'Clinique La Vallée - Bloc opératoire')
         .order('nom');
 
       if (!sitesData) return;
 
-      // Filter out any administrative site from the database
+      // Filter out bloc opératoire and administrative sites
       const sites = sitesData.filter(site => 
-        !site.nom.toLowerCase().includes('administratif')
+        !site.nom.toLowerCase().includes('administratif') &&
+        !site.nom.toLowerCase().includes('bloc') &&
+        !site.nom.toLowerCase().includes('opératoire')
       );
 
       // Add administrative site at the end
