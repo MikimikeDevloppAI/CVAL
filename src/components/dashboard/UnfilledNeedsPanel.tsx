@@ -194,7 +194,29 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         
         // Ne PAS générer les suggestions ici, juste stocker les infos de base
         if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
+          // Compter les assignations existantes pour chaque besoin
+          const { data: assignations } = await supabase
+            .from('capacite_effective')
+            .select('besoin_operation_id')
+            .eq('planning_genere_bloc_operatoire_id', need.planning_genere_bloc_operatoire_id)
+            .eq('demi_journee', periode)
+            .eq('actif', true);
+
+          // Créer un compteur par besoin_operation_id
+          const assignationsCount = new Map<string, number>();
+          assignations?.forEach(a => {
+            if (a.besoin_operation_id) {
+              assignationsCount.set(
+                a.besoin_operation_id, 
+                (assignationsCount.get(a.besoin_operation_id) || 0) + 1
+              );
+            }
+          });
+
           for (const besoin of aggregated.besoins_personnel) {
+            const nombreAssigne = assignationsCount.get(besoin.besoin_operation_id) || 0;
+            const nombreManquant = Math.max(0, besoin.nombre_requis - nombreAssigne);
+            
             // Initialiser avec des tableaux vides
             if (periode === 'matin') {
               besoin.suggestions_matin = {
@@ -207,7 +229,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 suggestions_not_working: []
               };
             }
-            besoin.nombre_manquant = besoin.nombre_requis;
+            besoin.nombre_manquant = nombreManquant;
           }
         } else {
           // Cas site normal
@@ -216,10 +238,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             suggestions_admin: [],
             suggestions_not_working: []
           };
+          // Pour les sites normaux: utiliser la valeur de la vue
+          aggregated.total_manque += need.nombre_manquant;
         }
-
-        aggregated.total_manque += need.nombre_manquant;
       }
+
+      // Recalculer le total_manque pour les blocs opératoires après avoir traité toutes les périodes
+      grouped.forEach(aggregated => {
+        if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
+          // Pour les blocs opératoires: sommer tous les besoins manquants
+          aggregated.total_manque = aggregated.besoins_personnel.reduce(
+            (sum, besoin) => sum + besoin.nombre_manquant, 
+            0
+          );
+        }
+      });
 
       // Marquer les besoins avec les deux périodes
       grouped.forEach(need => {
@@ -1220,7 +1253,16 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   </Button>
                 </div>
 
-                {needs.map(need => {
+                {needs
+                  .filter(need => {
+                    // Pour les blocs opératoires, vérifier qu'il y a au moins un besoin manquant
+                    if (need.besoins_personnel && need.besoins_personnel.length > 0) {
+                      return need.besoins_personnel.some(besoin => besoin.nombre_manquant > 0);
+                    }
+                    // Pour les sites normaux, vérifier qu'il y a des besoins manquants
+                    return need.total_manque > 0;
+                  })
+                  .map(need => {
                   const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || 'site'}`;
                   
                   return (
@@ -1233,7 +1275,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                               <span className="font-medium">{need.site_nom}</span>
                             </div>
                           </div>
-                          {need.besoins_personnel.map(besoin => (
+                          {need.besoins_personnel
+                            .filter(besoin => besoin.nombre_manquant > 0)
+                            .map(besoin => (
                             <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg bg-card border border-border/50">
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="bg-background">
