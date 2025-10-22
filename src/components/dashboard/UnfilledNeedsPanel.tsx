@@ -48,7 +48,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
-  const [collapsedFullDays, setCollapsedFullDays] = useState<Set<string>>(new Set());
+  const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
 
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
@@ -278,8 +278,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       notWorking.sort(sortByPref);
 
       return {
-        admin: admin.slice(0, 3),
-        notWorking: notWorking.slice(0, 3)
+        admin,
+        notWorking
       };
     } catch (error) {
       console.error('Error generating suggestions:', error);
@@ -375,6 +375,11 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     const periodData = need.periods[periode];
     if (!periodData) return null;
 
+    const suggestionKey = `${need.date}-${periode}-${need.site_id}`;
+    const isExpanded = expandedSuggestions.has(suggestionKey);
+    const adminToShow = isExpanded ? periodData.suggestions_admin : periodData.suggestions_admin.slice(0, 3);
+    const notWorkingToShow = isExpanded ? periodData.suggestions_not_working : periodData.suggestions_not_working.slice(0, 3);
+
     return (
       <div className="ml-4 p-4 rounded-lg bg-muted/20 border-l-2 border-primary/30 space-y-4">
         <div className="flex items-center justify-between">
@@ -396,7 +401,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
               En administratif ({periodData.suggestions_admin.length})
             </h4>
             <div className="space-y-2">
-              {periodData.suggestions_admin.map(sug => {
+              {adminToShow.map(sug => {
                 const key = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-false`;
                 const keyFull = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-true`;
                 return (
@@ -439,15 +444,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           </div>
         )}
 
-        {/* Catégorie 2: Ne travaille pas */}
+        {/* Catégorie 2: Ajouter créneau */}
         {periodData.suggestions_not_working.length > 0 && (
           <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 space-y-2">
             <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-blue-500" />
-              Disponibles ({periodData.suggestions_not_working.length})
+              Ajouter créneau ({periodData.suggestions_not_working.length})
             </h4>
             <div className="space-y-2">
-              {periodData.suggestions_not_working.map(sug => {
+              {notWorkingToShow.map(sug => {
                 const key = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-false`;
                 return (
                   <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
@@ -473,6 +478,30 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Bouton Voir toutes */}
+        {(periodData.suggestions_admin.length > 3 || periodData.suggestions_not_working.length > 3) && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setExpandedSuggestions(prev => {
+                  const next = new Set(prev);
+                  if (isExpanded) {
+                    next.delete(suggestionKey);
+                  } else {
+                    next.add(suggestionKey);
+                  }
+                  return next;
+                });
+              }}
+              className="text-xs"
+            >
+              {isExpanded ? 'Voir moins' : `Voir toutes (${periodData.suggestions_admin.length + periodData.suggestions_not_working.length})`}
+            </Button>
           </div>
         )}
 
@@ -527,32 +556,18 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
                 {needs.map(need => {
                   const needKey = `${need.date}-${need.site_id}-${need.besoin_operation_id}`;
-                  const isCollapsed = !collapsedFullDays.has(needKey);
                   
                   return (
                     <div key={needKey} className="space-y-3">
                       {need.has_both_periods ? (
-                        <Collapsible 
-                          open={!isCollapsed} 
-                          onOpenChange={(open) => {
-                            setCollapsedFullDays(prev => {
-                              const next = new Set(prev);
-                              if (open) {
-                                next.delete(needKey);
-                              } else {
-                                next.add(needKey);
-                              }
-                              return next;
-                            });
-                          }}
-                        >
+                        <Collapsible defaultOpen={false}>
                           <div className="p-3 rounded-lg bg-card border border-destructive/30">
-                            <CollapsibleTrigger className="w-full flex items-center gap-2">
+                            <CollapsibleTrigger className="w-full flex items-center gap-2 hover:opacity-80 transition-opacity">
                               <Badge variant="destructive">Journée entière manquante</Badge>
                               <span className="font-medium">{need.site_nom}</span>
                               <span className="text-sm text-muted-foreground ml-auto flex items-center gap-2">
                                 Total: <span className="font-semibold text-destructive">{need.total_manque}</span>
-                                <ChevronDown className={`h-4 w-4 transition-transform ${!isCollapsed ? 'rotate-180' : ''}`} />
+                                <ChevronDown className="h-4 w-4 transition-transform" />
                               </span>
                             </CollapsibleTrigger>
                           </div>
