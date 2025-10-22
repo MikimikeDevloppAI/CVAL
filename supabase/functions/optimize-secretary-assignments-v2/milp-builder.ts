@@ -205,6 +205,91 @@ export function buildMILPModelSoft(
   }
   
   // ============================================================
+  // CONSTRAINT: Maximum capacity per need (no over-assignment)
+  // ============================================================
+  console.log(`\n🎯 Ajout des contraintes de capacité maximale...`);
+  
+  // For morning needs
+  for (const need of needsMatin) {
+    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+      ? `${need.site_id}_${date}_1_${need.bloc_operation_id}_${need.besoin_operation_id}`
+      : `${need.site_id}_${date}_1`;
+    
+    const constraintName = `max_cap_${needId}`;
+    model.constraints[constraintName] = { max: need.nombre_max };
+    
+    // Find all combos that cover this morning need
+    for (const combo of combos) {
+      if (combo.needMatin) {
+        const comboNeedId = combo.needMatin.type === 'bloc_operatoire' && 
+                            combo.needMatin.bloc_operation_id && 
+                            combo.needMatin.besoin_operation_id
+          ? `${combo.needMatin.site_id}_${date}_1_${combo.needMatin.bloc_operation_id}_${combo.needMatin.besoin_operation_id}`
+          : `${combo.needMatin.site_id}_${date}_1`;
+        
+        if (comboNeedId === needId) {
+          model.variables[combo.varName][constraintName] = 1;
+        }
+      }
+    }
+    
+    if (DEBUG_VERBOSE) {
+      const site = week_data.sites.find(s => s.id === need.site_id);
+      const siteName = site?.nom || need.site_id.slice(0, 8);
+      const coveringCombos = combos.filter(c => {
+        if (!c.needMatin) return false;
+        const comboNeedId = c.needMatin.type === 'bloc_operatoire' && 
+                            c.needMatin.bloc_operation_id && 
+                            c.needMatin.besoin_operation_id
+          ? `${c.needMatin.site_id}_${date}_1_${c.needMatin.bloc_operation_id}_${c.needMatin.besoin_operation_id}`
+          : `${c.needMatin.site_id}_${date}_1`;
+        return comboNeedId === needId;
+      });
+      console.log(`  🌅 ${siteName} matin: max ${need.nombre_max} (${coveringCombos.length} combos possibles)`);
+    }
+  }
+  
+  // For afternoon needs
+  for (const need of needsAM) {
+    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
+      ? `${need.site_id}_${date}_2_${need.bloc_operation_id}_${need.besoin_operation_id}`
+      : `${need.site_id}_${date}_2`;
+    
+    const constraintName = `max_cap_${needId}`;
+    model.constraints[constraintName] = { max: need.nombre_max };
+    
+    // Find all combos that cover this afternoon need
+    for (const combo of combos) {
+      if (combo.needAM) {
+        const comboNeedId = combo.needAM.type === 'bloc_operatoire' && 
+                            combo.needAM.bloc_operation_id && 
+                            combo.needAM.besoin_operation_id
+          ? `${combo.needAM.site_id}_${date}_2_${combo.needAM.bloc_operation_id}_${combo.needAM.besoin_operation_id}`
+          : `${combo.needAM.site_id}_${date}_2`;
+        
+        if (comboNeedId === needId) {
+          model.variables[combo.varName][constraintName] = 1;
+        }
+      }
+    }
+    
+    if (DEBUG_VERBOSE) {
+      const site = week_data.sites.find(s => s.id === need.site_id);
+      const siteName = site?.nom || need.site_id.slice(0, 8);
+      const coveringCombos = combos.filter(c => {
+        if (!c.needAM) return false;
+        const comboNeedId = c.needAM.type === 'bloc_operatoire' && 
+                            c.needAM.bloc_operation_id && 
+                            c.needAM.besoin_operation_id
+          ? `${c.needAM.site_id}_${date}_2_${c.needAM.bloc_operation_id}_${c.needAM.besoin_operation_id}`
+          : `${c.needAM.site_id}_${date}_2`;
+        return comboNeedId === needId;
+      });
+      console.log(`  🌇 ${siteName} AM: max ${need.nombre_max} (${coveringCombos.length} combos possibles)`);
+    }
+  }
+  
+  // ============================================================
   // CONSTRAINT: Closure sites (at least 2 full-day assignments)
   // ============================================================
   const closureSites = week_data.sites.filter(s => s.fermeture);
@@ -265,6 +350,9 @@ export function buildMILPModelSoft(
   console.log(`\n📊 Modèle MILP:`);
   console.log(`  Variables: ${variableCount}`);
   console.log(`  Contraintes: ${constraintCount}`);
+  console.log(`  - Une combo par secrétaire: ${activeSecretaires.size}`);
+  console.log(`  - Capacité max par besoin: ${needsMatin.length + needsAM.length}`);
+  console.log(`  - Sites de fermeture: ${closureSites.length}`);
   console.log(`  Combos: ${comboCount}`);
   
   return model;
