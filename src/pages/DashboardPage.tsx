@@ -20,6 +20,7 @@ import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard'
 import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
+import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
 import { toast } from 'sonner';
 
 interface PersonnePresence {
@@ -127,6 +128,7 @@ const DashboardPage = () => {
   const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
+  const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -638,44 +640,6 @@ const DashboardPage = () => {
     setCurrentWeek(new Date());
   };
 
-  const handleGeneratePDF = async () => {
-    try {
-      setLoading(true);
-      toast.success('Génération du PDF', {
-        description: 'Le PDF est en cours de génération...',
-      });
-
-      const { data, error } = await supabase.functions.invoke('generate-planning-pdf', {
-        body: { 
-          startDate: format(startOfWeek(currentWeek), 'yyyy-MM-dd'),
-          endDate: format(endOfWeek(currentWeek), 'yyyy-MM-dd')
-        }
-      });
-
-      if (error) throw error;
-
-      // Créer un blob et télécharger le PDF
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `planning-${format(currentWeek, 'yyyy-MM-dd')}.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Succès', {
-        description: 'Le PDF a été généré avec succès',
-      });
-    } catch (error) {
-      console.error('Erreur génération PDF:', error);
-      toast.error('Erreur', {
-        description: 'Impossible de générer le PDF',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="w-full space-y-6">
       {/* Quick Actions */}
@@ -726,7 +690,7 @@ const DashboardPage = () => {
         <QuickActionButton
           label="Générer PDF"
           icon={<FileText className="h-6 w-6" />}
-          onClick={handleGeneratePDF}
+          onClick={() => setGeneratePdfDialogOpen(true)}
           gradient="from-pink-500 to-rose-500"
         />
       </div>
@@ -913,6 +877,11 @@ const DashboardPage = () => {
         onOpenChange={setAddOperationDialogOpen}
         currentWeekStart={currentWeek}
         onSuccess={fetchDashboardData}
+      />
+
+      <GeneratePdfDialog
+        open={generatePdfDialogOpen}
+        onOpenChange={setGeneratePdfDialogOpen}
       />
     </div>
   );

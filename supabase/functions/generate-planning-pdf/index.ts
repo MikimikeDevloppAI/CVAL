@@ -1,4 +1,5 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,475 +7,668 @@ const corsHeaders = {
 };
 
 interface Assignment {
-  date: string;          // Format dd/MM/yyyy
-  periode: string;       // "Matin" ou "Après-midi"
+  date: string;
+  periode: 'Matin' | 'Après-midi' | 'Journée entière';
   site: string;
   is1R: boolean;
   is2F: boolean;
   is3F: boolean;
-  type: string;          // 'site' | 'administratif' | 'bloc'
+  type: 'site' | 'administratif' | 'bloc';
   typeBesoinBloc?: string;
   salle?: string;
+  typeIntervention?: string;
+  medecin?: string;
 }
 
-interface Secretary {
+interface SecretaryData {
   id: string;
   name: string;
   assignments: Assignment[];
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const weekStart: string = String(body?.weekStart || '');
-    const weekEnd: string = String(body?.weekEnd || '');
-    const secretaries: Secretary[] = Array.isArray(body?.secretaries) ? body.secretaries : [];
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const convertApiSecret = Deno.env.get('CONVERTAPI_SECRET')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const convertApiSecret = Deno.env.get('CONVERTAPI_SECRET');
 
-    // Generate HTML content
-    const html = generatePlanningHTML(secretaries, weekStart, weekEnd);
-    console.log('PDF generation input:', { weekStart, weekEnd, secretariesCount: secretaries.length });
-
-    const makeSafeFilename = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-');
-    const safeBaseName = makeSafeFilename(`planning_${weekStart}_${weekEnd}`);
-
-    // Encode HTML to Base64
-    const encoder = new TextEncoder();
-    const htmlBytes = encoder.encode(html);
-    let binary = '';
-    for (let i = 0; i < htmlBytes.length; i++) {
-      binary += String.fromCharCode(htmlBytes[i]);
+    if (!convertApiSecret) {
+      throw new Error('CONVERTAPI_SECRET not configured');
     }
-    const base64Html = btoa(binary);
 
-    // Convert HTML to PDF
-    const convertUrl = `https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(convertApiSecret)}&StoreFile=true`;
-    const payload = {
-      Parameters: [
-        { Name: 'File', FileValue: { Name: `${safeBaseName}.html`, Data: base64Html } },
-        { Name: 'FileName', Value: `${safeBaseName}.pdf` },
-        { Name: 'MarginTop', Value: '15' },
-        { Name: 'MarginBottom', Value: '12' },
-        { Name: 'MarginLeft', Value: '10' },
-        { Name: 'MarginRight', Value: '10' },
-        { Name: 'PageSize', Value: 'a4' },
-      ],
-    };
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const convertApiResponse = await fetch(convertUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const { selectedWeeks } = await req.json();
+
+    if (!selectedWeeks || selectedWeeks.length === 0) {
+      throw new Error('No weeks selected');
+    }
+
+    // Sort weeks chronologically
+    const sortedWeeks = [...selectedWeeks].sort();
+    const dateDebut = sortedWeeks[0];
+    const dateFin = new Date(sortedWeeks[sortedWeeks.length - 1]);
+    dateFin.setDate(dateFin.getDate() + 6); // Add 6 days to get Saturday
+    const dateFinStr = dateFin.toISOString().split('T')[0];
+
+    console.log(`Generating PDF from ${dateDebut} to ${dateFinStr}`);
+
+    // Fetch all capacite_effective for the period
+    const { data: capacites, error: capacitesError } = await supabase
+      .from('capacite_effective')
+      .select(`
+        id,
+        date,
+        demi_journee,
+        site_id,
+        is_1r,
+        is_2f,
+        is_3f,
+        besoin_operation_id,
+        planning_genere_bloc_operatoire_id,
+        secretaire_id,
+        sites!inner(nom),
+        secretaires!inner(first_name, name)
+      `)
+      .gte('date', dateDebut)
+      .lte('date', dateFinStr)
+      .eq('actif', true)
+      .order('secretaires(name)')
+      .order('date')
+      .order('demi_journee');
+
+    if (capacitesError) {
+      console.error('Error fetching capacites:', capacitesError);
+      throw capacitesError;
+    }
+
+    console.log(`Found ${capacites?.length || 0} capacites`);
+
+    // Fetch besoins operations
+    const besoinIds = capacites
+      ?.map(c => c.besoin_operation_id)
+      .filter(Boolean) || [];
+
+    let besoinsOpsMap = new Map();
+    if (besoinIds.length > 0) {
+      const { data: besoinsOps } = await supabase
+        .from('besoins_operations')
+        .select('id, nom')
+        .in('id', besoinIds);
+      
+      if (besoinsOps) {
+        besoinsOpsMap = new Map(besoinsOps.map(b => [b.id, b.nom]));
+      }
+    }
+
+    // Fetch bloc operations
+    const blocIds = capacites
+      ?.map(c => c.planning_genere_bloc_operatoire_id)
+      .filter(Boolean) || [];
+
+    let blocsMap = new Map();
+    if (blocIds.length > 0) {
+      const { data: blocs } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          id,
+          salle_assignee,
+          type_intervention_id,
+          medecin_id,
+          salles_operation(name),
+          types_intervention(nom),
+          medecins(first_name, name)
+        `)
+        .in('id', blocIds);
+      
+      if (blocs) {
+        blocsMap = new Map(blocs.map(b => [b.id, b]));
+      }
+    }
+
+    // Group by secretary
+    const secretariesMap = new Map<string, SecretaryData>();
+
+    capacites?.forEach((cap: any) => {
+      const secretaireId = cap.secretaire_id;
+      const secretaireName = `${cap.secretaires.first_name || ''} ${cap.secretaires.name || ''}`.trim();
+
+      if (!secretariesMap.has(secretaireId)) {
+        secretariesMap.set(secretaireId, {
+          id: secretaireId,
+          name: secretaireName,
+          assignments: []
+        });
+      }
+
+      const secretary = secretariesMap.get(secretaireId)!;
+      const siteName = cap.sites?.nom || 'Site inconnu';
+      
+      // Determine type
+      let type: 'site' | 'administratif' | 'bloc' = 'site';
+      let typeBesoinBloc: string | undefined;
+      let salle: string | undefined;
+      let typeIntervention: string | undefined;
+      let medecin: string | undefined;
+
+      if (cap.planning_genere_bloc_operatoire_id) {
+        type = 'bloc';
+        const blocData = blocsMap.get(cap.planning_genere_bloc_operatoire_id);
+        if (blocData) {
+          salle = blocData.salles_operation?.name;
+          typeIntervention = blocData.types_intervention?.nom;
+          if (blocData.medecins) {
+            medecin = `${blocData.medecins.first_name || ''} ${blocData.medecins.name || ''}`.trim();
+          }
+        }
+      } else if (cap.besoin_operation_id) {
+        type = 'bloc';
+        typeBesoinBloc = besoinsOpsMap.get(cap.besoin_operation_id);
+      } else if (siteName.toLowerCase().includes('administratif')) {
+        type = 'administratif';
+      }
+
+      const assignment: Assignment = {
+        date: cap.date,
+        periode: cap.demi_journee === 'matin' ? 'Matin' : 'Après-midi',
+        site: siteName,
+        is1R: cap.is_1r || false,
+        is2F: cap.is_2f || false,
+        is3F: cap.is_3f || false,
+        type,
+        typeBesoinBloc,
+        salle,
+        typeIntervention,
+        medecin
+      };
+
+      secretary.assignments.push(assignment);
     });
 
-    if (!convertApiResponse.ok) {
-      const errorText = await convertApiResponse.text();
-      console.error('ConvertAPI error:', convertApiResponse.status, errorText);
-      throw new Error(`ConvertAPI failed (${convertApiResponse.status}): ${errorText}`);
+    // Convert map to array and sort alphabetically
+    const secretaries = Array.from(secretariesMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+    console.log(`Processing ${secretaries.length} secretaries`);
+
+    // Merge morning/afternoon into full day where applicable
+    secretaries.forEach(sec => {
+      const byDate = new Map<string, Assignment[]>();
+      
+      sec.assignments.forEach(a => {
+        if (!byDate.has(a.date)) {
+          byDate.set(a.date, []);
+        }
+        byDate.get(a.date)!.push(a);
+      });
+
+      const mergedAssignments: Assignment[] = [];
+      
+      byDate.forEach((assignments, date) => {
+        const matin = assignments.find(a => a.periode === 'Matin');
+        const am = assignments.find(a => a.periode === 'Après-midi');
+
+        if (matin && am) {
+          // Check if they can be merged
+          const canMerge = 
+            matin.site === am.site &&
+            matin.type === am.type &&
+            (matin.type !== 'bloc' || (
+              matin.salle === am.salle &&
+              matin.typeIntervention === am.typeIntervention
+            ));
+
+          if (canMerge) {
+            mergedAssignments.push({
+              ...matin,
+              periode: 'Journée entière',
+              is1R: matin.is1R || am.is1R,
+              is2F: matin.is2F || am.is2F,
+              is3F: matin.is3F || am.is3F,
+            });
+          } else {
+            mergedAssignments.push(matin, am);
+          }
+        } else {
+          assignments.forEach(a => mergedAssignments.push(a));
+        }
+      });
+
+      sec.assignments = mergedAssignments.sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        const periodeOrder = { 'Matin': 0, 'Après-midi': 1, 'Journée entière': 2 };
+        return (periodeOrder[a.periode] || 0) - (periodeOrder[b.periode] || 0);
+      });
+    });
+
+    // Generate HTML
+    const html = generatePlanningHTML(secretaries, dateDebut, dateFinStr);
+
+    // Convert to PDF via ConvertAPI
+    const convertResponse = await fetch(
+      `https://v2.convertapi.com/convert/html/to/pdf?Secret=${convertApiSecret}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Parameters: [
+            {
+              Name: 'File',
+              FileValue: {
+                Name: 'planning.html',
+                Data: btoa(unescape(encodeURIComponent(html)))
+              }
+            },
+            { Name: 'PageSize', Value: 'a4' },
+            { Name: 'MarginTop', Value: '10' },
+            { Name: 'MarginBottom', Value: '10' },
+            { Name: 'MarginLeft', Value: '10' },
+            { Name: 'MarginRight', Value: '10' }
+          ]
+        })
+      }
+    );
+
+    if (!convertResponse.ok) {
+      const errorText = await convertResponse.text();
+      console.error('ConvertAPI error:', errorText);
+      throw new Error(`ConvertAPI failed: ${convertResponse.status}`);
     }
 
-    const pdfData = await convertApiResponse.json();
-    if (!pdfData?.Files?.[0]?.Url) {
-      throw new Error('ConvertAPI returned no file URL');
-    }
-    const pdfUrl = pdfData.Files[0].Url;
+    const convertData = await convertResponse.json();
+    const pdfUrl = convertData.Files[0].Url;
 
-    // Download and upload to Supabase
+    // Download PDF
     const pdfResponse = await fetch(pdfUrl);
-    const pdfBuffer = await pdfResponse.arrayBuffer();
+    const pdfBlob = await pdfResponse.blob();
+    const pdfBuffer = await pdfBlob.arrayBuffer();
 
-    const fileName = `${safeBaseName}_${Date.now()}.pdf`;
-    const { error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage
+    const fileName = `planning_${dateDebut}_${dateFinStr}_${Date.now()}.pdf`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('planning-pdfs')
       .upload(fileName, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: false,
+        upsert: false
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
+    }
 
+    // Get public URL
     const { data: urlData } = supabase.storage
       .from('planning-pdfs')
       .getPublicUrl(fileName);
 
+    const publicUrl = urlData.publicUrl;
+
+    // Insert into planning_pdfs table
+    const { data: insertData, error: insertError } = await supabase
+      .from('planning_pdfs')
+      .insert({
+        date_debut: dateDebut,
+        date_fin: dateFinStr,
+        pdf_url: publicUrl,
+        file_name: fileName,
+        nombre_secretaires: secretaries.length,
+        nombre_semaines: selectedWeeks.length
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      throw insertError;
+    }
+
+    console.log('PDF generated successfully:', publicUrl);
+
     return new Response(
-      JSON.stringify({ success: true, pdfUrl: urlData.publicUrl }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        pdfUrl: publicUrl,
+        pdfId: insertData.id,
+        nombreSecretaires: secretaries.length,
+        nombreSemaines: selectedWeeks.length
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
     );
-  } catch (error) {
-    console.error('Error generating PDF:', error);
+  } catch (error: any) {
+    console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
     );
   }
 });
 
-// Helper function to get room colors based on actual database values
-function getSalleColors(salle?: string): { bg: string; text: string } {
-  const defaultColors = { bg: 'linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%)', text: '#6b21a8' };
-  if (!salle) return defaultColors;
-  
-  const normalized = salle.trim().toLowerCase().replace(/^salle\s+/, '');
-  
-  switch (normalized) {
-    case 'rouge':
-      return { bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', text: '#991b1b' };
-    case 'verte':
-      return { bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', text: '#065f46' };
-    case 'jaune':
-      return { bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', text: '#92400e' };
-    case 'bleue':
-      return { bg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', text: '#1e40af' };
-    default:
-      return defaultColors;
-  }
-}
-
-function generatePlanningHTML(secretaries: Secretary[], weekStart: string, weekEnd: string): string {
-  // Fonction pour obtenir le nom du jour en français
-  const getDayName = (dateStr: string): string => {
-    const [day, month, year] = dateStr.split('/');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    return days[date.getDay()];
-  };
-  
-  // Sort secretaries alphabetically
-  const sortedSecretaries = [...secretaries].sort((a, b) => 
-    a.name.localeCompare(b.name, 'fr')
-  );
-  
-  // Regrouper par secrétaire et par jour
-  const groupedBySecretary = sortedSecretaries.map(sec => {
-    const byDay = new Map<string, { matin?: Assignment; apresMidi?: Assignment }>();
-    
-    sec.assignments.forEach(a => {
-      if (!byDay.has(a.date)) {
-        byDay.set(a.date, {});
-      }
-      const day = byDay.get(a.date)!;
-      if (a.periode.includes('Matin')) {
-        day.matin = a;
-      } else {
-        day.apresMidi = a;
-      }
+function generatePlanningHTML(
+  secretaries: SecretaryData[],
+  dateDebut: string,
+  dateFin: string
+): string {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { 
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     });
+  };
+
+  const formatDayDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+    const dayNum = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum}`;
+  };
+
+  const getSalleColor = (salle?: string) => {
+    if (!salle) return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+    const lower = salle.toLowerCase();
+    if (lower.includes('rouge')) return { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c' };
+    if (lower.includes('verte')) return { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' };
+    if (lower.includes('jaune')) return { bg: '#fefce8', border: '#fde047', text: '#a16207' };
+    if (lower.includes('bleue')) return { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' };
+    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+  };
+
+  const renderAssignment = (assignment: Assignment) => {
+    const badges: string[] = [];
     
-    return { ...sec, byDay: Array.from(byDay.entries()).sort((a, b) => {
-      const [dayA, monthA, yearA] = a[0].split('/').map(Number);
-      const [dayB, monthB, yearB] = b[0].split('/').map(Number);
-      const dateA = new Date(yearA, monthA - 1, dayA);
-      const dateB = new Date(yearB, monthB - 1, dayB);
-      return dateA.getTime() - dateB.getTime();
-    }) };
-  });
-  
-  // Split into 2 columns (zigzag pattern: 1st left, 2nd right, 3rd left, 4th right, etc.)
-  const col1: typeof groupedBySecretary = [];
-  const col2: typeof groupedBySecretary = [];
-  
-  groupedBySecretary.forEach((sec, index) => {
-    if (index % 2 === 0) {
-      col1.push(sec);
+    if (assignment.is1R) badges.push('<span class="badge badge-1r">1R</span>');
+    if (assignment.is2F) badges.push('<span class="badge badge-2f">2F</span>');
+    if (assignment.is3F) badges.push('<span class="badge badge-3f">3F</span>');
+
+    if (assignment.type === 'bloc') {
+      const parts: string[] = [];
+      parts.push('<strong>Bloc opératoire</strong>');
+      
+      if (assignment.salle) {
+        const color = getSalleColor(assignment.salle);
+        parts.push(`<span class="badge-salle" style="background: ${color.bg}; border-color: ${color.border}; color: ${color.text};">${assignment.salle}</span>`);
+      }
+      
+      if (assignment.typeIntervention) {
+        parts.push(`<span class="badge-intervention">${assignment.typeIntervention}</span>`);
+      }
+      
+      if (assignment.typeBesoinBloc) {
+        parts.push(`<span class="badge-besoin">${assignment.typeBesoinBloc}</span>`);
+      }
+      
+      if (assignment.medecin) {
+        parts.push(`<span class="badge-medecin">Dr ${assignment.medecin}</span>`);
+      }
+      
+      return parts.join(' ') + (badges.length > 0 ? ' ' + badges.join(' ') : '');
+    } else if (assignment.type === 'administratif') {
+      return '<span class="text-admin">Administratif</span>' + (badges.length > 0 ? ' ' + badges.join(' ') : '');
     } else {
-      col2.push(sec);
+      return `<strong>${assignment.site}</strong>` + (badges.length > 0 ? ' ' + badges.join(' ') : '');
+    }
+  };
+
+  const renderCard = (sec: SecretaryData) => {
+    const byDate = new Map<string, Assignment[]>();
+    sec.assignments.forEach(a => {
+      if (!byDate.has(a.date)) byDate.set(a.date, []);
+      byDate.get(a.date)!.push(a);
+    });
+
+    const sortedDates = Array.from(byDate.keys()).sort();
+
+    const daysHtml = sortedDates.map(date => {
+      const assignments = byDate.get(date)!;
+      const dayLabel = formatDayDate(date);
+
+      const assignmentsHtml = assignments.map(assignment => {
+        let periodeClass = 'period-full';
+        let periodeLabel = 'Journée entière';
+        
+        if (assignment.periode === 'Matin') {
+          periodeClass = 'period-morning';
+          periodeLabel = 'Matin';
+        } else if (assignment.periode === 'Après-midi') {
+          periodeClass = 'period-afternoon';
+          periodeLabel = 'Après-midi';
+        }
+
+        return `
+          <div class="assignment-row ${periodeClass}">
+            <div class="period-label">${periodeLabel}</div>
+            <div class="assignment-content">
+              ${renderAssignment(assignment)}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="day-block">
+          <div class="day-title">${dayLabel}</div>
+          ${assignmentsHtml}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="secretary-card">
+        <div class="secretary-name">${sec.name}</div>
+        ${daysHtml}
+      </div>
+    `;
+  };
+
+  // Split secretaries into two columns (zigzag)
+  const leftColumn: SecretaryData[] = [];
+  const rightColumn: SecretaryData[] = [];
+  
+  secretaries.forEach((sec, idx) => {
+    if (idx % 2 === 0) {
+      leftColumn.push(sec);
+    } else {
+      rightColumn.push(sec);
     }
   });
-  
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Planning - Assistant médical</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { 
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-  background: white; 
-  min-height: 100vh;
-}
 
-@page {
-  margin: 40px 30px 30px 30px;
-}
-
-.page-header {
-  text-align: center;
-  padding: 40px 0 30px 0;
-  margin-bottom: 20px;
-}
-
-.page-header h1 { 
-  font-size: 32px; 
-  font-weight: 800; 
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 8px;
-  letter-spacing: -0.5px;
-}
-
-.page-header .period { 
-  font-size: 18px; 
-  color: #64748b;
-  font-weight: 500; 
-}
-
-.content-wrapper { 
-  padding-top: 20px; 
-  padding-bottom: 40px;
-  padding-left: 30px;
-  padding-right: 30px;
-}
-
-.grid { 
-  display: grid; 
-  grid-template-columns: 1fr 1fr; 
-  gap: 24px; 
-  max-width: 1400px; 
-  margin: 0 auto; 
-}
-
-.card { 
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  page-break-inside: avoid;
-  margin-top: 20px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(255,255,255,0.9);
-  transition: transform 0.2s;
-}
-
-.secretary-name { 
-  font-size: 22px; 
-  font-weight: 800; 
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  position: relative;
-  margin-bottom: 18px; 
-  padding-bottom: 10px;
-  letter-spacing: -0.5px;
-}
-
-.secretary-name::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 2px;
-}
-
-.day-block { 
-  background: linear-gradient(135deg, #fefefe 0%, #f1f5f9 100%);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-
-.day-title { 
-  font-size: 16px; 
-  font-weight: 700; 
-  color: #334155; 
-  margin-bottom: 12px; 
-}
-
-.time-row { 
-  padding: 12px;
-  border-left: 4px solid #667eea;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  margin-bottom: 10px;
-}
-
-.time-row:last-child { margin-bottom: 0; }
-
-.time { 
-  font-size: 14px; 
-  color: #64748b; 
-  font-weight: 700; 
-  margin-bottom: 10px;
-}
-
-.content { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  flex-wrap: wrap; 
-}
-
-.site { 
-  font-size: 15px; 
-  font-weight: 700; 
-  color: #1e293b; 
-  display: inline-block;
-}
-
-.admin-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.badge { 
-  font-size: 13px; 
-  padding: 5px 12px; 
-  border-radius: 8px; 
-  font-weight: 700; 
-  display: inline-block;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border: 1px solid rgba(0,0,0,0.05);
-}
-
-.badge-1 { 
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); 
-  color: #475569; 
-}
-
-.badge-1r { 
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); 
-  color: #1e40af; 
-}
-
-.badge-2f { 
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
-  color: #92400e; 
-}
-
-.badge-3f { 
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); 
-  color: #065f46; 
-}
-
-.badge-bloc { 
-  background: linear-gradient(135deg, #e9d5ff 0%, #d8b4fe 100%); 
-  color: #6b21a8; 
-}
-
-@media print {
-  .page-header {
-    page-break-after: avoid;
-  }
-}
-</style></head><body>
-<div class="page-header">
-  <h1>Planning - Assistant médical</h1>
-  <p class="period">Semaine du ${weekStart} au ${weekEnd}</p>
-</div>
-<div class="content-wrapper">
-  <div class="grid">
-    <div>${col1.map(sec => renderCard(sec, getDayName)).join('')}</div>
-    <div>${col2.map(sec => renderCard(sec, getDayName)).join('')}</div>
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Planning - Assistants Médicaux</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f9fafb;
+      color: #111827;
+      padding: 20px;
+    }
+    
+    .page-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #0d9488;
+    }
+    
+    .page-header h1 {
+      font-size: 32px;
+      background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+    
+    .period {
+      font-size: 16px;
+      color: #6b7280;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .secretary-card {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      break-inside: avoid;
+    }
+    
+    .secretary-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #0d9488;
+    }
+    
+    .day-block {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .day-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+      text-transform: capitalize;
+    }
+    
+    .assignment-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+      margin-bottom: 6px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    
+    .period-morning {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .period-afternoon {
+      background: rgba(234, 179, 8, 0.1);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+    
+    .period-full {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    
+    .period-label {
+      font-weight: 600;
+      min-width: 100px;
+      font-size: 11px;
+    }
+    
+    .assignment-content {
+      flex: 1;
+      font-size: 11px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 4px;
+      border: 1px solid;
+    }
+    
+    .badge-1r {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #1e40af;
+    }
+    
+    .badge-2f {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: rgba(234, 179, 8, 0.3);
+      color: #a16207;
+    }
+    
+    .badge-3f {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.3);
+      color: #15803d;
+    }
+    
+    .badge-salle,
+    .badge-intervention,
+    .badge-besoin,
+    .badge-medecin {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 4px;
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      color: #374151;
+    }
+    
+    .text-admin {
+      color: #6b7280;
+      font-style: italic;
+    }
+    
+    strong {
+      font-weight: 600;
+      color: #111827;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1>Planning - Assistants Médicaux</h1>
+    <p class="period">Du ${formatDate(dateDebut)} au ${formatDate(dateFin)}</p>
   </div>
-</div>
-</body></html>`;
-}
-
-function renderCard(sec: any, getDayName: (date: string) => string): string {
-  return `<div class="card">
-<div class="secretary-name">${sec.name}</div>
-${sec.byDay.map(([date, day]: [string, any]) => {
-  const dayName = getDayName(date);
   
-  // Check if we can merge morning and afternoon
-  const canMerge = day.matin && day.apresMidi && 
-                   day.matin.site === day.apresMidi.site && 
-                   day.matin.type === day.apresMidi.type;
-  
-  if (canMerge) {
-    // Merged view
-    const assignment = day.matin;
-    const is1R = day.matin.is1R || day.apresMidi.is1R;
-    const is2F = day.matin.is2F || day.apresMidi.is2F;
-    const is3F = day.matin.is3F || day.apresMidi.is3F;
-    
-    return `<div class="day-block">
-<div class="day-title">${dayName} ${date}</div>
-<div class="time-row">
-<div class="time">Journée entière</div>
-<div class="content">
-${renderAssignmentContent(assignment, is1R, is2F, is3F)}
-</div>
-</div>
-</div>`;
-  }
-  
-  // Separate morning and afternoon
-  return `<div class="day-block">
-<div class="day-title">${dayName} ${date}</div>
-${day.matin ? `<div class="time-row">
-<div class="time">Matin</div>
-<div class="content">
-${renderAssignmentContent(day.matin, day.matin.is1R, day.matin.is2F, day.matin.is3F)}
-</div>
-</div>` : ''}
-${day.apresMidi ? `<div class="time-row">
-<div class="time">Après-midi</div>
-<div class="content">
-${renderAssignmentContent(day.apresMidi, day.apresMidi.is1R, day.apresMidi.is2F, day.apresMidi.is3F)}
-</div>
-</div>` : ''}
-</div>`;
-}).join('')}
-</div>`;
-}
-
-function renderAssignmentContent(assignment: Assignment, is1R: boolean, is2F: boolean, is3F: boolean): string {
-  if (assignment.type === 'administratif') {
-    return '<span class="admin-text">Administratif</span>';
-  } else if (assignment.type === 'bloc') {
-    const parts = ['<span class="site">Bloc opératoire</span>'];
-    
-    // Get color for the room using the helper function
-    const colors = getSalleColors(assignment.salle);
-    
-    // Badge pour la salle avec couleur spécifique
-    if (assignment.salle) {
-      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${assignment.salle}</span>`);
-    }
-    
-    // Badge pour le type de besoin (nom récupéré depuis besoins_operations)
-    if (assignment.typeBesoinBloc) {
-      parts.push(`<span class="badge" style="background: ${colors.bg} !important; color: ${colors.text} !important; border: 1px solid rgba(0,0,0,0.05) !important;">${assignment.typeBesoinBloc}</span>`);
-    }
-    
-    return parts.join('');
-  } else {
-    // type === 'site'
-    const parts = [`<span class="site">${assignment.site}</span>`];
-    
-    if (is1R) {
-      parts.push('<span class="badge badge-1r">1R</span>');
-    }
-    if (is2F) {
-      parts.push('<span class="badge badge-2f">2F</span>');
-    }
-    if (is3F) {
-      parts.push('<span class="badge badge-3f">3F</span>');
-    }
-    
-    // If no responsibility badge, add "1" badge
-    if (!is1R && !is2F && !is3F) {
-      parts.push('<span class="badge badge-1">1</span>');
-    }
-    
-    return parts.join('');
-  }
+  <div class="grid">
+    <div>
+      ${leftColumn.map(sec => renderCard(sec)).join('')}
+    </div>
+    <div>
+      ${rightColumn.map(sec => renderCard(sec)).join('')}
+    </div>
+  </div>
+</body>
+</html>
+  `;
 }

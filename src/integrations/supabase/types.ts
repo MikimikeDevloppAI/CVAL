@@ -764,6 +764,42 @@ export type Database = {
           },
         ]
       }
+      planning_pdfs: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          date_debut: string
+          date_fin: string
+          file_name: string
+          id: string
+          nombre_secretaires: number | null
+          nombre_semaines: number | null
+          pdf_url: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          date_debut: string
+          date_fin: string
+          file_name: string
+          id?: string
+          nombre_secretaires?: number | null
+          nombre_semaines?: number | null
+          pdf_url: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          date_debut?: string
+          date_fin?: string
+          file_name?: string
+          id?: string
+          nombre_secretaires?: number | null
+          nombre_semaines?: number | null
+          pdf_url?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
