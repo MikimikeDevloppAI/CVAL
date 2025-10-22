@@ -40,6 +40,7 @@ interface OperationWithNeed {
   id: string; // planning_genere_bloc_operatoire.id
   besoin_effectif_id: string;
   besoin_operation_id: string; // ID du besoin opérationnel réel
+  besoin_operation_nom: string; // Nom du besoin opérationnel
   medecin_nom: string;
   type_intervention_nom: string;
   salle_nom: string | null;
@@ -243,8 +244,9 @@ export function EditSecretaireAssignmentDialog({
         // Somme de tous les besoins requis pour cette intervention
         const totalRequis = besoinsData.reduce((sum, b) => sum + b.nombre_requis, 0);
         
-        // Récupérer le besoin_operation_id (prendre le premier si plusieurs)
+        // Récupérer le besoin_operation_id et son nom (prendre le premier si plusieurs)
         const besoinOperationId = besoinsData[0]?.besoin_operation_id;
+        const besoinOperationNom = (besoinsData[0]?.besoins_operations as any)?.nom || 'Besoin non défini';
         if (!besoinOperationId) continue;
 
         // Compter combien de secrétaires sont déjà assignées à cette opération
@@ -279,6 +281,7 @@ export function EditSecretaireAssignmentDialog({
             id: op.id,
             besoin_effectif_id: op.besoin_effectif_id,
             besoin_operation_id: besoinOperationId,
+            besoin_operation_nom: besoinOperationNom,
             medecin_nom: medecinNom,
             type_intervention_nom: op.types_intervention?.nom || 'Intervention',
             salle_nom: op.salles_operation?.name || null,
@@ -471,7 +474,7 @@ export function EditSecretaireAssignmentDialog({
                               {op.medecin_nom} - {op.type_intervention_nom}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {op.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                              {op.besoin_operation_nom} • {op.periode === 'matin' ? 'Matin' : 'Après-midi'}
                               {op.salle_nom ? ` - Salle ${op.salle_nom}` : ''}
                               {' '}- {op.besoins_assignes}/{op.besoins_requis} assigné(s)
                             </span>
