@@ -10,7 +10,7 @@ import { SecretairesPopup } from '@/components/dashboard/secretaires/Secretaires
 import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus, Building, FileText } from 'lucide-react';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -18,6 +18,8 @@ import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalenda
 import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
 import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
+import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
+import { toast } from 'sonner';
 
 interface PersonnePresence {
   id: string;
@@ -123,6 +125,7 @@ const DashboardPage = () => {
   const [operationsPopupOpen, setOperationsPopupOpen] = useState(false);
   const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
+  const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -634,30 +637,65 @@ const DashboardPage = () => {
     setCurrentWeek(new Date());
   };
 
+  const handleGeneratePDF = async () => {
+    try {
+      setLoading(true);
+      toast.success('Génération du PDF', {
+        description: 'Le PDF est en cours de génération...',
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-planning-pdf', {
+        body: { 
+          startDate: format(startOfWeek(currentWeek), 'yyyy-MM-dd'),
+          endDate: format(endOfWeek(currentWeek), 'yyyy-MM-dd')
+        }
+      });
+
+      if (error) throw error;
+
+      // Créer un blob et télécharger le PDF
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `planning-${format(currentWeek, 'yyyy-MM-dd')}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Succès', {
+        description: 'Le PDF a été généré avec succès',
+      });
+    } catch (error) {
+      console.error('Erreur génération PDF:', error);
+      toast.error('Erreur', {
+        description: 'Impossible de générer le PDF',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full space-y-6">
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
         <QuickActionButton
           label="Médecins"
           icon={<Stethoscope className="h-6 w-6" />}
           onClick={() => setMedecinsPopupOpen(true)}
           gradient="from-cyan-500 to-blue-500"
-          count={0}
         />
-          <QuickActionButton
-            label="Assistants médicaux"
-            icon={<Users className="h-6 w-6" />}
-            onClick={() => setSecretairesPopupOpen(true)}
-            gradient="from-teal-500 to-cyan-500"
-            count={stats.totalSecretary}
-          />
+        <QuickActionButton
+          label="Assistants médicaux"
+          icon={<Users className="h-6 w-6" />}
+          onClick={() => setSecretairesPopupOpen(true)}
+          gradient="from-teal-500 to-cyan-500"
+        />
         <QuickActionButton
           label="Opérations"
           icon={<ClipboardPlus className="h-6 w-6" />}
           onClick={() => setOperationsPopupOpen(true)}
           gradient="from-emerald-500 to-teal-500"
-          count={stats.todayOperations}
         />
         <QuickActionButton
           label="Absences"
@@ -666,10 +704,12 @@ const DashboardPage = () => {
           gradient="from-green-500 to-emerald-500"
           count={stats.pendingAbsences}
         />
-      </div>
-
-      {/* Planning Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <QuickActionButton
+          label="Sites"
+          icon={<Building className="h-6 w-6" />}
+          onClick={() => setSitesPopupOpen(true)}
+          gradient="from-violet-500 to-purple-500"
+        />
         <QuickActionButton
           label="Planifier"
           icon={<CalendarPlanIcon className="h-6 w-6" />}
@@ -681,6 +721,12 @@ const DashboardPage = () => {
           icon={<BarChart3 className="h-6 w-6" />}
           href="/statistiques"
           gradient="from-blue-500 to-purple-500"
+        />
+        <QuickActionButton
+          label="Générer PDF"
+          icon={<FileText className="h-6 w-6" />}
+          onClick={handleGeneratePDF}
+          gradient="from-pink-500 to-rose-500"
         />
       </div>
 
@@ -861,6 +907,11 @@ const DashboardPage = () => {
       <AbsencesJoursFeriesPopup
         open={absencesPopupOpen}
         onOpenChange={setAbsencesPopupOpen}
+      />
+
+      <SitesPopup 
+        open={sitesPopupOpen}
+        onOpenChange={setSitesPopupOpen}
       />
 
       <OptimizePlanningDialog
