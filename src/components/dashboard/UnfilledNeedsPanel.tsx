@@ -730,12 +730,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   // Vue simple quand fermé
   if (!isOpen) {
     return (
-      <Card className="cursor-pointer hover:border-primary transition-colors mb-6" onClick={() => setIsOpen(true)}>
-        <div className="p-4 flex items-center justify-between">
+      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all cursor-pointer mb-6" onClick={() => setIsOpen(true)}>
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent">
           <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive" />
+            <AlertCircle className="h-5 w-5 text-primary" />
             <div>
-              <h3 className="font-semibold">Besoins non satisfaits</h3>
+              <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
               <p className="text-sm text-muted-foreground">
                 Du {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM', { locale: fr })}
               </p>
@@ -744,7 +744,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           {loading ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : (
-            <Badge variant="destructive" className="text-lg px-3 py-1">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-lg px-3 py-1">
               {totalCount}
             </Badge>
           )}
