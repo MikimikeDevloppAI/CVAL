@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles, Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -54,6 +55,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
   const [expandedFullDays, setExpandedFullDays] = useState<Set<string>>(new Set());
+  const [selectedSecretaire, setSelectedSecretaire] = useState<Record<string, string>>({});
 
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
@@ -574,115 +576,100 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           </div>
         </div>
 
-        {/* Suggestions pour journée entière - toujours visibles */}
-        <div className="ml-4 p-4 rounded-lg bg-muted/20 border-l-2 border-primary/30 space-y-4">
-          
-          {/* Catégorie 1: En administratif (matin ET après-midi) */}
-          {need.full_day_suggestions.suggestions_admin.length > 0 && (
-            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30 space-y-2">
-              <h4 className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                En administratif toute la journée ({need.full_day_suggestions.suggestions_admin.length})
-              </h4>
-              <div className="space-y-2">
-                {(isSuggestionsExpanded 
-                  ? need.full_day_suggestions.suggestions_admin 
-                  : need.full_day_suggestions.suggestions_admin.slice(0, 3)
-                ).map(sug => {
-                  const key = `${need.date}-fullday-${need.site_id}-${sug.secretaire_id}`;
-                  return (
-                    <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                        {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                        {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                        {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                        {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                        {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                        {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleQuickAssign(need, 'matin', sug, true)}
-                        disabled={assigningId === key}
-                        className="h-7 px-2 text-xs gap-1"
-                      >
-                        {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Calendar className="h-3 w-3" /> Journée</>}
-                      </Button>
+        {/* Suggestions pour journée entière - interface simplifiée */}
+        <div className="ml-4 p-4 rounded-lg border space-y-4">
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium">Créer une journée entière</h4>
+            
+            {/* Dropdown pour sélectionner la secrétaire */}
+            <Select
+              value={selectedSecretaire[needKey] || ""}
+              onValueChange={(value) => {
+                setSelectedSecretaire(prev => ({ ...prev, [needKey]: value }));
+              }}
+            >
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="Sélectionner une secrétaire..." />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                {/* Secrétaires en administratif */}
+                {need.full_day_suggestions.suggestions_admin.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                      En administratif
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Catégorie 2: Ajouter créneau (ne travaille pas du tout) */}
-          {need.full_day_suggestions.suggestions_not_working.length > 0 && (
-            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 space-y-2">
-              <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500" />
-                Ajouter créneau journée entière ({need.full_day_suggestions.suggestions_not_working.length})
-              </h4>
-              <div className="space-y-2">
-                {(isSuggestionsExpanded 
-                  ? need.full_day_suggestions.suggestions_not_working 
-                  : need.full_day_suggestions.suggestions_not_working.slice(0, 3)
-                ).map(sug => {
-                  const key = `${need.date}-fullday-${need.site_id}-${sug.secretaire_id}`;
-                  return (
-                    <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                        {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                        {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                        {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                        {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                        {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                        {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleQuickAssign(need, 'matin', sug, true)}
-                        disabled={assigningId === key}
-                        className="h-7 px-2 text-xs gap-1"
-                      >
-                        {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><UserPlus className="h-3 w-3" /> Assigner</>}
-                      </Button>
+                    {need.full_day_suggestions.suggestions_admin.map(sug => (
+                      <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                        <div className="flex items-center gap-2">
+                          <span>{sug.secretaire_nom}</span>
+                          {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
+                            <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                          )}
+                          {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
+                            <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+                
+                {/* Secrétaires non disponibles */}
+                {need.full_day_suggestions.suggestions_not_working.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                      Ajouter un créneau
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    {need.full_day_suggestions.suggestions_not_working.map(sug => (
+                      <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                        <div className="flex items-center gap-2">
+                          <span>{sug.secretaire_nom}</span>
+                          {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
+                            <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                          )}
+                          {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
+                            <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
 
-          {/* Bouton Voir toutes les suggestions */}
-          {(need.full_day_suggestions.suggestions_admin.length > 3 || need.full_day_suggestions.suggestions_not_working.length > 3) && (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setExpandedSuggestions(prev => {
-                    const next = new Set(prev);
-                    if (isSuggestionsExpanded) {
-                      next.delete(suggestionKey);
-                    } else {
-                      next.add(suggestionKey);
+            {/* Boutons d'action */}
+            {selectedSecretaire[needKey] && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => {
+                    const allSuggestions = [
+                      ...need.full_day_suggestions.suggestions_admin,
+                      ...need.full_day_suggestions.suggestions_not_working
+                    ];
+                    const sug = allSuggestions.find(s => s.secretaire_id === selectedSecretaire[needKey]);
+                    if (sug) {
+                      handleQuickAssign(need, 'matin', sug, true);
+                      setSelectedSecretaire(prev => ({ ...prev, [needKey]: "" }));
                     }
-                    return next;
-                  });
-                }}
-                className="text-xs"
-              >
-                {isSuggestionsExpanded 
-                  ? 'Voir moins' 
-                  : `Voir toutes (${need.full_day_suggestions.suggestions_admin.length + need.full_day_suggestions.suggestions_not_working.length})`
-                }
-              </Button>
-            </div>
-          )}
+                  }}
+                  disabled={!!assigningId}
+                  className="flex-1 gap-2"
+                >
+                  {assigningId ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Calendar className="h-4 w-4" />
+                      Assigner journée entière
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
 
           {/* Bouton pour décomposer en matin/après-midi */}
           <div className="pt-2 border-t border-border/30">
