@@ -330,7 +330,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
             size="sm"
             onClick={handleSave}
             disabled={loading}
-            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 shrink-0 ml-auto"
+            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 shrink-0"
           >
             <Check className="h-3 w-3" />
           </Button>
