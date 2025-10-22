@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles, Calendar, Clock } from 'lucide-react';
+import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles, Calendar, Clock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -78,6 +78,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [loadingSuggestions, setLoadingSuggestions] = useState<Set<string>>(new Set());
 
   const fetchUnfilledNeedsCount = async () => {
+    setLoading(true);
     try {
       const { count, error } = await supabase
         .from('besoins_non_satisfaits_summary')
@@ -90,6 +91,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching count:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -712,7 +715,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   }, [isOpen, startDate, endDate]);
 
-  if (loading) {
+  if (loading && !isOpen) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -720,8 +723,34 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     );
   }
 
-  if (aggregatedNeeds.length === 0 && !isOpen) {
+  if (totalCount === 0 && !isOpen) {
     return null;
+  }
+
+  // Vue simple quand fermé
+  if (!isOpen) {
+    return (
+      <Card className="cursor-pointer hover:border-primary transition-colors mb-6" onClick={() => setIsOpen(true)}>
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <div>
+              <h3 className="font-semibold">Besoins non satisfaits</h3>
+              <p className="text-sm text-muted-foreground">
+                Du {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM', { locale: fr })}
+              </p>
+            </div>
+          </div>
+          {loading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          ) : (
+            <Badge variant="destructive" className="text-lg px-3 py-1">
+              {totalCount}
+            </Badge>
+          )}
+        </div>
+      </Card>
+    );
   }
 
   const needsByDate = new Map<string, AggregatedNeed[]>();
@@ -1073,24 +1102,33 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     );
   };
 
+  // Vue détaillée quand ouvert
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-6">
-      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all">
-        <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/10 transition-all">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-primary" />
-              <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                {isOpen ? aggregatedNeeds.length : totalCount}
-              </Badge>
-            </div>
-            <ChevronDown className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          </div>
-        </CollapsibleTrigger>
+    <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg mb-6">
+      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent border-b border-border/50">
+        <div className="flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-primary" />
+          <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            {aggregatedNeeds.length}
+          </Badge>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsOpen(false)}
+          className="h-8 w-8 p-0"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-        <CollapsibleContent>
-          <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6">{loading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
             {Array.from(needsByDate.entries()).map(([date, needs]) => (
               <div key={date} className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1373,9 +1411,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 })}
               </div>
             ))}
-          </div>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+          </>
+        )}
+      </div>
+    </Card>
   );
 };
