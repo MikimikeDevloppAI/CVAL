@@ -287,10 +287,15 @@ export function SecretaireCard({
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <h3 className="text-lg font-semibold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                {nomComplet}
-              </h3>
+            <div className="flex items-start gap-2 flex-wrap mb-2">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-muted-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                  {secretaire.first_name || 'Prénom'}
+                </span>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-tight">
+                  {secretaire.name || `Secrétaire ${secretaire.id.slice(0, 8)}`}
+                </h3>
+              </div>
               {secretaire.actif === false && (
                 <Badge variant="secondary" className="text-xs">
                   Inactif

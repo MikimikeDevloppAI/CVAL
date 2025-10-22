@@ -167,10 +167,15 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-lg font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                {medecin.first_name} {medecin.name}
-              </h3>
+            <div className="flex items-start gap-2 mb-2">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-muted-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                  {medecin.first_name}
+                </span>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-tight">
+                  {medecin.name}
+                </h3>
+              </div>
               {medecin.actif === false && (
                 <Badge variant="secondary" className="text-xs">
                   Inactif

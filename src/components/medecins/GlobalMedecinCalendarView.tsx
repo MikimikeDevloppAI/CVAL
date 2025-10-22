@@ -576,8 +576,11 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                         className={`grid gap-1 mb-0.5 hover:bg-accent/20 py-0.5 ${medIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}
                         style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
                       >
-                        <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 truncate border-r ${medIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
-                          {medecin.first_name} {medecin.name}
+                        <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 border-r ${medIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
+                          <div className="flex flex-col leading-tight">
+                            <span className="text-[10px] text-muted-foreground">{medecin.first_name}</span>
+                            <span className="truncate">{medecin.name}</span>
+                          </div>
                         </div>
                         {days.map((dayInfo, index) => {
                           const day = dayInfo.day;
