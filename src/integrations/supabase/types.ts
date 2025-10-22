@@ -19,6 +19,7 @@ export type Database = {
           created_at: string
           date_debut: string
           date_fin: string
+          demi_journee: string | null
           heure_debut: string | null
           heure_fin: string | null
           id: string
@@ -34,6 +35,7 @@ export type Database = {
           created_at?: string
           date_debut: string
           date_fin: string
+          demi_journee?: string | null
           heure_debut?: string | null
           heure_fin?: string | null
           id?: string
@@ -49,6 +51,7 @@ export type Database = {
           created_at?: string
           date_debut?: string
           date_fin?: string
+          demi_journee?: string | null
           heure_debut?: string | null
           heure_fin?: string | null
           id?: string
