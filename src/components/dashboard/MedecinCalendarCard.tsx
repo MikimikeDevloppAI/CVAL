@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import { MedecinCalendarDialog } from './medecins/MedecinCalendarDialog';
+import { MedecinActionsDialog } from './MedecinActionsDialog';
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +32,7 @@ interface MedecinCalendarCardProps {
   days: MedecinDayData[];
   startDate: string;
   index: number;
+  onRefresh?: () => void;
 }
 
 export function MedecinCalendarCard({
@@ -39,8 +40,13 @@ export function MedecinCalendarCard({
   days,
   startDate,
   index,
+  onRefresh,
 }: MedecinCalendarCardProps) {
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
+    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
+  } | null>(null);
   const weekStart = startOfWeek(new Date(startDate), { locale: fr });
   
   // Create a map of days for easy lookup
@@ -123,8 +129,15 @@ export function MedecinCalendarCard({
 
     // Both periods with SAME site/intervention
     if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
+      const siteId = day.data!.matin[0]?.site_id || '';
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center px-2">
+        <div 
+          className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedDay({ date: day.date, siteId, periode: 'journee' });
+          }}
+        >
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
@@ -135,10 +148,18 @@ export function MedecinCalendarCard({
 
     // Different sites/interventions OR partial presence → show two lines
     if (hasMatin && hasApresMidi) {
+      const matinSiteId = day.data!.matin[0]?.site_id || '';
+      const amSiteId = day.data!.apres_midi[0]?.site_id || '';
       return (
         <div className="space-y-1">
           {/* Matin */}
-          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center px-2">
+          <div 
+            className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedDay({ date: day.date, siteId: matinSiteId, periode: 'matin' });
+            }}
+          >
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -147,7 +168,13 @@ export function MedecinCalendarCard({
             </div>
           </div>
           {/* Après-midi */}
-          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center px-2">
+          <div 
+            className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedDay({ date: day.date, siteId: amSiteId, periode: 'apres_midi' });
+            }}
+          >
             <div className="flex items-center gap-1 w-full min-w-0">
               <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
               <span className="text-[10px] font-medium truncate">
@@ -161,8 +188,15 @@ export function MedecinCalendarCard({
 
     // Matin only
     if (hasMatin) {
+      const siteId = day.data!.matin[0]?.site_id || '';
       return (
-        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center px-2">
+        <div 
+          className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedDay({ date: day.date, siteId, periode: 'matin' });
+          }}
+        >
           <div className="flex items-center gap-1 w-full min-w-0">
             <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">
@@ -174,8 +208,15 @@ export function MedecinCalendarCard({
     }
 
     // Après-midi only
+    const siteId = day.data!.apres_midi[0]?.site_id || '';
     return (
-      <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center px-2">
+      <div 
+        className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedDay({ date: day.date, siteId, periode: 'apres_midi' });
+        }}
+      >
         <div className="flex items-center gap-1 w-full min-w-0">
           <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
           <span className="text-xs font-medium truncate">
@@ -189,11 +230,10 @@ export function MedecinCalendarCard({
   return (
     <>
       <div 
-        className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
+        className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden"
         style={{
           animation: `fadeIn 0.5s ease-out ${index * 0.05}s both`
         }}
-        onClick={() => setCalendarOpen(true)}
       >
         {/* Header */}
         <div className="bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-4 border-b border-border/50">
@@ -237,12 +277,19 @@ export function MedecinCalendarCard({
         </div>
       </div>
 
-      <MedecinCalendarDialog
-        open={calendarOpen}
-        onOpenChange={setCalendarOpen}
-        medecinId={medecin.id}
-        medecinNom={medecin.nom_complet}
-      />
+      {selectedDay && (
+        <MedecinActionsDialog
+          open={!!selectedDay}
+          onOpenChange={(open) => !open && setSelectedDay(null)}
+          medecinId={medecin.id}
+          medecinNom={medecin.nom_complet.split(' ').slice(1).join(' ')}
+          medecinPrenom={medecin.nom_complet.split(' ')[0]}
+          date={selectedDay.date}
+          siteId={selectedDay.siteId}
+          periode={selectedDay.periode}
+          onRefresh={onRefresh || (() => {})}
+        />
+      )}
     </>
   );
 }

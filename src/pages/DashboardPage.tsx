@@ -727,6 +727,7 @@ const DashboardPage = () => {
                   days={medecin.days}
                   startDate={startDate}
                   index={index}
+                  onRefresh={fetchDashboardData}
                 />
               ))}
             </div>
