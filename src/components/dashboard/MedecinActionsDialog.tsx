@@ -47,6 +47,35 @@ export function MedecinActionsDialog({
   const [reassignOpen, setReassignOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | 'journee'>(periode);
+  const [showPeriodSelector, setShowPeriodSelector] = useState(false);
+  const [actionType, setActionType] = useState<'reassign' | 'delete' | null>(null);
+
+  const handleActionClick = (action: 'reassign' | 'delete') => {
+    setActionType(action);
+    if (periode === 'journee') {
+      // Si c'est une journée complète, demander quelle période modifier
+      setShowPeriodSelector(true);
+    } else {
+      // Si c'est une demi-journée, utiliser directement cette période
+      setSelectedPeriode(periode);
+      if (action === 'reassign') {
+        setReassignOpen(true);
+      } else {
+        setDeleteConfirmOpen(true);
+      }
+    }
+  };
+
+  const handlePeriodSelected = (selectedPeriod: 'matin' | 'apres_midi' | 'journee') => {
+    setSelectedPeriode(selectedPeriod);
+    setShowPeriodSelector(false);
+    if (actionType === 'reassign') {
+      setReassignOpen(true);
+    } else if (actionType === 'delete') {
+      setDeleteConfirmOpen(true);
+    }
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -60,12 +89,12 @@ export function MedecinActionsDialog({
         .eq('site_id', siteId);
 
       // Filter by the specific demi-journee(s)
-      if (periode === 'journee') {
+      if (selectedPeriode === 'journee') {
         // For full day, delete both periods
         query = query.in('demi_journee', ['matin', 'apres_midi']);
       } else {
         // For specific half-day, only delete that period
-        query = query.eq('demi_journee', periode);
+        query = query.eq('demi_journee', selectedPeriode);
       }
 
       const { error } = await query;
@@ -96,7 +125,7 @@ export function MedecinActionsDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open && !showPeriodSelector} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Actions pour {nomComplet}</DialogTitle>
@@ -106,9 +135,7 @@ export function MedecinActionsDialog({
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => {
-                setReassignOpen(true);
-              }}
+              onClick={() => handleActionClick('reassign')}
             >
               <Edit className="h-4 w-4 mr-2" />
               Réaffecter à un autre site
@@ -117,7 +144,7 @@ export function MedecinActionsDialog({
             <Button
               variant="outline"
               className="w-full justify-start text-destructive hover:text-destructive"
-              onClick={() => setDeleteConfirmOpen(true)}
+              onClick={() => handleActionClick('delete')}
               disabled={deleting}
             >
               {deleting ? (
@@ -136,6 +163,42 @@ export function MedecinActionsDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Period Selector Dialog */}
+      <Dialog open={showPeriodSelector} onOpenChange={setShowPeriodSelector}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sélectionner la période</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Quelle période souhaitez-vous {actionType === 'reassign' ? 'réaffecter' : 'supprimer'} ?
+            </p>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handlePeriodSelected('matin')}
+            >
+              Matin uniquement
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handlePeriodSelected('apres_midi')}
+            >
+              Après-midi uniquement
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handlePeriodSelected('journee')}
+            >
+              Toute la journée
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <EditMedecinAssignmentDialog
         open={reassignOpen}
         onOpenChange={setReassignOpen}
@@ -143,7 +206,7 @@ export function MedecinActionsDialog({
         medecinNom={nomComplet}
         date={date}
         currentSiteId={siteId}
-        periode={periode}
+        periode={selectedPeriode}
         onSuccess={onRefresh}
       />
 
