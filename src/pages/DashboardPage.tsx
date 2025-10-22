@@ -14,6 +14,7 @@ import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDi
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
 import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
+import { BlocOperatoireCalendarCard } from '@/components/dashboard/BlocOperatoireCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 
 interface PersonnePresence {
@@ -92,13 +93,33 @@ interface DashboardMedecin {
   days: MedecinDayData[];
 }
 
+interface OperationData {
+  id: string;
+  periode: 'matin' | 'apres_midi';
+  type_intervention_nom: string;
+  type_intervention_code: string;
+  medecin_nom: string;
+  salle_nom: string | null;
+}
+
+interface OperationDayData {
+  date: string;
+  matin: OperationData[];
+  apres_midi: OperationData[];
+}
+
+interface DashboardBlocOperatoire {
+  days: OperationDayData[];
+}
+
 const DashboardPage = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
   const [dashboardMedecins, setDashboardMedecins] = useState<DashboardMedecin[]>([]);
+  const [dashboardBlocOperatoire, setDashboardBlocOperatoire] = useState<DashboardBlocOperatoire>({ days: [] });
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'site' | 'secretaire' | 'medecin'>('site');
+  const [viewMode, setViewMode] = useState<'site' | 'secretaire' | 'medecin' | 'bloc'>('site');
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
@@ -503,6 +524,62 @@ const DashboardPage = () => {
       setDashboardMedecins(
         medecinsWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
       );
+
+      // Fetch bloc operatoire operations
+      const { data: operationsData } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          id,
+          date,
+          periode,
+          salle_assignee,
+          medecin_id,
+          type_intervention_id,
+          salles_operation(name),
+          medecins(first_name, name),
+          types_intervention(nom, code)
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .in('periode', ['matin', 'apres_midi'])
+        .neq('statut', 'annule')
+        .order('date')
+        .order('periode');
+
+      // Group operations by date and periode
+      const operationsDaysMap = new Map<string, OperationDayData>();
+      
+      operationsData?.forEach((operation) => {
+        if (!operationsDaysMap.has(operation.date)) {
+          operationsDaysMap.set(operation.date, {
+            date: operation.date,
+            matin: [],
+            apres_midi: []
+          });
+        }
+        
+        const day = operationsDaysMap.get(operation.date)!;
+        const operationData: OperationData = {
+          id: operation.id,
+          periode: operation.periode as 'matin' | 'apres_midi',
+          type_intervention_nom: (operation.types_intervention as any)?.nom || 'Inconnu',
+          type_intervention_code: (operation.types_intervention as any)?.code || '',
+          medecin_nom: operation.medecins 
+            ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
+            : 'Non assigné',
+          salle_nom: (operation.salles_operation as any)?.name || null
+        };
+        
+        if (operation.periode === 'matin') {
+          day.matin.push(operationData);
+        } else {
+          day.apres_midi.push(operationData);
+        }
+      });
+
+      setDashboardBlocOperatoire({
+        days: Array.from(operationsDaysMap.values())
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -539,6 +616,18 @@ const DashboardPage = () => {
         },
         (payload) => {
           console.log('🔄 Real-time update besoin_effectif:', payload);
+          fetchDashboardData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'planning_genere_bloc_operatoire'
+        },
+        (payload) => {
+          console.log('🔄 Real-time update planning_genere_bloc_operatoire:', payload);
           fetchDashboardData();
         }
       )
@@ -650,12 +739,13 @@ const DashboardPage = () => {
       </div>
 
       {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin')} className="w-full">
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
         <div className="flex justify-center mb-6">
           <TabsList>
             <TabsTrigger value="site">Sites</TabsTrigger>
             <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
             <TabsTrigger value="medecin">Médecins</TabsTrigger>
+            <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
           </TabsList>
         </div>
 
@@ -730,6 +820,23 @@ const DashboardPage = () => {
                   onRefresh={fetchDashboardData}
                 />
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Bloc Operatoire Calendar Grid */}
+        <TabsContent value="bloc">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <BlocOperatoireCalendarCard
+                days={dashboardBlocOperatoire.days}
+                startDate={startDate}
+                index={0}
+              />
             </div>
           )}
         </TabsContent>
