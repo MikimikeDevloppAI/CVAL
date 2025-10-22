@@ -9,6 +9,7 @@ import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles, Calendar, Clock,
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { OptimizationTestDialog } from './OptimizationTestDialog';
 
 interface SecretaireSuggestion {
   secretaire_id: string;
@@ -76,6 +77,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [selectedSecretaire, setSelectedSecretaire] = useState<Record<string, string>>({});
   const [loadedSuggestions, setLoadedSuggestions] = useState<Set<string>>(new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState<Set<string>>(new Set());
+  const [testingDays, setTestingDays] = useState<Set<string>>(new Set());
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [applyingOptimization, setApplyingOptimization] = useState(false);
 
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
@@ -752,6 +757,73 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   };
 
+  const handleTestOptimization = async (date: string) => {
+    setTestingDays(prev => new Set(prev).add(date));
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
+        body: { date }
+      });
+
+      if (error) throw error;
+
+      setTestResult(data);
+      setTestDialogOpen(true);
+
+      if (data.all_needs_satisfied && data.changes.length > 0) {
+        toast.success(`Solution parfaite trouvée avec ${data.changes.length} modification(s) !`);
+      } else if (data.feasible) {
+        toast.warning('Solution partielle trouvée');
+      } else {
+        toast.error('Aucune solution trouvée');
+      }
+    } catch (error) {
+      console.error('Test optimization error:', error);
+      toast.error('Erreur lors du test d\'optimisation');
+    } finally {
+      setTestingDays(prev => {
+        const next = new Set(prev);
+        next.delete(date);
+        return next;
+      });
+    }
+  };
+
+  const handleApplyOptimization = async () => {
+    if (!testResult) return;
+
+    setApplyingOptimization(true);
+    
+    try {
+      const date = testResult.after.assignments[0]?.date || 
+                   testResult.before.assignments[0]?.date;
+      
+      if (!date) {
+        throw new Error('Date not found in test result');
+      }
+
+      const { error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
+        body: { dates: [date] }
+      });
+
+      if (error) throw error;
+
+      toast.success('Optimisation appliquée avec succès !');
+      setTestDialogOpen(false);
+      setTestResult(null);
+      
+      setTimeout(() => {
+        if (onRefresh) onRefresh();
+        fetchUnfilledNeeds();
+      }, 1000);
+    } catch (error) {
+      console.error('Apply optimization error:', error);
+      toast.error('Erreur lors de l\'application de l\'optimisation');
+    } finally {
+      setApplyingOptimization(false);
+    }
+  };
+
   const handleOptimize = () => {
     toast.info('Optimisation automatique : fonctionnalité en développement');
   };
@@ -781,19 +853,30 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   // Vue simple quand fermé
   if (!isOpen) {
     return (
-      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all cursor-pointer mb-6" onClick={() => setIsOpen(true)}>
-        <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-primary/5 to-transparent">
-          <AlertCircle className="h-5 w-5 text-primary" />
-          <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
-          {loading ? (
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : (
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-              {totalCount}
-            </Badge>
-          )}
-        </div>
-      </Card>
+      <>
+        <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg hover:shadow-xl transition-all cursor-pointer mb-6" onClick={() => setIsOpen(true)}>
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-primary/5 to-transparent">
+            <AlertCircle className="h-5 w-5 text-primary" />
+            <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                {totalCount}
+              </Badge>
+            )}
+          </div>
+        </Card>
+
+        <OptimizationTestDialog
+          open={testDialogOpen}
+          onOpenChange={setTestDialogOpen}
+          date={testResult?.after?.assignments?.[0]?.date || testResult?.before?.assignments?.[0]?.date || ''}
+          result={testResult}
+          onApply={handleApplyOptimization}
+          isApplying={applyingOptimization}
+        />
+      </>
     );
   }
 
@@ -1122,8 +1205,20 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           <>
             {Array.from(needsByDate.entries()).map(([date, needs]) => (
               <div key={date} className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTestOptimization(date)}
+                    disabled={testingDays.has(date)}
+                    className="gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {testingDays.has(date) ? 'Test en cours...' : 'Tester l\'optimisation'}
+                  </Button>
                 </div>
 
                 {needs.map(need => {
@@ -1372,6 +1467,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           </>
         )}
       </div>
+
+      <OptimizationTestDialog
+        open={testDialogOpen}
+        onOpenChange={setTestDialogOpen}
+        date={testResult?.after?.assignments?.[0]?.date || testResult?.before?.assignments?.[0]?.date || ''}
+        result={testResult}
+        onApply={handleApplyOptimization}
+        isApplying={applyingOptimization}
+      />
     </Card>
   );
 };

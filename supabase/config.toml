@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.optimize-secretary-assignments-v2]
 verify_jwt = false
+
+[functions.optimize-planning-dry-run]
+verify_jwt = false
