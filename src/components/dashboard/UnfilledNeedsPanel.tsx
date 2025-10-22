@@ -24,12 +24,29 @@ interface PeriodSuggestions {
   suggestions_not_working: SecretaireSuggestion[];
 }
 
+interface BesoinPersonnel {
+  besoin_operation_id: string;
+  besoin_operation_nom: string;
+  nombre_requis: number;
+  nombre_manquant: number;
+  suggestions_matin?: {
+    suggestions_admin: SecretaireSuggestion[];
+    suggestions_not_working: SecretaireSuggestion[];
+  };
+  suggestions_apres_midi?: {
+    suggestions_admin: SecretaireSuggestion[];
+    suggestions_not_working: SecretaireSuggestion[];
+  };
+}
+
 interface AggregatedNeed {
   date: string;
   site_id: string;
   site_nom: string;
-  besoin_operation_id?: string;
+  type_intervention_id?: string;
+  type_intervention_nom?: string;
   planning_genere_bloc_operatoire_id?: string;
+  besoins_personnel?: BesoinPersonnel[];
   has_both_periods: boolean;
   total_manque: number;
   periods: {
@@ -57,6 +74,30 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [expandedFullDays, setExpandedFullDays] = useState<Set<string>>(new Set());
   const [selectedSecretaire, setSelectedSecretaire] = useState<Record<string, string>>({});
 
+  const fetchBesoinsBlocOperatoire = async (typeInterventionId: string) => {
+    const { data, error } = await supabase
+      .from('types_intervention_besoins_personnel')
+      .select(`
+        besoin_operation_id,
+        nombre_requis,
+        besoins_operations(id, nom, code)
+      `)
+      .eq('type_intervention_id', typeInterventionId)
+      .eq('actif', true);
+    
+    if (error) {
+      console.error('Error fetching besoins bloc:', error);
+      return [];
+    }
+
+    return data?.map(d => ({
+      besoin_operation_id: d.besoin_operation_id,
+      besoin_operation_nom: (d.besoins_operations as any)?.nom || '',
+      nombre_requis: d.nombre_requis,
+      nombre_manquant: 0
+    })) || [];
+  };
+
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
     try {
@@ -71,19 +112,49 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
       if (error) throw error;
 
-      // Agréger les besoins par date + site + besoin_operation_id
+      // Agréger les besoins par date + site + planning_bloc_id
       const grouped = new Map<string, AggregatedNeed>();
 
       for (const need of needs || []) {
-        const key = `${need.date}-${need.site_id}-${need.besoin_operation_id || 'site'}`;
+        // Pour les blocs opératoires, on groupe par planning_genere_bloc_operatoire_id
+        // Pour les sites normaux, on groupe par site_id
+        const key = need.planning_genere_bloc_operatoire_id 
+          ? `${need.date}-bloc-${need.planning_genere_bloc_operatoire_id}`
+          : `${need.date}-site-${need.site_id}`;
         
         if (!grouped.has(key)) {
+          // Si c'est un bloc opératoire, récupérer le type d'intervention
+          let typeInterventionId: string | undefined;
+          let typeInterventionNom: string | undefined;
+          let besoinsPersonnel: BesoinPersonnel[] | undefined;
+
+          if (need.planning_genere_bloc_operatoire_id) {
+            const { data: blocData } = await supabase
+              .from('planning_genere_bloc_operatoire')
+              .select(`
+                type_intervention_id,
+                types_intervention(id, nom)
+              `)
+              .eq('id', need.planning_genere_bloc_operatoire_id)
+              .single();
+
+            if (blocData) {
+              typeInterventionId = blocData.type_intervention_id;
+              typeInterventionNom = (blocData.types_intervention as any)?.nom;
+              
+              // Récupérer les besoins en personnel pour ce type d'intervention
+              besoinsPersonnel = await fetchBesoinsBlocOperatoire(typeInterventionId);
+            }
+          }
+
           grouped.set(key, {
             date: need.date,
             site_id: need.site_id,
             site_nom: need.site_nom,
-            besoin_operation_id: need.besoin_operation_id,
+            type_intervention_id: typeInterventionId,
+            type_intervention_nom: typeInterventionNom,
             planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
+            besoins_personnel: besoinsPersonnel,
             has_both_periods: false,
             total_manque: 0,
             periods: {}
@@ -93,19 +164,49 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         const aggregated = grouped.get(key)!;
         const periode = need.periode as 'matin' | 'apres_midi';
         
-        // Générer les suggestions pour cette période
-        const { admin, notWorking } = await generateSuggestions(
-          need.date,
-          periode,
-          need.site_id,
-          need.besoin_operation_id
-        );
+        // Si c'est un bloc opératoire avec besoins personnel, générer les suggestions pour chaque besoin
+        if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
+          for (const besoin of aggregated.besoins_personnel) {
+            const { admin, notWorking } = await generateSuggestions(
+              need.date,
+              periode,
+              need.site_id,
+              besoin.besoin_operation_id
+            );
 
-        aggregated.periods[periode] = {
-          manque: need.nombre_manquant,
-          suggestions_admin: admin,
-          suggestions_not_working: notWorking
-        };
+            if (periode === 'matin') {
+              besoin.suggestions_matin = {
+                suggestions_admin: admin,
+                suggestions_not_working: notWorking
+              };
+            } else {
+              besoin.suggestions_apres_midi = {
+                suggestions_admin: admin,
+                suggestions_not_working: notWorking
+              };
+            }
+
+            // Compter les manques (nombre de suggestions < nombre requis)
+            const totalSuggestions = admin.length + notWorking.length;
+            if (totalSuggestions < besoin.nombre_requis) {
+              besoin.nombre_manquant = besoin.nombre_requis - totalSuggestions;
+            }
+          }
+        } else {
+          // Cas site normal (pas de besoins personnel détaillés)
+          const { admin, notWorking } = await generateSuggestions(
+            need.date,
+            periode,
+            need.site_id,
+            undefined
+          );
+
+          aggregated.periods[periode] = {
+            manque: need.nombre_manquant,
+            suggestions_admin: admin,
+            suggestions_not_working: notWorking
+          };
+        }
 
         aggregated.total_manque += need.nombre_manquant;
       }
@@ -117,11 +218,11 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
       // Générer les suggestions journée entière pour les besoins avec les deux périodes
       for (const need of grouped.values()) {
-        if (need.has_both_periods) {
+        if (need.has_both_periods && !need.besoins_personnel) {
           const { admin, notWorking } = await generateFullDaySuggestions(
             need.date,
             need.site_id,
-            need.besoin_operation_id
+            undefined
           );
           
           need.full_day_suggestions = {
@@ -472,11 +573,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   };
 
   const handleQuickAssign = async (
-    need: AggregatedNeed,
+    need: AggregatedNeed | any,
     periode: 'matin' | 'apres_midi',
     suggestion: SecretaireSuggestion,
     fullDay: boolean = false
   ) => {
+    const besoinOperationId = (need as any).besoin_operation_id;
     const key = `${need.date}-${periode}-${need.site_id}-${suggestion.secretaire_id}-${fullDay}`;
     setAssigningId(key);
 
@@ -497,7 +599,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           periode: p,
           secretaire: suggestion.secretaire_nom,
           site_id: need.site_id,
-          besoin_operation_id: need.besoin_operation_id,
+          besoin_operation_id: besoinOperationId,
           planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
         });
 
@@ -508,7 +610,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             secretaire_id: suggestion.secretaire_id,
             demi_journee: p,
             site_id: need.site_id,
-            besoin_operation_id: need.besoin_operation_id || null,
+            besoin_operation_id: besoinOperationId || null,
             planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
             actif: true
           });
@@ -558,7 +660,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const renderFullDayNeed = (need: AggregatedNeed) => {
     if (!need.full_day_suggestions) return null;
 
-    const needKey = `${need.date}-${need.site_id}-${need.besoin_operation_id}`;
+    const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || 'site'}`;
     const isExpanded = expandedFullDays.has(needKey);
     const suggestionKey = `${need.date}-fullday-${need.site_id}`;
     const isSuggestionsExpanded = expandedSuggestions.has(suggestionKey);
@@ -848,7 +950,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         {periodData.suggestions_admin.length === 0 && periodData.suggestions_not_working.length === 0 && (
           <div className="text-center py-4 text-muted-foreground text-sm">
             <AlertCircle className="h-5 w-5 mx-auto mb-2" />
-            Aucune secrétaire qualifiée disponible pour ce {need.besoin_operation_id ? 'besoin opération' : 'site'}
+            Aucune secrétaire qualifiée disponible pour ce {need.besoins_personnel ? 'besoin opération' : 'site'}
           </div>
         )}
 
@@ -894,11 +996,237 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 </div>
 
                 {needs.map(need => {
-                  const needKey = `${need.date}-${need.site_id}-${need.besoin_operation_id}`;
+                  const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || 'site'}`;
                   
                   return (
                     <div key={needKey} className="space-y-3">
-                      {need.has_both_periods ? (
+                      {/* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */}
+                      {need.besoins_personnel && need.besoins_personnel.length > 0 ? (
+                        <div className="space-y-4">
+                          <div className="p-3 rounded-lg bg-card border border-border/50">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">🏥 {need.type_intervention_nom || need.site_nom}</span>
+                            </div>
+                          </div>
+                          {need.besoins_personnel.map(besoin => (
+                            <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="bg-background">
+                                  {besoin.besoin_operation_nom}
+                                </Badge>
+                                <span className="text-sm text-muted-foreground">
+                                  {besoin.nombre_requis} requis
+                                </span>
+                                {besoin.nombre_manquant > 0 && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    {besoin.nombre_manquant} manquant
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Suggestions matin */}
+                              {besoin.suggestions_matin && (
+                                <div className="space-y-2">
+                                  <Badge variant="default" className="text-xs">Matin</Badge>
+                                  <Select
+                                    value={selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-matin`] || ""}
+                                    onValueChange={(value) => {
+                                      setSelectedSecretaire(prev => ({ 
+                                        ...prev, 
+                                        [`${needKey}-${besoin.besoin_operation_id}-matin`]: value 
+                                      }));
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-full bg-background">
+                                      <SelectValue placeholder="Sélectionner..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-background z-50">
+                                      {besoin.suggestions_matin.suggestions_admin.length > 0 && (
+                                        <>
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                            En administratif
+                                          </div>
+                                          {besoin.suggestions_matin.suggestions_admin.map(sug => (
+                                            <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                              <div className="flex items-center gap-2">
+                                                <span>{sug.secretaire_nom}</span>
+                                                {sug.preference_besoin === 1 && (
+                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                )}
+                                                {sug.preference_besoin === 2 && (
+                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                )}
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </>
+                                      )}
+                                      {besoin.suggestions_matin.suggestions_not_working.length > 0 && (
+                                        <>
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                                            Ajouter un créneau
+                                          </div>
+                                          {besoin.suggestions_matin.suggestions_not_working.map(sug => (
+                                            <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                              <div className="flex items-center gap-2">
+                                                <span>{sug.secretaire_nom}</span>
+                                                {sug.preference_besoin === 1 && (
+                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                )}
+                                                {sug.preference_besoin === 2 && (
+                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                )}
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  {selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-matin`] && (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => {
+                                        const allSuggestions = [
+                                          ...besoin.suggestions_matin!.suggestions_admin,
+                                          ...besoin.suggestions_matin!.suggestions_not_working
+                                        ];
+                                        const sug = allSuggestions.find(s => 
+                                          s.secretaire_id === selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-matin`]
+                                        );
+                                        if (sug) {
+                                          const tempNeed = { 
+                                            ...need, 
+                                            site_id: need.site_id,
+                                            besoin_operation_id: besoin.besoin_operation_id 
+                                          } as any;
+                                          handleQuickAssign(tempNeed, 'matin', sug, false);
+                                          setSelectedSecretaire(prev => ({ 
+                                            ...prev, 
+                                            [`${needKey}-${besoin.besoin_operation_id}-matin`]: "" 
+                                          }));
+                                        }
+                                      }}
+                                      disabled={!!assigningId}
+                                      className="w-full gap-2"
+                                    >
+                                      {assigningId ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <UserPlus className="h-4 w-4" />
+                                          Assigner pour le matin
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Suggestions après-midi */}
+                              {besoin.suggestions_apres_midi && (
+                                <div className="space-y-2">
+                                  <Badge variant="secondary" className="text-xs">Après-midi</Badge>
+                                  <Select
+                                    value={selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-apres_midi`] || ""}
+                                    onValueChange={(value) => {
+                                      setSelectedSecretaire(prev => ({ 
+                                        ...prev, 
+                                        [`${needKey}-${besoin.besoin_operation_id}-apres_midi`]: value 
+                                      }));
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-full bg-background">
+                                      <SelectValue placeholder="Sélectionner..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-background z-50">
+                                      {besoin.suggestions_apres_midi.suggestions_admin.length > 0 && (
+                                        <>
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                            En administratif
+                                          </div>
+                                          {besoin.suggestions_apres_midi.suggestions_admin.map(sug => (
+                                            <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                              <div className="flex items-center gap-2">
+                                                <span>{sug.secretaire_nom}</span>
+                                                {sug.preference_besoin === 1 && (
+                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                )}
+                                                {sug.preference_besoin === 2 && (
+                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                )}
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </>
+                                      )}
+                                      {besoin.suggestions_apres_midi.suggestions_not_working.length > 0 && (
+                                        <>
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                                            Ajouter un créneau
+                                          </div>
+                                          {besoin.suggestions_apres_midi.suggestions_not_working.map(sug => (
+                                            <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                              <div className="flex items-center gap-2">
+                                                <span>{sug.secretaire_nom}</span>
+                                                {sug.preference_besoin === 1 && (
+                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                )}
+                                                {sug.preference_besoin === 2 && (
+                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                )}
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  {selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-apres_midi`] && (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => {
+                                        const allSuggestions = [
+                                          ...besoin.suggestions_apres_midi!.suggestions_admin,
+                                          ...besoin.suggestions_apres_midi!.suggestions_not_working
+                                        ];
+                                        const sug = allSuggestions.find(s => 
+                                          s.secretaire_id === selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-apres_midi`]
+                                        );
+                                        if (sug) {
+                                          const tempNeed = { 
+                                            ...need, 
+                                            site_id: need.site_id,
+                                            besoin_operation_id: besoin.besoin_operation_id 
+                                          } as any;
+                                          handleQuickAssign(tempNeed, 'apres_midi', sug, false);
+                                          setSelectedSecretaire(prev => ({ 
+                                            ...prev, 
+                                            [`${needKey}-${besoin.besoin_operation_id}-apres_midi`]: "" 
+                                          }));
+                                        }
+                                      }}
+                                      disabled={!!assigningId}
+                                      className="w-full gap-2"
+                                    >
+                                      {assigningId ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <UserPlus className="h-4 w-4" />
+                                          Assigner pour l'après-midi
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : need.has_both_periods ? (
                         renderFullDayNeed(need)
                       ) : (
                         <>
