@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { DeleteOperationDialog } from '@/components/operations/DeleteOperationDialog';
 import { Button } from '@/components/ui/button';
+import { SecretaireCalendarDialog } from '@/components/dashboard/secretaires/SecretaireCalendarDialog';
 
 interface Besoin {
   nombre_requis: number;
@@ -51,6 +52,7 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [changeSalleOpen, setChangeSalleOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedSecretaire, setSelectedSecretaire] = useState<{ id: string; nom: string } | null>(null);
 
   useEffect(() => {
     fetchBesoins();
@@ -228,7 +230,12 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                     {assigned.map((assignment) => (
                       <div
                         key={assignment.id}
-                        className="px-3 py-1.5 rounded-lg bg-card/50 border border-border/50 text-xs font-medium text-foreground"
+                        className="px-3 py-1.5 rounded-lg bg-card/50 border border-border/50 text-xs font-medium text-foreground cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
+                        onClick={() => setSelectedSecretaire({
+                          id: assignment.secretaires.id,
+                          nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`
+                        })}
+                        title="Cliquer pour voir le calendrier"
                       >
                         {assignment.secretaires.first_name} {assignment.secretaires.name}
                       </div>
@@ -283,6 +290,15 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
           onRefresh?.();
         }}
       />
+
+      {selectedSecretaire && (
+        <SecretaireCalendarDialog
+          open={!!selectedSecretaire}
+          onOpenChange={(open) => !open && setSelectedSecretaire(null)}
+          secretaireId={selectedSecretaire.id}
+          secretaireNom={selectedSecretaire.nom}
+        />
+      )}
     </div>
   );
 }
