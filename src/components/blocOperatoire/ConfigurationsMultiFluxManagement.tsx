@@ -5,8 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { triggerRoomReassignment } from "@/lib/roomReassignment";
 
@@ -296,130 +294,125 @@ export function ConfigurationsMultiFluxManagement() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="double_flux">
-        <TabsList className="w-full bg-muted/50">
-          <TabsTrigger value="double_flux" className="flex-1">Double Flux</TabsTrigger>
-          <TabsTrigger value="triple_flux" className="flex-1">Triple Flux</TabsTrigger>
-        </TabsList>
+      {/* Double Flux Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-foreground">Configurations Double Flux</h3>
+          <Button onClick={() => openAddDialog('double_flux')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ajouter
+          </Button>
+        </div>
 
-        <TabsContent value="double_flux" className="space-y-4 mt-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-foreground">Configurations Double Flux</h3>
-            <Button onClick={() => openAddDialog('double_flux')} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Ajouter
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {configurations.filter(c => c.type_flux === 'double_flux').map((config) => (
-              <div
-                key={config.id}
-                className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h4 className="font-semibold text-lg">{config.nom}</h4>
-                    <p className="text-sm text-muted-foreground">{config.code}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setConfigToDelete(config.id);
-                        setDeleteDialogOpen(true);
-                      }}
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {configurations.filter(c => c.type_flux === 'double_flux').map((config) => (
+            <div
+              key={config.id}
+              className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h4 className="font-semibold text-lg">{config.nom}</h4>
+                  <p className="text-sm text-muted-foreground">{config.code}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
-                    <div key={idx} className="p-3 bg-muted/30 rounded-lg border border-border/30">
-                      <div className="text-sm font-medium mb-2">{interv.type_intervention.nom}</div>
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
-                        {getSalleName(interv.salle)}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setConfigToDelete(config.id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {configurations.filter(c => c.type_flux === 'double_flux').length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              Aucune configuration double flux
+              <div className="grid grid-cols-2 gap-3">
+                {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
+                  <div key={idx} className="p-3 bg-muted/30 rounded-lg border border-border/30">
+                    <div className="text-sm font-medium mb-2">{interv.type_intervention.nom}</div>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
+                      {getSalleName(interv.salle)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </TabsContent>
+          ))}
+        </div>
 
-        <TabsContent value="triple_flux" className="space-y-4 mt-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-foreground">Configurations Triple Flux</h3>
-            <Button onClick={() => openAddDialog('triple_flux')} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Ajouter
-            </Button>
+        {configurations.filter(c => c.type_flux === 'double_flux').length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            Aucune configuration double flux
           </div>
+        )}
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {configurations.filter(c => c.type_flux === 'triple_flux').map((config) => (
-              <div
-                key={config.id}
-                className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h4 className="font-semibold text-lg">{config.nom}</h4>
-                    <p className="text-sm text-muted-foreground">{config.code}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setConfigToDelete(config.id);
-                        setDeleteDialogOpen(true);
-                      }}
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+      {/* Triple Flux Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-foreground">Configurations Triple Flux</h3>
+          <Button onClick={() => openAddDialog('triple_flux')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ajouter
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {configurations.filter(c => c.type_flux === 'triple_flux').map((config) => (
+            <div
+              key={config.id}
+              className="bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h4 className="font-semibold text-lg">{config.nom}</h4>
+                  <p className="text-sm text-muted-foreground">{config.code}</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
-                    <div key={idx} className="p-2 bg-muted/30 rounded-lg border border-border/30">
-                      <div className="text-xs font-medium mb-2 truncate" title={interv.type_intervention.nom}>
-                        {interv.type_intervention.nom}
-                      </div>
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
-                        {getSalleName(interv.salle)}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(config)} className="h-8 w-8">
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setConfigToDelete(config.id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {configurations.filter(c => c.type_flux === 'triple_flux').length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              Aucune configuration triple flux
+              <div className="grid grid-cols-3 gap-2">
+                {config.interventions.sort((a, b) => a.ordre - b.ordre).map((interv, idx) => (
+                  <div key={idx} className="p-2 bg-muted/30 rounded-lg border border-border/30">
+                    <div className="text-xs font-medium mb-2 truncate" title={interv.type_intervention.nom}>
+                      {interv.type_intervention.nom}
+                    </div>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getSalleColor(interv.salle)}`}>
+                      {getSalleName(interv.salle)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          ))}
+        </div>
+
+        {configurations.filter(c => c.type_flux === 'triple_flux').length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            Aucune configuration triple flux
+          </div>
+        )}
+      </div>
 
       <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
         <DialogContent className="max-w-2xl">
