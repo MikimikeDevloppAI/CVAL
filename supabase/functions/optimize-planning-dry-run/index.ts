@@ -81,7 +81,7 @@ function calculateNeeds(
   return Array.from(needsMap.values());
 }
 
-// Get current assignments for comparison
+// Get current assignments for comparison (simulation mode: all in admin)
 function getCurrentAssignments(
   date: string,
   capacites: CapaciteEffective[],
@@ -90,29 +90,9 @@ function getCurrentAssignments(
 ): any[] {
   const assignments: any[] = [];
 
+  // SIMULATION MODE: Ignore existing assignments, return empty state
+  // This simulates all secretaries being in "administratif" (unassigned)
   for (const need of needs) {
-    const assigned = capacites.filter(c => 
-      c.date === date &&
-      c.demi_journee === need.periode &&
-      c.site_id === need.site_id &&
-      (need.type === 'site' || 
-       (need.type === 'bloc_operatoire' && 
-        c.planning_genere_bloc_operatoire_id === need.bloc_operation_id &&
-        c.besoin_operation_id === need.besoin_operation_id))
-    );
-
-    const secretaires_list = assigned.map(a => {
-      const sec = secretaires.find(s => s.id === a.secretaire_id);
-      return {
-        id: a.secretaire_id!,
-        nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
-        is_backup: false,
-        is_1r: a.is_1r,
-        is_2f: a.is_2f,
-        is_3f: a.is_3f
-      };
-    });
-
     assignments.push({
       site_id: need.site_id,
       site_nom: need.site_nom,
@@ -120,10 +100,10 @@ function getCurrentAssignments(
       type: need.type,
       bloc_operation_id: need.bloc_operation_id,
       besoin_operation_id: need.besoin_operation_id,
-      secretaires: secretaires_list,
+      secretaires: [], // Empty = everyone in admin
       nombre_requis: Math.ceil(need.nombre_suggere),
-      nombre_assigne: secretaires_list.length,
-      status: secretaires_list.length >= Math.ceil(need.nombre_suggere) ? 'satisfait' : 'non_satisfait'
+      nombre_assigne: 0, // No one assigned
+      status: 'non_satisfait' // All needs unsatisfied at start
     });
   }
 
@@ -279,8 +259,18 @@ serve(async (req) => {
       week_data.secretaires
     );
 
-    // Get available capacities
-    const capacites = week_data.capacites_effective.filter(c => c.date === date);
+    // Get available capacities and force all to admin site for simulation
+    const capacites = week_data.capacites_effective
+      .filter(c => c.date === date)
+      .map(c => ({
+        ...c,
+        site_id: week_data.admin_site_id, // Force admin for simulation
+        planning_genere_bloc_operatoire_id: null,
+        besoin_operation_id: null,
+        is_1r: false,
+        is_2f: false,
+        is_3f: false
+      }));
 
     // Build MILP model using exact same function as v2
     const week_assignments: AssignmentSummary[] = [];
