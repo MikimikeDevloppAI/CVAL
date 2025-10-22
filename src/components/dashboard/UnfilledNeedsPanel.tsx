@@ -1514,7 +1514,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       <OptimizationTestDialog
         open={testDialogOpen}
         onOpenChange={setTestDialogOpen}
-        date={testResult?.after?.assignments?.[0]?.date || testResult?.before?.assignments?.[0]?.date || ''}
+        date={testedDate || testResult?.after?.assignments?.[0]?.date || testResult?.before?.assignments?.[0]?.date || ''}
         result={testResult}
         onApply={handleApplyOptimization}
         isApplying={applyingOptimization}

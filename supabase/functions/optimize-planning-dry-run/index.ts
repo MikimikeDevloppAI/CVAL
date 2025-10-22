@@ -81,7 +81,7 @@ function calculateNeeds(
   return Array.from(needsMap.values());
 }
 
-// Get current assignments for comparison (simulation mode: all in admin)
+// Get current assignments for comparison (realistic "before" state)
 function getCurrentAssignments(
   date: string,
   capacites: CapaciteEffective[],
@@ -90,20 +90,60 @@ function getCurrentAssignments(
 ): any[] {
   const assignments: any[] = [];
 
-  // SIMULATION MODE: Ignore existing assignments, return empty state
-  // This simulates all secretaries being in "administratif" (unassigned)
   for (const need of needs) {
+    const assigned: any[] = [];
+    
+    // Find existing assignments for this need
+    const relevantCapacites = capacites.filter(c => {
+      if (c.date !== date || !c.actif) return false;
+      if (c.demi_journee !== need.periode) return false;
+      
+      // For site needs: match site_id (exclude admin site)
+      if (need.type === 'site') {
+        return c.site_id === need.site_id && c.site_id !== '00000000-0000-0000-0000-000000000001';
+      }
+      
+      // For bloc needs: match bloc_operation_id and besoin_operation_id
+      if (need.type === 'bloc_operatoire') {
+        return c.planning_genere_bloc_operatoire_id === need.bloc_operation_id &&
+               c.besoin_operation_id === need.besoin_operation_id;
+      }
+      
+      return false;
+    });
+
+    // Build secretaires list from existing assignments
+    for (const cap of relevantCapacites) {
+      const sec = secretaires.find(s => s.id === cap.secretaire_id);
+      if (sec) {
+        assigned.push({
+          id: cap.secretaire_id,
+          nom: `${sec.first_name} ${sec.name}`,
+          is_backup: false,
+          is_1r: cap.is_1r || false,
+          is_2f: cap.is_2f || false,
+          is_3f: cap.is_3f || false
+        });
+      }
+    }
+
+    const nombre_requis = Math.ceil(need.nombre_suggere);
+    const nombre_assigne = assigned.length;
+    const status = nombre_assigne >= nombre_requis ? 'satisfait' :
+                   nombre_assigne > 0 ? 'partiel' : 'non_satisfait';
+
     assignments.push({
+      date: need.date,
       site_id: need.site_id,
       site_nom: need.site_nom,
       periode: need.periode,
       type: need.type,
       bloc_operation_id: need.bloc_operation_id,
       besoin_operation_id: need.besoin_operation_id,
-      secretaires: [], // Empty = everyone in admin
-      nombre_requis: Math.ceil(need.nombre_suggere),
-      nombre_assigne: 0, // No one assigned
-      status: 'non_satisfait' // All needs unsatisfied at start
+      secretaires: assigned,
+      nombre_requis,
+      nombre_assigne,
+      status
     });
   }
 
@@ -157,6 +197,7 @@ function analyzeSolution(
     }
 
     assignments.push({
+      date: need.date,
       site_id: need.site_id,
       site_nom: need.site_nom,
       periode: need.periode,

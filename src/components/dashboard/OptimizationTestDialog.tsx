@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -80,6 +80,7 @@ export function OptimizationTestDialog({
       case 'satisfait':
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case 'partiel':
+      case 'arrondi_inferieur':
         return <AlertCircle className="h-4 w-4 text-orange-500" />;
       default:
         return <XCircle className="h-4 w-4 text-red-500" />;
@@ -91,6 +92,7 @@ export function OptimizationTestDialog({
       case 'satisfait':
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">100%</Badge>;
       case 'partiel':
+      case 'arrondi_inferieur':
         return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Partiel</Badge>;
       default:
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Manquant</Badge>;
@@ -118,6 +120,9 @@ export function OptimizationTestDialog({
               </>
             )}
           </DialogTitle>
+          <DialogDescription>
+            Résultats de l'optimisation automatique pour cette journée
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[60vh]">
