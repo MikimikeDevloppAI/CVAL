@@ -1241,6 +1241,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
                   </div>
+                  {/* Temporarily hidden
                   <Button
                     variant="outline"
                     size="sm"
@@ -1251,6 +1252,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                     <Sparkles className="h-4 w-4" />
                     {testingDays.has(date) ? 'Test en cours...' : 'Tester l\'optimisation'}
                   </Button>
+                  */}
                 </div>
 
                 {needs
