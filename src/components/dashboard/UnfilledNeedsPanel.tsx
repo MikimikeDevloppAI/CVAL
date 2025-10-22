@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, ChevronDown, UserPlus, Loader2, Sparkles, Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -48,6 +48,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [collapsedFullDays, setCollapsedFullDays] = useState<Set<string>>(new Set());
 
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
@@ -389,9 +390,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
         {/* Catégorie 1: Admin */}
         {periodData.suggestions_admin.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-              <span className="text-base">🟢</span>
+          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30 space-y-2">
+            <h4 className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
               En administratif ({periodData.suggestions_admin.length})
             </h4>
             <div className="space-y-2">
@@ -402,31 +403,33 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
                     <div className="flex items-center gap-2 flex-1">
                       <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                      {(sug.priorite_site || sug.preference_besoin) && (
-                        <Badge variant="outline" className="text-xs">
-                          Préf {sug.priorite_site || sug.preference_besoin}
-                        </Badge>
-                      )}
+                      {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
+                      {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
+                      {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
+                      {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
+                      {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
+                      {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
                     </div>
                     <div className="flex gap-1">
                       {sug.peut_toute_journee && (
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="default"
                           onClick={() => handleQuickAssign(need, periode, sug, true)}
                           disabled={assigningId === keyFull}
-                          className="h-7 px-2 text-xs"
+                          className="h-7 px-2 text-xs gap-1"
                         >
-                          {assigningId === keyFull ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Journée'}
+                          {assigningId === keyFull ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Calendar className="h-3 w-3" /> Journée</>}
                         </Button>
                       )}
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={() => handleQuickAssign(need, periode, sug, false)}
                         disabled={assigningId === key}
                         className="h-7 px-2 text-xs gap-1"
                       >
-                        {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><UserPlus className="h-3 w-3" /> Assigner</>}
+                        {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Clock className="h-3 w-3" /> {periode === 'matin' ? 'Matin' : 'AM'}</>}
                       </Button>
                     </div>
                   </div>
@@ -438,9 +441,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
         {/* Catégorie 2: Ne travaille pas */}
         {periodData.suggestions_not_working.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-              <span className="text-base">⚪</span>
+          <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 space-y-2">
+            <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
               Disponibles ({periodData.suggestions_not_working.length})
             </h4>
             <div className="space-y-2">
@@ -450,11 +453,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
                     <div className="flex items-center gap-2 flex-1">
                       <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                      {(sug.priorite_site || sug.preference_besoin) && (
-                        <Badge variant="outline" className="text-xs">
-                          Préf {sug.priorite_site || sug.preference_besoin}
-                        </Badge>
-                      )}
+                      {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
+                      {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
+                      {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
+                      {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
+                      {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
+                      {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
                     </div>
                     <Button
                       size="sm"
@@ -469,6 +473,14 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Aucune suggestion */}
+        {periodData.suggestions_admin.length === 0 && periodData.suggestions_not_working.length === 0 && (
+          <div className="text-center py-4 text-muted-foreground text-sm">
+            <AlertCircle className="h-5 w-5 mx-auto mb-2" />
+            Aucune secrétaire qualifiée disponible pour ce {need.besoin_operation_id ? 'besoin opération' : 'site'}
           </div>
         )}
 
@@ -513,28 +525,57 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
                 </div>
 
-                {needs.map(need => (
-                  <div key={`${need.date}-${need.site_id}-${need.besoin_operation_id}`} className="space-y-3">
-                    {need.has_both_periods && (
-                      <div className="flex items-center gap-2 p-3 rounded-lg bg-card border border-primary/20">
-                        <Badge className="bg-primary/10 text-primary border-primary/30">Journée complète</Badge>
-                        <span className="font-medium">{need.site_nom}</span>
-                        <span className="text-sm text-muted-foreground ml-auto">
-                          Manque : <span className="font-semibold text-destructive">{need.total_manque}</span>
-                        </span>
-                      </div>
-                    )}
-
-                    {!need.has_both_periods && (
-                      <div className="p-3 rounded-lg bg-card border border-border/50">
-                        <span className="font-medium">{need.site_nom}</span>
-                      </div>
-                    )}
-
-                    {renderPeriod(need, 'matin')}
-                    {renderPeriod(need, 'apres_midi')}
-                  </div>
-                ))}
+                {needs.map(need => {
+                  const needKey = `${need.date}-${need.site_id}-${need.besoin_operation_id}`;
+                  const isCollapsed = !collapsedFullDays.has(needKey);
+                  
+                  return (
+                    <div key={needKey} className="space-y-3">
+                      {need.has_both_periods ? (
+                        <Collapsible 
+                          open={!isCollapsed} 
+                          onOpenChange={(open) => {
+                            setCollapsedFullDays(prev => {
+                              const next = new Set(prev);
+                              if (open) {
+                                next.delete(needKey);
+                              } else {
+                                next.add(needKey);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <div className="p-3 rounded-lg bg-card border border-destructive/30">
+                            <CollapsibleTrigger className="w-full flex items-center gap-2">
+                              <Badge variant="destructive">Journée entière manquante</Badge>
+                              <span className="font-medium">{need.site_nom}</span>
+                              <span className="text-sm text-muted-foreground ml-auto flex items-center gap-2">
+                                Total: <span className="font-semibold text-destructive">{need.total_manque}</span>
+                                <ChevronDown className={`h-4 w-4 transition-transform ${!isCollapsed ? 'rotate-180' : ''}`} />
+                              </span>
+                            </CollapsibleTrigger>
+                          </div>
+                          
+                          <CollapsibleContent>
+                            <div className="space-y-3 mt-3">
+                              {renderPeriod(need, 'matin')}
+                              {renderPeriod(need, 'apres_midi')}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ) : (
+                        <>
+                          <div className="p-3 rounded-lg bg-card border border-border/50">
+                            <span className="font-medium">{need.site_nom}</span>
+                          </div>
+                          {renderPeriod(need, 'matin')}
+                          {renderPeriod(need, 'apres_midi')}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
