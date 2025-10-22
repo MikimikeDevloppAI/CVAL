@@ -1136,7 +1136,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                         <div className="space-y-4">
                           <div className="p-3 rounded-lg bg-card border border-border/50">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">🏥 {need.type_intervention_nom || need.site_nom}</span>
+                              <span className="font-medium">{need.site_nom}</span>
                             </div>
                           </div>
                           {need.besoins_personnel.map(besoin => (
