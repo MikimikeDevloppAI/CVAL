@@ -1078,14 +1078,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           )}
         </div>
 
-        {/* Aucune suggestion */}
-        {periodData.suggestions_admin.length === 0 && periodData.suggestions_not_working.length === 0 && (
-          <div className="text-center py-4 text-muted-foreground text-sm">
-            <AlertCircle className="h-5 w-5 mx-auto mb-2" />
-            Aucune secrétaire qualifiée disponible pour ce {need.besoins_personnel ? 'besoin opération' : 'site'}
-          </div>
-        )}
-
         {/* Catégorie 3: Meilleure solution */}
         <div className="pt-2 border-t border-border/30">
           <Button
