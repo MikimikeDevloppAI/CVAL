@@ -1,7 +1,6 @@
 import { 
   Calendar, 
   Users, 
-  Building2, 
   UserPlus,
   Settings,
   LogOut,
@@ -11,7 +10,6 @@ import {
   UserCog,
   CalendarX,
   CalendarX2,
-  ClipboardPlus,
   BarChart3,
   ChevronDown,
   LayoutDashboard
@@ -30,8 +28,6 @@ import { useIsAdmin } from '@/hooks/useIsAdmin';
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
-  { name: 'Opérations', href: '/operations', icon: ClipboardPlus },
-  { name: 'Sites', href: '/sites', icon: Building2 },
 ];
 
 const settingsItem = { name: 'Paramètres', href: '/settings', icon: Settings };

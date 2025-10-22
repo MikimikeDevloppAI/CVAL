@@ -8,7 +8,7 @@ import { ModernCard } from '@/components/ui/modern-card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { SiteForm } from '@/components/sites/SiteForm';
+import { SiteForm } from './SiteForm';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import {
   AlertDialog,

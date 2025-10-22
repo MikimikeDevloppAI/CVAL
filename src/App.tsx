@@ -10,10 +10,8 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
-import SitesPage from "./pages/SitesPage";
 import BackupPage from "./pages/BackupPage";
 import BlocOperatoirePage from "./pages/BlocOperatoirePage";
-import OperationsPage from "./pages/OperationsPage";
 import StatistiquesPage from "./pages/StatistiquesPage";
 import HomePage from "./pages/HomePage";
 import DashboardPage from "./pages/DashboardPage";
@@ -53,16 +51,6 @@ const App = () => (
                     <Route path="/bloc-operatoire" element={
                       <PlanningProtectedRoute>
                         <BlocOperatoirePage />
-                      </PlanningProtectedRoute>
-                    } />
-                    <Route path="/operations" element={
-                      <PlanningProtectedRoute>
-                        <OperationsPage />
-                      </PlanningProtectedRoute>
-                    } />
-                    <Route path="/sites" element={
-                      <PlanningProtectedRoute>
-                        <SitesPage />
                       </PlanningProtectedRoute>
                     } />
                     <Route path="/statistiques" element={
