@@ -432,6 +432,22 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       };
 
       if (besoinOperationId) {
+        // Pour les besoins opératoires: vérifier qui est assigné à un site ou un autre besoin opératoire
+        const { data: alreadyAssignedOther } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id, site_id, besoin_operation_id')
+          .eq('date', date)
+          .eq('demi_journee', periode)
+          .eq('actif', true);
+        
+        // Exclure seulement celles assignées à un site (pas admin) ou à un autre besoin opératoire
+        const assignedToOtherIds = alreadyAssignedOther
+          ?.filter(a => 
+            (a.site_id !== '00000000-0000-0000-0000-000000000001') ||
+            (a.besoin_operation_id && a.besoin_operation_id !== besoinOperationId)
+          )
+          .map(a => a.secretaire_id) || [];
+        
         // Catégorie 1: Admin avec compétence bloc
         const { data: adminSecretaires } = await supabase
           .from('capacite_effective')
@@ -445,7 +461,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           .eq('actif', true);
 
         for (const as of adminSecretaires || []) {
-          if (assignedIds.includes(as.secretaire_id)) continue;
+          if (assignedToOtherIds.includes(as.secretaire_id)) continue;
           
           const sec = as.secretaires as any;
           const besoins = sec?.secretaires_besoins_operations || [];
@@ -472,8 +488,18 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           `)
           .eq('actif', true);
 
+        // Récupérer tous ceux qui travaillent cette période
+        const { data: allWorking } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id')
+          .eq('date', date)
+          .eq('demi_journee', periode)
+          .eq('actif', true);
+        
+        const allWorkingIds = allWorking?.map(a => a.secretaire_id) || [];
+
         for (const s of allSecretaires || []) {
-          if (assignedIds.includes(s.id)) continue;
+          if (allWorkingIds.includes(s.id)) continue;
           if (admin.some(a => a.secretaire_id === s.id)) continue;
           
           const besoins = (s as any).secretaires_besoins_operations || [];
