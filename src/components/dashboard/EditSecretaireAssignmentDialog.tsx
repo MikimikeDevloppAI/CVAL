@@ -36,6 +36,17 @@ interface Site {
   nom: string;
 }
 
+interface OperationWithNeed {
+  id: string; // planning_genere_bloc_operatoire.id
+  besoin_effectif_id: string;
+  medecin_nom: string;
+  type_intervention_nom: string;
+  salle_nom: string | null;
+  periode: 'matin' | 'apres_midi';
+  besoins_requis: number;
+  besoins_assignes: number;
+}
+
 interface EditSecretaireAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,6 +70,10 @@ export function EditSecretaireAssignmentDialog({
   const [responsibility, setResponsibility] = useState<'1r' | '2f' | '3f' | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchingData, setFetchingData] = useState(true);
+  const [operations, setOperations] = useState<OperationWithNeed[]>([]);
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  const [loadingOperations, setLoadingOperations] = useState(false);
+  const [blocSiteId, setBlocSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -157,10 +172,139 @@ export function EditSecretaireAssignmentDialog({
       }
     }
 
-    // 5. Trier par nom
+    // 5. Identifier le bloc opératoire pour l'utiliser plus tard
+    const blocSiteFound = sitesFromPreferences.find(s => s.nom.toLowerCase().includes('bloc opératoire'));
+    if (blocSiteFound) {
+      setBlocSiteId(blocSiteFound.id);
+    }
+
+    // 6. Trier par nom
     sitesFromPreferences.sort((a, b) => a.nom.localeCompare(b.nom));
     setSites(sitesFromPreferences);
   };
+
+  const fetchOperations = async () => {
+    if (!blocSiteId) return;
+    
+    setLoadingOperations(true);
+    setOperations([]);
+    setSelectedOperationId(null);
+    
+    try {
+      // Déterminer quelles périodes chercher
+      const targetPeriods: ('matin' | 'apres_midi')[] = 
+        periode === 'journee' ? ['matin', 'apres_midi'] : [periode];
+
+      // 1. Récupérer toutes les opérations pour cette date (non annulées)
+      const { data: planningOps, error: opsError } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          id,
+          date,
+          periode,
+          besoin_effectif_id,
+          type_intervention_id,
+          medecin_id,
+          salle_assignee,
+          statut,
+          medecins!planning_genere_bloc_operatoire_medecin_id_fkey(first_name, name),
+          types_intervention(nom),
+          salles_operation:salle_assignee(name)
+        `)
+        .eq('date', date)
+        .neq('statut', 'annule');
+
+      if (opsError) throw opsError;
+      if (!planningOps || planningOps.length === 0) {
+        setOperations([]);
+        return;
+      }
+
+      // Filtrer par période côté client
+      const filteredOps = planningOps.filter(op => {
+        if (op.periode === 'toute_journee') return true; // Les opérations toute journée sont toujours disponibles
+        return targetPeriods.includes(op.periode as 'matin' | 'apres_midi');
+      });
+
+      // 2. Pour chaque opération, récupérer les besoins requis et compter les assignations
+      const operationsWithNeeds: OperationWithNeed[] = [];
+
+      for (const op of filteredOps) {
+        // Récupérer le nombre de secrétaires requis pour ce type d'intervention
+        const { data: besoinsData } = await supabase
+          .from('types_intervention_besoins_personnel')
+          .select('nombre_requis, besoin_operation_id, besoins_operations(nom)')
+          .eq('type_intervention_id', op.type_intervention_id)
+          .eq('actif', true);
+
+        if (!besoinsData || besoinsData.length === 0) continue;
+
+        // Somme de tous les besoins requis pour cette intervention
+        const totalRequis = besoinsData.reduce((sum, b) => sum + b.nombre_requis, 0);
+
+        // Compter combien de secrétaires sont déjà assignées à cette opération
+        // Pour les opérations toute_journee, on vérifie pour la période matin par défaut
+        const periodeToCheck = op.periode === 'toute_journee' 
+          ? (periode === 'journee' ? 'matin' : periode)
+          : op.periode;
+        
+        const { data: assignedData } = await supabase
+          .from('capacite_effective')
+          .select('id')
+          .eq('planning_genere_bloc_operatoire_id', op.id)
+          .eq('date', date)
+          .eq('demi_journee', periodeToCheck)
+          .eq('actif', true);
+
+        const nombreAssignes = assignedData?.length || 0;
+
+        // Si des places sont disponibles, ajouter l'opération
+        if (nombreAssignes < totalRequis) {
+          const medecinNom = op.medecins 
+            ? `Dr ${op.medecins.first_name} ${op.medecins.name}`
+            : 'Médecin non assigné';
+          
+          // Déterminer la période à afficher : si l'opération est toute_journee, utiliser la période sélectionnée
+          const displayPeriode: 'matin' | 'apres_midi' = 
+            op.periode === 'toute_journee' 
+              ? (periode === 'journee' ? 'matin' : periode)
+              : (op.periode as 'matin' | 'apres_midi');
+          
+          operationsWithNeeds.push({
+            id: op.id,
+            besoin_effectif_id: op.besoin_effectif_id,
+            medecin_nom: medecinNom,
+            type_intervention_nom: op.types_intervention?.nom || 'Intervention',
+            salle_nom: op.salles_operation?.name || null,
+            periode: displayPeriode,
+            besoins_requis: totalRequis,
+            besoins_assignes: nombreAssignes,
+          });
+        }
+      }
+
+      setOperations(operationsWithNeeds);
+    } catch (error: any) {
+      console.error('Error fetching operations:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de récupérer les opérations disponibles',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingOperations(false);
+    }
+  };
+
+  // Déclencher la récupération des opérations quand bloc opératoire est sélectionné
+  useEffect(() => {
+    if (selectedSiteId === blocSiteId && blocSiteId) {
+      fetchOperations();
+    } else {
+      setOperations([]);
+      setSelectedOperationId(null);
+    }
+  }, [selectedSiteId, blocSiteId, periode]);
 
   const handleSubmit = async () => {
     // Validate responsibility requires full day
@@ -168,6 +312,16 @@ export function EditSecretaireAssignmentDialog({
       toast({
         title: 'Attention',
         description: 'Une responsabilité nécessite une assignation pour toute la journée',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Si bloc opératoire sélectionné, une opération doit être choisie
+    if (selectedSiteId === blocSiteId && !selectedOperationId) {
+      toast({
+        title: 'Attention',
+        description: 'Veuillez sélectionner une opération pour le bloc opératoire',
         variant: 'destructive',
       });
       return;
@@ -186,20 +340,39 @@ export function EditSecretaireAssignmentDialog({
       const targetPeriods: ('matin' | 'apres_midi')[] = 
         periode === 'journee' ? ['matin', 'apres_midi'] : [periode];
 
-      // 3. UPDATE chaque demi-journée concernée
+      // 3. Si assignation à une opération, récupérer les infos
+      let operationData: OperationWithNeed | null = null;
+      if (selectedOperationId) {
+        operationData = operations.find(op => op.id === selectedOperationId) || null;
+      }
+
+      // 4. UPDATE chaque demi-journée concernée
       for (const targetPeriod of targetPeriods) {
         const existingCapacite = existingCapacites?.find(c => c.demi_journee === targetPeriod);
         
         if (existingCapacite) {
+          // Préparer l'update
+          const updateData: any = {
+            site_id: selectedSiteId,
+            is_1r: responsibility === '1r',
+            is_2f: responsibility === '2f',
+            is_3f: responsibility === '3f',
+          };
+
+          // Si assignation au bloc opératoire avec une opération
+          if (operationData && targetPeriod === operationData.periode) {
+            updateData.planning_genere_bloc_operatoire_id = operationData.id;
+            updateData.besoin_operation_id = operationData.besoin_effectif_id;
+          } else {
+            // Réinitialiser les champs bloc si changement vers site classique
+            updateData.planning_genere_bloc_operatoire_id = null;
+            updateData.besoin_operation_id = null;
+          }
+
           // UPDATE la ligne existante
           const { error } = await supabase
             .from('capacite_effective')
-            .update({
-              site_id: selectedSiteId,
-              is_1r: responsibility === '1r',
-              is_2f: responsibility === '2f',
-              is_3f: responsibility === '3f',
-            })
+            .update(updateData)
             .eq('id', existingCapacite.id);
 
           if (error) throw error;
@@ -223,6 +396,10 @@ export function EditSecretaireAssignmentDialog({
       setLoading(false);
     }
   };
+
+  // Déterminer si le bouton "Enregistrer" doit être désactivé
+  const isBlocSelected = selectedSiteId === blocSiteId;
+  const canSubmit = !isBlocSelected || (isBlocSelected && selectedOperationId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -257,6 +434,49 @@ export function EditSecretaireAssignmentDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Dropdown conditionnel pour sélectionner une opération au bloc */}
+            {isBlocSelected && (
+              <div className="space-y-2">
+                <Label>Opération au bloc opératoire</Label>
+                {loadingOperations ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                ) : operations.length === 0 ? (
+                  <div className="p-3 bg-muted rounded-md">
+                    <p className="text-sm text-muted-foreground">
+                      Aucune opération disponible pour cette période
+                    </p>
+                  </div>
+                ) : (
+                  <Select 
+                    value={selectedOperationId || ''} 
+                    onValueChange={setSelectedOperationId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une opération" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operations.map((op) => (
+                        <SelectItem key={op.id} value={op.id}>
+                          <div className="flex flex-col py-1">
+                            <span className="font-medium">
+                              {op.medecin_nom} - {op.type_intervention_nom}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {op.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                              {op.salle_nom ? ` - Salle ${op.salle_nom}` : ''}
+                              {' '}- {op.besoins_assignes}/{op.besoins_requis} assigné(s)
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
 
             {secretaire.periode === 'journee' ? (
               <div className="space-y-2">
@@ -349,7 +569,7 @@ export function EditSecretaireAssignmentDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading || fetchingData}
+            disabled={loading || fetchingData || !canSubmit}
             className="bg-gradient-to-r from-teal-500 to-cyan-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
