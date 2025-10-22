@@ -3,7 +3,8 @@ import type {
   DynamicContext,
   PreferencesData,
   Secretaire,
-  TodayAssignment
+  TodayAssignment,
+  AssignmentSummary
 } from './types.ts';
 import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES } from './types.ts';
 
@@ -206,4 +207,225 @@ export function calculateDynamicScore(
   console.log(`  🎯 SCORE TOTAL: ${score}`);
   
   return score;
+}
+
+// ============================================================
+// COMBO SCORE CALCULATION
+// ============================================================
+export function calculateComboScore(
+  secretaire_id: string,
+  needMatin: SiteNeed | null,
+  needAM: SiteNeed | null,
+  week_assignments: AssignmentSummary[],
+  preferences: PreferencesData,
+  secretaire: Secretaire
+): number {
+  console.log(`\n🎯 Calcul du score COMBO pour:`, {
+    secretaire_id: secretaire_id.slice(0, 8),
+    matin: needMatin ? `${needMatin.site_id.slice(0, 8)}...` : 'null',
+    am: needAM ? `${needAM.site_id.slice(0, 8)}...` : 'null'
+  });
+  
+  let totalScore = 0;
+  
+  // Compteurs pour bonus/pénalités progressifs
+  let currentAdminCount = week_assignments.filter(
+    a => a.secretaire_id === secretaire_id && a.is_admin
+  ).length;
+  
+  const sitesCount = new Map<string, number>();
+  for (const assignment of week_assignments) {
+    if (assignment.secretaire_id === secretaire_id && 
+        assignment.site_priorite && 
+        (assignment.site_priorite === 2 || assignment.site_priorite === 3)) {
+      const count = sitesCount.get(assignment.site_id) || 0;
+      sitesCount.set(assignment.site_id, count + 1);
+    }
+  }
+  
+  // ============================================================
+  // 1. MATIN: Scores positifs
+  // ============================================================
+  if (needMatin) {
+    const positiveScores: number[] = [];
+    
+    // 1a. Besoin opératoire
+    if (needMatin.type === 'bloc_operatoire' && needMatin.besoin_operation_id) {
+      const besoinMatch = preferences.besoins.find(
+        sb => sb.secretaire_id === secretaire_id && 
+              sb.besoin_operation_id === needMatin.besoin_operation_id
+      );
+      if (besoinMatch) {
+        const besoinScore = besoinMatch.preference === 1 ? SCORE_WEIGHTS.BESOIN_OP_PREF_1 :
+                            besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
+                            SCORE_WEIGHTS.BESOIN_OP_PREF_3;
+        positiveScores.push(besoinScore);
+        console.log(`  ✅ MATIN BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
+      }
+    }
+    
+    // 1b. Médecin
+    for (const medecin_id of needMatin.medecins_ids) {
+      const medecinMatch = preferences.medecins.find(
+        sm => sm.secretaire_id === secretaire_id && sm.medecin_id === medecin_id
+      );
+      if (medecinMatch) {
+        const medecinScore = medecinMatch.priorite === '1' ? 
+          SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
+        positiveScores.push(medecinScore);
+        console.log(`  ✅ MATIN MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
+      }
+    }
+    
+    // 1c. Site
+    const siteMatchMatin = preferences.sites.find(
+      ss => ss.secretaire_id === secretaire_id && ss.site_id === needMatin.site_id
+    );
+    if (siteMatchMatin) {
+      const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
+                        siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
+                        SCORE_WEIGHTS.SITE_PREF_3;
+      positiveScores.push(siteScore);
+      console.log(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
+    }
+    
+    // Prendre le MAX
+    const matinBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
+    totalScore += matinBaseScore;
+    console.log(`  🌅 Score MATIN BASE: ${matinBaseScore}`);
+    
+    // 1d. Bonus admin progressif (MATIN)
+    if (needMatin.site_id === ADMIN_SITE_ID) {
+      if (secretaire.prefered_admin) {
+        if (currentAdminCount < 2) {
+          totalScore += 90;
+          console.log(`  💼💼 MATIN Admin PRÉFÉRÉ (${currentAdminCount}/2): +90`);
+        } else {
+          totalScore += 6;
+          console.log(`  💼 MATIN Admin PRÉFÉRÉ (${currentAdminCount} ≥ 2): +6`);
+        }
+      } else {
+        const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
+        totalScore += adminBonus;
+        console.log(`  💼 MATIN Admin standard (${currentAdminCount}): +${adminBonus}`);
+      }
+      currentAdminCount++; // Incrémenter pour l'après-midi
+    }
+    
+    // 1e. Pénalité sur-assignation site P2/P3 (MATIN)
+    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3')) {
+      const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
+      if (currentSiteCount >= 2) {
+        const overload = currentSiteCount - 2;
+        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        totalScore += penalty;
+        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} sur-assigné (${currentSiteCount} > 2): ${penalty}`);
+      }
+      // Incrémenter pour l'après-midi
+      sitesCount.set(needMatin.site_id, currentSiteCount + 1);
+    }
+  }
+  
+  // ============================================================
+  // 2. APRÈS-MIDI: Scores positifs
+  // ============================================================
+  if (needAM) {
+    const positiveScores: number[] = [];
+    
+    // 2a. Besoin opératoire
+    if (needAM.type === 'bloc_operatoire' && needAM.besoin_operation_id) {
+      const besoinMatch = preferences.besoins.find(
+        sb => sb.secretaire_id === secretaire_id && 
+              sb.besoin_operation_id === needAM.besoin_operation_id
+      );
+      if (besoinMatch) {
+        const besoinScore = besoinMatch.preference === 1 ? SCORE_WEIGHTS.BESOIN_OP_PREF_1 :
+                            besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
+                            SCORE_WEIGHTS.BESOIN_OP_PREF_3;
+        positiveScores.push(besoinScore);
+        console.log(`  ✅ AM BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
+      }
+    }
+    
+    // 2b. Médecin
+    for (const medecin_id of needAM.medecins_ids) {
+      const medecinMatch = preferences.medecins.find(
+        sm => sm.secretaire_id === secretaire_id && sm.medecin_id === medecin_id
+      );
+      if (medecinMatch) {
+        const medecinScore = medecinMatch.priorite === '1' ? 
+          SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
+        positiveScores.push(medecinScore);
+        console.log(`  ✅ AM MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
+      }
+    }
+    
+    // 2c. Site
+    const siteMatchAM = preferences.sites.find(
+      ss => ss.secretaire_id === secretaire_id && ss.site_id === needAM.site_id
+    );
+    if (siteMatchAM) {
+      const siteScore = siteMatchAM.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
+                        siteMatchAM.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
+                        SCORE_WEIGHTS.SITE_PREF_3;
+      positiveScores.push(siteScore);
+      console.log(`  ✅ AM SITE_PREF_${siteMatchAM.priorite}: ${siteScore}`);
+    }
+    
+    // Prendre le MAX
+    const amBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
+    totalScore += amBaseScore;
+    console.log(`  🌇 Score AM BASE: ${amBaseScore}`);
+    
+    // 2d. Bonus admin progressif (AM)
+    if (needAM.site_id === ADMIN_SITE_ID) {
+      if (secretaire.prefered_admin) {
+        if (currentAdminCount < 2) {
+          totalScore += 90;
+          console.log(`  💼💼 AM Admin PRÉFÉRÉ (${currentAdminCount}/2): +90`);
+        } else {
+          totalScore += 6;
+          console.log(`  💼 AM Admin PRÉFÉRÉ (${currentAdminCount} ≥ 2): +6`);
+        }
+      } else {
+        const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
+        totalScore += adminBonus;
+        console.log(`  💼 AM Admin standard (${currentAdminCount}): +${adminBonus}`);
+      }
+    }
+    
+    // 2e. Pénalité sur-assignation site P2/P3 (AM)
+    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3')) {
+      const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
+      if (currentSiteCount >= 2) {
+        const overload = currentSiteCount - 2;
+        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        totalScore += penalty;
+        console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} sur-assigné (${currentSiteCount} > 2): ${penalty}`);
+      }
+    }
+  }
+  
+  // ============================================================
+  // 3. PÉNALITÉ CHANGEMENT DE SITE
+  // ============================================================
+  if (needMatin && needAM && needMatin.site_id !== needAM.site_id) {
+    // Exclure les changements impliquant ADMIN
+    if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
+      const isHighPenalty = 
+        HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
+        HIGH_PENALTY_SITES.includes(needAM.site_id);
+      
+      const changePenalty = isHighPenalty ? 
+        PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
+        PENALTIES.CHANGEMENT_SITE;
+      
+      totalScore += changePenalty;
+      console.log(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
+    }
+  }
+  
+  console.log(`  🎯 SCORE COMBO TOTAL: ${totalScore}`);
+  
+  return totalScore;
 }
