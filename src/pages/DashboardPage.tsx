@@ -10,7 +10,7 @@ import { SecretairesPopup } from '@/components/dashboard/secretaires/Secretaires
 import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus, Building, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus, Building, FileText } from 'lucide-react';
 import { WeekSelector } from '@/components/shared/WeekSelector';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
@@ -732,11 +732,29 @@ const DashboardPage = () => {
       </div>
 
       {/* Week Selector */}
-      <div className="flex items-center justify-center bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
+      <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handlePreviousWeek}
+          className="hover:bg-primary/10"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        
         <WeekSelector 
           currentDate={currentWeek} 
           onWeekChange={setCurrentWeek} 
         />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleNextWeek}
+          className="hover:bg-primary/10"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
       </div>
 
       {/* View Mode Tabs */}
