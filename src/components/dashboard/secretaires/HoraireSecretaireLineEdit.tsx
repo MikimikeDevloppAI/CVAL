@@ -152,12 +152,12 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
     return (
       <div className="p-2 bg-teal-500/5 rounded-lg border border-teal-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         {/* Première ligne: Jour, Période, Alternance */}
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-1.5 mb-2">
           <Select 
             value={formData.jour_semaine.toString()} 
             onValueChange={(value) => setFormData({ ...formData, jour_semaine: parseInt(value) })}
           >
-            <SelectTrigger className="h-8 w-24 text-xs border-teal-200/50">
+            <SelectTrigger className="h-8 w-20 text-xs border-teal-200/50">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -173,7 +173,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
             value={formData.demi_journee} 
             onValueChange={(value) => setFormData({ ...formData, demi_journee: value })}
           >
-            <SelectTrigger className="h-8 w-32 text-xs border-teal-200/50" type="button">
+            <SelectTrigger className="h-8 w-28 text-xs border-teal-200/50" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -193,7 +193,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
               })
             }
           >
-            <SelectTrigger className="w-24 h-8 text-xs border-teal-200/50 bg-teal-500/5" type="button">
+            <SelectTrigger className="w-20 h-8 text-xs border-teal-200/50 bg-teal-500/5" type="button">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -248,12 +248,12 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         </div>
 
         {/* Deuxième ligne: Site */}
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-1.5 mb-2">
           <Select 
             value={formData.site_id} 
             onValueChange={(value) => setFormData({ ...formData, site_id: value })}
           >
-            <SelectTrigger className="h-8 flex-1 text-xs border-teal-200/50">
+            <SelectTrigger className="h-8 w-full text-xs border-teal-200/50">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -267,44 +267,42 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         </div>
 
         {/* Troisième ligne: Dates + Boutons */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-muted-foreground w-8 shrink-0">Du</label>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground w-7 shrink-0">Du</label>
           <input
             type="date"
             value={formData.date_debut}
             onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
-            className="h-8 flex-1 text-xs rounded-md border border-teal-200/50 bg-background px-2"
+            className="h-8 w-32 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
-          <label className="text-xs text-muted-foreground w-8 shrink-0">Au</label>
+          <label className="text-xs text-muted-foreground w-7 shrink-0">Au</label>
           <input
             type="date"
             value={formData.date_fin}
             onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
-            className="h-8 flex-1 text-xs rounded-md border border-teal-200/50 bg-background px-2"
+            className="h-8 w-32 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
           
-          <div className="flex gap-1 shrink-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleSave}
-              disabled={loading}
-              className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
-            >
-              <Check className="h-3 w-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleCancel}
-              disabled={loading}
-              className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleSave}
+            disabled={loading}
+            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 shrink-0 ml-auto"
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            disabled={loading}
+            className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600 shrink-0"
+          >
+            <X className="h-3 w-3" />
+          </Button>
         </div>
       </div>
     );
