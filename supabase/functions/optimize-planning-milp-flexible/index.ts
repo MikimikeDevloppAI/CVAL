@@ -285,11 +285,18 @@ serve(async (req) => {
       });
       const selectedDays = dayScores.slice(0, finalJoursRequis);
 
-      console.log(`\n  📊 Top ${finalJoursRequis} days selected (sorted by max tension):`);
+      console.log(`\n  📊 ALL DAYS TENSION SCORES (Monday-Friday):`);
+      for (const day of dayScores) {
+        const dayName = new Date(day.date).toLocaleDateString('fr-FR', { weekday: 'long' });
+        console.log(`\n    📅 ${dayName} ${day.date}:`);
+        console.log(`       Tension MAX: ${day.tension_max}, Autre: ${day.tension_autre}`);
+        console.log(`       Matin (${day.tension_matin}): ${day.details_matin}`);
+        console.log(`       Après-midi (${day.tension_apres_midi}): ${day.details_apres_midi}`);
+      }
+
+      console.log(`\n  🎯 Top ${finalJoursRequis} days selected (sorted by max tension):`);
       for (const day of selectedDays) {
         console.log(`    ${day.date}: max=${day.tension_max}, autre=${day.tension_autre} (M: ${day.tension_matin}, AM: ${day.tension_apres_midi})`);
-        console.log(`      Matin: ${day.details_matin}`);
-        console.log(`      Après-midi: ${day.details_apres_midi}`);
       }
 
       // Create capacities for selected days (BOTH periods)
@@ -361,34 +368,48 @@ async function calculatePeriodTension(
   secBesoinsMap: Map<string, Set<string>>
 ): Promise<{ tension: number; details: string }> {
   
-  const preferredSites = secSitesMap.get(secretaire_id) || new Set();
   const competentBesoins = secBesoinsMap.get(secretaire_id) || new Set();
+
+  // If secretary has no operational competencies, return 0 tension
+  if (competentBesoins.size === 0) {
+    return { tension: 0, details: 'No operational competencies' };
+  }
 
   let maxTension = 0;
   const details: string[] = [];
 
-  // ==================== SITE TENSION ====================
+  // ==================== BLOC OPERATOIRE TENSION ONLY ====================
   
-  // Get all site needs for this date/period for preferred sites only
-  const { data: siteBesoins } = await supabase
-    .from('besoin_effectif')
+  // Get ALL planned operations for this date/period
+  const { data: allOperations } = await supabase
+    .from('planning_genere_bloc_operatoire')
     .select(`
-      site_id,
-      medecin_id,
-      medecins!inner(besoin_secretaires)
+      id,
+      type_intervention_id
     `)
     .eq('date', date)
-    .eq('demi_journee', periode)
-    .eq('type', 'medecin')
-    .eq('actif', true)
-    .in('site_id', Array.from(preferredSites));
+    .eq('periode', periode);
 
-  // Group by site and sum needs (with ceil)
-  const siteNeedsMap = new Map<string, number>();
-  for (const besoin of siteBesoins || []) {
-    const current = siteNeedsMap.get(besoin.site_id) || 0;
-    const besoinSec = besoin.medecins?.besoin_secretaires || 1.2;
-    siteNeedsMap.set(besoin.site_id, current + besoinSec);
+  if (!allOperations || allOperations.length === 0) {
+    return { tension: 0, details: 'No operations planned' };
+  }
+
+  // For each operation, get its personnel needs
+  const typeInterventionIds = [...new Set(allOperations.map((op: any) => op.type_intervention_id))];
+  
+  const { data: personnelBesoins } = await supabase
+    .from('types_intervention_besoins_personnel')
+    .select('type_intervention_id, besoin_operation_id, nombre_requis')
+    .in('type_intervention_id', typeInterventionIds)
+    .eq('actif', true);
+
+  // Filter only besoins for which this secretary is eligible
+  const eligibleBesoins = (personnelBesoins || []).filter(
+    (b: any) => competentBesoins.has(b.besoin_operation_id)
+  );
+
+  if (eligibleBesoins.length === 0) {
+    return { tension: 0, details: 'No eligible operational needs' };
   }
 
   // Get ALL available capacities for this period (all secretaries)
@@ -401,59 +422,23 @@ async function calculatePeriodTension(
 
   const allSecIds = (allCapacities || []).map((c: any) => c.secretaire_id);
 
-  // Calculate tension for each site
-  for (const [siteId, needSum] of siteNeedsMap) {
-    const needCeil = Math.ceil(needSum);
-
-    // Count eligible secretaries (those with capacity AND preference for this site)
-    const { data: secWithSite } = await supabase
-      .from('secretaires_sites')
-      .select('secretaire_id')
-      .eq('site_id', siteId)
-      .in('secretaire_id', allSecIds);
-
-    const eligibleCount = secWithSite?.length || 0;
-    const tension = needCeil - eligibleCount;
-
-    details.push(`Site ${siteId.substring(0, 8)}: besoin=${needCeil}, éligibles=${eligibleCount}, tension=${tension}`);
-    
-    if (tension > maxTension) {
-      maxTension = tension;
-    }
-  }
-
-  // ==================== BLOC TENSION ====================
+  // Group needs by besoin_operation_id (counting how many operations need each besoin)
+  const besoinNeedsMap = new Map<string, { total: number; ops: string[] }>();
   
-  // Get all bloc needs for this date/period for competent besoins only
-  const { data: blocBesoins } = await supabase
-    .from('planning_genere_bloc_operatoire')
-    .select(`
-      id,
-      type_intervention_id,
-      types_intervention_besoins_personnel!inner(
-        besoin_operation_id,
-        nombre_requis
-      )
-    `)
-    .eq('date', date)
-    .eq('periode', periode)
-    .in('types_intervention_besoins_personnel.besoin_operation_id', Array.from(competentBesoins));
-
-  // Group by besoin_operation_id and sum needs (with ceil)
-  const blocNeedsMap = new Map<string, number>();
-  for (const bloc of blocBesoins || []) {
-    for (const besoin of (bloc as any).types_intervention_besoins_personnel || []) {
-      const besoinOpId = besoin.besoin_operation_id;
-      const nombreRequis = besoin.nombre_requis;
-      const current = blocNeedsMap.get(besoinOpId) || 0;
-      blocNeedsMap.set(besoinOpId, current + nombreRequis);
+  for (const op of allOperations) {
+    const opBesoins = eligibleBesoins.filter((b: any) => b.type_intervention_id === op.type_intervention_id);
+    for (const besoin of opBesoins) {
+      if (!besoinNeedsMap.has(besoin.besoin_operation_id)) {
+        besoinNeedsMap.set(besoin.besoin_operation_id, { total: 0, ops: [] });
+      }
+      const current = besoinNeedsMap.get(besoin.besoin_operation_id)!;
+      current.total += besoin.nombre_requis;
+      current.ops.push(op.id.substring(0, 8));
     }
   }
 
-  // Calculate tension for each bloc besoin
-  for (const [besoinOpId, needSum] of blocNeedsMap) {
-    const needCeil = Math.ceil(needSum);
-
+  // Calculate tension for each operational besoin
+  for (const [besoinOpId, needInfo] of besoinNeedsMap) {
     // Count eligible secretaries (those with capacity AND competence for this besoin)
     const { data: secWithCompetence } = await supabase
       .from('secretaires_besoins_operations')
@@ -462,16 +447,25 @@ async function calculatePeriodTension(
       .in('secretaire_id', allSecIds);
 
     const eligibleCount = secWithCompetence?.length || 0;
-    const tension = needCeil - eligibleCount;
+    const tension = needInfo.total - eligibleCount;
 
-    details.push(`Bloc ${besoinOpId.substring(0, 8)}: besoin=${needCeil}, éligibles=${eligibleCount}, tension=${tension}`);
+    // Get besoin name for better logging
+    const { data: besoinInfo } = await supabase
+      .from('besoins_operations')
+      .select('nom, code')
+      .eq('id', besoinOpId)
+      .single();
+
+    const besoinName = besoinInfo ? `${besoinInfo.code} (${besoinInfo.nom})` : besoinOpId.substring(0, 8);
+    
+    details.push(`${besoinName}: besoin=${needInfo.total} (${needInfo.ops.length} ops), éligibles=${eligibleCount}, tension=${tension}`);
     
     if (tension > maxTension) {
       maxTension = tension;
     }
   }
 
-  const detailsStr = details.length > 0 ? details.join(' | ') : 'No tension';
+  const detailsStr = details.length > 0 ? details.join(' | ') : 'No eligible needs found';
 
   return { tension: maxTension, details: detailsStr };
 }
