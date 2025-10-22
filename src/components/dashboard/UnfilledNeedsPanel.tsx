@@ -1218,7 +1218,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         <>
                                       {besoin.suggestions_matin.suggestions_admin.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                                             ✓ En administratif (disponibles)
                                           </div>
                                           {besoin.suggestions_matin.suggestions_admin.map(sug => (
@@ -1241,7 +1241,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                       )}
                                       {besoin.suggestions_matin.suggestions_not_working.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2 sticky top-0">
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
                                             + Créer un créneau (non disponibles)
                                           </div>
                                           {besoin.suggestions_matin.suggestions_not_working.map(sug => (
@@ -1338,7 +1338,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         <>
                                       {besoin.suggestions_apres_midi.suggestions_admin.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                                             ✓ En administratif (disponibles)
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_admin.map(sug => (
@@ -1361,7 +1361,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                       )}
                                       {besoin.suggestions_apres_midi.suggestions_not_working.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2 sticky top-0">
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
                                             + Créer un créneau (non disponibles)
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_not_working.map(sug => (
