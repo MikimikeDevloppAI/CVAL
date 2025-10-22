@@ -7,6 +7,7 @@ import { SiteCalendarCard } from '@/components/dashboard/SiteCalendarCard';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
 import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
+import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus } from 'lucide-react';
@@ -119,6 +120,7 @@ const DashboardPage = () => {
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
+  const [operationsPopupOpen, setOperationsPopupOpen] = useState(false);
   const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [stats, setStats] = useState({
@@ -653,7 +655,7 @@ const DashboardPage = () => {
         <QuickActionButton
           label="Opérations"
           icon={<ClipboardPlus className="h-6 w-6" />}
-          href="/operations"
+          onClick={() => setOperationsPopupOpen(true)}
           gradient="from-emerald-500 to-teal-500"
           count={stats.todayOperations}
         />
@@ -849,6 +851,11 @@ const DashboardPage = () => {
       <SecretairesPopup 
         open={secretairesPopupOpen} 
         onOpenChange={setSecretairesPopupOpen}
+      />
+
+      <OperationsPopup
+        open={operationsPopupOpen}
+        onOpenChange={setOperationsPopupOpen}
       />
 
       <AbsencesJoursFeriesPopup
