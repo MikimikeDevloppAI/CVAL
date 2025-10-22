@@ -241,54 +241,55 @@ export function EditSecretaireAssignmentDialog({
 
         if (!besoinsData || besoinsData.length === 0) continue;
 
-        // Somme de tous les besoins requis pour cette intervention
-        const totalRequis = besoinsData.reduce((sum, b) => sum + b.nombre_requis, 0);
-        
-        // Récupérer le besoin_operation_id et son nom (prendre le premier si plusieurs)
-        const besoinOperationId = besoinsData[0]?.besoin_operation_id;
-        const besoinOperationNom = (besoinsData[0]?.besoins_operations as any)?.nom || 'Besoin non défini';
-        if (!besoinOperationId) continue;
-
-        // Compter combien de secrétaires sont déjà assignées à cette opération
-        // Pour les opérations toute_journee, on vérifie pour la période matin par défaut
-        const periodeToCheck = op.periode === 'toute_journee' 
-          ? (periode === 'journee' ? 'matin' : periode)
-          : op.periode;
-        
-        const { data: assignedData } = await supabase
-          .from('capacite_effective')
-          .select('id')
-          .eq('planning_genere_bloc_operatoire_id', op.id)
-          .eq('date', date)
-          .eq('demi_journee', periodeToCheck)
-          .eq('actif', true);
-
-        const nombreAssignes = assignedData?.length || 0;
-
-        // Si des places sont disponibles, ajouter l'opération
-        if (nombreAssignes < totalRequis) {
-          const medecinNom = op.medecins 
-            ? `Dr ${op.medecins.first_name} ${op.medecins.name}`
-            : 'Médecin non assigné';
+        // Itérer sur CHAQUE besoin opérationnel spécifique
+        for (const besoin of besoinsData) {
+          const besoinOperationId = besoin.besoin_operation_id;
+          const besoinOperationNom = (besoin.besoins_operations as any)?.nom || 'Besoin non défini';
+          const nombreRequis = besoin.nombre_requis;
           
-          // Déterminer la période à afficher : si l'opération est toute_journee, utiliser la période sélectionnée
-          const displayPeriode: 'matin' | 'apres_midi' = 
-            op.periode === 'toute_journee' 
-              ? (periode === 'journee' ? 'matin' : periode)
-              : (op.periode as 'matin' | 'apres_midi');
+          if (!besoinOperationId) continue;
+
+          // Déterminer la période à vérifier
+          const periodeToCheck = op.periode === 'toute_journee' 
+            ? (periode === 'journee' ? 'matin' : periode)
+            : op.periode;
           
-          operationsWithNeeds.push({
-            id: op.id,
-            besoin_effectif_id: op.besoin_effectif_id,
-            besoin_operation_id: besoinOperationId,
-            besoin_operation_nom: besoinOperationNom,
-            medecin_nom: medecinNom,
-            type_intervention_nom: op.types_intervention?.nom || 'Intervention',
-            salle_nom: op.salles_operation?.name || null,
-            periode: displayPeriode,
-            besoins_requis: totalRequis,
-            besoins_assignes: nombreAssignes,
-          });
+          // Compter les secrétaires assignées POUR CE BESOIN SPÉCIFIQUE
+          const { data: assignedData } = await supabase
+            .from('capacite_effective')
+            .select('id')
+            .eq('planning_genere_bloc_operatoire_id', op.id)
+            .eq('besoin_operation_id', besoinOperationId) // Filtrer par besoin spécifique
+            .eq('date', date)
+            .eq('demi_journee', periodeToCheck)
+            .eq('actif', true);
+
+          const nombreAssignes = assignedData?.length || 0;
+
+          // Si des places sont disponibles POUR CE BESOIN SPÉCIFIQUE, ajouter au dropdown
+          if (nombreAssignes < nombreRequis) {
+            const medecinNom = op.medecins 
+              ? `Dr ${op.medecins.first_name} ${op.medecins.name}`
+              : 'Médecin non assigné';
+            
+            const displayPeriode: 'matin' | 'apres_midi' = 
+              op.periode === 'toute_journee' 
+                ? (periode === 'journee' ? 'matin' : periode)
+                : (op.periode as 'matin' | 'apres_midi');
+            
+            operationsWithNeeds.push({
+              id: op.id,
+              besoin_effectif_id: op.besoin_effectif_id,
+              besoin_operation_id: besoinOperationId,
+              besoin_operation_nom: besoinOperationNom,
+              medecin_nom: medecinNom,
+              type_intervention_nom: op.types_intervention?.nom || 'Intervention',
+              salle_nom: op.salles_operation?.name || null,
+              periode: displayPeriode,
+              besoins_requis: nombreRequis, // Besoin spécifique, pas total
+              besoins_assignes: nombreAssignes, // Assignations spécifiques à ce besoin
+            });
+          }
         }
       }
 
