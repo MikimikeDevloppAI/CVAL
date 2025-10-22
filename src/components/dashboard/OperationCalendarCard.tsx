@@ -139,20 +139,31 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
               {dayOfWeek} - {dayDate}
             </span>
             <span className="text-foreground">•</span>
-            <span className="text-foreground font-medium">
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "text-[10px] px-2 py-0.5 font-semibold",
+                operation.periode === 'matin' 
+                  ? 'bg-blue-500 text-white border-blue-500' 
+                  : 'bg-yellow-500 text-white border-yellow-500'
+              )}
+            >
               {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}
-            </span>
+            </Badge>
             {operation.salle_nom && (
               <>
                 <span className="text-foreground">•</span>
-                <span 
-                  className="text-foreground font-medium cursor-pointer hover:underline flex items-center gap-1"
+                <div 
+                  className={cn(
+                    "px-2 py-1 rounded-md text-[10px] font-semibold border flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                    getSalleColor(operation.salle_nom)
+                  )}
                   onClick={() => setChangeSalleOpen(true)}
                   title="Cliquer pour changer de salle"
                 >
-                  <MapPin className="h-3 w-3" />
+                  <MapPin className="h-2.5 w-2.5" />
                   {operation.salle_nom}
-                </span>
+                </div>
               </>
             )}
           </div>
