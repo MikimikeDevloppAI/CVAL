@@ -9,7 +9,8 @@ import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
 import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus } from 'lucide-react';
+import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
@@ -117,6 +118,7 @@ const DashboardPage = () => {
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
   const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
+  const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -805,12 +807,22 @@ const DashboardPage = () => {
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : dashboardOperations.length === 0 ? (
-            <div className="flex items-center justify-center py-20">
-              <p className="text-muted-foreground">Aucune opération cette semaine</p>
-            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {/* Add Operation Card */}
+              <div 
+                onClick={() => setAddOperationDialogOpen(true)}
+                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
+              >
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Plus className="h-6 w-6 text-primary" />
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Ajouter une opération
+                </span>
+              </div>
+
+              {/* Existing Operations */}
               {dashboardOperations.map((operation, index) => (
                 <OperationCalendarCard
                   key={operation.id}
@@ -842,6 +854,13 @@ const DashboardPage = () => {
       <OptimizePlanningDialog
         open={planningDialogOpen}
         onOpenChange={setPlanningDialogOpen}
+      />
+
+      <AddOperationDialog
+        open={addOperationDialogOpen}
+        onOpenChange={setAddOperationDialogOpen}
+        currentWeekStart={currentWeek}
+        onSuccess={fetchDashboardData}
       />
     </div>
   );
