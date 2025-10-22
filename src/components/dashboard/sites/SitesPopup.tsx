@@ -105,8 +105,13 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
   const filteredSites = sites.filter(site => {
     const matchesSearch = site.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          site.adresse?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = showInactive ? true : site.actif;
-    return matchesSearch && matchesStatus;
+    
+    // Exclure les sites administratif et bloc opératoire
+    const isExcludedSite = site.nom.toLowerCase().includes('administratif') || 
+                          site.nom.toLowerCase().includes('bloc opératoire');
+    
+    // Ne montrer que les sites actifs et non exclus
+    return matchesSearch && site.actif && !isExcludedSite;
   });
 
   const handleFormSuccess = () => {
@@ -156,29 +161,16 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
                   />
                 </div>
                 
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      checked={showInactive}
-                      onCheckedChange={setShowInactive}
-                      id="show-inactive-sites"
-                    />
-                    <label htmlFor="show-inactive-sites" className="text-sm font-medium cursor-pointer whitespace-nowrap">
-                      Sites inactifs
-                    </label>
-                  </div>
-
-                  {canManage && (
-                    <Button
-                      onClick={handleAdd}
-                      size="default"
-                      className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Ajouter un site
-                    </Button>
-                  )}
-                </div>
+                {canManage && (
+                  <Button
+                    onClick={handleAdd}
+                    size="default"
+                    className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter un site
+                  </Button>
+                )}
               </div>
 
               {/* Sites Grid */}
@@ -197,24 +189,24 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
                   </p>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredSites.map((site) => (
                     <ModernCard
                       key={site.id}
-                      className="group hover:shadow-xl transition-all duration-300"
+                      className="group hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 overflow-hidden"
                     >
-                      <div className="space-y-4">
-                        {/* Site Header */}
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-2">
-                              <Building className="h-5 w-5 text-violet-500" />
-                              <h3 className="font-semibold text-lg group-hover:text-violet-500 transition-colors">
-                                {site.nom}
-                              </h3>
-                            </div>
+                      <div className="space-y-6 p-6">
+                        {/* Site Header avec gradient background */}
+                        <div className="flex items-start gap-4">
+                          <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-lg">
+                            <Building className="h-6 w-6 text-white" />
+                          </div>
+                          <div className="space-y-2 flex-1 min-w-0">
+                            <h3 className="font-bold text-xl group-hover:text-violet-500 transition-colors leading-tight">
+                              {site.nom}
+                            </h3>
                             {site.adresse && (
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-sm text-muted-foreground leading-relaxed">
                                 {site.adresse}
                               </p>
                             )}
@@ -222,44 +214,26 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
                         </div>
 
                         {/* Badges */}
-                        <div className="flex flex-wrap gap-2">
-                          {!site.actif && (
-                            <Badge variant="secondary" className="bg-muted/50">
-                              Inactif
-                            </Badge>
-                          )}
-                          {site.fermeture && (
-                            <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20">
+                        {site.fermeture && (
+                          <div className="flex flex-wrap gap-2">
+                            <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 px-3 py-1">
                               Nécessite fermeture de site
                             </Badge>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Actions */}
                         {canManage && (
-                          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <div className="pt-4 border-t border-border/50">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(site)}
-                              className="flex-1 hover:bg-violet-500/10 hover:text-violet-500"
+                              className="w-full hover:bg-violet-500/10 hover:text-violet-500 font-medium"
                             >
                               <Pencil className="h-4 w-4 mr-2" />
-                              Modifier
+                              Modifier le site
                             </Button>
-                            <div className="flex items-center space-x-2">
-                              <Switch
-                                checked={site.actif}
-                                onCheckedChange={() => handleToggleActif(site)}
-                                id={`site-status-${site.id}`}
-                              />
-                              <label
-                                htmlFor={`site-status-${site.id}`}
-                                className="text-sm font-medium cursor-pointer whitespace-nowrap"
-                              >
-                                {site.actif ? 'Actif' : 'Inactif'}
-                              </label>
-                            </div>
                           </div>
                         )}
                       </div>
