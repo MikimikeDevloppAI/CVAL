@@ -283,26 +283,28 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
             className="h-8 w-32 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
           
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSave}
-            disabled={loading}
-            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 shrink-0 ml-auto"
-          >
-            <Check className="h-3 w-3" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleCancel}
-            disabled={loading}
-            className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600 shrink-0"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+          <div className="flex gap-1 shrink-0 ml-auto pl-2 border-l border-border/30">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={loading}
+              className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
     );
