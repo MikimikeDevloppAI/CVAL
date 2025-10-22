@@ -328,10 +328,10 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .eq('actif', true)
         .order('first_name');
 
-      // Fetch capacites for the selected date range
+      // Fetch capacites with site information for the selected date range
       const { data: capData } = await supabase
         .from('capacite_effective')
-        .select('*')
+        .select('*, sites(nom)')
         .gte('date', formatDate(exportStartDate))
         .lte('date', formatDate(exportEndDate))
         .order('date');
@@ -344,39 +344,58 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       const allDays = eachDayOfInterval({ start: exportStartDate, end: exportEndDate });
 
       // Create header row with dates
-      const headerRow = ['Secrétaire', ...allDays.map(d => format(d, 'dd/MM/yyyy (EEE)', { locale: fr }))];
+      const headerRow = ['Secrétaire', 'Période', ...allDays.map(d => format(d, 'dd/MM/yyyy (EEE)', { locale: fr }))];
 
-      // Create data rows
-      const dataRows = secData.map(sec => {
-        const row = [`${sec.first_name} ${sec.name}`];
+      // Create data rows - 2 rows per secretary (matin, après-midi)
+      const dataRows: any[] = [];
+      
+      secData.forEach(sec => {
+        const fullName = `${sec.first_name} ${sec.name}`;
         
+        // Row for "Matin"
+        const matinRow = [fullName, 'Matin'];
         allDays.forEach(day => {
           const dateStr = formatDate(day);
-          const caps = capData.filter(c => c.secretaire_id === sec.id && c.date === dateStr);
+          const matinCaps = capData.filter(c => 
+            c.secretaire_id === sec.id && 
+            c.date === dateStr && 
+            (c.demi_journee === 'matin' || c.demi_journee === 'toute_journee')
+          );
           
-          if (caps.length === 0) {
-            row.push('');
+          if (matinCaps.length === 0) {
+            matinRow.push('');
           } else {
-            const periods = caps.map(c => {
-              switch (c.demi_journee) {
-                case 'toute_journee': return 'Journée';
-                case 'matin': return 'Matin';
-                case 'apres_midi': return 'AM';
-                default: return '';
-              }
-            }).join(', ');
-            row.push(periods);
+            const sites = matinCaps.map(c => c.sites?.nom || 'Site non défini').join(', ');
+            matinRow.push(sites);
           }
         });
-
-        return row;
+        dataRows.push(matinRow);
+        
+        // Row for "Après-midi"
+        const apresRow = [fullName, 'Après-midi'];
+        allDays.forEach(day => {
+          const dateStr = formatDate(day);
+          const apresCaps = capData.filter(c => 
+            c.secretaire_id === sec.id && 
+            c.date === dateStr && 
+            (c.demi_journee === 'apres_midi' || c.demi_journee === 'toute_journee')
+          );
+          
+          if (apresCaps.length === 0) {
+            apresRow.push('');
+          } else {
+            const sites = apresCaps.map(c => c.sites?.nom || 'Site non défini').join(', ');
+            apresRow.push(sites);
+          }
+        });
+        dataRows.push(apresRow);
       });
 
       // Create worksheet
       const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
 
       // Set column widths
-      const colWidths = [{ wch: 25 }, ...allDays.map(() => ({ wch: 15 }))];
+      const colWidths = [{ wch: 25 }, { wch: 12 }, ...allDays.map(() => ({ wch: 18 }))];
       ws['!cols'] = colWidths;
 
       // Create workbook
