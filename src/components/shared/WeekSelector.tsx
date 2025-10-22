@@ -22,17 +22,12 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Generate 26 weeks before and 26 weeks after current week (total 53 weeks)
+    // Generate current week + 52 future weeks (1 year ahead)
     const weeksList: Date[] = [];
     const today = new Date();
     
-    // Add past weeks (26 weeks before)
-    for (let i = -26; i < 0; i++) {
-      weeksList.push(addWeeks(today, i));
-    }
-    
-    // Add current and future weeks (today + 26 after = 27 weeks)
-    for (let i = 0; i <= 26; i++) {
+    // Add current week and future weeks only
+    for (let i = 0; i <= 52; i++) {
       weeksList.push(addWeeks(today, i));
     }
     
@@ -47,20 +42,21 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
     setOpen(false);
   };
 
-  // Auto-scroll to current week when dropdown opens
+  // Auto-scroll to selected week when dropdown opens (only if it's a future week)
   useEffect(() => {
     if (open && scrollAreaRef.current && weeks.length > 0) {
-      // Find the index of the current week in the list
+      // Find the index of the selected week in the list
       const currentWeekIndex = weeks.findIndex(w => 
         isSameWeek(w, currentDate, { locale: fr, weekStartsOn: 1 })
       );
       
-      if (currentWeekIndex !== -1) {
+      // Only scroll if the week exists in the dropdown and is not the first week
+      if (currentWeekIndex !== -1 && currentWeekIndex > 0) {
         // Each item is approximately 44px tall (py-2 + text)
         const itemHeight = 44;
         const scrollPosition = currentWeekIndex * itemHeight;
         
-        // Scroll to position with current week near the top
+        // Scroll to position with selected week near the top
         setTimeout(() => {
           if (scrollAreaRef.current) {
             const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
