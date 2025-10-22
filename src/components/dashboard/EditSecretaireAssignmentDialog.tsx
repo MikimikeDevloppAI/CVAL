@@ -83,6 +83,17 @@ export function EditSecretaireAssignmentDialog({
     }
   }, [open, secretaire, siteId]);
 
+  // Reset site selection if switching to "journee" while bloc is selected
+  useEffect(() => {
+    if (periode === 'journee' && blocSiteId && selectedSiteId === blocSiteId) {
+      const nonBlocSite = sites.find(s => s.id !== blocSiteId);
+      if (nonBlocSite) {
+        setSelectedSiteId(nonBlocSite.id);
+      }
+      setSelectedOperationId(null);
+    }
+  }, [periode, blocSiteId, selectedSiteId, sites]);
+
   const fetchInitialData = async () => {
     setFetchingData(true);
     try {
@@ -327,6 +338,16 @@ export function EditSecretaireAssignmentDialog({
       return;
     }
 
+    // Prevent full-day assignment to operating room (bloc opératoire is always half-day)
+    if (periode === 'journee' && selectedSiteId === blocSiteId) {
+      toast({
+        title: 'Attention',
+        description: 'Impossible de réaffecter une journée complète au bloc opératoire (toujours par demi-journée)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Si bloc opératoire sélectionné, une opération doit être choisie
     if (selectedSiteId === blocSiteId && !selectedOperationId) {
       toast({
@@ -408,7 +429,7 @@ export function EditSecretaireAssignmentDialog({
   };
 
   // Déterminer si le bouton "Enregistrer" doit être désactivé
-  const isBlocSelected = selectedSiteId === blocSiteId;
+  const isBlocSelected = selectedSiteId === blocSiteId && periode !== 'journee';
   const canSubmit = !isBlocSelected || (isBlocSelected && selectedOperationId);
 
   return (
@@ -436,11 +457,13 @@ export function EditSecretaireAssignmentDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.nom}
-                    </SelectItem>
-                  ))}
+                  {sites
+                    .filter(site => !(periode === 'journee' && site.id === blocSiteId))
+                    .map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

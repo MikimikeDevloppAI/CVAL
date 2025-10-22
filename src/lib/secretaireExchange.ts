@@ -272,8 +272,12 @@ export async function fetchAvailableSecretairesForExchange(
         // RULE 1: Current secretaire can work at other's site for this period
         if (!isOtherSiteAdmin) {
           if (isOtherSiteBlocOp) {
-            // Bloc opératoire: check besoins operations
-            if (otherBesoinOperationIdForPeriod && !currentBesoinIds.includes(otherBesoinOperationIdForPeriod)) {
+            // Bloc opératoire: besoin_operation_id is MANDATORY and MUST match
+            if (!otherBesoinOperationIdForPeriod) {
+              isCompatible = false;
+              break;
+            }
+            if (!currentBesoinIds.includes(otherBesoinOperationIdForPeriod)) {
               isCompatible = false;
               break;
             }
@@ -289,8 +293,12 @@ export async function fetchAvailableSecretairesForExchange(
         // RULE 2: Other secretaire can work at current site for this period
         if (!isCurrentSiteAdminForPeriod) {
           if (isCurrentSiteBlocOpForPeriod) {
-            // Bloc opératoire: check if other secretaire has the required besoin operation for this specific period
-            if (currentBesoinOperationIdForPeriod && !otherBesoinIds.includes(currentBesoinOperationIdForPeriod)) {
+            // Bloc opératoire: besoin_operation_id is MANDATORY and MUST match
+            if (!currentBesoinOperationIdForPeriod) {
+              isCompatible = false;
+              break;
+            }
+            if (!otherBesoinIds.includes(currentBesoinOperationIdForPeriod)) {
               isCompatible = false;
               break;
             }
