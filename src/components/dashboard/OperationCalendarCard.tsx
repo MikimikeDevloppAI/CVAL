@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { DeleteOperationDialog } from '@/components/operations/DeleteOperationDialog';
 import { Button } from '@/components/ui/button';
-import { SecretaireCalendarDialog } from '@/components/dashboard/secretaires/SecretaireCalendarDialog';
+import { SecretaireActionsDialog } from '@/components/dashboard/SecretaireActionsDialog';
 
 interface Besoin {
   nombre_requis: number;
@@ -22,6 +22,7 @@ interface Besoin {
 interface Assignment {
   id: string;
   besoin_operation_id: string;
+  site_id: string;
   secretaires: {
     id: string;
     first_name: string;
@@ -52,7 +53,12 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [changeSalleOpen, setChangeSalleOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedSecretaire, setSelectedSecretaire] = useState<{ id: string; nom: string } | null>(null);
+  const [selectedSecretaire, setSelectedSecretaire] = useState<{
+    id: string;
+    nom: string;
+    siteId: string;
+    besoinOperationId: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchBesoins();
@@ -86,6 +92,7 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
       .select(`
         id,
         besoin_operation_id,
+        site_id,
         secretaires (
           id,
           first_name,
@@ -233,9 +240,11 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                         className="px-3 py-1.5 rounded-lg bg-card/50 border border-border/50 text-xs font-medium text-foreground cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
                         onClick={() => setSelectedSecretaire({
                           id: assignment.secretaires.id,
-                          nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`
+                          nom: `${assignment.secretaires.first_name} ${assignment.secretaires.name}`,
+                          siteId: assignment.site_id,
+                          besoinOperationId: assignment.besoin_operation_id
                         })}
-                        title="Cliquer pour voir le calendrier"
+                        title="Cliquer pour gérer l'assistant médical"
                       >
                         {assignment.secretaires.first_name} {assignment.secretaires.name}
                       </div>
@@ -292,11 +301,20 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
       />
 
       {selectedSecretaire && (
-        <SecretaireCalendarDialog
+        <SecretaireActionsDialog
           open={!!selectedSecretaire}
           onOpenChange={(open) => !open && setSelectedSecretaire(null)}
           secretaireId={selectedSecretaire.id}
           secretaireNom={selectedSecretaire.nom}
+          date={operation.date}
+          siteId={selectedSecretaire.siteId}
+          periode={operation.periode}
+          besoinOperationId={selectedSecretaire.besoinOperationId}
+          onRefresh={() => {
+            fetchBesoins();
+            fetchAssignments();
+            onRefresh?.();
+          }}
         />
       )}
     </div>
