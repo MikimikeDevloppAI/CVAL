@@ -676,16 +676,16 @@ const DashboardPage = () => {
           gradient="from-violet-500 to-purple-500"
         />
         <QuickActionButton
-          label="Planifier"
-          icon={<CalendarPlanIcon className="h-6 w-6" />}
-          onClick={() => setPlanningDialogOpen(true)}
-          gradient="from-purple-500 to-pink-500"
-        />
-        <QuickActionButton
           label="Statistiques"
           icon={<BarChart3 className="h-6 w-6" />}
           href="/statistiques"
           gradient="from-blue-500 to-purple-500"
+        />
+        <QuickActionButton
+          label="Planifier"
+          icon={<CalendarPlanIcon className="h-6 w-6" />}
+          onClick={() => setPlanningDialogOpen(true)}
+          gradient="from-purple-500 to-pink-500"
         />
         <QuickActionButton
           label="Générer PDF"
