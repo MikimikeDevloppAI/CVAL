@@ -10,9 +10,10 @@ const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
 
 interface DayScore {
   date: string;
-  score_matin: number;
-  score_apres_midi: number;
-  score_total: number;
+  tension_matin: number;
+  tension_apres_midi: number;
+  tension_max: number;
+  tension_autre: number;
   details_matin: string;
   details_apres_midi: string;
 }
@@ -252,44 +253,51 @@ serve(async (req) => {
         const apresMidiBlocked = absencesForSec.has(`${date}_apres_midi`);
         if (matinBlocked && apresMidiBlocked) continue;
 
-        // Calculate score for this day
-        const scoreMatin = matinBlocked 
-          ? { score: -9999, details: 'Blocked by absence' }
-          : await calculatePeriodScore(supabase, date, 'matin', secretary.id, secSitesMap, secBesoinsMap);
+        // Calculate tension for this day
+        const tensionMatin = matinBlocked 
+          ? { tension: -9999, details: 'Blocked by absence' }
+          : await calculatePeriodTension(supabase, date, 'matin', secretary.id, secSitesMap, secBesoinsMap);
 
-        const scoreApresMidi = apresMidiBlocked 
-          ? { score: -9999, details: 'Blocked by absence' }
-          : await calculatePeriodScore(supabase, date, 'apres_midi', secretary.id, secSitesMap, secBesoinsMap);
+        const tensionApresMidi = apresMidiBlocked 
+          ? { tension: -9999, details: 'Blocked by absence' }
+          : await calculatePeriodTension(supabase, date, 'apres_midi', secretary.id, secSitesMap, secBesoinsMap);
 
-        const scoreTotal = scoreMatin.score + scoreApresMidi.score;
+        const tensionMax = Math.max(tensionMatin.tension, tensionApresMidi.tension);
+        const tensionAutre = tensionMatin.tension === tensionMax ? tensionApresMidi.tension : tensionMatin.tension;
 
         dayScores.push({
           date,
-          score_matin: scoreMatin.score,
-          score_apres_midi: scoreApresMidi.score,
-          score_total: scoreTotal,
-          details_matin: scoreMatin.details,
-          details_apres_midi: scoreApresMidi.details
+          tension_matin: tensionMatin.tension,
+          tension_apres_midi: tensionApresMidi.tension,
+          tension_max: tensionMax,
+          tension_autre: tensionAutre,
+          details_matin: tensionMatin.details,
+          details_apres_midi: tensionApresMidi.details
         });
       }
 
-      // Sort by score (descending) and select top N days
-      dayScores.sort((a, b) => b.score_total - a.score_total);
+      // Sort by tension_max (descending), then by tension_autre (descending) for tiebreaker
+      dayScores.sort((a, b) => {
+        if (b.tension_max !== a.tension_max) {
+          return b.tension_max - a.tension_max;
+        }
+        return b.tension_autre - a.tension_autre;
+      });
       const selectedDays = dayScores.slice(0, finalJoursRequis);
 
-      console.log(`\n  📊 Top ${finalJoursRequis} days selected:`);
+      console.log(`\n  📊 Top ${finalJoursRequis} days selected (sorted by max tension):`);
       for (const day of selectedDays) {
-        console.log(`    ${day.date}: ${day.score_total} pts (M: ${day.score_matin}, AM: ${day.score_apres_midi})`);
+        console.log(`    ${day.date}: max=${day.tension_max}, autre=${day.tension_autre} (M: ${day.tension_matin}, AM: ${day.tension_apres_midi})`);
         console.log(`      Matin: ${day.details_matin}`);
         console.log(`      Après-midi: ${day.details_apres_midi}`);
       }
 
-      // Create capacities for selected days
+      // Create capacities for selected days (BOTH periods)
       for (const day of selectedDays) {
-        // Insert new capacities
+        // Insert new capacities for both matin and apres_midi
         const capacitiesToInsert = [];
 
-        if (day.score_matin > -9999) {
+        if (day.tension_matin > -9999) {
           capacitiesToInsert.push({
             secretaire_id: secretary.id,
             date: day.date,
@@ -299,7 +307,7 @@ serve(async (req) => {
           });
         }
 
-        if (day.score_apres_midi > -9999) {
+        if (day.tension_apres_midi > -9999) {
           capacitiesToInsert.push({
             secretaire_id: secretary.id,
             date: day.date,
@@ -344,24 +352,24 @@ serve(async (req) => {
   }
 });
 
-async function calculatePeriodScore(
+async function calculatePeriodTension(
   supabase: any,
   date: string,
   periode: 'matin' | 'apres_midi',
   secretaire_id: string,
   secSitesMap: Map<string, Set<string>>,
   secBesoinsMap: Map<string, Set<string>>
-): Promise<{ score: number; details: string }> {
+): Promise<{ tension: number; details: string }> {
   
   const preferredSites = secSitesMap.get(secretaire_id) || new Set();
   const competentBesoins = secBesoinsMap.get(secretaire_id) || new Set();
 
-  let totalScore = 0;
+  let maxTension = 0;
   const details: string[] = [];
 
-  // ==================== SITE SCORE ====================
+  // ==================== SITE TENSION ====================
   
-  // Get all site needs for this date/period
+  // Get all site needs for this date/period for preferred sites only
   const { data: siteBesoins } = await supabase
     .from('besoin_effectif')
     .select(`
@@ -375,53 +383,48 @@ async function calculatePeriodScore(
     .eq('actif', true)
     .in('site_id', Array.from(preferredSites));
 
-  // Group by site and sum needs
+  // Group by site and sum needs (with ceil)
   const siteNeedsMap = new Map<string, number>();
   for (const besoin of siteBesoins || []) {
     const current = siteNeedsMap.get(besoin.site_id) || 0;
-    siteNeedsMap.set(besoin.site_id, current + (besoin.medecins?.besoin_secretaires || 1.2));
+    const besoinSec = besoin.medecins?.besoin_secretaires || 1.2;
+    siteNeedsMap.set(besoin.site_id, current + besoinSec);
   }
 
-  // Get available capacities for each site
-  for (const [siteId, need] of siteNeedsMap) {
-    const { data: availableCapacities } = await supabase
-      .from('capacite_effective')
-      .select('secretaire_id')
-      .eq('date', date)
-      .eq('demi_journee', periode)
-      .eq('actif', true);
+  // Get ALL available capacities for this period (all secretaries)
+  const { data: allCapacities } = await supabase
+    .from('capacite_effective')
+    .select('secretaire_id')
+    .eq('date', date)
+    .eq('demi_journee', periode)
+    .eq('actif', true);
 
-    // Count how many of these secretaries have this site in preferences
+  const allSecIds = (allCapacities || []).map((c: any) => c.secretaire_id);
+
+  // Calculate tension for each site
+  for (const [siteId, needSum] of siteNeedsMap) {
+    const needCeil = Math.ceil(needSum);
+
+    // Count eligible secretaries (those with capacity AND preference for this site)
     const { data: secWithSite } = await supabase
       .from('secretaires_sites')
       .select('secretaire_id')
       .eq('site_id', siteId)
-      .in('secretaire_id', (availableCapacities || []).map((c: any) => c.secretaire_id));
+      .in('secretaire_id', allSecIds);
 
-    const capacitiesCount = secWithSite?.length || 0;
-    const ecart = need - capacitiesCount;
+    const eligibleCount = secWithSite?.length || 0;
+    const tension = needCeil - eligibleCount;
 
-    let siteScore = 0;
-    if (ecart > 0) {
-      // Shortage: heavy penalty
-      siteScore = Math.pow(ecart, 2) * 100;
-      details.push(`Site manque ${ecart.toFixed(1)} → +${siteScore}`);
-    } else if (ecart === 0) {
-      // Just right
-      siteScore = 50;
-      details.push(`Site équilibré → +${siteScore}`);
-    } else {
-      // Surplus: regressive score
-      siteScore = Math.max(0, 50 + (ecart * 10));
-      details.push(`Site surplus ${Math.abs(ecart).toFixed(1)} → +${siteScore}`);
+    details.push(`Site ${siteId.substring(0, 8)}: besoin=${needCeil}, éligibles=${eligibleCount}, tension=${tension}`);
+    
+    if (tension > maxTension) {
+      maxTension = tension;
     }
-
-    totalScore += siteScore;
   }
 
-  // ==================== BLOC SCORE ====================
+  // ==================== BLOC TENSION ====================
   
-  // Get all bloc needs for this date/period
+  // Get all bloc needs for this date/period for competent besoins only
   const { data: blocBesoins } = await supabase
     .from('planning_genere_bloc_operatoire')
     .select(`
@@ -436,49 +439,39 @@ async function calculatePeriodScore(
     .eq('periode', periode)
     .in('types_intervention_besoins_personnel.besoin_operation_id', Array.from(competentBesoins));
 
+  // Group by besoin_operation_id and sum needs (with ceil)
+  const blocNeedsMap = new Map<string, number>();
   for (const bloc of blocBesoins || []) {
     for (const besoin of (bloc as any).types_intervention_besoins_personnel || []) {
       const besoinOpId = besoin.besoin_operation_id;
       const nombreRequis = besoin.nombre_requis;
-
-      // Get available capacities
-      const { data: availableCapacities } = await supabase
-        .from('capacite_effective')
-        .select('secretaire_id')
-        .eq('date', date)
-        .eq('demi_journee', periode)
-        .eq('actif', true);
-
-      // Count how many have this competence
-      const { data: secWithCompetence } = await supabase
-        .from('secretaires_besoins_operations')
-        .select('secretaire_id')
-        .eq('besoin_operation_id', besoinOpId)
-        .in('secretaire_id', (availableCapacities || []).map((c: any) => c.secretaire_id));
-
-      const capacitiesCount = secWithCompetence?.length || 0;
-      const ecart = nombreRequis - capacitiesCount;
-
-      let blocScore = 0;
-      if (ecart > 0) {
-        // Shortage: very heavy penalty for blocs
-        blocScore = Math.pow(ecart, 2) * 150;
-        details.push(`Bloc manque ${ecart} → +${blocScore}`);
-      } else if (ecart === 0) {
-        // Just right
-        blocScore = 60;
-        details.push(`Bloc équilibré → +${blocScore}`);
-      } else {
-        // Surplus: regressive score
-        blocScore = Math.max(0, 60 + (ecart * 12));
-        details.push(`Bloc surplus ${Math.abs(ecart)} → +${blocScore}`);
-      }
-
-      totalScore += blocScore;
+      const current = blocNeedsMap.get(besoinOpId) || 0;
+      blocNeedsMap.set(besoinOpId, current + nombreRequis);
     }
   }
 
-  const detailsStr = details.length > 0 ? details.join(', ') : 'No tension';
+  // Calculate tension for each bloc besoin
+  for (const [besoinOpId, needSum] of blocNeedsMap) {
+    const needCeil = Math.ceil(needSum);
 
-  return { score: totalScore, details: detailsStr };
+    // Count eligible secretaries (those with capacity AND competence for this besoin)
+    const { data: secWithCompetence } = await supabase
+      .from('secretaires_besoins_operations')
+      .select('secretaire_id')
+      .eq('besoin_operation_id', besoinOpId)
+      .in('secretaire_id', allSecIds);
+
+    const eligibleCount = secWithCompetence?.length || 0;
+    const tension = needCeil - eligibleCount;
+
+    details.push(`Bloc ${besoinOpId.substring(0, 8)}: besoin=${needCeil}, éligibles=${eligibleCount}, tension=${tension}`);
+    
+    if (tension > maxTension) {
+      maxTension = tension;
+    }
+  }
+
+  const detailsStr = details.length > 0 ? details.join(' | ') : 'No tension';
+
+  return { tension: maxTension, details: detailsStr };
 }
