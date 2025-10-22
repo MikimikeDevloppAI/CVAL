@@ -69,11 +69,14 @@ export function EditMedecinAssignmentDialog({
   }, [open, currentSiteId]);
 
   const fetchSites = async () => {
-    // Récupérer tous les sites actifs (y compris le bloc opératoire)
+    const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+    
+    // Récupérer tous les sites actifs (y compris le bloc opératoire, mais pas administratif)
     const { data: sitesData } = await supabase
       .from('sites')
       .select('id, nom')
       .eq('actif', true)
+      .neq('id', ADMIN_SITE_ID)
       .order('nom');
     
     if (sitesData) {
