@@ -22,19 +22,8 @@ const absenceSchema = z.object({
   person_id: z.string().min(1, 'La sélection d\'une personne est requise'),
   type: z.enum(['conges', 'maladie', 'formation', 'autre']),
   dates: z.array(z.date()).min(1, 'Sélectionnez au moins une date'),
-  toute_journee: z.boolean().default(true),
-  heure_debut: z.string().default(''),
-  heure_fin: z.string().default(''),
+  demi_journee: z.enum(['toute_journee', 'matin', 'apres_midi']).default('toute_journee'),
   motif: z.string().optional(),
-}).refine((data) => {
-  // Si ce n'est pas toute la journée, les horaires sont obligatoires
-  if (!data.toute_journee) {
-    return data.heure_debut.length > 0 && data.heure_fin.length > 0;
-  }
-  return true;
-}, {
-  message: 'Les horaires sont requis si ce n\'est pas toute la journée',
-  path: ['heure_debut'],
 });
 
 type AbsenceFormData = z.infer<typeof absenceSchema>;
@@ -65,14 +54,10 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         }
         return dates;
       })() : [],
-      toute_journee: absence ? (!absence.heure_debut && !absence.heure_fin) : true,
-      heure_debut: absence?.heure_debut || '',
-      heure_fin: absence?.heure_fin || '',
+      demi_journee: absence?.demi_journee || 'toute_journee',
       motif: absence?.motif || '',
     },
   });
-
-  const touteJournee = form.watch('toute_journee');
 
   const profileType = form.watch('profile_type');
 
@@ -113,10 +98,9 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         type: data.type,
         date_debut: format(sortedDates[0], 'yyyy-MM-dd'),
         date_fin: format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd'),
+        demi_journee: data.demi_journee,
         motif: data.motif || null,
         statut: 'approuve' as const,
-        heure_debut: data.toute_journee ? null : (data.heure_debut || null),
-        heure_fin: data.toute_journee ? null : (data.heure_fin || null),
       };
 
       if (absence) {
@@ -133,43 +117,24 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
           description: "Absence modifiée avec succès",
         });
       } else {
-        // Création - une absence par date si toute la journée, sinon une seule
-        if (data.toute_journee) {
-          // Créer une absence pour chaque date sélectionnée (toute la journée)
-          const absences = sortedDates.map(date => ({
-            ...absenceData,
-            date_debut: format(date, 'yyyy-MM-dd'),
-            date_fin: format(date, 'yyyy-MM-dd'),
-            heure_debut: null,
-            heure_fin: null,
-          }));
+        // Création - une absence par date sélectionnée
+        const absences = sortedDates.map(date => ({
+          type_personne: data.profile_type,
+          medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
+          secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
+          type: data.type,
+          date_debut: format(date, 'yyyy-MM-dd'),
+          date_fin: format(date, 'yyyy-MM-dd'),
+          demi_journee: data.demi_journee,
+          motif: data.motif || null,
+          statut: 'approuve' as const,
+        }));
 
-          const { error } = await supabase
-            .from('absences')
-            .insert(absences);
+        const { error } = await supabase
+          .from('absences')
+          .insert(absences);
 
-          if (error) throw error;
-        } else {
-          // Créer une absence par date avec horaires (demi-journée)
-          const absences = sortedDates.map(date => ({
-            type_personne: data.profile_type,
-            medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
-            secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
-            type: data.type,
-            date_debut: format(date, 'yyyy-MM-dd'),
-            date_fin: format(date, 'yyyy-MM-dd'),
-            motif: data.motif || null,
-            statut: 'approuve' as const,
-            heure_debut: data.heure_debut || null,
-            heure_fin: data.heure_fin || null,
-          }));
-
-          const { error } = await supabase
-            .from('absences')
-            .insert(absences);
-
-          if (error) throw error;
-        }
+        if (error) throw error;
 
         toast({
           title: "Succès",
@@ -309,67 +274,29 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
           )}
         />
 
-        {/* Toute la journée */}
+        {/* Période */}
         <FormField
           control={form.control}
-          name="toute_journee"
+          name="demi_journee"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>
-                  Toute la journée
-                </FormLabel>
-              </div>
+            <FormItem>
+              <FormLabel>Période</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner la période" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="toute_journee">Toute la journée</SelectItem>
+                  <SelectItem value="matin">Matin</SelectItem>
+                  <SelectItem value="apres_midi">Après-midi</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
             </FormItem>
           )}
         />
-
-        {/* Horaires (affichés si pas toute la journée) */}
-        {!touteJournee && (
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="heure_debut"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure de début</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      type="time"
-                      placeholder="08:00"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="heure_fin"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure de fin</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      type="time"
-                      placeholder="17:00"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        )}
 
         {/* Motif */}
         <FormField
