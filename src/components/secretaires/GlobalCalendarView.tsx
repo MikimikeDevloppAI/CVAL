@@ -525,40 +525,6 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 <div className="truncate font-semibold">
                                   {getPeriodLabel(cap.demi_journee)}
                                 </div>
-                                {cap.capaciteIds.length === 1 ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute top-0 right-0 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
-                                    onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[0] })}
-                                    disabled={loading}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                ) : (
-                                  <div className="absolute top-0 right-0 opacity-0 group-hover/badge:opacity-100 transition-opacity flex">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-4 w-4 p-0 bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
-                                      onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[0] })}
-                                      disabled={loading}
-                                      title="Supprimer matin"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-4 w-4 p-0 bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm ml-0.5"
-                                      onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[1] })}
-                                      disabled={loading}
-                                      title="Supprimer après-midi"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                )}
                               </div>
                             ))}
                           </div>
