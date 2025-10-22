@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import { Stethoscope, Users, MapPin } from 'lucide-react';
+import { Stethoscope, Users, MapPin, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
+import { DeleteOperationDialog } from '@/components/operations/DeleteOperationDialog';
+import { Button } from '@/components/ui/button';
 
 interface Besoin {
   nombre_requis: number;
@@ -35,6 +37,8 @@ interface OperationCalendarCardProps {
     type_intervention_code: string;
     type_intervention_id: string;
     medecin_nom: string;
+    medecin_id: string | null;
+    besoin_effectif_id: string | null;
     salle_nom: string | null;
     salle_assignee: string | null;
   };
@@ -46,6 +50,7 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
   const [besoins, setBesoins] = useState<Besoin[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [changeSalleOpen, setChangeSalleOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchBesoins();
@@ -121,9 +126,20 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
       }}
     >
       {/* Header */}
-      <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-cyan-500/10 p-4 border-b border-border/50">
+      <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-cyan-500/10 p-4 border-b border-border/50 relative">
+        {/* Delete button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setDeleteDialogOpen(true)}
+          title="Supprimer l'opération"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+
         <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2 pr-8">
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-semibold truncate">
                 {operation.type_intervention_nom}
@@ -248,6 +264,25 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
           }}
         />
       )}
+
+      <DeleteOperationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        operation={{
+          id: operation.id,
+          besoin_effectif_id: operation.besoin_effectif_id,
+          date: operation.date,
+          periode: operation.periode,
+          type_intervention_nom: operation.type_intervention_nom,
+          medecin_id: operation.medecin_id,
+          medecin_nom: operation.medecin_nom,
+        }}
+        onSuccess={() => {
+          fetchBesoins();
+          fetchAssignments();
+          onRefresh?.();
+        }}
+      />
     </div>
   );
 }

@@ -102,6 +102,8 @@ interface DashboardOperation {
   type_intervention_code: string;
   type_intervention_id: string;
   medecin_nom: string;
+  medecin_id: string | null;
+  besoin_effectif_id: string | null;
   salle_nom: string | null;
   salle_assignee: string | null;
 }
@@ -529,6 +531,7 @@ const DashboardPage = () => {
           periode,
           salle_assignee,
           medecin_id,
+          besoin_effectif_id,
           type_intervention_id,
           salles_operation(name),
           medecins(first_name, name),
@@ -552,6 +555,8 @@ const DashboardPage = () => {
         medecin_nom: operation.medecins 
           ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
           : 'Non assigné',
+        medecin_id: operation.medecin_id,
+        besoin_effectif_id: operation.besoin_effectif_id,
         salle_nom: (operation.salles_operation as any)?.name || null,
         salle_assignee: operation.salle_assignee
       }));
