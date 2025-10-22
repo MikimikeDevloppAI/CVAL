@@ -310,7 +310,7 @@ export function DeleteOperationDialog({
           </Button>
           <Button variant="destructive" onClick={handleDelete} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Supprimer
+            {reassign === 'yes' ? 'Réaffecter' : 'Supprimer'}
           </Button>
         </DialogFooter>
       </DialogContent>
