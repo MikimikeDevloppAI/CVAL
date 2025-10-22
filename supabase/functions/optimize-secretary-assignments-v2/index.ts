@@ -186,7 +186,10 @@ async function optimizeSingleWeek(
       .update({
         site_id: ADMIN_SITE_ID,
         planning_genere_bloc_operatoire_id: null,
-        besoin_operation_id: null
+        besoin_operation_id: null,
+        is_1r: false,
+        is_2f: false,
+        is_3f: false
       })
       .eq('date', date)
       .eq('actif', true)
