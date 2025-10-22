@@ -441,6 +441,23 @@ function generatePlanningHTML(
     }
   };
 
+  const getWeekStart = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
+    const monday = new Date(date.setDate(diff));
+    return monday.toISOString().split('T')[0];
+  };
+
+  const formatWeekRange = (weekStart: string) => {
+    const monday = new Date(weekStart);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    const formatDay = (d: Date) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    return `Semaine du ${formatDay(monday)} au ${formatDay(sunday)}`;
+  };
+
   const renderCard = (sec: SecretaryData) => {
     const byDate = new Map<string, Assignment[]>();
     sec.assignments.forEach(a => {
@@ -450,36 +467,58 @@ function generatePlanningHTML(
 
     const sortedDates = Array.from(byDate.keys()).sort();
 
-    const daysHtml = sortedDates.map(date => {
-      const assignments = byDate.get(date)!;
-      const dayLabel = formatDayDate(date);
+    // Group dates by week
+    const byWeek = new Map<string, string[]>();
+    sortedDates.forEach(date => {
+      const weekStart = getWeekStart(date);
+      if (!byWeek.has(weekStart)) byWeek.set(weekStart, []);
+      byWeek.get(weekStart)!.push(date);
+    });
 
-      const assignmentsHtml = assignments.map(assignment => {
-        let periodeClass = 'period-full';
-        let periodeLabel = 'Journée entière';
-        
-        if (assignment.periode === 'Matin') {
-          periodeClass = 'period-morning';
-          periodeLabel = 'Matin';
-        } else if (assignment.periode === 'Après-midi') {
-          periodeClass = 'period-afternoon';
-          periodeLabel = 'Après-midi';
-        }
+    const sortedWeeks = Array.from(byWeek.keys()).sort();
+
+    const weeksHtml = sortedWeeks.map(weekStart => {
+      const weekDates = byWeek.get(weekStart)!;
+      const weekLabel = formatWeekRange(weekStart);
+
+      const daysHtml = weekDates.map(date => {
+        const assignments = byDate.get(date)!;
+        const dayLabel = formatDayDate(date);
+
+        const assignmentsHtml = assignments.map(assignment => {
+          let periodeClass = 'period-full';
+          let periodeLabel = 'Journée entière';
+          
+          if (assignment.periode === 'Matin') {
+            periodeClass = 'period-morning';
+            periodeLabel = 'Matin';
+          } else if (assignment.periode === 'Après-midi') {
+            periodeClass = 'period-afternoon';
+            periodeLabel = 'Après-midi';
+          }
+
+          return `
+            <div class="assignment-row ${periodeClass}">
+              <div class="period-label">${periodeLabel}</div>
+              <div class="assignment-content">
+                ${renderAssignment(assignment)}
+              </div>
+            </div>
+          `;
+        }).join('');
 
         return `
-          <div class="assignment-row ${periodeClass}">
-            <div class="period-label">${periodeLabel}</div>
-            <div class="assignment-content">
-              ${renderAssignment(assignment)}
-            </div>
+          <div class="day-block">
+            <div class="day-title">${dayLabel}</div>
+            ${assignmentsHtml}
           </div>
         `;
       }).join('');
 
       return `
-        <div class="day-block">
-          <div class="day-title">${dayLabel}</div>
-          ${assignmentsHtml}
+        <div class="week-section">
+          <div class="week-header">${weekLabel}</div>
+          ${daysHtml}
         </div>
       `;
     }).join('');
@@ -487,7 +526,7 @@ function generatePlanningHTML(
     return `
       <div class="secretary-card">
         <div class="secretary-name">${sec.name}</div>
-        ${daysHtml}
+        ${weeksHtml}
       </div>
     `;
   };
@@ -568,12 +607,34 @@ function generatePlanningHTML(
       border-bottom: 2px solid #0d9488;
     }
     
+    .week-section {
+      margin-bottom: 20px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .week-header {
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+      padding: 10px 14px;
+      text-align: center;
+      letter-spacing: 0.3px;
+    }
+    
     .day-block {
-      margin-bottom: 16px;
+      margin-bottom: 0;
       padding: 12px;
       background: #f9fafb;
-      border-radius: 8px;
-      border: 1px solid #e5e7eb;
+      border-radius: 0;
+      border: none;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .day-block:last-child {
+      border-bottom: none;
     }
     
     .day-title {
