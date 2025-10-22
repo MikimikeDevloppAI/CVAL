@@ -150,7 +150,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
 
   if (isEditing) {
     return (
-      <div className="p-2 bg-teal-500/5 rounded-lg border border-teal-200/30" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
+      <div className="p-2 bg-teal-500/5 rounded-lg border border-teal-200/30 overflow-hidden" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}>
         {/* Première ligne: Jour, Période, Alternance */}
         <div className="flex items-center gap-1.5 mb-2">
           <Select 
@@ -248,7 +248,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         </div>
 
         {/* Deuxième ligne: Site */}
-        <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex items-center mb-2">
           <Select 
             value={formData.site_id} 
             onValueChange={(value) => setFormData({ ...formData, site_id: value })}
@@ -268,19 +268,19 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
 
         {/* Troisième ligne: Dates + Boutons */}
         <div className="flex items-center gap-1.5">
-          <label className="text-xs text-muted-foreground w-7 shrink-0">Du</label>
+          <span className="text-xs text-muted-foreground shrink-0">Du</span>
           <input
             type="date"
             value={formData.date_debut}
             onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
-            className="h-8 w-32 text-xs rounded-md border border-teal-200/50 bg-background px-2"
+            className="h-8 flex-1 min-w-0 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
-          <label className="text-xs text-muted-foreground w-7 shrink-0">Au</label>
+          <span className="text-xs text-muted-foreground shrink-0">Au</span>
           <input
             type="date"
             value={formData.date_fin}
             onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
-            className="h-8 w-32 text-xs rounded-md border border-teal-200/50 bg-background px-2"
+            className="h-8 flex-1 min-w-0 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
           
           <Button
