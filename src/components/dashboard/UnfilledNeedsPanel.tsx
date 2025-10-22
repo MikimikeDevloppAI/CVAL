@@ -356,6 +356,17 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           }
         }
 
+        // Récupérer qui est assigné à un SITE (pas admin) pour exclure
+        const { data: assignedToSites } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id')
+          .eq('date', date)
+          .neq('site_id', '00000000-0000-0000-0000-000000000001')
+          .eq('actif', true)
+          .in('demi_journee', ['matin', 'apres_midi']);
+
+        const assignedToSiteIds = [...new Set(assignedToSites?.map(a => a.secretaire_id) || [])];
+
         // Catégorie 2: Ne travaille pas du tout avec compétence site
         const { data: allSecretaires } = await supabase
           .from('secretaires')
@@ -363,7 +374,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           .eq('actif', true);
 
         for (const s of allSecretaires || []) {
-          if (assignedIds.includes(s.id)) continue;
+          if (assignedToSiteIds.includes(s.id)) continue;
           if (admin.some(a => a.secretaire_id === s.id)) continue;
 
           const sites = (s as any).secretaires_sites || [];
