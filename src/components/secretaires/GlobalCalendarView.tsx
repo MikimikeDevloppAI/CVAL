@@ -554,11 +554,11 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                         }`}
                       >
                         {capacitesToDisplay.length > 0 ? (
-                          <div className="flex flex-col h-full">
+                          <div className="flex flex-col h-full relative">
                             {capacitesToDisplay.map((cap) => (
                               <div
                                 key={cap.id}
-                                className={`text-[8px] flex-1 w-full relative group/badge leading-none text-center flex items-center justify-center ${getColorForPeriod(
+                                className={`text-[8px] flex-1 w-full leading-none text-center flex items-center justify-center ${getColorForPeriod(
                                   cap.demi_journee
                                 )}`}
                                 title={cap.sites?.nom}
@@ -566,20 +566,20 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 <div className="truncate font-semibold px-1">
                                   {cap.sites?.nom || 'Site non défini'}
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="absolute -top-1 -right-1 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenDeleteDialog(cap);
-                                  }}
-                                  disabled={loading}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
                               </div>
                             ))}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute -top-1 -right-1 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full z-10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDeleteDialog(capacitesToDisplay[0]);
+                              }}
+                              disabled={loading}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
                           </div>
                         ) : (
                           <Button
