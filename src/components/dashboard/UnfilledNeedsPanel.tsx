@@ -67,12 +67,31 @@ interface UnfilledNeedsPanelProps {
 
 export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNeedsPanelProps) => {
   const [aggregatedNeeds, setAggregatedNeeds] = useState<AggregatedNeed[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
   const [expandedFullDays, setExpandedFullDays] = useState<Set<string>>(new Set());
   const [selectedSecretaire, setSelectedSecretaire] = useState<Record<string, string>>({});
+  const [loadedSuggestions, setLoadedSuggestions] = useState<Set<string>>(new Set());
+  const [loadingSuggestions, setLoadingSuggestions] = useState<Set<string>>(new Set());
+
+  const fetchUnfilledNeedsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('besoins_non_satisfaits_summary')
+        .select('*', { count: 'exact', head: true })
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .gt('nombre_manquant', 0);
+      
+      if (error) throw error;
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching count:', error);
+    }
+  };
 
   const fetchBesoinsBlocOperatoire = async (typeInterventionId: string) => {
     const { data, error } = await supabase
@@ -164,47 +183,29 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         const aggregated = grouped.get(key)!;
         const periode = need.periode as 'matin' | 'apres_midi';
         
-        // Si c'est un bloc opératoire avec besoins personnel, générer les suggestions pour chaque besoin
+        // Ne PAS générer les suggestions ici, juste stocker les infos de base
         if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
           for (const besoin of aggregated.besoins_personnel) {
-            const { admin, notWorking } = await generateSuggestions(
-              need.date,
-              periode,
-              need.site_id,
-              besoin.besoin_operation_id
-            );
-
+            // Initialiser avec des tableaux vides
             if (periode === 'matin') {
               besoin.suggestions_matin = {
-                suggestions_admin: admin,
-                suggestions_not_working: notWorking
+                suggestions_admin: [],
+                suggestions_not_working: []
               };
             } else {
               besoin.suggestions_apres_midi = {
-                suggestions_admin: admin,
-                suggestions_not_working: notWorking
+                suggestions_admin: [],
+                suggestions_not_working: []
               };
             }
-
-            // Compter les manques (nombre de suggestions < nombre requis)
-            const totalSuggestions = admin.length + notWorking.length;
-            if (totalSuggestions < besoin.nombre_requis) {
-              besoin.nombre_manquant = besoin.nombre_requis - totalSuggestions;
-            }
+            besoin.nombre_manquant = besoin.nombre_requis;
           }
         } else {
-          // Cas site normal (pas de besoins personnel détaillés)
-          const { admin, notWorking } = await generateSuggestions(
-            need.date,
-            periode,
-            need.site_id,
-            undefined
-          );
-
+          // Cas site normal
           aggregated.periods[periode] = {
             manque: need.nombre_manquant,
-            suggestions_admin: admin,
-            suggestions_not_working: notWorking
+            suggestions_admin: [],
+            suggestions_not_working: []
           };
         }
 
@@ -214,23 +215,14 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       // Marquer les besoins avec les deux périodes
       grouped.forEach(need => {
         need.has_both_periods = !!need.periods.matin && !!need.periods.apres_midi;
-      });
-
-      // Générer les suggestions journée entière pour les besoins avec les deux périodes
-      for (const need of grouped.values()) {
+        // Initialiser full_day_suggestions vide
         if (need.has_both_periods && !need.besoins_personnel) {
-          const { admin, notWorking } = await generateFullDaySuggestions(
-            need.date,
-            need.site_id,
-            undefined
-          );
-          
           need.full_day_suggestions = {
-            suggestions_admin: admin,
-            suggestions_not_working: notWorking
+            suggestions_admin: [],
+            suggestions_not_working: []
           };
         }
-      }
+      });
 
       setAggregatedNeeds(Array.from(grouped.values()));
     } catch (error) {
@@ -629,13 +621,96 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   };
 
+  const loadSuggestionsForDropdown = async (
+    need: AggregatedNeed,
+    periode: 'matin' | 'apres_midi' | 'fullday',
+    besoinOperationId?: string
+  ) => {
+    const key = `${need.date}-${periode}-${need.site_id}-${besoinOperationId || 'site'}`;
+    
+    if (loadedSuggestions.has(key)) return;
+    
+    setLoadingSuggestions(prev => new Set(prev).add(key));
+    
+    try {
+      if (periode === 'fullday') {
+        const { admin, notWorking } = await generateFullDaySuggestions(
+          need.date,
+          need.site_id,
+          besoinOperationId
+        );
+        
+        setAggregatedNeeds(prev => prev.map(n => 
+          n.date === need.date && n.site_id === need.site_id
+            ? { ...n, full_day_suggestions: { suggestions_admin: admin, suggestions_not_working: notWorking } }
+            : n
+        ));
+      } else {
+        const { admin, notWorking } = await generateSuggestions(
+          need.date,
+          periode,
+          need.site_id,
+          besoinOperationId
+        );
+        
+        setAggregatedNeeds(prev => prev.map(n => {
+          if (n.date === need.date && n.site_id === need.site_id) {
+            if (besoinOperationId && n.besoins_personnel) {
+              return {
+                ...n,
+                besoins_personnel: n.besoins_personnel.map(b =>
+                  b.besoin_operation_id === besoinOperationId
+                    ? {
+                        ...b,
+                        [periode === 'matin' ? 'suggestions_matin' : 'suggestions_apres_midi']: {
+                          suggestions_admin: admin,
+                          suggestions_not_working: notWorking
+                        }
+                      }
+                    : b
+                )
+              };
+            } else {
+              return {
+                ...n,
+                periods: {
+                  ...n.periods,
+                  [periode]: {
+                    manque: n.periods[periode]?.manque || 0,
+                    suggestions_admin: admin,
+                    suggestions_not_working: notWorking
+                  }
+                }
+              };
+            }
+          }
+          return n;
+        }));
+      }
+      
+      setLoadedSuggestions(prev => new Set(prev).add(key));
+    } finally {
+      setLoadingSuggestions(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
   const handleOptimize = () => {
     toast.info('Optimisation automatique : fonctionnalité en développement');
   };
 
   useEffect(() => {
-    fetchUnfilledNeeds();
+    fetchUnfilledNeedsCount();
   }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchUnfilledNeeds();
+    }
+  }, [isOpen, startDate, endDate]);
 
   if (loading) {
     return (
@@ -645,7 +720,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     );
   }
 
-  if (aggregatedNeeds.length === 0) {
+  if (aggregatedNeeds.length === 0 && !isOpen) {
     return null;
   }
 
@@ -689,11 +764,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
               onValueChange={(value) => {
                 setSelectedSecretaire(prev => ({ ...prev, [needKey]: value }));
               }}
+              onOpenChange={(open) => {
+                if (open) {
+                  loadSuggestionsForDropdown(need, 'fullday', undefined);
+                }
+              }}
             >
               <SelectTrigger className="w-full bg-background">
                 <SelectValue placeholder="Sélectionner une secrétaire..." />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
+                {loadingSuggestions.has(`${need.date}-fullday-${need.site_id}-site`) ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span className="text-sm">Chargement...</span>
+                  </div>
+                ) : (
+                  <>
                 {/* Secrétaires en administratif */}
                 {need.full_day_suggestions.suggestions_admin.length > 0 && (
                   <>
@@ -735,6 +822,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                         </div>
                       </SelectItem>
                     ))}
+                  </>
+                )}
                   </>
                 )}
               </SelectContent>
@@ -836,11 +925,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             onValueChange={(value) => {
               setSelectedSecretaire(prev => ({ ...prev, [periodKey]: value }));
             }}
+            onOpenChange={(open) => {
+              if (open) {
+                loadSuggestionsForDropdown(need, periode, undefined);
+              }
+            }}
           >
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Sélectionner une secrétaire..." />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
+              {loadingSuggestions.has(`${need.date}-${periode}-${need.site_id}-site`) ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <span className="text-sm">Chargement...</span>
+                </div>
+              ) : (
+                <>
               {/* Secrétaires en administratif */}
               {periodData.suggestions_admin.length > 0 && (
                 <>
@@ -882,6 +983,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                       </div>
                     </SelectItem>
                   ))}
+                </>
+              )}
                 </>
               )}
             </SelectContent>
@@ -979,7 +1082,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
               <AlertCircle className="h-5 w-5 text-primary" />
               <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                {aggregatedNeeds.length}
+                {isOpen ? aggregatedNeeds.length : totalCount}
               </Badge>
             </div>
             <ChevronDown className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -1036,11 +1139,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         [`${needKey}-${besoin.besoin_operation_id}-matin`]: value 
                                       }));
                                     }}
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        loadSuggestionsForDropdown(need, 'matin', besoin.besoin_operation_id);
+                                      }
+                                    }}
                                   >
                                     <SelectTrigger className="w-full bg-background">
                                       <SelectValue placeholder="Sélectionner..." />
                                     </SelectTrigger>
                                     <SelectContent className="bg-background z-50">
+                                      {loadingSuggestions.has(`${need.date}-matin-${need.site_id}-${besoin.besoin_operation_id}`) ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                          <span className="text-sm">Chargement...</span>
+                                        </div>
+                                      ) : (
+                                        <>
                                       {besoin.suggestions_matin.suggestions_admin.length > 0 && (
                                         <>
                                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
@@ -1081,6 +1196,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           ))}
                                         </>
                                       )}
+                                      </>
+                                    )}
                                     </SelectContent>
                                   </Select>
                                   {selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-matin`] && (
@@ -1136,11 +1253,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         [`${needKey}-${besoin.besoin_operation_id}-apres_midi`]: value 
                                       }));
                                     }}
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        loadSuggestionsForDropdown(need, 'apres_midi', besoin.besoin_operation_id);
+                                      }
+                                    }}
                                   >
                                     <SelectTrigger className="w-full bg-background">
                                       <SelectValue placeholder="Sélectionner..." />
                                     </SelectTrigger>
                                     <SelectContent className="bg-background z-50">
+                                      {loadingSuggestions.has(`${need.date}-apres_midi-${need.site_id}-${besoin.besoin_operation_id}`) ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                          <span className="text-sm">Chargement...</span>
+                                        </div>
+                                      ) : (
+                                        <>
                                       {besoin.suggestions_apres_midi.suggestions_admin.length > 0 && (
                                         <>
                                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
@@ -1181,6 +1310,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                           ))}
                                         </>
                                       )}
+                                      </>
+                                    )}
                                     </SelectContent>
                                   </Select>
                                   {selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-apres_midi`] && (
