@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { ChevronLeft, ChevronRight, Plus, X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Download, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, eachDayOfInterval } from 'date-fns';
@@ -56,7 +56,13 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{ open: boolean; capaciteId: string } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    type: 'single' | 'merged';
+    capaciteIds: string[];
+    period: 'matin' | 'apres_midi' | 'toute_journee';
+    siteName: string;
+  } | null>(null);
   const [joursFeries, setJoursFeries] = useState<string[]>([]);
   const { toast } = useToast();
 
@@ -193,30 +199,38 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     }
   };
 
-  const handleDeleteCapacite = async () => {
-    if (!deleteConfirmation) return;
+  const handleOpenDeleteDialog = (cap: any) => {
+    setDeleteDialog({
+      open: true,
+      type: cap.capaciteIds.length > 1 ? 'merged' : 'single',
+      capaciteIds: cap.capaciteIds,
+      period: cap.demi_journee,
+      siteName: cap.sites?.nom || 'Site non défini'
+    });
+  };
 
+  const handleDeleteCapacites = async (idsToDelete: string[]) => {
     setLoading(true);
     try {
       const { error } = await supabase
         .from('capacite_effective')
         .delete()
-        .eq('id', deleteConfirmation.capaciteId);
+        .in('id', idsToDelete);
 
       if (error) throw error;
 
       toast({
         title: 'Succès',
-        description: 'Capacité supprimée',
+        description: `${idsToDelete.length} capacité(s) supprimée(s)`,
       });
 
-      setDeleteConfirmation(null);
+      setDeleteDialog(null);
       fetchData();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de supprimer la capacité',
+        description: 'Impossible de supprimer les capacités',
         variant: 'destructive',
       });
     } finally {
@@ -476,19 +490,45 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const isWeekendDay = isWeekend(dayInfo);
                     const isHolidayDay = isHoliday(day);
 
-                    // Regrouper matin et après-midi si les deux sont présents
+                    // Regrouper matin et après-midi si les deux sont présents ET même site
                     const hasMatin = capacitesDay.some(c => c.demi_journee === 'matin');
                     const hasApresMidi = capacitesDay.some(c => c.demi_journee === 'apres_midi');
                     const capacitesToDisplay = [];
 
                     if (hasMatin && hasApresMidi) {
-                      // Les deux périodes présentes, afficher "Journée entière"
-                      capacitesToDisplay.push({
-                        id: 'merged',
-                        demi_journee: 'toute_journee',
-                        sites: capacitesDay[0]?.sites,
-                        capaciteIds: capacitesDay.map(c => c.id)
-                      });
+                      const matinCap = capacitesDay.find(c => c.demi_journee === 'matin');
+                      const apresMidiCap = capacitesDay.find(c => c.demi_journee === 'apres_midi');
+                      
+                      // Fusionner uniquement si même site
+                      if (matinCap?.site_id === apresMidiCap?.site_id) {
+                        capacitesToDisplay.push({
+                          id: 'merged',
+                          demi_journee: 'toute_journee',
+                          sites: matinCap?.sites,
+                          site_id: matinCap?.site_id,
+                          capaciteIds: [matinCap.id, apresMidiCap.id]
+                        });
+                      } else {
+                        // Sites différents, afficher séparément
+                        if (matinCap) {
+                          capacitesToDisplay.push({
+                            id: matinCap.id,
+                            demi_journee: matinCap.demi_journee,
+                            sites: matinCap.sites,
+                            site_id: matinCap.site_id,
+                            capaciteIds: [matinCap.id]
+                          });
+                        }
+                        if (apresMidiCap) {
+                          capacitesToDisplay.push({
+                            id: apresMidiCap.id,
+                            demi_journee: apresMidiCap.demi_journee,
+                            sites: apresMidiCap.sites,
+                            site_id: apresMidiCap.site_id,
+                            capaciteIds: [apresMidiCap.id]
+                          });
+                        }
+                      }
                     } else {
                       // Afficher les périodes séparément
                       capacitesDay.forEach(cap => {
@@ -496,6 +536,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                           id: cap.id,
                           demi_journee: cap.demi_journee,
                           sites: cap.sites,
+                          site_id: cap.site_id,
                           capaciteIds: [cap.id]
                         });
                       });
@@ -522,9 +563,21 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 )}`}
                                 title={cap.sites?.nom}
                               >
-                                <div className="truncate font-semibold">
-                                  {getPeriodLabel(cap.demi_journee)}
+                                <div className="truncate font-semibold px-1">
+                                  {cap.sites?.nom || 'Site non défini'}
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute -top-1 -right-1 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-full"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDeleteDialog(cap);
+                                  }}
+                                  disabled={loading}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -602,25 +655,79 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       )}
 
       {/* Delete Confirmation Dialog */}
-      {deleteConfirmation && (
-        <Dialog open={deleteConfirmation.open} onOpenChange={(open) => !open && setDeleteConfirmation(null)}>
-          <DialogContent>
+      {deleteDialog && (
+        <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+          <DialogContent className="z-50 bg-background">
             <DialogHeader>
-              <DialogTitle>Confirmer la suppression</DialogTitle>
+              <DialogTitle>
+                {deleteDialog.type === 'merged' ? 'Supprimer les capacités' : 'Confirmer la suppression'}
+              </DialogTitle>
             </DialogHeader>
 
-            <p className="text-sm text-muted-foreground">
-              Êtes-vous sûr de vouloir supprimer cette capacité ?
-            </p>
+            {deleteDialog.type === 'merged' ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Que souhaitez-vous supprimer pour <span className="font-semibold">{deleteDialog.siteName}</span> ?
+                </p>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteConfirmation(null)}>
-                Annuler
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteCapacite} disabled={loading}>
-                Supprimer
-              </Button>
-            </div>
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleDeleteCapacites(deleteDialog.capaciteIds)}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    Toute la journée
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleDeleteCapacites([deleteDialog.capaciteIds[0]])}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    Matin uniquement
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleDeleteCapacites([deleteDialog.capaciteIds[1]])}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    Après-midi uniquement
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setDeleteDialog(null)}
+                    className="w-full"
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Êtes-vous sûr de vouloir supprimer la capacité du{' '}
+                  <span className="font-semibold">
+                    {deleteDialog.period === 'matin' ? 'Matin' : 'Après-midi'}
+                  </span>{' '}
+                  pour <span className="font-semibold">{deleteDialog.siteName}</span> ?
+                </p>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setDeleteDialog(null)}>
+                    Annuler
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleDeleteCapacites(deleteDialog.capaciteIds)}
+                    disabled={loading}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       )}
