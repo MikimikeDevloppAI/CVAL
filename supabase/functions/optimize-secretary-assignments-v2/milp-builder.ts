@@ -223,33 +223,38 @@ export function buildMILPModelSoft(
   }
   
   // ============================================================
-  // CONSTRAINT: Maximum capacity per SITE and HALF-DAY (aggregated)
+  // CONSTRAINT: Maximum capacity per SITE and HALF-DAY (aggregated for sites, specific for bloc)
   // ============================================================
-  console.log(`\n🎯 Ajout des contraintes de capacité par site et demi-journée...`);
+  console.log(`\n🎯 Ajout des contraintes de capacité...`);
   
-  // Aggregate morning needs by site
+  // Separate site needs from bloc needs
+  const needsMatinSite = needsMatin.filter(n => n.type !== 'bloc_operatoire');
+  const needsMatinBloc = needsMatin.filter(n => n.type === 'bloc_operatoire');
+  const needsAMSite = needsAM.filter(n => n.type !== 'bloc_operatoire');
+  const needsAMBloc = needsAM.filter(n => n.type === 'bloc_operatoire');
+  
+  // Aggregate morning site needs by site_id
   const morningTotals = new Map<string, number>();
-  for (const need of needsMatin) {
+  for (const need of needsMatinSite) {
     const current = morningTotals.get(need.site_id) || 0;
     morningTotals.set(need.site_id, current + need.nombre_max);
   }
   
-  // Aggregate afternoon needs by site
+  // Aggregate afternoon site needs by site_id
   const afternoonTotals = new Map<string, number>();
-  for (const need of needsAM) {
+  for (const need of needsAMSite) {
     const current = afternoonTotals.get(need.site_id) || 0;
     afternoonTotals.set(need.site_id, current + need.nombre_max);
   }
   
-  // Create constraints for morning totals
+  // Create constraints for morning site totals (aggregated by site)
   for (const [site_id, total_max] of morningTotals) {
     const constraintName = `site_cap_${site_id}_${date}_1`;
     model.constraints[constraintName] = { max: total_max };
     
-    // Add coefficient 1 for all combos covering this site in the morning
     let coveringCount = 0;
     for (const combo of combos) {
-      if (combo.needMatin?.site_id === site_id) {
+      if (combo.needMatin?.site_id === site_id && combo.needMatin?.type !== 'bloc_operatoire') {
         model.variables[combo.varName][constraintName] = 1;
         coveringCount++;
       }
@@ -259,25 +264,24 @@ export function buildMILPModelSoft(
     const siteName = site?.nom || site_id.slice(0, 8);
     console.log(`  🌅 ${siteName} matin: max ${total_max} (${coveringCount} combos)`);
     
-    // Special log for Angiologie
     if (siteName.includes('Angiologie')) {
       const lucieCount = combos.filter(c => 
         c.secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && 
-        c.needMatin?.site_id === site_id
+        c.needMatin?.site_id === site_id && 
+        c.needMatin?.type !== 'bloc_operatoire'
       ).length;
       console.log(`    💎 Lucie Vanni: ${lucieCount} combos couvrant Angiologie matin`);
     }
   }
   
-  // Create constraints for afternoon totals
+  // Create constraints for afternoon site totals (aggregated by site)
   for (const [site_id, total_max] of afternoonTotals) {
     const constraintName = `site_cap_${site_id}_${date}_2`;
     model.constraints[constraintName] = { max: total_max };
     
-    // Add coefficient 1 for all combos covering this site in the afternoon
     let coveringCount = 0;
     for (const combo of combos) {
-      if (combo.needAM?.site_id === site_id) {
+      if (combo.needAM?.site_id === site_id && combo.needAM?.type !== 'bloc_operatoire') {
         model.variables[combo.varName][constraintName] = 1;
         coveringCount++;
       }
@@ -286,15 +290,45 @@ export function buildMILPModelSoft(
     const site = week_data.sites.find(s => s.id === site_id);
     const siteName = site?.nom || site_id.slice(0, 8);
     console.log(`  🌇 ${siteName} AM: max ${total_max} (${coveringCount} combos)`);
+  }
+  
+  // Create specific constraints for BLOC needs (by besoin_operation_id)
+  for (const need of needsMatinBloc) {
+    const needId = `${need.site_id}_${date}_1_${need.bloc_operation_id}_${need.besoin_operation_id}`;
+    const constraintName = `max_cap_${needId}`;
+    model.constraints[constraintName] = { max: need.nombre_max };
     
-    // Special log for Angiologie
-    if (siteName.includes('Angiologie')) {
-      const lucieCount = combos.filter(c => 
-        c.secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && 
-        c.needAM?.site_id === site_id
-      ).length;
-      console.log(`    💎 Lucie Vanni: ${lucieCount} combos couvrant Angiologie AM`);
+    let coveringCount = 0;
+    for (const combo of combos) {
+      if (combo.needMatin?.type === 'bloc_operatoire' &&
+          combo.needMatin?.bloc_operation_id === need.bloc_operation_id &&
+          combo.needMatin?.besoin_operation_id === need.besoin_operation_id) {
+        model.variables[combo.varName][constraintName] = 1;
+        coveringCount++;
+      }
     }
+    
+    const besoinOp = week_data.besoins_operations.find(b => b.id === need.besoin_operation_id);
+    console.log(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} matin: max ${need.nombre_max} (${coveringCount} combos)`);
+  }
+  
+  for (const need of needsAMBloc) {
+    const needId = `${need.site_id}_${date}_2_${need.bloc_operation_id}_${need.besoin_operation_id}`;
+    const constraintName = `max_cap_${needId}`;
+    model.constraints[constraintName] = { max: need.nombre_max };
+    
+    let coveringCount = 0;
+    for (const combo of combos) {
+      if (combo.needAM?.type === 'bloc_operatoire' &&
+          combo.needAM?.bloc_operation_id === need.bloc_operation_id &&
+          combo.needAM?.besoin_operation_id === need.besoin_operation_id) {
+        model.variables[combo.varName][constraintName] = 1;
+        coveringCount++;
+      }
+    }
+    
+    const besoinOp = week_data.besoins_operations.find(b => b.id === need.besoin_operation_id);
+    console.log(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} AM: max ${need.nombre_max} (${coveringCount} combos)`);
   }
   
   // ============================================================
