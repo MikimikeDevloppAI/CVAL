@@ -283,7 +283,7 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
             className="h-8 flex-1 text-xs rounded-md border border-teal-200/50 bg-background px-2"
           />
           
-          <div className="flex gap-1 ml-0.5">
+          <div className="flex gap-1 shrink-0">
             <Button
               type="button"
               variant="ghost"

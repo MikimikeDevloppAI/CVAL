@@ -35,8 +35,7 @@ interface Absence {
   secretaire_id: string;
   date_debut: string;
   date_fin: string;
-  heure_debut: string | null;
-  heure_fin: string | null;
+  demi_journee?: string;
 }
 
 interface Holiday {
@@ -129,7 +128,7 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       if (secData && secData.length > 0) {
         const { data: absData, error: absError } = await supabase
           .from('absences')
-          .select('secretaire_id, date_debut, date_fin, heure_debut, heure_fin')
+          .select('secretaire_id, date_debut, date_fin, demi_journee')
           .in('secretaire_id', secData.map(s => s.id))
           .eq('type_personne', 'secretaire')
           .in('statut', ['approuve', 'en_attente']);
@@ -192,20 +191,15 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         const absEnd = new Date(absence.date_fin);
         
         if (isWithinInterval(day, { start: absStart, end: absEnd })) {
-          if (!absence.heure_debut && !absence.heure_fin) {
+          // Check if it's a full day absence or toute_journee
+          if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
             // Full day absence
             availableDays--;
             break;
-          } else {
-            // Partial day absence - check if both periods are blocked
-            const affectsMatin = absence.heure_debut < '12:30:00' && absence.heure_fin > '07:30:00';
-            const affectsApresMidi = absence.heure_debut < '18:00:00' && absence.heure_fin > '13:00:00';
-            
-            if (affectsMatin && affectsApresMidi) {
-              availableDays--;
-              break;
-            }
           }
+          // If demi_journee is 'matin' or 'apres_midi', it's a partial day
+          // For simplicity, we don't subtract from available days for partial absences
+          // The MILP will handle the detailed assignment
         }
       }
     });
@@ -249,18 +243,13 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         const absEnd = new Date(absence.date_fin);
         
         if (isWithinInterval(day, { start: absStart, end: absEnd })) {
-          if (!absence.heure_debut && !absence.heure_fin) {
+          // Check if it's a full day absence or toute_journee
+          if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
             absencesCount++;
             break;
-          } else {
-            const affectsMatin = absence.heure_debut < '12:30:00' && absence.heure_fin > '07:30:00';
-            const affectsApresMidi = absence.heure_debut < '18:00:00' && absence.heure_fin > '13:00:00';
-            
-            if (affectsMatin && affectsApresMidi) {
-              absencesCount++;
-              break;
-            }
           }
+          // If demi_journee is 'matin' or 'apres_midi', it's a partial day
+          // For simplicity in counting, we don't count partial days here
         }
       }
     });

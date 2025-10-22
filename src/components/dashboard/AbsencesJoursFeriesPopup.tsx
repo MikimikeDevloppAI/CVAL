@@ -27,8 +27,7 @@ interface Absence {
   date_fin: string;
   motif?: string;
   statut: string;
-  heure_debut?: string;
-  heure_fin?: string;
+  demi_journee?: string;
   medecins?: {
     first_name: string;
     name: string;
@@ -94,8 +93,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
           date_fin,
           motif,
           statut,
-          heure_debut,
-          heure_fin,
+          demi_journee,
           medecins:medecin_id (
             first_name,
             name
@@ -188,8 +186,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
             absence.secretaire_id === lastGroup.secretaire_id &&
             absence.type === lastGroup.type &&
             absence.statut === lastGroup.statut &&
-            absence.heure_debut === lastGroup.heure_debut &&
-            absence.heure_fin === lastGroup.heure_fin) {
+            absence.demi_journee === lastGroup.demi_journee) {
           
           const lastEndDate = new Date(lastGroup.date_fin);
           const currentStartDate = new Date(absence.date_debut);
@@ -472,18 +469,18 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                               <div className="flex-1">
                                 <p className="text-xs font-medium text-muted-foreground mb-0.5">Période</p>
                                 <p className="text-sm font-medium">
-                                  {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            {absence.heure_debut && absence.heure_fin && (
-                              <Badge variant="outline" className="text-xs">
-                                {absence.heure_debut.slice(0, 5)} - {absence.heure_fin.slice(0, 5)}
-                              </Badge>
-                            )}
+                              {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
+                            </p>
+                          </div>
+                        </div>
 
-                            {absence.motif && (
+                        {absence.demi_journee && absence.demi_journee !== 'toute_journee' && (
+                          <Badge variant="outline" className="text-xs">
+                            {absence.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
+                          </Badge>
+                        )}
+
+                        {absence.motif && (
                               <div className="pt-3 border-t border-border/50">
                                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                                   Motif
