@@ -63,6 +63,18 @@ export function OptimizationTestDialog({
 }: OptimizationTestDialogProps) {
   if (!result) return null;
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr.trim() === '') return 'Date non disponible';
+    const parsedDate = new Date(dateStr);
+    if (isNaN(parsedDate.getTime())) return 'Date non disponible';
+    return parsedDate.toLocaleDateString('fr-FR', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'satisfait':
@@ -97,12 +109,12 @@ export function OptimizationTestDialog({
             {result.all_needs_satisfied ? (
               <>
                 <CheckCircle2 className="h-6 w-6 text-green-500" />
-                <span>Solution trouvée - {new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                <span>Solution trouvée - {formatDate(date)}</span>
               </>
             ) : (
               <>
                 <AlertCircle className="h-6 w-6 text-orange-500" />
-                <span>Solution partielle - {new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                <span>Solution partielle - {formatDate(date)}</span>
               </>
             )}
           </DialogTitle>
