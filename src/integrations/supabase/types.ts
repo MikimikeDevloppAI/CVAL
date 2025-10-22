@@ -1187,16 +1187,10 @@ export type Database = {
         Args: { p_bloc_id: string }
         Returns: undefined
       }
-      generate_besoin_effectif: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      generate_capacite_effective: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      generate_besoin_effectif: { Args: never; Returns: undefined }
+      generate_capacite_effective: { Args: never; Returns: undefined }
       get_current_user_role: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_user_primary_role: {
@@ -1211,14 +1205,8 @@ export type Database = {
         Args: { p_horaire: Record<string, unknown> }
         Returns: undefined
       }
-      has_planning_access: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      has_planning_or_admin_access: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      has_planning_access: { Args: never; Returns: boolean }
+      has_planning_or_admin_access: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1226,10 +1214,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      is_admin: { Args: never; Returns: boolean }
       reassign_all_rooms_for_slot: {
         Args: {
           p_date: string
@@ -1238,7 +1223,7 @@ export type Database = {
         Returns: undefined
       }
       recalculate_base_schedule_optimization: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: undefined
       }
       recreate_besoins_capacites_for_date: {
@@ -1257,24 +1242,24 @@ export type Database = {
         }
         Returns: undefined
       }
-      refresh_besoins_non_satisfaits: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      should_doctor_work: {
-        Args:
-          | {
-              p_alternance_modulo: number
-              p_alternance_type: Database["public"]["Enums"]["type_alternance"]
-              p_target_date: string
-            }
-          | {
+      refresh_besoins_non_satisfaits: { Args: never; Returns: undefined }
+      should_doctor_work:
+        | {
+            Args: {
               p_alternance_reference: string
               p_alternance_type: Database["public"]["Enums"]["type_alternance"]
               p_target_date: string
             }
-        Returns: boolean
-      }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              p_alternance_modulo: number
+              p_alternance_type: Database["public"]["Enums"]["type_alternance"]
+              p_target_date: string
+            }
+            Returns: boolean
+          }
       swap_secretaries: {
         Args: {
           p_date: string
@@ -1284,10 +1269,7 @@ export type Database = {
         }
         Returns: Json
       }
-      trigger_reassign_all_rooms: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      trigger_reassign_all_rooms: { Args: never; Returns: undefined }
       update_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
@@ -1302,10 +1284,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      weekly_planning_maintenance: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      weekly_planning_maintenance: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "medecin" | "secretaire"
