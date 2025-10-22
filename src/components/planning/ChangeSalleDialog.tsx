@@ -46,7 +46,6 @@ export function ChangeSalleDialog({
     id: string;
     type_intervention_nom: string;
   } | null>(null);
-  const [action, setAction] = useState<'change' | 'swap'>('change');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -54,7 +53,6 @@ export function ChangeSalleDialog({
       fetchSalles();
       setSelectedSalle('');
       setConflict(null);
-      setAction('change');
     }
   }, [open]);
 
@@ -121,7 +119,7 @@ export function ChangeSalleDialog({
 
     setLoading(true);
     try {
-      if (conflict && action === 'swap') {
+      if (conflict) {
         // Swap the two operations' rooms
         const { error: error1 } = await supabase
           .from('planning_genere_bloc_operatoire')
@@ -142,7 +140,7 @@ export function ChangeSalleDialog({
           description: 'Salles échangées avec succès',
         });
       } else {
-        // Simply change the room (conflict was resolved or there was none)
+        // Simply change the room (no conflict)
         const { error } = await supabase
           .from('planning_genere_bloc_operatoire')
           .update({ salle_assignee: selectedSalle })
@@ -198,31 +196,15 @@ export function ChangeSalleDialog({
           </div>
 
           {conflict && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="space-y-2">
-                  <p>
-                    Cette salle est déjà occupée par : <strong>{conflict.type_intervention_nom}</strong>
-                  </p>
-                  <div className="space-y-2 mt-3">
-                    <Label>Action à effectuer</Label>
-                    <RadioGroup value={action} onValueChange={(v) => setAction(v as 'change' | 'swap')}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="swap" id="action-swap" />
-                        <Label htmlFor="action-swap" className="cursor-pointer">
-                          Échanger les salles (recommandé)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="change" id="action-change" />
-                        <Label htmlFor="action-change" className="cursor-pointer">
-                          Forcer le changement (peut créer un conflit)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                </div>
+            <Alert className="border-blue-500/50 bg-blue-500/10">
+              <AlertTriangle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-900 dark:text-blue-100">
+                <p>
+                  Cette salle est déjà occupée par : <strong>{conflict.type_intervention_nom}</strong>
+                </p>
+                <p className="mt-2 text-sm">
+                  Les salles seront automatiquement échangées lors de la confirmation.
+                </p>
               </AlertDescription>
             </Alert>
           )}
@@ -234,7 +216,7 @@ export function ChangeSalleDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !selectedSalle}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {conflict && action === 'swap' ? 'Échanger' : 'Changer'}
+            {conflict ? 'Échanger les salles' : 'Changer de salle'}
           </Button>
         </DialogFooter>
       </DialogContent>
