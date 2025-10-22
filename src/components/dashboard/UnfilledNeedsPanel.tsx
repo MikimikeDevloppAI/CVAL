@@ -81,6 +81,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [testResult, setTestResult] = useState<any>(null);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [applyingOptimization, setApplyingOptimization] = useState(false);
+  const [testedDate, setTestedDate] = useState<string | null>(null);
 
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
@@ -768,6 +769,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       if (error) throw error;
 
       setTestResult(data);
+      setTestedDate(date);
       setTestDialogOpen(true);
 
       if (data.all_needs_satisfied && data.changes.length > 0) {
@@ -790,20 +792,16 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   };
 
   const handleApplyOptimization = async () => {
-    if (!testResult) return;
+    if (!testResult || !testedDate) {
+      toast.error('Aucune date de test disponible');
+      return;
+    }
 
     setApplyingOptimization(true);
     
     try {
-      const date = testResult.after.assignments[0]?.date || 
-                   testResult.before.assignments[0]?.date;
-      
-      if (!date) {
-        throw new Error('Date not found in test result');
-      }
-
       const { error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
-        body: { dates: [date] }
+        body: { dates: [testedDate] }
       });
 
       if (error) throw error;
@@ -811,6 +809,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       toast.success('Optimisation appliquée avec succès !');
       setTestDialogOpen(false);
       setTestResult(null);
+      setTestedDate(null);
       
       setTimeout(() => {
         if (onRefresh) onRefresh();
