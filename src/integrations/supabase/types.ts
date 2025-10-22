@@ -20,8 +20,6 @@ export type Database = {
           date_debut: string
           date_fin: string
           demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          heure_debut: string | null
-          heure_fin: string | null
           id: string
           medecin_id: string | null
           motif: string | null
@@ -36,8 +34,6 @@ export type Database = {
           date_debut: string
           date_fin: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"] | null
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           motif?: string | null
@@ -52,8 +48,6 @@ export type Database = {
           date_debut?: string
           date_fin?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"] | null
-          heure_debut?: string | null
-          heure_fin?: string | null
           id?: string
           medecin_id?: string | null
           motif?: string | null
