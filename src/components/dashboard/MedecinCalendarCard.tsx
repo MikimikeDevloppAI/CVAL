@@ -124,9 +124,9 @@ export function MedecinCalendarCard({
     // Both periods with SAME site/intervention
     if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
       return (
-        <div className="h-8 bg-gradient-to-r from-cyan-500/20 to-cyan-500/20 border border-cyan-500/30 rounded flex items-center px-2">
+        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center px-2">
           <div className="flex items-center gap-1 w-full min-w-0">
-            <div className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0" />
+            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
             <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
           </div>
         </div>
