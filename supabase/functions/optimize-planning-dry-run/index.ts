@@ -259,18 +259,8 @@ serve(async (req) => {
       week_data.secretaires
     );
 
-    // Get available capacities and force all to admin site for simulation
-    const capacites = week_data.capacites_effective
-      .filter(c => c.date === date)
-      .map(c => ({
-        ...c,
-        site_id: week_data.admin_site_id, // Force admin for simulation
-        planning_genere_bloc_operatoire_id: null,
-        besoin_operation_id: null,
-        is_1r: false,
-        is_2f: false,
-        is_3f: false
-      }));
+    // Get available capacities (simulation will show empty "before" state)
+    const capacites = week_data.capacites_effective.filter(c => c.date === date);
 
     // Build MILP model using exact same function as v2
     const week_assignments: AssignmentSummary[] = [];
