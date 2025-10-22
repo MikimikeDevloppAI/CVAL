@@ -1127,7 +1127,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   return (
                     <div key={needKey} className="space-y-3">
                       {/* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */}
-                      {need.besoins_personnel && need.besoins_personnel.length > 0 ? (
+                          {need.besoins_personnel && need.besoins_personnel.length > 0 ? (
                         <div className="space-y-4">
                           <div className="p-3 rounded-lg bg-card border border-border/50">
                             <div className="flex items-center gap-2">
@@ -1135,7 +1135,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             </div>
                           </div>
                           {need.besoins_personnel.map(besoin => (
-                            <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                            <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg bg-card border border-border/50">
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="bg-background">
                                   {besoin.besoin_operation_nom}
@@ -1171,7 +1171,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                     <SelectTrigger className="w-full bg-background">
                                       <SelectValue placeholder="Sélectionner..." />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-background z-50">
+                                    <SelectContent className="bg-background z-50 max-h-[300px]">
                                       {loadingSuggestions.has(`${need.date}-matin-${need.site_id}-${besoin.besoin_operation_id}`) ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1181,18 +1181,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         <>
                                       {besoin.suggestions_matin.suggestions_admin.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                            En administratif
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                                            ✓ En administratif (disponibles)
                                           </div>
                                           {besoin.suggestions_matin.suggestions_admin.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
                                               <div className="flex items-center gap-2">
                                                 <span>{sug.secretaire_nom}</span>
                                                 {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
                                                 )}
                                                 {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
+                                                )}
+                                                {sug.preference_besoin === 3 && (
+                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
                                                 )}
                                               </div>
                                             </SelectItem>
@@ -1201,18 +1204,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                       )}
                                       {besoin.suggestions_matin.suggestions_not_working.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
-                                            Ajouter un créneau
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2 sticky top-0">
+                                            + Créer un créneau (non disponibles)
                                           </div>
                                           {besoin.suggestions_matin.suggestions_not_working.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
                                               <div className="flex items-center gap-2">
-                                                <span>{sug.secretaire_nom}</span>
+                                                <span className="text-muted-foreground">{sug.secretaire_nom}</span>
                                                 {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
                                                 )}
                                                 {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
+                                                )}
+                                                {sug.preference_besoin === 3 && (
+                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
                                                 )}
                                               </div>
                                             </SelectItem>
@@ -1285,7 +1291,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                     <SelectTrigger className="w-full bg-background">
                                       <SelectValue placeholder="Sélectionner..." />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-background z-50">
+                                    <SelectContent className="bg-background z-50 max-h-[300px]">
                                       {loadingSuggestions.has(`${need.date}-apres_midi-${need.site_id}-${besoin.besoin_operation_id}`) ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1295,18 +1301,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                         <>
                                       {besoin.suggestions_apres_midi.suggestions_admin.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                            En administratif
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                                            ✓ En administratif (disponibles)
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_admin.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
                                               <div className="flex items-center gap-2">
                                                 <span>{sug.secretaire_nom}</span>
                                                 {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
                                                 )}
                                                 {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
+                                                )}
+                                                {sug.preference_besoin === 3 && (
+                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
                                                 )}
                                               </div>
                                             </SelectItem>
@@ -1315,18 +1324,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                       )}
                                       {besoin.suggestions_apres_midi.suggestions_not_working.length > 0 && (
                                         <>
-                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
-                                            Ajouter un créneau
+                                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2 sticky top-0">
+                                            + Créer un créneau (non disponibles)
                                           </div>
                                           {besoin.suggestions_apres_midi.suggestions_not_working.map(sug => (
                                             <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
                                               <div className="flex items-center gap-2">
-                                                <span>{sug.secretaire_nom}</span>
+                                                <span className="text-muted-foreground">{sug.secretaire_nom}</span>
                                                 {sug.preference_besoin === 1 && (
-                                                  <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                                                  <Badge variant="secondary" className="text-xs h-5">⭐ Pref 1</Badge>
                                                 )}
                                                 {sug.preference_besoin === 2 && (
-                                                  <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                                                  <Badge variant="outline" className="text-xs h-5">★ Pref 2</Badge>
+                                                )}
+                                                {sug.preference_besoin === 3 && (
+                                                  <Badge variant="outline" className="text-xs h-5 opacity-60">Pref 3</Badge>
                                                 )}
                                               </div>
                                             </SelectItem>
