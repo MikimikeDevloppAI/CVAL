@@ -137,7 +137,7 @@ export const AddOperationDialog = ({
         demi_journee: selectedPeriode,
         medecin_id: selectedMedecinId,
         site_id: BLOC_OPERATOIRE_SITE_ID,
-        type: 'bloc_operatoire' as const,
+        type: 'medecin' as const,
         type_intervention_id: selectedTypeInterventionId,
         actif: true
       };

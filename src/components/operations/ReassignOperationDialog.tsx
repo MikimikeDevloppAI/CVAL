@@ -124,7 +124,7 @@ export const ReassignOperationDialog = ({
         demi_journee: currentPeriode,
         medecin_id: currentMedecinId,
         site_id: selectedSiteId,
-        type: selectedSiteId === BLOC_OPERATOIRE_SITE_ID ? 'bloc_operatoire' as const : 'medecin' as const,
+        type: 'medecin' as const,
         type_intervention_id: selectedSiteId === BLOC_OPERATOIRE_SITE_ID ? selectedTypeInterventionId : null,
         actif: true
       };

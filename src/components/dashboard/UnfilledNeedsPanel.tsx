@@ -53,7 +53,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .gt('manque', 0)
+        .gt('nombre_manquant', 0)
         .order('date', { ascending: true })
         .order('periode', { ascending: true });
 
@@ -69,14 +69,26 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             need.besoin_operation_id
           );
           
+          // Récupérer le nom de l'opération si c'est un besoin bloc
+          let besoinOperationNom: string | undefined;
+          if (need.planning_genere_bloc_operatoire_id) {
+            const { data: planning } = await supabase
+              .from('planning_genere_bloc_operatoire')
+              .select('types_intervention(nom)')
+              .eq('id', need.planning_genere_bloc_operatoire_id)
+              .single();
+            
+            besoinOperationNom = (planning?.types_intervention as any)?.nom;
+          }
+          
           return {
             date: need.date,
             periode: need.periode as 'matin' | 'apres_midi',
             site_id: need.site_id,
             site_nom: need.site_nom,
             besoin_operation_id: need.besoin_operation_id,
-            besoin_operation_nom: need.besoin_operation_nom,
-            manque: need.manque,
+            besoin_operation_nom: besoinOperationNom,
+            manque: need.nombre_manquant,
             suggestions
           };
         })

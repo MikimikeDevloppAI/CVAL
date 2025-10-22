@@ -170,7 +170,7 @@ export function DeleteOperationDialog({
             demi_journee: operation.periode,
             medecin_id: operation.medecin_id,
             site_id: selectedSiteId,
-            type: selectedSiteId === blocSiteId ? 'bloc_operatoire' : 'medecin',
+            type: 'medecin' as const,
             type_intervention_id:
               selectedSiteId === blocSiteId ? selectedTypeInterventionId : null,
             actif: true,
