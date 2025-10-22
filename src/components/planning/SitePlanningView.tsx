@@ -181,9 +181,6 @@ export function SitePlanningView({ startDate, endDate }: SitePlanningViewProps) 
 
   return (
     <div className="space-y-4">
-      {/* Bloc Opératoire Planning - Compact Version */}
-      <CompactBlocOperatoirePlanningView startDate={startDate} endDate={endDate} />
-      
       {/* Sites Planning - Besoins uniquement */}
       {bySite.map(({ siteId, siteName, byDate, totalRequis }) => (
         <Card key={siteId}>
