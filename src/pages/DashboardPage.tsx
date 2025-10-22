@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
+import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 
 interface PersonnePresence {
@@ -71,12 +72,33 @@ interface DashboardSecretaire {
   days: SecretaireDayData[];
 }
 
+interface MedecinAssignment {
+  site_nom: string;
+  site_id: string;
+  type_intervention?: string;
+}
+
+interface MedecinDayData {
+  date: string;
+  matin: MedecinAssignment[];
+  apres_midi: MedecinAssignment[];
+}
+
+interface DashboardMedecin {
+  id: string;
+  nom_complet: string;
+  specialite_nom: string;
+  actif: boolean;
+  days: MedecinDayData[];
+}
+
 const DashboardPage = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
+  const [dashboardMedecins, setDashboardMedecins] = useState<DashboardMedecin[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'site' | 'secretaire'>('site');
+  const [viewMode, setViewMode] = useState<'site' | 'secretaire' | 'medecin'>('site');
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
   const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
   const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
@@ -405,6 +427,82 @@ const DashboardPage = () => {
       setDashboardSecretaires(
         secretairesWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
       );
+
+      // Fetch medecins data
+      const { data: medecinsData } = await supabase
+        .from('medecins')
+        .select(`
+          id,
+          first_name,
+          name,
+          actif,
+          specialite_id,
+          specialites(nom)
+        `)
+        .eq('actif', true)
+        .order('name');
+
+      if (!medecinsData) return;
+
+      // Fetch medecins week data
+      const medecinsWeekData = await Promise.all(
+        medecinsData.map(async (medecin) => {
+          const { data: besoins } = await supabase
+            .from('besoin_effectif')
+            .select(`
+              date,
+              demi_journee,
+              site_id,
+              type,
+              type_intervention_id,
+              sites(nom),
+              types_intervention(nom)
+            `)
+            .eq('medecin_id', medecin.id)
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .eq('actif', true)
+            .order('date');
+
+          // Group by date
+          const daysMap = new Map<string, MedecinDayData>();
+          
+          besoins?.forEach((besoin) => {
+            if (!daysMap.has(besoin.date)) {
+              daysMap.set(besoin.date, {
+                date: besoin.date,
+                matin: [],
+                apres_midi: []
+              });
+            }
+            
+            const day = daysMap.get(besoin.date)!;
+            const assignment: MedecinAssignment = {
+              site_nom: (besoin.sites as any)?.nom || 'Inconnu',
+              site_id: besoin.site_id,
+              type_intervention: (besoin.types_intervention as any)?.nom
+            };
+            
+            if (besoin.demi_journee === 'matin') {
+              day.matin.push(assignment);
+            } else {
+              day.apres_midi.push(assignment);
+            }
+          });
+
+          return {
+            id: medecin.id,
+            nom_complet: `${medecin.first_name || ''} ${medecin.name}`.trim(),
+            specialite_nom: (medecin.specialites as any)?.nom || 'Non spécifié',
+            actif: medecin.actif,
+            days: Array.from(daysMap.values())
+          };
+        })
+      );
+
+      setDashboardMedecins(
+        medecinsWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
+      );
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -552,11 +650,12 @@ const DashboardPage = () => {
       </div>
 
       {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire')} className="w-full">
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin')} className="w-full">
         <div className="flex justify-center mb-6">
           <TabsList>
-            <TabsTrigger value="site">Vue par site</TabsTrigger>
-            <TabsTrigger value="secretaire">Vue par assistant médical</TabsTrigger>
+            <TabsTrigger value="site">Sites</TabsTrigger>
+            <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
+            <TabsTrigger value="medecin">Médecins</TabsTrigger>
           </TabsList>
         </div>
 
@@ -607,6 +706,27 @@ const DashboardPage = () => {
                   startDate={startDate}
                   index={index}
                   onDayClick={() => fetchDashboardData()}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Medecins Calendar Grid */}
+        <TabsContent value="medecin">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {dashboardMedecins.map((medecin, index) => (
+                <MedecinCalendarCard
+                  key={medecin.id}
+                  medecin={medecin}
+                  days={medecin.days}
+                  startDate={startDate}
+                  index={index}
                 />
               ))}
             </div>
