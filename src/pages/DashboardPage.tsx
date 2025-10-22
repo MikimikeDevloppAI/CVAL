@@ -218,6 +218,7 @@ const DashboardPage = () => {
             .order('date');
 
           // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
+          // Exclure les assignations au bloc opératoire dans la vue par site
           const { data: capacite } = await supabase
             .from('capacite_effective')
             .select(`
@@ -228,6 +229,7 @@ const DashboardPage = () => {
             .gte('date', startDate)
             .lte('date', endDate)
             .eq('actif', true)
+            .is('planning_genere_bloc_operatoire_id', null)
             .order('date');
 
           // Group by date only (not by period)
