@@ -144,11 +144,14 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
                 <span
                   key={m.id}
                   onClick={(e) => handleMedecinClick(e, m)}
-                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all truncate max-w-full bg-muted/50 border border-border/30 flex items-center gap-1.5 hover:bg-primary/10 cursor-pointer"
+                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all max-w-full bg-muted/50 border border-border/30 inline-flex items-center gap-1.5 hover:bg-primary/10 cursor-pointer"
                   title={nomComplet}
                 >
                   <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(m.matin, m.apres_midi))} />
-                  <span className="truncate">{m.nom}</span>
+                  <div className="flex flex-col leading-tight min-w-0">
+                    {m.prenom && <span className="text-[9px] text-muted-foreground truncate">{m.prenom}</span>}
+                    <span className="truncate">{m.nom}</span>
+                  </div>
                 </span>
               );
             })}
@@ -187,11 +190,14 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
                 <span
                   key={s.id}
                   onClick={(e) => handleSecretaireClick(e, s)}
-                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
+                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
                   title={nomComplet}
                 >
                   <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
-                  <span className="truncate">{s.nom}</span>
+                  <div className="flex flex-col leading-tight min-w-0">
+                    {s.prenom && <span className="text-[9px] text-muted-foreground truncate">{s.prenom}</span>}
+                    <span className="truncate">{s.nom}</span>
+                  </div>
                   {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
                   {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
                   {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
