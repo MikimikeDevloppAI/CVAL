@@ -195,9 +195,19 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
             let capaciteAM = 0;
             
             if (dayData) {
-              besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+              const isSaturday = day.getDay() === 6;
+              
+              if (isSaturday) {
+                // For Saturday: count 1 need per doctor
+                besoinMatin = dayData.medecins.filter(m => m.matin).length;
+                besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
+              } else {
+                // For other days: use calculated needs
+                besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+                besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
+              }
+              
               capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
-              besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
               capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
             }
 
