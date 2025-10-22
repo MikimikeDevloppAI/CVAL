@@ -410,11 +410,11 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                     <div className="text-muted-foreground">Chargement...</div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in p-1">
                     {filteredAbsences.map((absence, idx) => (
                       <div
                         key={absence.id}
-                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-red-200/50 dark:border-red-800/50 shadow-lg hover:shadow-xl hover:shadow-red-500/20 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:border-red-400/70 dark:hover:border-red-600/70 group"
+                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-red-200/50 dark:border-red-800/50 shadow-lg hover:shadow-xl hover:shadow-red-500/20 transition-all duration-300 hover:-translate-y-1 hover:border-red-400/70 dark:hover:border-red-600/70 group"
                         style={{ animationDelay: `${idx * 50}ms` }}
                       >
                         <div className="p-5">
