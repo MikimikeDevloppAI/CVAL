@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { AssignPersonnelDialog } from './AssignPersonnelDialog';
-import { ReassignOperationDialog } from './ReassignOperationDialog';
+import { EditMedecinAssignmentDialog } from '@/components/dashboard/EditMedecinAssignmentDialog';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -409,14 +409,15 @@ export const OperationCard = ({ operation, onUpdate }: OperationCardProps) => {
       </Dialog>
 
       {/* Reassign Dialog */}
-      {besoinEffectifId && (
-        <ReassignOperationDialog
+      {besoinEffectifId && operation.medecins && (
+        <EditMedecinAssignmentDialog
           open={reassignDialogOpen}
           onOpenChange={setReassignDialogOpen}
-          besoinEffectifId={besoinEffectifId}
-          currentDate={operation.date}
-          currentPeriode={operation.periode}
-          currentMedecinId={operation.medecins?.id || null}
+          medecinId={operation.medecins.id}
+          medecinNom={`${operation.medecins.first_name} ${operation.medecins.name}`}
+          date={operation.date}
+          currentSiteId="86f1047f-c4ff-441f-a064-42ee2f8ef37a"
+          periode={operation.periode}
           onSuccess={handleReassignSuccess}
         />
       )}

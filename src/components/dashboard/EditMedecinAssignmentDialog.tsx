@@ -24,6 +24,12 @@ interface Site {
   nom: string;
 }
 
+interface TypeIntervention {
+  id: string;
+  nom: string;
+  code: string;
+}
+
 interface EditMedecinAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,77 +53,76 @@ export function EditMedecinAssignmentDialog({
 }: EditMedecinAssignmentDialogProps) {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState(currentSiteId);
+  const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
+  const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [loading, setLoading] = useState(false);
+
+  const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
   useEffect(() => {
     if (open) {
       fetchSites();
+      fetchTypesIntervention();
       setSelectedSiteId(currentSiteId);
+      setSelectedTypeInterventionId('');
     }
   }, [open, currentSiteId]);
 
   const fetchSites = async () => {
-    // 1. Récupérer les sites où le médecin a des horaires
-    const { data: horairesData } = await supabase
-      .from('horaires_base_medecins')
-      .select('site_id, sites(id, nom)')
-      .eq('medecin_id', medecinId)
-      .eq('actif', true);
-
-    // 2. Extraire les sites uniques
-    const siteIds = new Set<string>();
-    const sitesFromHoraires: Site[] = [];
+    // Récupérer tous les sites actifs (y compris le bloc opératoire)
+    const { data: sitesData } = await supabase
+      .from('sites')
+      .select('id, nom')
+      .eq('actif', true)
+      .order('nom');
     
-    horairesData?.forEach((horaire: any) => {
-      if (horaire.sites && !siteIds.has(horaire.sites.id)) {
-        const nomLower = horaire.sites.nom.toLowerCase();
-        // Exclure bloc opératoire
-        if (!nomLower.includes('bloc opératoire')) {
-          siteIds.add(horaire.sites.id);
-          sitesFromHoraires.push({
-            id: horaire.sites.id,
-            nom: horaire.sites.nom
-          });
-        }
-      }
-    });
-
-    // 3. Ajouter le site Administratif s'il n'est pas déjà présent
-    const adminSiteId = '00000000-0000-0000-0000-000000000001';
-    if (!siteIds.has(adminSiteId)) {
-      const { data: adminSite } = await supabase
-        .from('sites')
-        .select('id, nom')
-        .eq('id', adminSiteId)
-        .eq('actif', true)
-        .single();
-      
-      if (adminSite) {
-        sitesFromHoraires.push(adminSite);
-      }
+    if (sitesData) {
+      setSites(sitesData);
     }
+  };
 
-    // 4. Trier par nom
-    sitesFromHoraires.sort((a, b) => a.nom.localeCompare(b.nom));
-    setSites(sitesFromHoraires);
+  const fetchTypesIntervention = async () => {
+    const { data } = await supabase
+      .from('types_intervention')
+      .select('id, nom, code')
+      .eq('actif', true)
+      .order('nom');
+    
+    if (data) {
+      setTypesIntervention(data);
+    }
   };
 
   const handleSubmit = async () => {
-    if (selectedSiteId === currentSiteId) {
+    // Validation
+    if (selectedSiteId === BLOC_OPERATOIRE_SITE_ID && !selectedTypeInterventionId) {
       toast({
-        title: 'Information',
-        description: 'Aucune modification à effectuer',
+        title: 'Erreur',
+        description: 'Veuillez sélectionner un type d\'intervention pour le bloc opératoire',
+        variant: 'destructive',
       });
-      onOpenChange(false);
       return;
     }
 
     setLoading(true);
     try {
+      // Construire les données de mise à jour
+      let updateData: any = { 
+        site_id: selectedSiteId 
+      };
+      
+      // Si on passe au bloc opératoire, ajouter type_intervention_id
+      if (selectedSiteId === BLOC_OPERATOIRE_SITE_ID) {
+        updateData.type_intervention_id = selectedTypeInterventionId;
+      } else {
+        // Si on quitte le bloc opératoire, supprimer type_intervention_id
+        updateData.type_intervention_id = null;
+      }
+
       // Build the query to filter by the specific period(s)
       let query = supabase
         .from('besoin_effectif')
-        .update({ site_id: selectedSiteId })
+        .update(updateData)
         .eq('medecin_id', medecinId)
         .eq('date', date)
         .eq('site_id', currentSiteId)
@@ -170,7 +175,16 @@ export function EditMedecinAssignmentDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Nouveau site</Label>
-            <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+            <Select 
+              value={selectedSiteId} 
+              onValueChange={(value) => {
+                setSelectedSiteId(value);
+                // Reset type intervention si on quitte le bloc
+                if (value !== BLOC_OPERATOIRE_SITE_ID) {
+                  setSelectedTypeInterventionId('');
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -183,6 +197,25 @@ export function EditMedecinAssignmentDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Afficher le sélecteur de type d'intervention seulement pour le bloc */}
+          {selectedSiteId === BLOC_OPERATOIRE_SITE_ID && (
+            <div className="space-y-2">
+              <Label>Type d'intervention *</Label>
+              <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesIntervention.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
