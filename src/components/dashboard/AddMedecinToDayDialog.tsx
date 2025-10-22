@@ -85,53 +85,46 @@ export function AddMedecinToDayDialog({
       .order('name');
 
     if (data) {
-      // Fetch existing assignments for this date and period
-      const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
-        ? ['matin', 'apres_midi'] 
-        : [periode as 'matin' | 'apres_midi'];
-
-      const { data: assignmentsData } = await supabase
+      // Fetch existing assignments for ALL periods for this date
+      const { data: besoinsData } = await supabase
         .from('besoin_effectif')
-        .select('medecin_id, site_id, demi_journee, sites(nom)')
+        .select('medecin_id, demi_journee')
         .eq('date', date)
-        .eq('type', 'medecin')
-        .in('demi_journee', periodsToCheck);
+        .eq('type', 'medecin');
 
-      // Map assignments to medecins
-      const medecinsWithAssignments = data.map(med => {
-        const assignments = assignmentsData?.filter(a => a.medecin_id === med.id) || [];
-        let assignmentText = '';
-        
-        if (assignments.length > 0) {
-          const siteNames = [...new Set(assignments.map(a => a.sites?.nom || 'Site inconnu'))];
-          const periods = assignments.map(a => {
-            if (a.demi_journee === 'matin') return 'M';
-            if (a.demi_journee === 'apres_midi') return 'AM';
-            return '';
-          }).filter(Boolean);
-          
-          assignmentText = `(${periods.join('+')}: ${siteNames.join(', ')})`;
-        }
+      const { data: capacitesData } = await supabase
+        .from('capacite_effective')
+        .select('secretaire_id, demi_journee')
+        .eq('date', date);
 
-        return {
-          id: med.id,
-          first_name: med.first_name,
-          name: med.name,
-          existing_assignment: assignmentText
-        };
+      // Filter to only include medecins who don't have besoin_effectif for ANY period
+      const medecinsFiltered = data.filter(med => {
+        const hasAnyBesoin = besoinsData?.some(b => b.medecin_id === med.id);
+        return !hasAnyBesoin;
       });
 
-      setMedecins(medecinsWithAssignments);
+      setMedecins(medecinsFiltered.map(m => ({
+        id: m.id,
+        first_name: m.first_name,
+        name: m.name,
+        existing_assignment: ''
+      })));
     }
   };
 
   const checkExistingAssignment = async () => {
+    // Check which periods are available for this medecin
+    const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
+      ? ['matin', 'apres_midi'] 
+      : [periode as 'matin' | 'apres_midi'];
+
     const { data } = await supabase
       .from('besoin_effectif')
-      .select('*')
+      .select('demi_journee')
       .eq('medecin_id', selectedMedecinId)
       .eq('date', date)
-      .eq('type', 'medecin');
+      .eq('type', 'medecin')
+      .in('demi_journee', periodsToCheck);
 
     setExistingAssignment(data && data.length > 0 ? data : null);
   };
@@ -146,39 +139,18 @@ export function AddMedecinToDayDialog({
       return;
     }
 
+    if (existingAssignment && existingAssignment.length > 0) {
+      toast({
+        title: 'Erreur',
+        description: 'Ce médecin a déjà une assignation pour cette période',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // Check if already assigned
-      const { data: existing } = await supabase
-        .from('besoin_effectif')
-        .select('id')
-        .eq('medecin_id', selectedMedecinId)
-        .eq('date', date)
-        .eq('site_id', siteId)
-        .eq('type', 'medecin');
-
-      if (existing && existing.length > 0) {
-        toast({
-          title: 'Attention',
-          description: 'Ce médecin est déjà assigné pour ce jour sur ce site',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Delete existing assignments if any (from other sites)
-      if (existingAssignment && existingAssignment.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('medecin_id', selectedMedecinId)
-          .eq('date', date)
-          .eq('type', 'medecin');
-
-        if (deleteError) throw deleteError;
-      }
-
-      // Create entries
+      // Create entries only for available periods
       const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
         ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
         : [{ demi_journee: periode as 'matin' | 'apres_midi' }];
@@ -288,7 +260,7 @@ export function AddMedecinToDayDialog({
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Ce médecin est déjà assigné ce jour. Son assignation sera déplacée vers ce site.
+                  Ce médecin a déjà une assignation pour cette période. Veuillez choisir une autre période.
                 </AlertDescription>
               </Alert>
             )}

@@ -1,5 +1,6 @@
-import { Stethoscope, Users, CheckCircle2 } from 'lucide-react';
+import { Stethoscope, Users, CheckCircle2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface PersonnePresence {
   id: string;
@@ -29,9 +30,11 @@ interface DayCellProps {
   onOpenDetail?: (date: Date, data: DayData) => void;
   onSecretaireClick?: (secretaireId: string, secretaireNom: string, secretairePrenom: string, periode: 'matin' | 'apres_midi' | 'journee') => void;
   onMedecinClick?: (medecinId: string, medecinNom: string, medecinPrenom: string) => void;
+  onAddMedecin?: (date: Date) => void;
+  onAddSecretaire?: (date: Date) => void;
 }
 
-export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecinClick }: DayCellProps) => {
+export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecinClick, onAddMedecin, onAddSecretaire }: DayCellProps) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (data && onOpenDetail) {
@@ -113,11 +116,26 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
       {/* Médecins Section */}
       {data.medecins.length > 0 && (
         <div className="mb-3 pb-3 border-b border-border/30">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Stethoscope className="h-3.5 w-3.5 text-primary" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-              Médecins
-            </span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Stethoscope className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                Médecins
+              </span>
+            </div>
+            {onAddMedecin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddMedecin(date);
+                }}
+                className="h-5 w-5 p-0 hover:bg-primary/10"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {data.medecins.map((m) => {
@@ -139,31 +157,48 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
       )}
 
       {/* Secrétaires Section */}
-      <div onClick={handleClick} className="cursor-pointer">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Users className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-            Secrétaires
-          </span>
+      <div className="cursor-pointer">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-primary" />
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+              Secrétaires
+            </span>
+          </div>
+          {onAddSecretaire && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSecretaire(date);
+              }}
+              className="h-5 w-5 p-0 hover:bg-primary/10"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          )}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {sortedSecretaires.map((s) => {
-            const nomComplet = s.prenom ? `${s.prenom} ${s.nom}` : s.nom;
-            return (
-              <span
-                key={s.id}
-                onClick={(e) => handleSecretaireClick(e, s)}
-                className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
-                title={nomComplet}
-              >
-                <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
-                <span className="truncate">{s.nom}</span>
-                {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
-                {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
-                {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
-              </span>
-            );
-          })}
+        <div onClick={handleClick}>
+          <div className="flex flex-wrap gap-1.5">
+            {sortedSecretaires.map((s) => {
+              const nomComplet = s.prenom ? `${s.prenom} ${s.nom}` : s.nom;
+              return (
+                <span
+                  key={s.id}
+                  onClick={(e) => handleSecretaireClick(e, s)}
+                  className="text-[10px] font-medium px-2 py-1 rounded-md transition-all inline-flex items-center gap-1.5 truncate max-w-full bg-muted/50 border border-border/30 hover:bg-primary/10 cursor-pointer"
+                  title={nomComplet}
+                >
+                  <span className={cn("w-2 h-2 rounded-full flex-shrink-0", getDotColor(s.matin, s.apres_midi))} />
+                  <span className="truncate">{s.nom}</span>
+                  {s.is_1r && <span className="text-[8px] font-bold flex-shrink-0">(1R)</span>}
+                  {s.is_2f && <span className="text-[8px] font-bold flex-shrink-0">(2F)</span>}
+                  {s.is_3f && <span className="text-[8px] font-bold flex-shrink-0">(3F)</span>}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

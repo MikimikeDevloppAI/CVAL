@@ -113,43 +113,25 @@ export function AddSecretaireToDayDialog({
       .order('name');
 
     if (secData) {
-      // Fetch existing assignments for this date and period
-      const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
-        ? ['matin', 'apres_midi'] 
-        : [periode as 'matin' | 'apres_midi'];
-
-      const { data: assignmentsData } = await supabase
+      // Fetch existing assignments for ALL periods for this date
+      const { data: capacitesData } = await supabase
         .from('capacite_effective')
-        .select('secretaire_id, site_id, demi_journee, sites(nom)')
+        .select('secretaire_id, demi_journee')
         .eq('date', date)
-        .eq('actif', true)
-        .in('demi_journee', periodsToCheck);
+        .eq('actif', true);
 
-      // Map assignments to secretaires
-      const secretairesWithAssignments = secData.map(sec => {
-        const assignments = assignmentsData?.filter(a => a.secretaire_id === sec.id) || [];
-        let assignmentText = '';
-        
-        if (assignments.length > 0) {
-          const siteNames = [...new Set(assignments.map(a => a.sites?.nom || 'Site inconnu'))];
-          const periods = assignments.map(a => {
-            if (a.demi_journee === 'matin') return 'M';
-            if (a.demi_journee === 'apres_midi') return 'AM';
-            return '';
-          }).filter(Boolean);
-          
-          assignmentText = `(${periods.join('+')}: ${siteNames.join(', ')})`;
-        }
-
-        return {
-          id: sec.id,
-          first_name: sec.first_name,
-          name: sec.name,
-          existing_assignment: assignmentText
-        };
+      // Filter to only include secretaires who don't have capacite_effective for ANY period
+      const secretairesFiltered = secData.filter(sec => {
+        const hasAnyCapacite = capacitesData?.some(c => c.secretaire_id === sec.id);
+        return !hasAnyCapacite;
       });
 
-      setSecretaires(secretairesWithAssignments);
+      setSecretaires(secretairesFiltered.map(s => ({
+        id: s.id,
+        first_name: s.first_name,
+        name: s.name,
+        existing_assignment: ''
+      })));
     }
 
     // Fetch sites
@@ -169,12 +151,23 @@ export function AddSecretaireToDayDialog({
   };
 
   const checkExistingAssignment = async () => {
+    if (!selectedSecretaireId) {
+      setExistingAssignment(null);
+      return;
+    }
+
+    // Check which periods are available for this secretaire
+    const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
+      ? ['matin', 'apres_midi'] 
+      : [periode as 'matin' | 'apres_midi'];
+
     const { data } = await supabase
       .from('capacite_effective')
-      .select('*')
+      .select('demi_journee')
       .eq('secretaire_id', selectedSecretaireId)
       .eq('date', date)
-      .eq('actif', true);
+      .eq('actif', true)
+      .in('demi_journee', periodsToCheck);
 
     setExistingAssignment(data && data.length > 0 ? data : null);
   };
@@ -199,20 +192,18 @@ export function AddSecretaireToDayDialog({
       return;
     }
 
+    if (existingAssignment && existingAssignment.length > 0) {
+      toast({
+        title: 'Erreur',
+        description: 'Cette secrétaire a déjà une assignation pour cette période',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // Delete existing assignments if any
-      if (existingAssignment && existingAssignment.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('capacite_effective')
-          .delete()
-          .eq('secretaire_id', selectedSecretaireId)
-          .eq('date', date);
-
-        if (deleteError) throw deleteError;
-      }
-
-      // Create new assignments
+      // Create new assignments only for available periods
       const entries: Array<{ demi_journee: 'matin' | 'apres_midi' }> = periode === 'journee'
         ? [{ demi_journee: 'matin' }, { demi_journee: 'apres_midi' }]
         : [{ demi_journee: periode as 'matin' | 'apres_midi' }];
@@ -325,7 +316,7 @@ export function AddSecretaireToDayDialog({
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Cette secrétaire est déjà assignée ce jour. Son assignation sera déplacée vers ce site.
+                  Cette secrétaire a déjà une assignation pour cette période. Veuillez choisir une autre période.
                 </AlertDescription>
               </Alert>
             )}

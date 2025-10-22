@@ -5,6 +5,8 @@ import { DayCell } from './DayCell';
 import { DayDetailDialog } from './DayDetailDialog';
 import { SecretaireActionsDialog } from './SecretaireActionsDialog';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
+import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
+import { AddSecretaireToDayDialog } from './AddSecretaireToDayDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +65,8 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
     date: Date;
     periode: 'matin' | 'apres_midi' | 'journee';
   } | null>(null);
+  const [addMedecinDate, setAddMedecinDate] = useState<Date | null>(null);
+  const [addSecretaireDate, setAddSecretaireDate] = useState<Date | null>(null);
 
   // Filter out Sundays (day 0)
   const days = eachDayOfInterval({
@@ -254,6 +258,8 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 onOpenDetail={handleOpenDetail}
                 onSecretaireClick={(id, nom, prenom, periode) => handleSecretaireClick(id, nom, prenom, periode, day)}
                 onMedecinClick={(id, nom, prenom) => handleMedecinClick(id, nom, prenom, day)}
+                onAddMedecin={(date) => setAddMedecinDate(date)}
+                onAddSecretaire={(date) => setAddSecretaireDate(date)}
               />
             );
           })}
@@ -296,6 +302,33 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           siteId={site.site_id}
           periode={selectedMedecin.periode}
           onRefresh={onRefresh}
+        />
+      )}
+
+      {addMedecinDate && (
+        <AddMedecinToDayDialog
+          open={!!addMedecinDate}
+          onOpenChange={(open) => !open && setAddMedecinDate(null)}
+          date={format(addMedecinDate, 'yyyy-MM-dd')}
+          siteId={site.site_id}
+          onSuccess={() => {
+            setAddMedecinDate(null);
+            onRefresh();
+          }}
+        />
+      )}
+
+      {addSecretaireDate && (
+        <AddSecretaireToDayDialog
+          open={!!addSecretaireDate}
+          onOpenChange={(open) => !open && setAddSecretaireDate(null)}
+          date={format(addSecretaireDate, 'yyyy-MM-dd')}
+          siteId={site.site_id}
+          siteName={site.site_nom}
+          onSuccess={() => {
+            setAddSecretaireDate(null);
+            onRefresh();
+          }}
         />
       )}
     </div>
