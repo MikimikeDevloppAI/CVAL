@@ -24,6 +24,11 @@ interface Secretaire {
   name: string;
 }
 
+interface Site {
+  id: string;
+  nom: string;
+}
+
 interface CapaciteEffective {
   id: string;
   date: string;
@@ -38,6 +43,7 @@ interface CapaciteEffective {
 export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialog, setAddDialog] = useState<{
@@ -46,6 +52,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     date: string;
   } | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
@@ -77,6 +84,22 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .order('first_name');
 
       if (secData) setSecretaires(secData);
+
+      // Fetch sites
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom');
+
+      if (sitesData) {
+        setSites(sitesData);
+        // Set default site to "administratif" if available
+        const adminSite = sitesData.find(s => s.nom.toLowerCase().includes('administratif'));
+        if (adminSite && !selectedSiteId) {
+          setSelectedSiteId(adminSite.id);
+        }
+      }
 
       // Fetch capacites for current month
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -202,7 +225,12 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
   };
 
   const handleAddCapacite = async () => {
-    if (!addDialog) {
+    if (!addDialog || !selectedSiteId) {
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez sélectionner un site',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -213,7 +241,7 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
         .insert({
           date: addDialog.date,
           secretaire_id: addDialog.secretaireId,
-          site_id: null,
+          site_id: selectedSiteId,
           demi_journee: selectedPeriod,
           actif: true,
         });
@@ -227,6 +255,11 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
 
       setAddDialog(null);
       setSelectedPeriod('toute_journee');
+      // Reset to admin site
+      const adminSite = sites.find(s => s.nom.toLowerCase().includes('administratif'));
+      if (adminSite) {
+        setSelectedSiteId(adminSite.id);
+      }
       fetchData();
     } catch (error) {
       console.error('Erreur:', error);
@@ -553,19 +586,35 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
       {/* Add Capacite Dialog */}
       {addDialog && (
         <Dialog open={addDialog.open} onOpenChange={(open) => !open && setAddDialog(null)}>
-          <DialogContent>
+          <DialogContent className="z-50 bg-background">
             <DialogHeader>
               <DialogTitle>Ajouter une période</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
               <div>
+                <label className="text-sm font-medium mb-2 block">Site</label>
+                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Sélectionner un site" />
+                  </SelectTrigger>
+                  <SelectContent className="z-50 bg-background">
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <label className="text-sm font-medium mb-2 block">Période</label>
                 <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-background">
                     <SelectItem value="toute_journee">Toute la journée</SelectItem>
                     <SelectItem value="matin">Matin</SelectItem>
                     <SelectItem value="apres_midi">Après-midi</SelectItem>
