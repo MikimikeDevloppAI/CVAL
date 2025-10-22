@@ -14,7 +14,7 @@ import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDi
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
 import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
-import { BlocOperatoireCalendarCard } from '@/components/dashboard/BlocOperatoireCalendarCard';
+import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 
 interface PersonnePresence {
@@ -93,23 +93,15 @@ interface DashboardMedecin {
   days: MedecinDayData[];
 }
 
-interface OperationData {
+interface DashboardOperation {
   id: string;
+  date: string;
   periode: 'matin' | 'apres_midi';
   type_intervention_nom: string;
   type_intervention_code: string;
+  type_intervention_id: string;
   medecin_nom: string;
   salle_nom: string | null;
-}
-
-interface OperationDayData {
-  date: string;
-  matin: OperationData[];
-  apres_midi: OperationData[];
-}
-
-interface DashboardBlocOperatoire {
-  days: OperationDayData[];
 }
 
 const DashboardPage = () => {
@@ -117,7 +109,7 @@ const DashboardPage = () => {
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
   const [dashboardMedecins, setDashboardMedecins] = useState<DashboardMedecin[]>([]);
-  const [dashboardBlocOperatoire, setDashboardBlocOperatoire] = useState<DashboardBlocOperatoire>({ days: [] });
+  const [dashboardOperations, setDashboardOperations] = useState<DashboardOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'site' | 'secretaire' | 'medecin' | 'bloc'>('site');
   const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
@@ -546,40 +538,21 @@ const DashboardPage = () => {
         .order('date')
         .order('periode');
 
-      // Group operations by date and periode
-      const operationsDaysMap = new Map<string, OperationDayData>();
-      
-      operationsData?.forEach((operation) => {
-        if (!operationsDaysMap.has(operation.date)) {
-          operationsDaysMap.set(operation.date, {
-            date: operation.date,
-            matin: [],
-            apres_midi: []
-          });
-        }
-        
-        const day = operationsDaysMap.get(operation.date)!;
-        const operationData: OperationData = {
-          id: operation.id,
-          periode: operation.periode as 'matin' | 'apres_midi',
-          type_intervention_nom: (operation.types_intervention as any)?.nom || 'Inconnu',
-          type_intervention_code: (operation.types_intervention as any)?.code || '',
-          medecin_nom: operation.medecins 
-            ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
-            : 'Non assigné',
-          salle_nom: (operation.salles_operation as any)?.name || null
-        };
-        
-        if (operation.periode === 'matin') {
-          day.matin.push(operationData);
-        } else {
-          day.apres_midi.push(operationData);
-        }
-      });
+      // Map operations to individual cards
+      const operations: DashboardOperation[] = (operationsData || []).map((operation) => ({
+        id: operation.id,
+        date: operation.date,
+        periode: operation.periode as 'matin' | 'apres_midi',
+        type_intervention_nom: (operation.types_intervention as any)?.nom || 'Inconnu',
+        type_intervention_code: (operation.types_intervention as any)?.code || '',
+        type_intervention_id: operation.type_intervention_id,
+        medecin_nom: operation.medecins 
+          ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
+          : 'Non assigné',
+        salle_nom: (operation.salles_operation as any)?.name || null
+      }));
 
-      setDashboardBlocOperatoire({
-        days: Array.from(operationsDaysMap.values())
-      });
+      setDashboardOperations(operations);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -830,13 +803,19 @@ const DashboardPage = () => {
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : dashboardOperations.length === 0 ? (
+            <div className="flex items-center justify-center py-20">
+              <p className="text-muted-foreground">Aucune opération cette semaine</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              <BlocOperatoireCalendarCard
-                days={dashboardBlocOperatoire.days}
-                startDate={startDate}
-                index={0}
-              />
+              {dashboardOperations.map((operation, index) => (
+                <OperationCalendarCard
+                  key={operation.id}
+                  operation={operation}
+                  index={index}
+                />
+              ))}
             </div>
           )}
         </TabsContent>
