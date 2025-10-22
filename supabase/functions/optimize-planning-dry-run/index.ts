@@ -1,12 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 // Import exact same modules as v2 to guarantee identical results
-import { loadWeekData } from '../optimize-secretary-assignments-v2/data-loader.ts';
-import { buildMILPModelSoft } from '../optimize-secretary-assignments-v2/milp-builder.ts';
-import type { SiteNeed, CapaciteEffective, AssignmentSummary } from '../optimize-secretary-assignments-v2/types.ts';
-
-const solver = await import('https://esm.sh/javascript-lp-solver@0.4.24');
+import { loadWeekData } from './data-loader.ts';
+import { buildMILPModelSoft } from './milp-builder.ts';
+import type { SiteNeed, CapaciteEffective, AssignmentSummary } from './types.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -331,9 +330,10 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Dry-run error:', error);
+    const err = error as Error;
+    console.error('❌ Dry-run error:', err);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
