@@ -153,7 +153,7 @@ export function ExchangeSecretaireDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Exchange Type Selection */}
+          {/* Only show exchange type selection if full day */}
           {canExchangeFullDay && (
             <div className="space-y-3">
               <Label>Type d'échange</Label>
@@ -198,6 +198,20 @@ export function ExchangeSecretaireDialog({
             </div>
           )}
 
+          {/* Show info about the selected period if not full day */}
+          {!canExchangeFullDay && (
+            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+              <p className="text-sm font-medium">
+                Échange pour: <Badge variant="outline" className="ml-2">
+                  {periode === 'matin' ? 'Matin' : 'Après-midi'}
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Seule cette demi-journée sera échangée
+              </p>
+            </div>
+          )}
+
           {/* Secretaire Selection */}
           <div className="space-y-3">
             <Label>Échanger avec</Label>
@@ -215,33 +229,64 @@ export function ExchangeSecretaireDialog({
                   <SelectValue placeholder="Sélectionner une secrétaire" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableSecretaires.map((sec) => (
-                    <SelectItem key={sec.secretaire_id} value={sec.secretaire_id}>
-                      <div className="flex items-center gap-2">
-                        <span>{sec.nom}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {sec.has_different_sites ? (
-                            <>
-                              ({sec.matin_site_nom} / {sec.apres_midi_site_nom} - Journée)
-                            </>
-                          ) : (
-                            <>
-                              ({sec.site_nom} - {sec.periode === 'journee' ? 'Journée' : sec.periode === 'matin' ? 'Matin' : 'Après-midi'})
-                            </>
+                  {availableSecretaires.map((sec) => {
+                    // Display only the selected period
+                    let displayInfo = '';
+                    let besoinInfo = '';
+                    let salleInfo = '';
+                    
+                    if (exchangeType === 'journee') {
+                      if (sec.has_different_sites) {
+                        displayInfo = `${sec.matin_site_nom} / ${sec.apres_midi_site_nom} - Journée`;
+                      } else {
+                        displayInfo = `${sec.site_nom} - Journée`;
+                      }
+                      // Show bloc info if exists
+                      if (sec.matin_besoin_nom || sec.apres_midi_besoin_nom) {
+                        besoinInfo = [sec.matin_besoin_nom, sec.apres_midi_besoin_nom].filter(Boolean).join(' / ');
+                      }
+                      if (sec.matin_salle_nom || sec.apres_midi_salle_nom) {
+                        salleInfo = [sec.matin_salle_nom, sec.apres_midi_salle_nom].filter(Boolean).join(' / ');
+                      }
+                    } else if (exchangeType === 'matin') {
+                      displayInfo = `${sec.matin_site_nom || sec.site_nom} - Matin`;
+                      if (sec.matin_besoin_nom) besoinInfo = sec.matin_besoin_nom;
+                      if (sec.matin_salle_nom) salleInfo = sec.matin_salle_nom;
+                    } else {
+                      displayInfo = `${sec.apres_midi_site_nom || sec.site_nom} - Après-midi`;
+                      if (sec.apres_midi_besoin_nom) besoinInfo = sec.apres_midi_besoin_nom;
+                      if (sec.apres_midi_salle_nom) salleInfo = sec.apres_midi_salle_nom;
+                    }
+                    
+                    return (
+                      <SelectItem key={sec.secretaire_id} value={sec.secretaire_id}>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{sec.nom}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({displayInfo})
+                            </span>
+                            {sec.is_1r && (
+                              <Badge variant="outline" className="text-[10px]">1R</Badge>
+                            )}
+                            {sec.is_2f && (
+                              <Badge variant="outline" className="text-[10px]">2F</Badge>
+                            )}
+                            {sec.is_3f && (
+                              <Badge variant="outline" className="text-[10px]">3F</Badge>
+                            )}
+                          </div>
+                          {(besoinInfo || salleInfo) && (
+                            <div className="text-[10px] text-muted-foreground ml-0">
+                              {besoinInfo && <span>Besoin: {besoinInfo}</span>}
+                              {besoinInfo && salleInfo && <span> • </span>}
+                              {salleInfo && <span>Salle: {salleInfo}</span>}
+                            </div>
                           )}
-                        </span>
-                        {sec.is_1r && (
-                          <Badge variant="outline" className="text-[10px]">1R</Badge>
-                        )}
-                        {sec.is_2f && (
-                          <Badge variant="outline" className="text-[10px]">2F</Badge>
-                        )}
-                        {sec.is_3f && (
-                          <Badge variant="outline" className="text-[10px]">3F</Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             )}

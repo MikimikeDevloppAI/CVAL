@@ -24,6 +24,12 @@ export interface SecretaireForExchange {
   matin_site_nom?: string;
   apres_midi_site_nom?: string;
   has_different_sites: boolean;
+  besoin_operation_nom?: string;
+  salle_nom?: string;
+  matin_besoin_nom?: string;
+  matin_salle_nom?: string;
+  apres_midi_besoin_nom?: string;
+  apres_midi_salle_nom?: string;
 }
 
 /**
@@ -79,7 +85,14 @@ export async function fetchAvailableSecretairesForExchange(
         is_3f,
         demi_journee,
         sites (nom),
-        secretaires (first_name, name)
+        secretaires (first_name, name),
+        besoins_operations (nom),
+        planning_genere_bloc_operatoire:planning_genere_bloc_operatoire_id (
+          salle_assignee,
+          salles_operation:salle_assignee (
+            name
+          )
+        )
       `)
       .eq('date', date)
       .eq('actif', true)
@@ -97,6 +110,8 @@ export async function fetchAvailableSecretairesForExchange(
       const nom = `${cap.secretaires.first_name || ''} ${cap.secretaires.name || ''}`.trim();
       const siteNom = cap.sites.nom;
       const demiJournee = cap.demi_journee as 'matin' | 'apres_midi';
+      const besoinNom = (cap as any).besoins_operations?.nom;
+      const salleNom = (cap as any).planning_genere_bloc_operatoire?.salles_operation?.name;
 
       if (!secretairesMap.has(secretaireId)) {
         secretairesMap.set(secretaireId, {
@@ -109,6 +124,8 @@ export async function fetchAvailableSecretairesForExchange(
           is_2f: cap.is_2f || false,
           is_3f: cap.is_3f || false,
           has_different_sites: false,
+          besoin_operation_nom: besoinNom,
+          salle_nom: salleNom,
         });
       }
 
@@ -125,11 +142,15 @@ export async function fetchAvailableSecretairesForExchange(
         demi_journee: demiJournee,
       });
 
-      // Store site names for each half-day
+      // Store site names and bloc info for each half-day
       if (demiJournee === 'matin') {
         sec.matin_site_nom = siteNom;
+        if (besoinNom) sec.matin_besoin_nom = besoinNom;
+        if (salleNom) sec.matin_salle_nom = salleNom;
       } else {
         sec.apres_midi_site_nom = siteNom;
+        if (besoinNom) sec.apres_midi_besoin_nom = besoinNom;
+        if (salleNom) sec.apres_midi_salle_nom = salleNom;
       }
 
       // Update periode if both morning and afternoon
