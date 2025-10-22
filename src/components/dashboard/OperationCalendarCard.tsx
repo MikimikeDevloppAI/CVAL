@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Stethoscope, Users, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 
 interface Besoin {
   nombre_requis: number;
@@ -35,13 +36,16 @@ interface OperationCalendarCardProps {
     type_intervention_id: string;
     medecin_nom: string;
     salle_nom: string | null;
+    salle_assignee: string | null;
   };
   index: number;
+  onRefresh?: () => void;
 }
 
-export function OperationCalendarCard({ operation, index }: OperationCalendarCardProps) {
+export function OperationCalendarCard({ operation, index, onRefresh }: OperationCalendarCardProps) {
   const [besoins, setBesoins] = useState<Besoin[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [changeSalleOpen, setChangeSalleOpen] = useState(false);
 
   useEffect(() => {
     fetchBesoins();
@@ -150,10 +154,14 @@ export function OperationCalendarCard({ operation, index }: OperationCalendarCar
             {operation.salle_nom && (
               <>
                 <span className="text-foreground">•</span>
-                <div className={cn(
-                  "px-2 py-1 rounded-md text-[10px] font-semibold border flex items-center gap-1",
-                  getSalleColor(operation.salle_nom)
-                )}>
+                <div 
+                  className={cn(
+                    "px-2 py-1 rounded-md text-[10px] font-semibold border flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                    getSalleColor(operation.salle_nom)
+                  )}
+                  onClick={() => setChangeSalleOpen(true)}
+                  title="Cliquer pour changer de salle"
+                >
                   <MapPin className="h-2.5 w-2.5" />
                   {operation.salle_nom}
                 </div>
@@ -222,6 +230,25 @@ export function OperationCalendarCard({ operation, index }: OperationCalendarCar
           </div>
         )}
       </div>
+
+      {operation.salle_assignee && (
+        <ChangeSalleDialog
+          open={changeSalleOpen}
+          onOpenChange={setChangeSalleOpen}
+          operation={{
+            id: operation.id,
+            date: operation.date,
+            periode: operation.periode,
+            salle_assignee: operation.salle_assignee,
+            type_intervention_nom: operation.type_intervention_nom
+          }}
+          onSuccess={() => {
+            fetchBesoins();
+            fetchAssignments();
+            onRefresh?.();
+          }}
+        />
+      )}
     </div>
   );
 }

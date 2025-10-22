@@ -102,6 +102,7 @@ interface DashboardOperation {
   type_intervention_id: string;
   medecin_nom: string;
   salle_nom: string | null;
+  salle_assignee: string | null;
 }
 
 const DashboardPage = () => {
@@ -549,7 +550,8 @@ const DashboardPage = () => {
         medecin_nom: operation.medecins 
           ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
           : 'Non assigné',
-        salle_nom: (operation.salles_operation as any)?.name || null
+        salle_nom: (operation.salles_operation as any)?.name || null,
+        salle_assignee: operation.salle_assignee
       }));
 
       setDashboardOperations(operations);
@@ -814,6 +816,7 @@ const DashboardPage = () => {
                   key={operation.id}
                   operation={operation}
                   index={index}
+                  onRefresh={fetchDashboardData}
                 />
               ))}
             </div>
