@@ -168,6 +168,9 @@ export function ChangeSalleDialog({
     }
   };
 
+  // Find current room name from the salles list
+  const currentSalleName = salles.find(s => s.id === operation.salle_assignee)?.name || operation.salle_assignee;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -176,7 +179,7 @@ export function ChangeSalleDialog({
           <DialogDescription>
             {operation.type_intervention_nom} - {operation.periode === 'matin' ? 'Matin' : 'Après-midi'}
             <br />
-            Salle actuelle: <strong>{operation.salle_assignee}</strong>
+            Salle actuelle: <strong>{currentSalleName}</strong>
           </DialogDescription>
         </DialogHeader>
 
