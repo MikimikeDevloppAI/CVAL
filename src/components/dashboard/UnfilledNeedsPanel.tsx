@@ -710,13 +710,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     const periodData = need.periods[periode];
     if (!periodData) return null;
 
-    const suggestionKey = `${need.date}-${periode}-${need.site_id}`;
-    const isExpanded = expandedSuggestions.has(suggestionKey);
-    const adminToShow = isExpanded ? periodData.suggestions_admin : periodData.suggestions_admin.slice(0, 3);
-    const notWorkingToShow = isExpanded ? periodData.suggestions_not_working : periodData.suggestions_not_working.slice(0, 3);
+    const periodKey = `${need.date}-${periode}-${need.site_id}`;
 
     return (
-      <div className="ml-4 p-4 rounded-lg bg-muted/20 border-l-2 border-primary/30 space-y-4">
+      <div className="ml-4 p-4 rounded-lg border space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Badge variant={periode === 'matin' ? 'default' : 'secondary'}>
@@ -728,117 +725,124 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           </div>
         </div>
 
-        {/* Catégorie 1: Admin */}
-        {periodData.suggestions_admin.length > 0 && (
-          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30 space-y-2">
-            <h4 className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              En administratif ({periodData.suggestions_admin.length})
-            </h4>
-            <div className="space-y-2">
-              {adminToShow.map(sug => {
-                const key = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-false`;
-                const keyFull = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-true`;
-                return (
-                  <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                      {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                      {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                      {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                      {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                      {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                      {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                    </div>
-                    <div className="flex gap-1">
-                      {sug.peut_toute_journee && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => handleQuickAssign(need, periode, sug, true)}
-                          disabled={assigningId === keyFull}
-                          className="h-7 px-2 text-xs gap-1"
-                        >
-                          {assigningId === keyFull ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Calendar className="h-3 w-3" /> Journée</>}
-                        </Button>
-                      )}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium">Assigner pour {periode === 'matin' ? 'le matin' : 'l\'après-midi'}</h4>
+          
+          {/* Dropdown pour sélectionner la secrétaire */}
+          <Select
+            value={selectedSecretaire[periodKey] || ""}
+            onValueChange={(value) => {
+              setSelectedSecretaire(prev => ({ ...prev, [periodKey]: value }));
+            }}
+          >
+            <SelectTrigger className="w-full bg-background">
+              <SelectValue placeholder="Sélectionner une secrétaire..." />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              {/* Secrétaires en administratif */}
+              {periodData.suggestions_admin.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                    En administratif
+                  </div>
+                  {periodData.suggestions_admin.map(sug => (
+                    <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                      <div className="flex items-center gap-2">
+                        <span>{sug.secretaire_nom}</span>
+                        {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
+                          <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                        )}
+                        {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
+                          <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+              
+              {/* Secrétaires non disponibles */}
+              {periodData.suggestions_not_working.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                    Ajouter un créneau
+                  </div>
+                  {periodData.suggestions_not_working.map(sug => (
+                    <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                      <div className="flex items-center gap-2">
+                        <span>{sug.secretaire_nom}</span>
+                        {(sug.priorite_site === 1 || sug.preference_besoin === 1) && (
+                          <Badge variant="secondary" className="text-xs h-5">★ Préf 1</Badge>
+                        )}
+                        {(sug.priorite_site === 2 || sug.preference_besoin === 2) && (
+                          <Badge variant="outline" className="text-xs h-5">★ Préf 2</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* Boutons d'action */}
+          {selectedSecretaire[periodKey] && (
+            <div className="flex gap-2">
+              {(() => {
+                const allSuggestions = [
+                  ...periodData.suggestions_admin,
+                  ...periodData.suggestions_not_working
+                ];
+                const sug = allSuggestions.find(s => s.secretaire_id === selectedSecretaire[periodKey]);
+                
+                return sug ? (
+                  <>
+                    {sug.peut_toute_journee && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleQuickAssign(need, periode, sug, false)}
-                        disabled={assigningId === key}
-                        className="h-7 px-2 text-xs gap-1"
+                        onClick={() => {
+                          handleQuickAssign(need, periode, sug, true);
+                          setSelectedSecretaire(prev => ({ ...prev, [periodKey]: "" }));
+                        }}
+                        disabled={!!assigningId}
+                        className="flex-1 gap-2"
                       >
-                        {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Clock className="h-3 w-3" /> {periode === 'matin' ? 'Matin' : 'AM'}</>}
+                        {assigningId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Calendar className="h-4 w-4" />
+                            Journée entière
+                          </>
+                        )}
                       </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Catégorie 2: Ajouter créneau */}
-        {periodData.suggestions_not_working.length > 0 && (
-          <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 space-y-2">
-            <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              Ajouter créneau ({periodData.suggestions_not_working.length})
-            </h4>
-            <div className="space-y-2">
-              {notWorkingToShow.map(sug => {
-                const key = `${need.date}-${periode}-${need.site_id}-${sug.secretaire_id}-false`;
-                return (
-                  <div key={sug.secretaire_id} className="flex items-center justify-between gap-2 p-2 rounded bg-card border border-border/50">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-sm font-medium">{sug.secretaire_nom}</span>
-                      {sug.priorite_site === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                      {sug.priorite_site === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                      {sug.priorite_site === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                      {sug.preference_besoin === 1 && <Badge className="bg-green-600 text-white border-0 text-xs">★ Préf 1</Badge>}
-                      {sug.preference_besoin === 2 && <Badge variant="secondary" className="text-xs">★ Préf 2</Badge>}
-                      {sug.preference_besoin === 3 && <Badge variant="outline" className="text-xs">★ Préf 3</Badge>}
-                    </div>
+                    )}
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => handleQuickAssign(need, periode, sug, false)}
-                      disabled={assigningId === key}
-                      className="h-7 px-2 text-xs gap-1"
+                      variant="default"
+                      onClick={() => {
+                        handleQuickAssign(need, periode, sug, false);
+                        setSelectedSecretaire(prev => ({ ...prev, [periodKey]: "" }));
+                      }}
+                      disabled={!!assigningId}
+                      className="flex-1 gap-2"
                     >
-                      {assigningId === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <><UserPlus className="h-3 w-3" /> Assigner</>}
+                      {assigningId ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Clock className="h-4 w-4" />
+                          {periode === 'matin' ? 'Matin' : 'Après-midi'}
+                        </>
+                      )}
                     </Button>
-                  </div>
-                );
-              })}
+                  </>
+                ) : null;
+              })()}
             </div>
-          </div>
-        )}
-
-        {/* Bouton Voir toutes */}
-        {(periodData.suggestions_admin.length > 3 || periodData.suggestions_not_working.length > 3) && (
-          <div className="flex justify-center pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setExpandedSuggestions(prev => {
-                  const next = new Set(prev);
-                  if (isExpanded) {
-                    next.delete(suggestionKey);
-                  } else {
-                    next.add(suggestionKey);
-                  }
-                  return next;
-                });
-              }}
-              className="text-xs"
-            >
-              {isExpanded ? 'Voir moins' : `Voir toutes (${periodData.suggestions_admin.length + periodData.suggestions_not_working.length})`}
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Aucune suggestion */}
         {periodData.suggestions_admin.length === 0 && periodData.suggestions_not_working.length === 0 && (
@@ -854,7 +858,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             variant="outline"
             size="sm"
             onClick={handleOptimize}
-            className="w-full gap-2 bg-gradient-to-r from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 border-primary/30"
+            className="w-full gap-2"
           >
             <Sparkles className="h-4 w-4" />
             Trouver la meilleure solution
