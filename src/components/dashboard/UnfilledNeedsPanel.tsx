@@ -1107,19 +1107,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             </div>
           )}
         </div>
-
-        {/* Catégorie 3: Meilleure solution */}
-        <div className="pt-2 border-t border-border/30">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOptimize}
-            className="w-full gap-2"
-          >
-            <Sparkles className="h-4 w-4" />
-            Trouver la meilleure solution
-          </Button>
-        </div>
       </div>
     );
   };
