@@ -39,7 +39,7 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
         <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
           <div className="space-y-6">
             {/* Toggle between Types and Flux */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center gap-4">
               <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
                 <button
                   onClick={() => setActiveView('types')}
@@ -65,7 +65,7 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
 
               {/* Add buttons only for Types view */}
               {activeView === 'types' && canManage && (
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap justify-center">
                   <Button
                     onClick={() => setShowBesoinTypeDialog(true)}
                     className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
@@ -78,14 +78,14 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
                     className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
                   >
                     <Clipboard className="h-4 w-4" />
-                    Ajouter besoins effectifs
+                    Ajouter une opération
                   </Button>
                   <Button
                     onClick={() => typesManagementRef.current?.openAddDialog()}
                     className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                   >
                     <Plus className="h-4 w-4" />
-                    Ajouter une opération
+                    Ajouter un type d'opération
                   </Button>
                 </div>
               )}
