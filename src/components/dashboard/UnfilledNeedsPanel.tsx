@@ -28,6 +28,7 @@ interface AggregatedNeed {
   site_id: string;
   site_nom: string;
   besoin_operation_id?: string;
+  planning_genere_bloc_operatoire_id?: string;
   has_both_periods: boolean;
   total_manque: number;
   periods: {
@@ -74,6 +75,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             site_id: need.site_id,
             site_nom: need.site_nom,
             besoin_operation_id: need.besoin_operation_id,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
             has_both_periods: false,
             total_manque: 0,
             periods: {}
@@ -305,6 +307,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           .eq('demi_journee', p)
           .eq('site_id', '00000000-0000-0000-0000-000000000001');
 
+        console.log('UnfilledNeedsPanel - Quick assign:', {
+          date: need.date,
+          periode: p,
+          secretaire: suggestion.secretaire_nom,
+          site_id: need.site_id,
+          besoin_operation_id: need.besoin_operation_id,
+          planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
+        });
+
         const { error } = await supabase
           .from('capacite_effective')
           .insert({
@@ -313,6 +324,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             demi_journee: p,
             site_id: need.site_id,
             besoin_operation_id: need.besoin_operation_id || null,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
             actif: true
           });
 
