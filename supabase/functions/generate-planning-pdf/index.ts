@@ -476,6 +476,7 @@ function generatePlanningHTML(
     });
 
     const sortedWeeks = Array.from(byWeek.keys()).sort();
+    const numberOfWeeks = sortedWeeks.length;
 
     const weeksHtml = sortedWeeks.map(weekStart => {
       const weekDates = byWeek.get(weekStart)!;
@@ -526,7 +527,9 @@ function generatePlanningHTML(
     return `
       <div class="secretary-card">
         <div class="secretary-name">${sec.name}</div>
-        ${weeksHtml}
+        <div class="weeks-container weeks-container-${numberOfWeeks}">
+          ${weeksHtml}
+        </div>
       </div>
     `;
   };
@@ -607,8 +610,30 @@ function generatePlanningHTML(
       border-bottom: 2px solid #0d9488;
     }
     
+    .weeks-container {
+      display: grid;
+      gap: 20px;
+      margin-bottom: 16px;
+    }
+    
+    .weeks-container-1 {
+      grid-template-columns: 1fr;
+    }
+    
+    .weeks-container-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+    
+    .weeks-container-3 {
+      grid-template-columns: 1fr 1fr;
+    }
+    
+    .weeks-container-4 {
+      grid-template-columns: 1fr 1fr;
+    }
+    
     .week-section {
-      margin-bottom: 20px;
+      margin-bottom: 0;
       border: 1px solid #d1d5db;
       border-radius: 8px;
       overflow: hidden;
