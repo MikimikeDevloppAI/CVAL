@@ -440,9 +440,33 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
-                    const isSingleCap = capacitesDay.length === 1;
                     const isWeekendDay = isWeekend(dayInfo);
                     const isHolidayDay = isHoliday(day);
+
+                    // Regrouper matin et après-midi si les deux sont présents
+                    const hasMatin = capacitesDay.some(c => c.demi_journee === 'matin');
+                    const hasApresMidi = capacitesDay.some(c => c.demi_journee === 'apres_midi');
+                    const capacitesToDisplay = [];
+
+                    if (hasMatin && hasApresMidi) {
+                      // Les deux périodes présentes, afficher "Journée entière"
+                      capacitesToDisplay.push({
+                        id: 'merged',
+                        demi_journee: 'toute_journee',
+                        sites: capacitesDay[0]?.sites,
+                        capaciteIds: capacitesDay.map(c => c.id)
+                      });
+                    } else {
+                      // Afficher les périodes séparément
+                      capacitesDay.forEach(cap => {
+                        capacitesToDisplay.push({
+                          id: cap.id,
+                          demi_journee: cap.demi_journee,
+                          sites: cap.sites,
+                          capaciteIds: [cap.id]
+                        });
+                      });
+                    }
 
                     return (
                       <div
@@ -455,9 +479,9 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                             : 'bg-card'
                         }`}
                       >
-                        {capacitesDay.length > 0 ? (
+                        {capacitesToDisplay.length > 0 ? (
                           <div className="flex flex-col h-full">
-                            {capacitesDay.map((cap) => (
+                            {capacitesToDisplay.map((cap) => (
                               <div
                                 key={cap.id}
                                 className={`text-[8px] flex-1 w-full relative group/badge leading-none text-center flex items-center justify-center ${getColorForPeriod(
@@ -468,15 +492,40 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                                 <div className="truncate font-semibold">
                                   {getPeriodLabel(cap.demi_journee)}
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="absolute top-0 right-0 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
-                                  onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.id })}
-                                  disabled={loading}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                {cap.capaciteIds.length === 1 ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-0 right-0 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
+                                    onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[0] })}
+                                    disabled={loading}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                ) : (
+                                  <div className="absolute top-0 right-0 opacity-0 group-hover/badge:opacity-100 transition-opacity flex">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-4 w-4 p-0 bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
+                                      onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[0] })}
+                                      disabled={loading}
+                                      title="Supprimer matin"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-4 w-4 p-0 bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm ml-0.5"
+                                      onClick={() => setDeleteConfirmation({ open: true, capaciteId: cap.capaciteIds[1] })}
+                                      disabled={loading}
+                                      title="Supprimer après-midi"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
