@@ -21,11 +21,20 @@ export function WeekSelector({ currentDate, onWeekChange }: WeekSelectorProps) {
   const [weeks, setWeeks] = useState<Date[]>([]);
 
   useEffect(() => {
-    // Generate 52 weeks starting from current week (1 year forward)
+    // Generate 26 weeks before and 26 weeks after current week (total 53 weeks)
     const weeksList: Date[] = [];
-    for (let i = 0; i <= 52; i++) {
-      weeksList.push(addWeeks(new Date(), i));
+    const today = new Date();
+    
+    // Add past weeks (26 weeks before)
+    for (let i = -26; i < 0; i++) {
+      weeksList.push(addWeeks(today, i));
     }
+    
+    // Add current and future weeks (today + 26 after = 27 weeks)
+    for (let i = 0; i <= 26; i++) {
+      weeksList.push(addWeeks(today, i));
+    }
+    
     setWeeks(weeksList);
   }, []);
 
