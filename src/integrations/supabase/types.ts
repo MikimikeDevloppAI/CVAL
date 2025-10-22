@@ -1160,13 +1160,11 @@ export type Database = {
       besoins_non_satisfaits_summary: {
         Row: {
           besoin_operation_id: string | null
-          besoin_operation_nom: string | null
           date: string | null
-          is_fermeture_incomplete: boolean | null
-          manque: number | null
-          nombre_assigne: number | null
-          nombre_requis: number | null
-          periode: Database["public"]["Enums"]["demi_journee"] | null
+          nombre_assignes: number | null
+          nombre_besoins: number | null
+          nombre_manquant: number | null
+          periode: string | null
           planning_genere_bloc_operatoire_id: string | null
           site_id: string | null
           site_nom: string | null
