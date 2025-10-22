@@ -66,54 +66,67 @@ export function buildMILPModelSoft(
     const secretaire = week_data.secretaires.find(s => s.id === secretaire_id);
     if (!secretaire) continue;
     
+    // Check capacity for morning and afternoon
+    const hasMatinCap = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && c.date === date && c.demi_journee === 'matin'
+    );
+    const hasAMCap = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && c.date === date && c.demi_journee === 'apres_midi'
+    );
+    
     // Get eligible morning needs
-    const eligibleMatin: (SiteNeed | null)[] = [null]; // Always allow null (no assignment)
-    for (const need of needsMatin) {
-      if (need.site_id === ADMIN_SITE_ID) {
-        eligibleMatin.push(need);
-        continue;
-      }
-      
-      // Check eligibility
-      if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
-        const hasCompetence = week_data.secretaires_besoins.some(
-          sb => sb.secretaire_id === secretaire_id && 
-                sb.besoin_operation_id === need.besoin_operation_id
-        );
-        if (hasCompetence) eligibleMatin.push(need);
-      } else {
-        const isEligible = week_data.secretaires_sites.some(
-          ss => ss.secretaire_id === secretaire_id && ss.site_id === need.site_id
-        );
-        if (isEligible) eligibleMatin.push(need);
+    const eligibleMatin: (SiteNeed | null)[] = hasMatinCap ? [null] : [];
+    if (hasMatinCap) {
+      for (const need of needsMatin) {
+        if (need.site_id === ADMIN_SITE_ID) {
+          eligibleMatin.push(need);
+          continue;
+        }
+        
+        // Check eligibility
+        if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
+          const hasCompetence = week_data.secretaires_besoins.some(
+            sb => sb.secretaire_id === secretaire_id && 
+                  sb.besoin_operation_id === need.besoin_operation_id
+          );
+          if (hasCompetence) eligibleMatin.push(need);
+        } else {
+          const isEligible = week_data.secretaires_sites.some(
+            ss => ss.secretaire_id === secretaire_id && ss.site_id === need.site_id
+          );
+          if (isEligible) eligibleMatin.push(need);
+        }
       }
     }
     
     // Get eligible afternoon needs
-    const eligibleAM: (SiteNeed | null)[] = [null]; // Always allow null (no assignment)
-    for (const need of needsAM) {
-      if (need.site_id === ADMIN_SITE_ID) {
-        eligibleAM.push(need);
-        continue;
-      }
-      
-      // Check eligibility
-      if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
-        const hasCompetence = week_data.secretaires_besoins.some(
-          sb => sb.secretaire_id === secretaire_id && 
-                sb.besoin_operation_id === need.besoin_operation_id
-        );
-        if (hasCompetence) eligibleAM.push(need);
-      } else {
-        const isEligible = week_data.secretaires_sites.some(
-          ss => ss.secretaire_id === secretaire_id && ss.site_id === need.site_id
-        );
-        if (isEligible) eligibleAM.push(need);
+    const eligibleAM: (SiteNeed | null)[] = hasAMCap ? [null] : [];
+    if (hasAMCap) {
+      for (const need of needsAM) {
+        if (need.site_id === ADMIN_SITE_ID) {
+          eligibleAM.push(need);
+          continue;
+        }
+        
+        // Check eligibility
+        if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
+          const hasCompetence = week_data.secretaires_besoins.some(
+            sb => sb.secretaire_id === secretaire_id && 
+                  sb.besoin_operation_id === need.besoin_operation_id
+          );
+          if (hasCompetence) eligibleAM.push(need);
+        } else {
+          const isEligible = week_data.secretaires_sites.some(
+            ss => ss.secretaire_id === secretaire_id && ss.site_id === need.site_id
+          );
+          if (isEligible) eligibleAM.push(need);
+        }
       }
     }
     
-    if (DEBUG_VERBOSE) {
-      console.log(`  👤 ${secretaire.name}: ${eligibleMatin.length} matin × ${eligibleAM.length} AM = ${eligibleMatin.length * eligibleAM.length} combos`);
+    // Log for Lucie Vanni or debug mode
+    if (DEBUG_VERBOSE || secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b') {
+      console.log(`  👤 ${secretaire.name}: Matin=${hasMatinCap}, AM=${hasAMCap} | ${eligibleMatin.length} matin × ${eligibleAM.length} AM = ${eligibleMatin.length * eligibleAM.length} combos`);
     }
     
     // Generate all combos (matin × AM)
@@ -159,19 +172,24 @@ export function buildMILPModelSoft(
           secretaire
         );
         
-        // Only add combo if score > 0
-        if (score > 0) {
-          combos.push({
-            secretaire_id,
-            needMatin: needM,
-            needAM: needA,
-            score,
-            varName
-          });
-          
-          model.variables[varName] = { score_total: score };
-          model.binaries[varName] = 1;
-          comboCount++;
+        // Add all combos (even with negative scores, let MILP decide)
+        combos.push({
+          secretaire_id,
+          needMatin: needM,
+          needAM: needA,
+          score,
+          varName
+        });
+        
+        model.variables[varName] = { score_total: score };
+        model.binaries[varName] = 1;
+        comboCount++;
+        
+        // Log top combos for Lucie Vanni
+        if (secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && score > 50) {
+          const mName = needM ? week_data.sites.find(s => s.id === needM.site_id)?.nom : 'null';
+          const aName = needA ? week_data.sites.find(s => s.id === needA.site_id)?.nom : 'null';
+          console.log(`    💎 Combo Lucie: ${mName} + ${aName} = ${score.toFixed(1)}`);
         }
       }
     }
@@ -205,87 +223,77 @@ export function buildMILPModelSoft(
   }
   
   // ============================================================
-  // CONSTRAINT: Maximum capacity per need (no over-assignment)
+  // CONSTRAINT: Maximum capacity per SITE and HALF-DAY (aggregated)
   // ============================================================
-  console.log(`\n🎯 Ajout des contraintes de capacité maximale...`);
+  console.log(`\n🎯 Ajout des contraintes de capacité par site et demi-journée...`);
   
-  // For morning needs
+  // Aggregate morning needs by site
+  const morningTotals = new Map<string, number>();
   for (const need of needsMatin) {
-    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-      ? `${need.site_id}_${date}_1_${need.bloc_operation_id}_${need.besoin_operation_id}`
-      : `${need.site_id}_${date}_1`;
+    const current = morningTotals.get(need.site_id) || 0;
+    morningTotals.set(need.site_id, current + need.nombre_max);
+  }
+  
+  // Aggregate afternoon needs by site
+  const afternoonTotals = new Map<string, number>();
+  for (const need of needsAM) {
+    const current = afternoonTotals.get(need.site_id) || 0;
+    afternoonTotals.set(need.site_id, current + need.nombre_max);
+  }
+  
+  // Create constraints for morning totals
+  for (const [site_id, total_max] of morningTotals) {
+    const constraintName = `site_cap_${site_id}_${date}_1`;
+    model.constraints[constraintName] = { max: total_max };
     
-    const constraintName = `max_cap_${needId}`;
-    model.constraints[constraintName] = { max: need.nombre_max };
-    
-    // Find all combos that cover this morning need
+    // Add coefficient 1 for all combos covering this site in the morning
+    let coveringCount = 0;
     for (const combo of combos) {
-      if (combo.needMatin) {
-        const comboNeedId = combo.needMatin.type === 'bloc_operatoire' && 
-                            combo.needMatin.bloc_operation_id && 
-                            combo.needMatin.besoin_operation_id
-          ? `${combo.needMatin.site_id}_${date}_1_${combo.needMatin.bloc_operation_id}_${combo.needMatin.besoin_operation_id}`
-          : `${combo.needMatin.site_id}_${date}_1`;
-        
-        if (comboNeedId === needId) {
-          model.variables[combo.varName][constraintName] = 1;
-        }
+      if (combo.needMatin?.site_id === site_id) {
+        model.variables[combo.varName][constraintName] = 1;
+        coveringCount++;
       }
     }
     
-    if (DEBUG_VERBOSE) {
-      const site = week_data.sites.find(s => s.id === need.site_id);
-      const siteName = site?.nom || need.site_id.slice(0, 8);
-      const coveringCombos = combos.filter(c => {
-        if (!c.needMatin) return false;
-        const comboNeedId = c.needMatin.type === 'bloc_operatoire' && 
-                            c.needMatin.bloc_operation_id && 
-                            c.needMatin.besoin_operation_id
-          ? `${c.needMatin.site_id}_${date}_1_${c.needMatin.bloc_operation_id}_${c.needMatin.besoin_operation_id}`
-          : `${c.needMatin.site_id}_${date}_1`;
-        return comboNeedId === needId;
-      });
-      console.log(`  🌅 ${siteName} matin: max ${need.nombre_max} (${coveringCombos.length} combos possibles)`);
+    const site = week_data.sites.find(s => s.id === site_id);
+    const siteName = site?.nom || site_id.slice(0, 8);
+    console.log(`  🌅 ${siteName} matin: max ${total_max} (${coveringCount} combos)`);
+    
+    // Special log for Angiologie
+    if (siteName.includes('Angiologie')) {
+      const lucieCount = combos.filter(c => 
+        c.secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && 
+        c.needMatin?.site_id === site_id
+      ).length;
+      console.log(`    💎 Lucie Vanni: ${lucieCount} combos couvrant Angiologie matin`);
     }
   }
   
-  // For afternoon needs
-  for (const need of needsAM) {
-    const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-      ? `${need.site_id}_${date}_2_${need.bloc_operation_id}_${need.besoin_operation_id}`
-      : `${need.site_id}_${date}_2`;
+  // Create constraints for afternoon totals
+  for (const [site_id, total_max] of afternoonTotals) {
+    const constraintName = `site_cap_${site_id}_${date}_2`;
+    model.constraints[constraintName] = { max: total_max };
     
-    const constraintName = `max_cap_${needId}`;
-    model.constraints[constraintName] = { max: need.nombre_max };
-    
-    // Find all combos that cover this afternoon need
+    // Add coefficient 1 for all combos covering this site in the afternoon
+    let coveringCount = 0;
     for (const combo of combos) {
-      if (combo.needAM) {
-        const comboNeedId = combo.needAM.type === 'bloc_operatoire' && 
-                            combo.needAM.bloc_operation_id && 
-                            combo.needAM.besoin_operation_id
-          ? `${combo.needAM.site_id}_${date}_2_${combo.needAM.bloc_operation_id}_${combo.needAM.besoin_operation_id}`
-          : `${combo.needAM.site_id}_${date}_2`;
-        
-        if (comboNeedId === needId) {
-          model.variables[combo.varName][constraintName] = 1;
-        }
+      if (combo.needAM?.site_id === site_id) {
+        model.variables[combo.varName][constraintName] = 1;
+        coveringCount++;
       }
     }
     
-    if (DEBUG_VERBOSE) {
-      const site = week_data.sites.find(s => s.id === need.site_id);
-      const siteName = site?.nom || need.site_id.slice(0, 8);
-      const coveringCombos = combos.filter(c => {
-        if (!c.needAM) return false;
-        const comboNeedId = c.needAM.type === 'bloc_operatoire' && 
-                            c.needAM.bloc_operation_id && 
-                            c.needAM.besoin_operation_id
-          ? `${c.needAM.site_id}_${date}_2_${c.needAM.bloc_operation_id}_${c.needAM.besoin_operation_id}`
-          : `${c.needAM.site_id}_${date}_2`;
-        return comboNeedId === needId;
-      });
-      console.log(`  🌇 ${siteName} AM: max ${need.nombre_max} (${coveringCombos.length} combos possibles)`);
+    const site = week_data.sites.find(s => s.id === site_id);
+    const siteName = site?.nom || site_id.slice(0, 8);
+    console.log(`  🌇 ${siteName} AM: max ${total_max} (${coveringCount} combos)`);
+    
+    // Special log for Angiologie
+    if (siteName.includes('Angiologie')) {
+      const lucieCount = combos.filter(c => 
+        c.secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && 
+        c.needAM?.site_id === site_id
+      ).length;
+      console.log(`    💎 Lucie Vanni: ${lucieCount} combos couvrant Angiologie AM`);
     }
   }
   
@@ -351,7 +359,7 @@ export function buildMILPModelSoft(
   console.log(`  Variables: ${variableCount}`);
   console.log(`  Contraintes: ${constraintCount}`);
   console.log(`  - Une combo par secrétaire: ${activeSecretaires.size}`);
-  console.log(`  - Capacité max par besoin: ${needsMatin.length + needsAM.length}`);
+  console.log(`  - Capacité max par site×demi-journée: ${morningTotals.size + afternoonTotals.size}`);
   console.log(`  - Sites de fermeture: ${closureSites.length}`);
   console.log(`  Combos: ${comboCount}`);
   
