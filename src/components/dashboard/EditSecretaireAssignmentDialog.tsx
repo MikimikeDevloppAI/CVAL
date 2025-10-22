@@ -39,6 +39,7 @@ interface Site {
 interface OperationWithNeed {
   id: string; // planning_genere_bloc_operatoire.id
   besoin_effectif_id: string;
+  besoin_operation_id: string; // ID du besoin opérationnel réel
   medecin_nom: string;
   type_intervention_nom: string;
   salle_nom: string | null;
@@ -241,6 +242,10 @@ export function EditSecretaireAssignmentDialog({
 
         // Somme de tous les besoins requis pour cette intervention
         const totalRequis = besoinsData.reduce((sum, b) => sum + b.nombre_requis, 0);
+        
+        // Récupérer le besoin_operation_id (prendre le premier si plusieurs)
+        const besoinOperationId = besoinsData[0]?.besoin_operation_id;
+        if (!besoinOperationId) continue;
 
         // Compter combien de secrétaires sont déjà assignées à cette opération
         // Pour les opérations toute_journee, on vérifie pour la période matin par défaut
@@ -273,6 +278,7 @@ export function EditSecretaireAssignmentDialog({
           operationsWithNeeds.push({
             id: op.id,
             besoin_effectif_id: op.besoin_effectif_id,
+            besoin_operation_id: besoinOperationId,
             medecin_nom: medecinNom,
             type_intervention_nom: op.types_intervention?.nom || 'Intervention',
             salle_nom: op.salles_operation?.name || null,
@@ -362,7 +368,7 @@ export function EditSecretaireAssignmentDialog({
           // Si assignation au bloc opératoire avec une opération
           if (operationData && targetPeriod === operationData.periode) {
             updateData.planning_genere_bloc_operatoire_id = operationData.id;
-            updateData.besoin_operation_id = operationData.besoin_effectif_id;
+            updateData.besoin_operation_id = operationData.besoin_operation_id;
           } else {
             // Réinitialiser les champs bloc si changement vers site classique
             updateData.planning_genere_bloc_operatoire_id = null;
