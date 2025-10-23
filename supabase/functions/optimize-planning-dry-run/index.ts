@@ -431,15 +431,16 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `✅ Amélioration : ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`,
+          message: `Amélioration : ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`,
           before: {
             total_unmet: beforeUnsatisfied,
-            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)
+            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
+            assignments: beforeAssignments
           },
           after: {
             total_unmet: afterUnsatisfied,
             assignments_count: afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
-            assignments: newAssignments
+            assignments: afterAssignments
           },
           improvement: {
             unmet_diff: afterUnsatisfied - beforeUnsatisfied,
@@ -455,15 +456,18 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `✅ Situation maintenue (${afterUnsatisfied} besoins non satisfaits)`,
+          message: afterUnsatisfied === beforeUnsatisfied 
+            ? `Situation maintenue (${afterUnsatisfied} besoins non satisfaits)`
+            : `Dégradation : ${afterUnsatisfied - beforeUnsatisfied} besoin(s) non satisfait(s) en plus`,
           before: {
             total_unmet: beforeUnsatisfied,
-            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)
+            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
+            assignments: beforeAssignments
           },
           after: {
             total_unmet: afterUnsatisfied,
             assignments_count: afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
-            assignments: newAssignments
+            assignments: afterAssignments
           },
           improvement: {
             unmet_diff: afterUnsatisfied - beforeUnsatisfied,
