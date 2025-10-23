@@ -75,8 +75,7 @@ serve(async (req) => {
             ...recentMessages
           ],
           tools: tools,
-          tool_choice: 'auto',
-          max_completion_tokens: 1000
+          tool_choice: 'auto'
         }),
     });
 
@@ -153,8 +152,7 @@ serve(async (req) => {
             ...recentMessages,
             assistantMessage,
             ...toolResults
-          ],
-          max_completion_tokens: 1000
+          ]
         }),
       });
 
