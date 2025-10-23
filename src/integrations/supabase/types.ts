@@ -1279,6 +1279,7 @@ export type Database = {
         Args: { p_bloc_id: string }
         Returns: undefined
       }
+      execute_read_query: { Args: { query: string }; Returns: Json }
       generate_besoin_effectif: { Args: never; Returns: undefined }
       generate_capacite_effective: { Args: never; Returns: undefined }
       get_current_user_role: {
