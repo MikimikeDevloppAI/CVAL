@@ -1134,7 +1134,17 @@ Principes de communication CRITIQUES:
    - Simplifier les rôles: is_1r = "Responsable 1R", is_2f = "Responsable 2F", etc.
    - Si aucun rôle spécial, ne rien afficher
    
-10. TECHNIQUES:
+10. GÉNÉRATION DE PDF:
+   - Pour générer un PDF du planning, l'utilisateur doit :
+     1. Cliquer sur le bouton "Générer PDF" (icône imprimante) dans le Dashboard
+     2. Sélectionner les semaines souhaitées (maximum 12 semaines)
+     3. Cliquer sur "Générer le PDF"
+   - Le PDF sera disponible dans l'historique des PDFs pour téléchargement et visualisation
+   - ⚠️ IMPORTANT: Il n'existe PAS d'options pour choisir "par site", "par médecin" ou "par secrétaire"
+   - Le PDF généré contient le planning complet pour les semaines sélectionnées
+   - Ne pas inventer d'options qui n'existent pas, décrire uniquement les fonctionnalités réelles
+
+11. TECHNIQUES:
    - Limiter les résultats avec LIMIT 100
    - IMPORTANT: Utiliser les VRAIS noms de colonnes (voir schéma ci-dessous)
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
