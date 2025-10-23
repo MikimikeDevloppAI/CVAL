@@ -20,7 +20,8 @@ export function buildMILPModelCombo(
   needs: SiteNeed[],
   capacites: CapaciteEffective[],
   week_data: WeekData,
-  currentAssignments: AssignmentSummary[]
+  currentAssignments: AssignmentSummary[],
+  fullDayCountsBySite?: Map<string, number>
 ) {
   console.log(`\n🔧 Construction du modèle COMBO DRY-RUN pour ${date}...`);
   
@@ -296,49 +297,58 @@ export function buildMILPModelCombo(
   }
   
   // ==================================================================
-  // CONSTRAINT: Closure sites (at least 2 full-day assignments)
+  // CONSTRAINT: Closure sites (at least 2 full-day assignments, residual)
   // ==================================================================
   const closureSites = week_data.sites.filter(s => s.fermeture);
   
+  console.log(`\n🔒 Contraintes de fermeture (résiduelle):`);
+  
   for (const site of closureSites) {
-    const morningNeed = needsMatin.find(n => n.site_id === site.id);
-    const afternoonNeed = needsAM.find(n => n.site_id === site.id);
+    const morningNeed = needsMatinSite.find(n => n.site_id === site.id);
+    const afternoonNeed = needsAMSite.find(n => n.site_id === site.id);
     
-    // Only enforce if both periods have medical needs
+    // Only enforce if both periods have needs AND those needs have residual capacity
     if (morningNeed && afternoonNeed && 
-        morningNeed.medecins_ids.length > 0 && 
-        afternoonNeed.medecins_ids.length > 0) {
+        morningNeed.nombre_max > 0 && afternoonNeed.nombre_max > 0) {
       
-      const fullDayVars: string[] = [];
+      // Calculate residual full-day requirement
+      const existingFullDay = fullDayCountsBySite?.get(site.id) || 0;
+      const requiredFullDay = 2; // Always 2 for closure sites
+      const residualFullDay = Math.max(0, requiredFullDay - existingFullDay);
       
-      // Find all combos that cover both periods for this site
-      for (const combo of combos) {
-        if (combo.needMatin?.site_id === site.id && 
-            combo.needAM?.site_id === site.id) {
-          const fullDayVar = `fullday_${combo.secretaire_id}_${site.id}_${date}`;
-          
-          if (!model.variables[fullDayVar]) {
-            model.binaries[fullDayVar] = 1;
-            model.variables[fullDayVar] = { score_total: 0 };
-            
-            // fullDayVar = 1 if this combo is selected
-            const linkConstraint = `link_${fullDayVar}`;
-            model.constraints[linkConstraint] = { equal: 0 };
-            model.variables[fullDayVar][linkConstraint] = 1;
-            model.variables[combo.varName][linkConstraint] = -1;
-            
-            fullDayVars.push(fullDayVar);
+      console.log(`  ${site.nom}: existant=${existingFullDay}, requis=${requiredFullDay}, résiduel=${residualFullDay}`);
+      
+      // Only add constraint if we need more full-day assignments
+      if (residualFullDay > 0) {
+        const fullDayComboVars: string[] = [];
+        
+        // Find all combos that cover BOTH periods for this site (not admin)
+        for (const combo of combos) {
+          if (combo.needMatin?.site_id === site.id && 
+              combo.needMatin?.type === 'site' &&
+              combo.needAM?.site_id === site.id &&
+              combo.needAM?.type === 'site') {
+            fullDayComboVars.push(combo.varName);
           }
         }
-      }
-      
-      if (fullDayVars.length >= 2) {
-        const closureConstraint = `closure_${site.id}_${date}`;
-        model.constraints[closureConstraint] = { min: 2 };
         
-        for (const fdVar of fullDayVars) {
-          model.variables[fdVar][closureConstraint] = 1;
+        console.log(`    Combos journée complète disponibles: ${fullDayComboVars.length}`);
+        
+        // Only add constraint if we have enough combos AND a residual need
+        if (fullDayComboVars.length >= residualFullDay) {
+          const closureConstraint = `closure_${site.id}_${date}`;
+          model.constraints[closureConstraint] = { min: residualFullDay };
+          
+          for (const comboVar of fullDayComboVars) {
+            model.variables[comboVar][closureConstraint] = 1;
+          }
+          
+          console.log(`    ✅ Contrainte ajoutée: min ${residualFullDay} journées complètes`);
+        } else {
+          console.log(`    ⚠️ Pas assez de combos (${fullDayComboVars.length}) pour satisfaire min ${residualFullDay}`);
         }
+      } else {
+        console.log(`    ✅ Besoin de fermeture déjà satisfait (${existingFullDay}/${requiredFullDay})`);
       }
     }
   }

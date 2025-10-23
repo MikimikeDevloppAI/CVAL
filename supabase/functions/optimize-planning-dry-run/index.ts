@@ -263,8 +263,35 @@ serve(async (req) => {
     // Get available capacities for optimization
     const capacites = week_data.capacites_effective.filter(c => c.date === date);
 
+    // Calculate existing full-day assignments for closure sites
+    console.log(`\n🏢 Calcul des journées complètes existantes pour sites de fermeture:`);
+    const fullDayCountsBySite = new Map<string, number>();
+    
+    for (const site of week_data.sites.filter(s => s.fermeture)) {
+      const matinCaps = capacites.filter(c => 
+        c.date === date && 
+        c.demi_journee === 'matin' && 
+        c.site_id === site.id
+      );
+      
+      const afternoonCaps = capacites.filter(c => 
+        c.date === date && 
+        c.demi_journee === 'apres_midi' && 
+        c.site_id === site.id
+      );
+      
+      // Count how many secretaries have BOTH morning AND afternoon on this site
+      const matinSecIds = new Set(matinCaps.map(c => c.secretaire_id));
+      const afternoonSecIds = new Set(afternoonCaps.map(c => c.secretaire_id));
+      
+      const fullDayCount = Array.from(matinSecIds).filter(id => afternoonSecIds.has(id)).length;
+      fullDayCountsBySite.set(site.id, fullDayCount);
+      
+      console.log(`  Site fermeture ${site.nom}: ${fullDayCount} journées complètes existantes`);
+    }
+
     // Build MILP model using combo approach with current state penalties
-    const { model, combos } = buildMILPModelCombo(date, needs, capacites, week_data, beforeAssignments);
+    const { model, combos } = buildMILPModelCombo(date, needs, capacites, week_data, beforeAssignments, fullDayCountsBySite);
 
     console.log(`📊 Model: ${Object.keys(model.variables).length} vars, ${Object.keys(model.constraints).length} constraints`);
 
