@@ -561,7 +561,7 @@ function generatePlanningHTML(
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f9fafb;
+      background: white;
       color: #111827;
       padding: 20px;
     }
@@ -574,7 +574,7 @@ function generatePlanningHTML(
     }
     
     .page-header h1 {
-      font-size: 32px;
+      font-size: 38px;
       background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -582,7 +582,7 @@ function generatePlanningHTML(
     }
     
     .period {
-      font-size: 16px;
+      font-size: 20px;
       color: #6b7280;
     }
     
@@ -602,7 +602,7 @@ function generatePlanningHTML(
     }
     
     .secretary-name {
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 700;
       color: #111827;
       padding-bottom: 12px;
@@ -640,7 +640,7 @@ function generatePlanningHTML(
     }
     
     .week-header {
-      font-size: 15px;
+      font-size: 17px;
       font-weight: 600;
       color: #ffffff;
       background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
@@ -652,7 +652,7 @@ function generatePlanningHTML(
     .day-block {
       margin-bottom: 0;
       padding: 12px;
-      background: #f9fafb;
+      background: white;
       border-radius: 0;
       border: none;
       border-bottom: 1px solid #e5e7eb;
@@ -663,7 +663,7 @@ function generatePlanningHTML(
     }
     
     .day-title {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 600;
       color: #374151;
       margin-bottom: 8px;
@@ -677,7 +677,7 @@ function generatePlanningHTML(
       padding: 8px;
       margin-bottom: 6px;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: 14px;
     }
     
     .period-morning {
@@ -698,19 +698,19 @@ function generatePlanningHTML(
     .period-label {
       font-weight: 600;
       min-width: 100px;
-      font-size: 11px;
+      font-size: 13px;
     }
     
     .assignment-content {
       flex: 1;
-      font-size: 11px;
+      font-size: 13px;
     }
     
     .badge {
       display: inline-block;
       padding: 2px 8px;
       border-radius: 4px;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 600;
       margin-left: 4px;
       border: 1px solid;
@@ -741,7 +741,7 @@ function generatePlanningHTML(
       display: inline-block;
       padding: 2px 8px;
       border-radius: 4px;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 600;
       margin-left: 4px;
       background: #f3f4f6;
