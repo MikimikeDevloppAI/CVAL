@@ -79,6 +79,12 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
     period: string;
   } | null>(null);
   const [joursFeries, setJoursFeries] = useState<string[]>([]);
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    besoinIds: string[];
+    medecinId: string;
+    date: string;
+  } | null>(null);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -650,10 +656,22 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                                   {besoinsToDisplay.map((besoin) => (
                                     <div
                                       key={besoin.id}
-                                      className={`text-[8px] flex-1 w-full leading-none text-center flex items-center justify-center ${getColorForPeriod(
+                                      className={`text-[8px] flex-1 w-full leading-none text-center flex items-center justify-center cursor-pointer ${getColorForPeriod(
                                         besoin.demi_journee
                                       )}`}
                                       title={`${besoin.sites?.nom}${besoin.types_intervention?.nom ? ' - ' + besoin.types_intervention.nom : ''}`}
+                                      onClick={() => {
+                                        const firstBesoin = besoins.find(b => b.id === besoin.besoinIds[0]);
+                                        setSelectedSiteId(firstBesoin?.site_id || site.id);
+                                        setSelectedPeriod(besoin.demi_journee as 'matin' | 'apres_midi' | 'toute_journee');
+                                        setSelectedTypeInterventionId(firstBesoin?.type_intervention_id || '');
+                                        setEditDialog({
+                                          open: true,
+                                          besoinIds: besoin.besoinIds,
+                                          medecinId: medecin.id,
+                                          date: dateStr,
+                                        });
+                                      }}
                                     >
                                       <div className="truncate font-semibold px-1">
                                         {getPeriodLabel(besoin.demi_journee, besoin.types_intervention?.nom)}
