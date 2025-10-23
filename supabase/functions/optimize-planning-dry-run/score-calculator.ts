@@ -60,10 +60,14 @@ export function calculateComboScore(
       }
     }
 
-    // -20 if different from current state
-    if (!currentMatin || 
-        currentMatin.site_id !== needMatin.site_id ||
-        (needMatin.type === 'bloc_operatoire' && currentMatin.site_id !== needMatin.site_id)) {
+    // -20 if different from current state (EXCEPT if moving from admin to another site)
+    if (currentMatin) {
+      const isChangingFromAdmin = currentMatin.site_id === ADMIN_SITE_ID && needMatin.site_id !== ADMIN_SITE_ID;
+      if (!isChangingFromAdmin && currentMatin.site_id !== needMatin.site_id) {
+        score -= 20;
+      }
+    } else {
+      // No current assignment, so creating new one = -20
       score -= 20;
     }
   } else {
@@ -97,10 +101,14 @@ export function calculateComboScore(
       }
     }
 
-    // -20 if different from current state
-    if (!currentAM || 
-        currentAM.site_id !== needAM.site_id ||
-        (needAM.type === 'bloc_operatoire' && currentAM.site_id !== needAM.site_id)) {
+    // -20 if different from current state (EXCEPT if moving from admin to another site)
+    if (currentAM) {
+      const isChangingFromAdmin = currentAM.site_id === ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID;
+      if (!isChangingFromAdmin && currentAM.site_id !== needAM.site_id) {
+        score -= 20;
+      }
+    } else {
+      // No current assignment, so creating new one = -20
       score -= 20;
     }
   } else {
