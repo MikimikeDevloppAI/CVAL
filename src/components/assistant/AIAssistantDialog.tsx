@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Send, Loader2, Bot, User, Database } from 'lucide-react';
+import { Send, Loader2, Bot, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,9 +12,6 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  sqlExecuted?: string;
-  sqlExplanation?: string;
-  resultsCount?: number;
 }
 
 interface AIAssistantDialogProps {
@@ -65,10 +62,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
       const assistantMessage: Message = {
         role: 'assistant',
         content: data.response,
-        timestamp: new Date(),
-        sqlExecuted: data.sql_executed,
-        sqlExplanation: data.sql_explanation,
-        resultsCount: data.results_count
+        timestamp: new Date()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -186,29 +180,36 @@ function MessageBubble({ message }: { message: Message }) {
       
       <div className={`flex flex-col gap-1 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
         <Card className={`p-3 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+          <div 
+            className="text-sm whitespace-pre-wrap prose prose-sm max-w-none dark:prose-invert"
+            dangerouslySetInnerHTML={{ 
+              __html: message.content
+                .replace(/\n/g, '<br />')
+                .replace(/\|(.+?)\|/g, (match) => {
+                  // Convertir les tableaux markdown en HTML
+                  const lines = match.split('\n').filter(line => line.trim());
+                  if (lines.length < 2) return match;
+                  
+                  const hasHeader = lines[1].includes('---');
+                  if (!hasHeader) return match;
+                  
+                  let html = '<table class="w-full border-collapse border border-border mt-2 mb-2"><thead><tr>';
+                  const headers = lines[0].split('|').filter(h => h.trim());
+                  headers.forEach(h => html += `<th class="border border-border px-2 py-1 text-left bg-muted">${h.trim()}</th>`);
+                  html += '</tr></thead><tbody>';
+                  
+                  for (let i = 2; i < lines.length; i++) {
+                    html += '<tr>';
+                    const cells = lines[i].split('|').filter(c => c.trim());
+                    cells.forEach(c => html += `<td class="border border-border px-2 py-1">${c.trim()}</td>`);
+                    html += '</tr>';
+                  }
+                  html += '</tbody></table>';
+                  return html;
+                })
+            }}
+          />
         </Card>
-
-        {message.sqlExecuted && (
-          <Card className="p-3 bg-muted/50 border-dashed mt-2 w-full">
-            <div className="flex items-start gap-2">
-              <Database className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                {message.sqlExplanation && (
-                  <p className="text-xs text-muted-foreground">{message.sqlExplanation}</p>
-                )}
-                <pre className="text-xs bg-background p-2 rounded overflow-x-auto border">
-                  <code>{message.sqlExecuted}</code>
-                </pre>
-                {message.resultsCount !== undefined && (
-                  <p className="text-xs text-muted-foreground">
-                    📊 {message.resultsCount} résultat(s) trouvé(s)
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-        )}
 
         <span className="text-xs text-muted-foreground">
           {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

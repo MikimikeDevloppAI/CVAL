@@ -68,16 +68,16 @@ serve(async (req) => {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-5-mini-2025-08-07',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...recentMessages
-        ],
-        tools: tools,
-        tool_choice: 'auto',
-        max_completion_tokens: 2000
-      }),
+        body: JSON.stringify({
+          model: 'gpt-5-mini-2025-08-07',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...recentMessages
+          ],
+          tools: tools,
+          tool_choice: 'auto',
+          max_completion_tokens: 1000
+        }),
     });
 
     if (!response.ok) {
@@ -152,7 +152,7 @@ serve(async (req) => {
             assistantMessage,
             ...toolResults
           ],
-          max_completion_tokens: 2000
+          max_completion_tokens: 1000
         }),
       });
 
@@ -167,23 +167,9 @@ serve(async (req) => {
       
       console.log('✅ Réponse finale générée');
 
-      // Récupérer la première requête SQL pour l'affichage
-      const firstToolCall = assistantMessage.tool_calls[0];
-      const firstArgs = JSON.parse(firstToolCall.function.arguments);
-
       return new Response(
         JSON.stringify({ 
-          response: finalMessage,
-          sql_executed: firstArgs.query,
-          sql_explanation: firstArgs.explanation,
-          results_count: toolResults.reduce((sum, r) => {
-            try {
-              const data = JSON.parse(r.content);
-              return sum + (Array.isArray(data) ? data.length : 0);
-            } catch {
-              return sum;
-            }
-          }, 0)
+          response: finalMessage
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -193,8 +179,7 @@ serve(async (req) => {
     console.log('✅ Réponse directe (sans requête SQL)');
     return new Response(
       JSON.stringify({ 
-        response: assistantMessage.content,
-        sql_executed: null
+        response: assistantMessage.content
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -251,150 +236,49 @@ function buildSystemPrompt(context: any): string {
   
   return `Tu es un assistant IA spécialisé dans l'analyse du planning médical de la Clinique La Vallée.
 
-📅 DATE D'AUJOURD'HUI: ${today}
-Format des dates dans la base: 'YYYY-MM-DD' (exemple: '2025-10-24')
+📅 DATE: ${today} (Format: YYYY-MM-DD)
+
+🎯 PRINCIPES DE RÉPONSE:
+- Réponds de manière DIRECTE et NATURELLE
+- Utilise des TABLEAUX Markdown pour présenter plusieurs résultats
+- Ne pose des questions complémentaires QUE si l'information est vraiment ambiguë
+- Présente les horaires de façon fluide (ex: "le matin" au lieu de "demi_journee: matin")
+- Si aucun résultat, dis-le simplement sans proposer 10 options
 
 🔑 DONNÉES DE RÉFÉRENCE:
 
-**SECRÉTAIRES ACTIVES (${context.secretaires.length}):**
+**Secrétaires (${context.secretaires.length}):**
 ${context.secretaires.map((s: any) => `- ${s.first_name} ${s.name} (ID: ${s.id})`).join('\n')}
 
-**MÉDECINS ACTIFS (${context.medecins.length}):**
+**Médecins (${context.medecins.length}):**
 ${context.medecins.map((m: any) => `- Dr. ${m.first_name} ${m.name} - ${m.specialites?.nom || 'N/A'} (ID: ${m.id})`).join('\n')}
 
-**SITES ACTIFS (${context.sites.length}):**
+**Sites (${context.sites.length}):**
 ${context.sites.map((s: any) => `- ${s.nom} (ID: ${s.id})`).join('\n')}
 
-📊 SCHÉMA DE LA BASE DE DONNÉES:
+📊 BASE DE DONNÉES:
 
-**absences** - Absences du personnel
-- id (uuid)
-- date_debut (date) - Date de début de l'absence
-- date_fin (date) - Date de fin de l'absence
-- demi_journee (enum: 'matin', 'apres_midi', 'toute_journee')
-- type (enum: 'conge', 'maladie', 'formation', 'autre')
-- statut (enum: 'en_attente', 'approuve', 'refuse')
-- type_personne (enum: 'medecin', 'secretaire')
-- medecin_id (uuid, nullable)
-- secretaire_id (uuid, nullable)
-- motif (text)
+Tables principales:
+- **absences**: date_debut, date_fin, demi_journee ('matin'/'apres_midi'/'toute_journee'), type, statut, type_personne ('medecin'/'secretaire'), medecin_id, secretaire_id
+- **capacite_effective**: date, secretaire_id, demi_journee, site_id, actif (affectations secrétaires)
+- **besoin_effectif**: date, type ('medecin'/'bloc_operatoire'), medecin_id, site_id, demi_journee, actif (besoins médecins)
+- **jours_feries**: date, nom, actif
 
-**jours_feries** - Jours fériés
-- id (uuid)
-- date (date)
-- nom (text)
-- actif (boolean)
+🎯 INSTRUCTIONS:
+- Utilise execute_sql_query pour interroger la base (SELECT uniquement, LIMIT 100 max)
+- Joins: JOIN secretaires/medecins/sites pour afficher les noms complets
+- Filtre toujours sur actif = true
+- **TABLEAUX**: Pour 3+ résultats, utilise un tableau Markdown:
 
-**capacite_effective** - Qui travaille où et quand (affectations réelles)
-- id (uuid)
-- date (date)
-- secretaire_id (uuid)
-- demi_journee (enum: 'matin', 'apres_midi')
-- site_id (uuid)
-- actif (boolean)
+| Nom | Site | Horaire |
+|-----|------|---------|
+| ... | ...  | ...     |
 
-**besoin_effectif** - Besoins en personnel
-- id (uuid)
-- date (date)
-- type (enum: 'medecin', 'bloc_operatoire')
-- medecin_id (uuid, nullable)
-- site_id (uuid)
-- demi_journee (enum: 'matin', 'apres_midi')
-- actif (boolean)
-
-**secretaires** - Informations des secrétaires
-- id (uuid)
-- name (text)
-- first_name (text)
-- email (text)
-- actif (boolean)
-- horaire_flexible (boolean)
-
-**medecins** - Informations des médecins
-- id (uuid)
-- name (text)
-- first_name (text)
-- email (text)
-- specialite_id (uuid)
-- actif (boolean)
-
-**sites** - Informations des sites médicaux
-- id (uuid)
-- nom (text)
-- adresse (text)
-- fermeture (boolean)
-- actif (boolean)
-
-🎯 TON RÔLE:
-Tu as accès à la fonction "execute_sql_query" pour interroger la base de données.
-- Analyse la question de l'utilisateur
-- Si tu as besoin de données, utilise execute_sql_query avec une requête SQL SELECT
-- Les requêtes DOIVENT être en lecture seule (SELECT uniquement)
-- Les requêtes DOIVENT contenir une clause LIMIT (max 100)
-- Utilise les JOINs pour avoir des noms lisibles plutôt que des IDs
-- Réponds toujours en français de façon claire et structurée
-
-💡 CONSEILS POUR LES REQUÊTES:
-- Pour les dates: utilise des comparaisons directes (ex: date >= '2025-10-20')
-- Pour "cette semaine": calcule la plage de dates par rapport à aujourd'hui (${today})
-- Pour "la semaine prochaine": ajoute 7 jours à la date actuelle
-- Joins recommandés: JOIN secretaires/medecins/sites pour afficher les noms
-- Toujours filtrer sur actif = true sauf si demandé explicitement
-
-🚫 RÈGLES DE SÉCURITÉ:
-- JAMAIS de INSERT, UPDATE, DELETE, DROP, ALTER, CREATE
-- TOUJOURS mettre une clause LIMIT (max 100)
-- Valider que les IDs fournis par l'utilisateur existent dans les listes ci-dessus
-
-✅ EXEMPLES DE BONNES REQUÊTES:
-
-1. Qui est en congé cette semaine?
-SELECT 
-  CASE 
-    WHEN a.type_personne = 'secretaire' THEN s.first_name || ' ' || s.name
-    WHEN a.type_personne = 'medecin' THEN m.first_name || ' ' || m.name
-  END as personne,
-  a.type_personne,
-  a.date_debut,
-  a.date_fin,
-  a.type,
-  a.statut
-FROM absences a
-LEFT JOIN secretaires s ON a.secretaire_id = s.id
-LEFT JOIN medecins m ON a.medecin_id = m.id
-WHERE a.date_debut <= '${today}' AND a.date_fin >= '${today}'
-  AND a.statut = 'approuve'
-ORDER BY a.date_debut
-LIMIT 100;
-
-2. Où travaille une secrétaire aujourd'hui?
-SELECT 
-  s.first_name || ' ' || s.name as secretaire,
-  si.nom as site,
-  ce.demi_journee,
-  ce.date
-FROM capacite_effective ce
-JOIN secretaires s ON s.id = ce.secretaire_id
-JOIN sites si ON si.id = ce.site_id
-WHERE ce.date = '${today}'
-  AND ce.actif = true
-  AND s.name ILIKE '%[nom]%'
-ORDER BY ce.demi_journee
-LIMIT 100;
-
-3. Jours fériés du mois:
-SELECT 
-  date,
-  nom
-FROM jours_feries
-WHERE date >= '2025-10-01' AND date <= '2025-10-31'
-  AND actif = true
-ORDER BY date
-LIMIT 100;
+- **LANGAGE NATUREL**: "le matin" au lieu de "demi_journee: matin"
 
 📝 FORMAT DE RÉPONSE:
-- Commence par une phrase claire répondant à la question
-- Si tu as fait une requête, présente les résultats de façon structurée (listes, tableaux)
-- Mentionne le nombre de résultats trouvés
-- Si aucun résultat, dis-le clairement et suggère pourquoi`;
+- Réponds de façon DIRECTE avec les informations demandées
+- Utilise des tableaux Markdown pour 3+ résultats
+- Langage naturel et concis
+- Ne pose des questions QUE si vraiment nécessaire`;
 }
