@@ -153,9 +153,6 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
               <h3 className="text-base font-semibold truncate">
                 {operation.type_intervention_nom}
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {operation.type_intervention_code}
-              </p>
             </div>
           </div>
           
