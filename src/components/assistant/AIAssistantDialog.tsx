@@ -23,7 +23,7 @@ interface AIAssistantDialogProps {
 }
 
 export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps) {
-  const [mode, setMode] = useState<'planning' | 'usage'>('usage');
+  const [mode, setMode] = useState<'planning' | 'usage'>('planning');
   const [planningMessages, setPlanningMessages] = useState<Message[]>([]);
   const [usageMessages, setUsageMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -173,18 +173,18 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
           <Tabs value={mode} onValueChange={(v) => setMode(v as 'planning' | 'usage')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50 p-1 rounded-xl">
               <TabsTrigger 
-                value="usage" 
-                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-              >
-                <HelpCircle className="h-4 w-4" />
-                <span className="font-medium">Aide à l'utilisation</span>
-              </TabsTrigger>
-              <TabsTrigger 
                 value="planning" 
                 className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
               >
                 <Database className="h-4 w-4" />
                 <span className="font-medium">Questions sur le planning</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="usage" 
+                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span className="font-medium">Aide à l'utilisation</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
