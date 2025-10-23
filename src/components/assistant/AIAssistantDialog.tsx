@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ConfirmActionDialog } from './ConfirmActionDialog';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -28,6 +29,9 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   const [usageMessages, setUsageMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<any>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -81,6 +85,13 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
       
       setMessages(prev => [...prev, assistantMessage]);
 
+      // Vérifier s'il y a une action en attente
+      if (data.pendingAction) {
+        console.log('Action en attente détectée:', data.pendingAction);
+        setPendingAction(data.pendingAction);
+        setIsConfirmDialogOpen(true);
+      }
+
     } catch (error: any) {
       console.error('Erreur:', error);
       toast({
@@ -120,6 +131,93 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
     });
   };
 
+  const handleConfirmAction = async () => {
+    if (!pendingAction) return;
+
+    setIsCreating(true);
+    try {
+      if (pendingAction.type === 'absence') {
+        const { error } = await supabase
+          .from('absences')
+          .insert({
+            [`${pendingAction.data.person_type}_id`]: pendingAction.data.person_id,
+            type_personne: pendingAction.data.person_type,
+            type: pendingAction.data.type,
+            date_debut: pendingAction.data.date_debut,
+            date_fin: pendingAction.data.date_fin,
+            demi_journee: pendingAction.data.demi_journee,
+            motif: pendingAction.data.motif,
+            statut: 'en_attente'
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "Absence créée",
+          description: `L'absence pour ${pendingAction.data.person_name} a été créée avec succès.`
+        });
+
+        // Ajouter un message de confirmation dans le chat
+        const confirmMessage: Message = {
+          role: 'assistant',
+          content: `✅ L'absence a été créée avec succès pour ${pendingAction.data.person_name}.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+
+      } else if (pendingAction.type === 'jour_ferie') {
+        const { error } = await supabase
+          .from('jours_feries')
+          .insert({
+            date: pendingAction.data.date,
+            nom: pendingAction.data.nom,
+            actif: true
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "Jour férié créé",
+          description: `Le jour férié "${pendingAction.data.nom}" a été créé avec succès.`
+        });
+
+        // Ajouter un message de confirmation dans le chat
+        const confirmMessage: Message = {
+          role: 'assistant',
+          content: `✅ Le jour férié "${pendingAction.data.nom}" a été créé avec succès.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+      }
+
+      setIsConfirmDialogOpen(false);
+      setPendingAction(null);
+
+    } catch (error: any) {
+      console.error('Erreur lors de la création:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de créer l'élément",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleCancelAction = () => {
+    setIsConfirmDialogOpen(false);
+    setPendingAction(null);
+
+    // Ajouter un message d'annulation dans le chat
+    const cancelMessage: Message = {
+      role: 'assistant',
+      content: "Action annulée. N'hésitez pas si vous avez besoin d'autre chose.",
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, cancelMessage]);
+  };
+
   const getExampleQuestions = () => {
     if (mode === 'usage') {
       return [
@@ -139,8 +237,9 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0 bg-gradient-to-br from-background via-background to-primary/5">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0 bg-gradient-to-br from-background via-background to-primary/5">
         <DialogHeader className="px-6 pt-6 pb-0 border-b-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -266,6 +365,15 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         </div>
       </DialogContent>
     </Dialog>
+
+    <ConfirmActionDialog
+      open={isConfirmDialogOpen}
+      onOpenChange={setIsConfirmDialogOpen}
+      action={pendingAction}
+      onConfirm={handleConfirmAction}
+      isLoading={isCreating}
+    />
+    </>
   );
 }
 

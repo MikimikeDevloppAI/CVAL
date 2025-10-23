@@ -54,6 +54,71 @@ serve(async (req) => {
             required: ['query', 'explanation']
           }
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'prepare_absence_creation',
+          description: 'Prépare la création d\'une absence pour un médecin ou une secrétaire. Ne crée PAS l\'absence directement, retourne les données pour confirmation utilisateur.',
+          parameters: {
+            type: 'object',
+            properties: {
+              person_name: {
+                type: 'string',
+                description: 'Nom complet ou partiel de la personne (ex: "Christine", "Ribeaud", "Christine Ribeaud")'
+              },
+              person_type: {
+                type: 'string',
+                enum: ['medecin', 'secretaire'],
+                description: 'Type de personne: "medecin" ou "secretaire"'
+              },
+              date_debut: {
+                type: 'string',
+                description: 'Date de début de l\'absence au format YYYY-MM-DD'
+              },
+              date_fin: {
+                type: 'string',
+                description: 'Date de fin de l\'absence au format YYYY-MM-DD (peut être identique à date_debut pour une absence d\'un jour)'
+              },
+              period: {
+                type: 'string',
+                enum: ['matin', 'apres_midi', 'toute_journee'],
+                description: 'Période: "matin", "apres_midi", ou "toute_journee"'
+              },
+              type: {
+                type: 'string',
+                enum: ['conges', 'maladie', 'formation', 'autre'],
+                description: 'Type d\'absence: "conges", "maladie", "formation", ou "autre"'
+              },
+              motif: {
+                type: 'string',
+                description: 'Motif optionnel de l\'absence'
+              }
+            },
+            required: ['person_name', 'person_type', 'date_debut', 'date_fin', 'period', 'type']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'prepare_jour_ferie_creation',
+          description: 'Prépare la création d\'un jour férié. Ne crée PAS le jour férié directement, retourne les données pour confirmation utilisateur.',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date du jour férié au format YYYY-MM-DD'
+              },
+              nom: {
+                type: 'string',
+                description: 'Nom du jour férié (ex: "Noël", "14 juillet", "Pentecôte")'
+              }
+            },
+            required: ['date', 'nom']
+          }
+        }
       }
     ];
 
@@ -146,6 +211,123 @@ serve(async (req) => {
               content: JSON.stringify(sqlData.data || [])
             };
           }
+
+          if (toolCall.function.name === 'prepare_absence_creation') {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('🔧 Préparation absence:', args);
+
+            // Rechercher la personne dans la DB
+            const tableName = args.person_type === 'medecin' ? 'medecins' : 'secretaires';
+            const searchPattern = `%${args.person_name.toLowerCase()}%`;
+
+            const { data: persons, error: searchError } = await supabaseClient
+              .from(tableName)
+              .select('id, name, first_name')
+              .or(`name.ilike.${searchPattern},first_name.ilike.${searchPattern}`)
+              .eq('actif', true)
+              .limit(5);
+
+            if (searchError || !persons || persons.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucune personne trouvée avec le nom "${args.person_name}". Vérifie l'orthographe ou demande à l'utilisateur de préciser.` 
+                })
+              };
+            }
+
+            if (persons.length > 1) {
+              const names = persons.map(p => `${p.first_name} ${p.name}`).join(', ');
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Plusieurs personnes trouvées: ${names}. Demande à l'utilisateur de préciser le nom complet.` 
+                })
+              };
+            }
+
+            const person = persons[0];
+
+            // Vérifier que les dates sont valides
+            const dateDebut = new Date(args.date_debut);
+            const dateFin = new Date(args.date_fin);
+            if (dateDebut > dateFin) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: 'La date de début doit être avant ou égale à la date de fin.' 
+                })
+              };
+            }
+
+            // Retourner les données préparées avec un marqueur spécial
+            return {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ 
+                action_prepared: 'absence',
+                data: {
+                  person_id: person.id,
+                  person_name: `${person.first_name} ${person.name}`,
+                  person_type: args.person_type,
+                  type: args.type,
+                  date_debut: args.date_debut,
+                  date_fin: args.date_fin,
+                  demi_journee: args.period,
+                  motif: args.motif || null
+                }
+              })
+            };
+          }
+
+          if (toolCall.function.name === 'prepare_jour_ferie_creation') {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('🔧 Préparation jour férié:', args);
+
+            // Vérifier que le jour férié n'existe pas déjà
+            const { data: existing, error: checkError } = await supabaseClient
+              .from('jours_feries')
+              .select('id, nom')
+              .eq('date', args.date)
+              .eq('actif', true)
+              .limit(1);
+
+            if (checkError) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: 'Erreur lors de la vérification du jour férié.' 
+                })
+              };
+            }
+
+            if (existing && existing.length > 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Un jour férié existe déjà à cette date: ${existing[0].nom}` 
+                })
+              };
+            }
+
+            // Retourner les données préparées
+            return {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ 
+                action_prepared: 'jour_ferie',
+                data: {
+                  date: args.date,
+                  nom: args.nom
+                }
+              })
+            };
+          }
           
           return {
             role: 'tool',
@@ -185,8 +367,28 @@ serve(async (req) => {
 
       console.log('✅ Réponse finale reçue');
 
+      // Vérifier si une action est en attente dans les toolResults
+      let pendingAction = null;
+      for (const result of toolResults) {
+        try {
+          const parsed = JSON.parse(result.content);
+          if (parsed.action_prepared) {
+            pendingAction = {
+              type: parsed.action_prepared,
+              data: parsed.data
+            };
+            break;
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+
       return new Response(
-        JSON.stringify({ content: finalMessage }),
+        JSON.stringify({ 
+          content: finalMessage,
+          pendingAction: pendingAction
+        }),
         {
           headers: {
             ...corsHeaders,
@@ -304,14 +506,26 @@ Principes de communication CRITIQUES:
      * "où travaille [NOM]" → chercher dans capacite_effective si secrétaire, besoin_effectif si médecin
      * "qui travaille au [SITE]" → filtrer par site_id
      * "la semaine prochaine" → date >= CURRENT_DATE AND date < CURRENT_DATE + INTERVAL '1 week'
+
+4. CRÉATION D'ABSENCES ET JOURS FÉRIÉS:
+   - Quand l'utilisateur demande de créer une absence ou un jour férié, utiliser les tools appropriés
+   - Pour créer une absence: utiliser prepare_absence_creation
+     * Exemples: "Crée une absence pour Christine vendredi matin", "Marie est en congés la semaine prochaine"
+     * Identifier la personne, le type (si non précisé, utiliser "conges" par défaut), les dates et la période
+     * Interpréter les dates relatives ("vendredi", "la semaine prochaine", "du 15 au 20", etc.)
+   - Pour créer un jour férié: utiliser prepare_jour_ferie_creation
+     * Exemples: "Ajoute le 25 décembre comme jour férié", "Crée un jour férié pour Noël"
+   - IMPORTANT: Ces tools ne créent RIEN dans la base, ils préparent juste les données pour validation
+   - Après l'appel du tool, confirme à l'utilisateur ce qui va être créé et demande explicitement confirmation
+   - Exemple de réponse: "Je vais créer une absence de type Congés pour Christine Ribeaud le vendredi 7 novembre (matin). Confirmez-vous cette création ?"
     
-4. COMPORTEMENT PROACTIF:
+5. COMPORTEMENT PROACTIF:
    - NE PAS poser trop de questions de clarification
    - Faire une interprétation raisonnable de la demande et exécuter la requête
    - L'utilisateur reposera une question s'il n'est pas satisfait de la réponse
    - Privilégier l'action plutôt que la validation
 
-5. FORMAT DES RÉPONSES:
+6. FORMAT DES RÉPONSES:
    - Présenter les résultats de manière claire et lisible
    - Regrouper par personne plutôt que par jour si c'est plus lisible
    - Simplifier: si matin + après-midi = dire "journée entière"
@@ -319,13 +533,13 @@ Principes de communication CRITIQUES:
    - Ne mentionner la limite de 100 lignes QUE si elle est atteinte (exemple: "Attention, seules les 100 premières lignes sont affichées")
    - Utiliser des tableaux markdown bien formatés avec des en-têtes clairs
    
-6. TABLEAUX MARKDOWN:
+7. TABLEAUX MARKDOWN:
    - Utiliser le format markdown avec alignement
    - Exemples de bonnes en-têtes: "Date", "Personne", "Site", "Période" (pas "demi_journee")
    - Simplifier les rôles: is_1r = "Responsable 1R", is_2f = "Responsable 2F", etc.
    - Si aucun rôle spécial, ne rien afficher
    
-7. TECHNIQUES:
+8. TECHNIQUES:
    - Limiter les résultats avec LIMIT 100
    - IMPORTANT: Utiliser les VRAIS noms de colonnes (voir schéma ci-dessous)
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)

@@ -1,0 +1,197 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, Clock, User, FileText } from "lucide-react";
+
+interface AbsenceAction {
+  type: 'absence';
+  data: {
+    person_id: string;
+    person_name: string;
+    person_type: 'medecin' | 'secretaire';
+    type: 'conges' | 'maladie' | 'formation' | 'autre';
+    date_debut: string;
+    date_fin: string;
+    demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
+    motif?: string;
+  };
+}
+
+interface JourFerieAction {
+  type: 'jour_ferie';
+  data: {
+    date: string;
+    nom: string;
+  };
+}
+
+type PendingAction = AbsenceAction | JourFerieAction;
+
+interface ConfirmActionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  action: PendingAction | null;
+  onConfirm: () => void;
+  isLoading: boolean;
+}
+
+export function ConfirmActionDialog({
+  open,
+  onOpenChange,
+  action,
+  onConfirm,
+  isLoading
+}: ConfirmActionDialogProps) {
+  if (!action) return null;
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  const getAbsenceTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      conges: 'Congés',
+      maladie: 'Maladie',
+      formation: 'Formation',
+      autre: 'Autre'
+    };
+    return labels[type] || type;
+  };
+
+  const getPeriodLabel = (period: string) => {
+    const labels: Record<string, string> = {
+      matin: 'Matin',
+      apres_midi: 'Après-midi',
+      toute_journee: 'Journée complète'
+    };
+    return labels[period] || period;
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            {action.type === 'absence' ? (
+              <>
+                <User className="h-5 w-5 text-primary" />
+                Confirmer la création de l'absence
+              </>
+            ) : (
+              <>
+                <Calendar className="h-5 w-5 text-primary" />
+                Confirmer la création du jour férié
+              </>
+            )}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Vérifiez les informations ci-dessous avant de confirmer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4 py-4">
+          {action.type === 'absence' ? (
+            <>
+              <div className="flex items-start gap-3">
+                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Personne</p>
+                  <p className="text-sm text-muted-foreground">
+                    {action.data.person_name}
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {action.data.person_type === 'medecin' ? 'Médecin' : 'Secrétaire'}
+                    </Badge>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Type d'absence</p>
+                  <Badge variant="secondary">
+                    {getAbsenceTypeLabel(action.data.type)}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Période</p>
+                  <p className="text-sm text-muted-foreground">
+                    Du {formatDate(action.data.date_debut)}
+                    {action.data.date_debut !== action.data.date_fin && (
+                      <> au {formatDate(action.data.date_fin)}</>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Demi-journée</p>
+                  <Badge variant="outline">
+                    {getPeriodLabel(action.data.demi_journee)}
+                  </Badge>
+                </div>
+              </div>
+
+              {action.data.motif && (
+                <div className="flex items-start gap-3">
+                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium">Motif</p>
+                    <p className="text-sm text-muted-foreground">{action.data.motif}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Date</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(action.data.date)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Nom</p>
+                  <p className="text-sm text-muted-foreground">{action.data.nom}</p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isLoading}>Annuler</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
+            {isLoading ? 'Création...' : 'Confirmer'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
