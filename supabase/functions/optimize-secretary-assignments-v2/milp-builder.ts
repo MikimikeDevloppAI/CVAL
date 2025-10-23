@@ -66,24 +66,41 @@ export function buildMILPModelSoft(
     const secretaire = week_data.secretaires.find(s => s.id === secretaire_id);
     if (!secretaire) continue;
     
-    // Check capacity for morning and afternoon
-    const hasMatinCap = todayCapacites.some(
+    // Check if secretary has REAL capacity (not just ADMIN fictive)
+    const hasRealMatinCap = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && 
+           c.date === date && 
+           c.demi_journee === 'matin' && 
+           c.site_id !== ADMIN_SITE_ID
+    );
+    const hasRealAMCap = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && 
+           c.date === date && 
+           c.demi_journee === 'apres_midi' && 
+           c.site_id !== ADMIN_SITE_ID
+    );
+
+    // Check if secretary has ANY capacity (real or fictive)
+    const hasAnyMatinCap = todayCapacites.some(
       c => c.secretaire_id === secretaire_id && c.date === date && c.demi_journee === 'matin'
     );
-    const hasAMCap = todayCapacites.some(
+    const hasAnyAMCap = todayCapacites.some(
       c => c.secretaire_id === secretaire_id && c.date === date && c.demi_journee === 'apres_midi'
     );
     
     // Get eligible morning needs
-    const eligibleMatin: (SiteNeed | null)[] = hasMatinCap ? [null] : [];
-    if (hasMatinCap) {
+    const eligibleMatin: (SiteNeed | null)[] = [];
+
+    if (hasRealMatinCap) {
+      // Has REAL capacity → add ADMIN + preferred sites
+      eligibleMatin.push(null); // ADMIN
       for (const need of needsMatin) {
         if (need.site_id === ADMIN_SITE_ID) {
           eligibleMatin.push(need);
           continue;
         }
         
-        // Check eligibility
+        // Check eligibility for real sites
         if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
           const hasCompetence = week_data.secretaires_besoins.some(
             sb => sb.secretaire_id === secretaire_id && 
@@ -97,18 +114,25 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleMatin.push(need);
         }
       }
+    } else if (hasAnyMatinCap) {
+      // Has ONLY fictive ADMIN capacity → add ADMIN only
+      eligibleMatin.push(null);
     }
+    // else: no capacity at all → eligibleMatin stays empty []
     
     // Get eligible afternoon needs
-    const eligibleAM: (SiteNeed | null)[] = hasAMCap ? [null] : [];
-    if (hasAMCap) {
+    const eligibleAM: (SiteNeed | null)[] = [];
+
+    if (hasRealAMCap) {
+      // Has REAL capacity → add ADMIN + preferred sites
+      eligibleAM.push(null); // ADMIN
       for (const need of needsAM) {
         if (need.site_id === ADMIN_SITE_ID) {
           eligibleAM.push(need);
           continue;
         }
         
-        // Check eligibility
+        // Check eligibility for real sites
         if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
           const hasCompetence = week_data.secretaires_besoins.some(
             sb => sb.secretaire_id === secretaire_id && 
@@ -122,11 +146,15 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleAM.push(need);
         }
       }
+    } else if (hasAnyAMCap) {
+      // Has ONLY fictive ADMIN capacity → add ADMIN only
+      eligibleAM.push(null);
     }
+    // else: no capacity at all → eligibleAM stays empty []
     
     // Log for Lucie Vanni or debug mode
     if (DEBUG_VERBOSE || secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b') {
-      console.log(`  👤 ${secretaire.name}: Matin=${hasMatinCap}, AM=${hasAMCap} | ${eligibleMatin.length} matin × ${eligibleAM.length} AM = ${eligibleMatin.length * eligibleAM.length} combos`);
+      console.log(`  👤 ${secretaire.name}: Matin=${hasRealMatinCap ? 'REAL' : hasAnyMatinCap ? 'ADMIN' : 'NO'}, AM=${hasRealAMCap ? 'REAL' : hasAnyAMCap ? 'ADMIN' : 'NO'} | ${eligibleMatin.length} matin × ${eligibleAM.length} AM = ${eligibleMatin.length * eligibleAM.length} combos`);
     }
     
     // Generate all combos (matin × AM)
