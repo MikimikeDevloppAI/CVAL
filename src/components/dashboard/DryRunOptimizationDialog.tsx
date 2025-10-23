@@ -302,7 +302,7 @@ export const DryRunOptimizationDialog = ({
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-3 text-sm text-muted-foreground">Analyse en cours...</span>
             </div>
-          ) : result ? (
+          ) : result && result.before && result.after && result.improvement ? (
             <>
               {/* Summary Stats */}
               <div className="grid grid-cols-2 gap-4">
@@ -310,21 +310,21 @@ export const DryRunOptimizationDialog = ({
                   <CardContent className="pt-6">
                     <div className="text-sm text-muted-foreground mb-1">Besoins non satisfaits</div>
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold">{result.before.total_unmet}</span>
+                      <span className="text-2xl font-bold">{result.before.total_unmet || 0}</span>
                       <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       <span className={`text-2xl font-bold ${
-                        result.after.total_unmet < result.before.total_unmet ? 'text-green-500' :
-                        result.after.total_unmet > result.before.total_unmet ? 'text-destructive' :
+                        (result.after.total_unmet || 0) < (result.before.total_unmet || 0) ? 'text-green-500' :
+                        (result.after.total_unmet || 0) > (result.before.total_unmet || 0) ? 'text-destructive' :
                         'text-muted-foreground'
                       }`}>
-                        {result.after.total_unmet}
+                        {result.after.total_unmet || 0}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {result.improvement.unmet_diff < 0 
-                        ? `${Math.abs(result.improvement.unmet_diff)} de moins` 
-                        : result.improvement.unmet_diff > 0
-                        ? `${result.improvement.unmet_diff} de plus`
+                      {(result.improvement.unmet_diff || 0) < 0 
+                        ? `${Math.abs(result.improvement.unmet_diff || 0)} de moins` 
+                        : (result.improvement.unmet_diff || 0) > 0
+                        ? `${result.improvement.unmet_diff || 0} de plus`
                         : 'Identique'
                       }
                     </div>
@@ -334,7 +334,7 @@ export const DryRunOptimizationDialog = ({
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-muted-foreground mb-1">Score d'optimisation</div>
-                    <div className="text-2xl font-bold">{Math.round(result.improvement.score_improvement)}</div>
+                    <div className="text-2xl font-bold">{Math.round(result.improvement.score_improvement || 0)}</div>
                   </CardContent>
                 </Card>
               </div>
@@ -455,7 +455,7 @@ export const DryRunOptimizationDialog = ({
               )}
 
               {/* Action Buttons */}
-              {onApply && result.improvement.unmet_diff <= 0 && changes.length > 0 && (
+              {onApply && result.improvement && (result.improvement.unmet_diff || 0) <= 0 && changes.length > 0 && (
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isApplying}>
                     Annuler
