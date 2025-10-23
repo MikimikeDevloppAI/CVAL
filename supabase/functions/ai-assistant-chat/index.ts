@@ -218,16 +218,53 @@ serve(async (req) => {
 
             // Rechercher la personne dans la DB
             const tableName = args.person_type === 'medecin' ? 'medecins' : 'secretaires';
-            const searchPattern = `%${args.person_name.toLowerCase()}%`;
-
-            const { data: persons, error: searchError } = await supabaseClient
+            const searchTerm = args.person_name.toLowerCase().trim();
+            
+            // Récupérer toutes les personnes actives et faire la recherche en mémoire
+            // pour gérer les cas "prénom nom" et recherches partielles
+            const { data: allPersons, error: searchError } = await supabaseClient
               .from(tableName)
               .select('id, name, first_name')
-              .or(`name.ilike.${searchPattern},first_name.ilike.${searchPattern}`)
-              .eq('actif', true)
-              .limit(5);
+              .eq('actif', true);
 
-            if (searchError || !persons || persons.length === 0) {
+            if (searchError) {
+              console.error('Erreur recherche personne:', searchError);
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Erreur lors de la recherche de la personne.` 
+                })
+              };
+            }
+
+            if (!allPersons || allPersons.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucune personne active trouvée dans la base de données.` 
+                })
+              };
+            }
+
+            // Filtrer les personnes qui correspondent à la recherche
+            const persons = allPersons.filter(p => {
+              const fullName = `${p.first_name} ${p.name}`.toLowerCase();
+              const reverseName = `${p.name} ${p.first_name}`.toLowerCase();
+              const firstName = p.first_name?.toLowerCase() || '';
+              const lastName = p.name?.toLowerCase() || '';
+              
+              // Chercher dans : nom complet, nom inversé, prénom seul, nom seul
+              return fullName.includes(searchTerm) ||
+                     reverseName.includes(searchTerm) ||
+                     firstName.includes(searchTerm) ||
+                     lastName.includes(searchTerm);
+            });
+
+            console.log(`🔍 Recherche "${searchTerm}" dans ${allPersons.length} personnes, ${persons.length} résultat(s)`);
+
+            if (persons.length === 0) {
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
