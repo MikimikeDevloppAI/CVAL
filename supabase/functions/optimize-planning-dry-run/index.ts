@@ -81,7 +81,7 @@ function calculateNeeds(
   return Array.from(needsMap.values());
 }
 
-// Get current assignments for comparison (realistic "before" state)
+// Get current assignments for comparison
 function getCurrentAssignments(
   date: string,
   capacites: CapaciteEffective[],
@@ -144,71 +144,6 @@ function getCurrentAssignments(
       nombre_requis,
       nombre_assigne,
       status
-    });
-  }
-
-  return assignments;
-}
-
-// Analyze solution to get assignments
-function analyzeSolution(
-  solution: any,
-  needs: SiteNeed[],
-  capacites: CapaciteEffective[],
-  secretaires: any[]
-): any[] {
-  const assignments: any[] = [];
-
-  for (const need of needs) {
-    const assigned: any[] = [];
-
-    for (const [varName, value] of Object.entries(solution)) {
-      if (!varName.startsWith('assign_') || Number(value) <= 0.5) continue;
-
-      const parts = varName.split('_');
-      const secretaire_id = parts[1];
-
-      // Check if this assignment is for this need
-      let matches = false;
-      if (need.type === 'bloc_operatoire') {
-        const prev = parts[parts.length - 2];
-        const last = parts[parts.length - 1];
-        matches = prev === need.bloc_operation_id && last === need.besoin_operation_id;
-      } else {
-        const needParts = varName.split('_').slice(2);
-        const site_id = needParts[0];
-        const needDate = needParts[1];
-        const periodCode = needParts[2];
-        const periode = periodCode === '1' ? 'matin' : 'apres_midi';
-        matches = site_id === need.site_id && needDate === need.date && periode === need.periode;
-      }
-
-      if (matches) {
-        const sec = secretaires.find(s => s.id === secretaire_id);
-        assigned.push({
-          id: secretaire_id,
-          nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
-          is_backup: false,
-          is_1r: false,
-          is_2f: false,
-          is_3f: false
-        });
-      }
-    }
-
-    assignments.push({
-      date: need.date,
-      site_id: need.site_id,
-      site_nom: need.site_nom,
-      periode: need.periode,
-      type: need.type,
-      bloc_operation_id: need.bloc_operation_id,
-      besoin_operation_id: need.besoin_operation_id,
-      secretaires: assigned,
-      nombre_requis: Math.ceil(need.nombre_suggere),
-      nombre_assigne: assigned.length,
-      status: assigned.length >= Math.ceil(need.nombre_suggere) ? 'satisfait' : 
-              assigned.length > 0 ? 'partiel' : 'non_satisfait'
     });
   }
 
@@ -300,51 +235,185 @@ serve(async (req) => {
       week_data.secretaires
     );
 
-    // Get available capacities (simulation will show empty "before" state)
+    // Get available capacities for optimization
     const capacites = week_data.capacites_effective.filter(c => c.date === date);
 
-    // Build MILP model using exact same function as v2
-    const week_assignments: AssignmentSummary[] = [];
-    const model = buildMILPModelSoft(date, needs, capacites, week_data, week_assignments);
+    // Build MILP model using combo approach with current state penalties
+    const { model, combos } = buildMILPModelCombo(date, needs, capacites, week_data, beforeAssignments);
 
     console.log(`📊 Model: ${Object.keys(model.variables).length} vars, ${Object.keys(model.constraints).length} constraints`);
 
-    // Solve using exact same solver
+    // Solve
     const solution = solver.Solve(model);
 
     if (!solution.feasible) {
       return new Response(
         JSON.stringify({
           feasible: false,
-          all_needs_satisfied: false,
-          before: { assignments: beforeAssignments },
-          after: { assignments: [] },
-          changes: [],
-          message: 'Aucune solution trouvée'
+          message: 'Aucune solution faisable trouvée',
+          before: { 
+            assignments: beforeAssignments,
+            besoins_non_satisfaits: beforeAssignments.filter(a => a.status !== 'satisfait').length
+          }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Analyze solution to get AFTER assignments
-    const afterAssignments = analyzeSolution(solution, needs, capacites, week_data.secretaires);
+    // Analyze solution from combos
+    const selectedCombos = combos.filter(c => solution[c.varName] > 0.5);
+    const afterAssignments: any[] = [];
+
+    for (const need of needs) {
+      const assigned: any[] = [];
+
+      for (const combo of selectedCombos) {
+        // Check if this combo covers this need
+        if (need.periode === 'matin' && combo.needMatin) {
+          if (combo.needMatin.site_id === need.site_id &&
+              combo.needMatin.type === need.type &&
+              combo.needMatin.bloc_operation_id === need.bloc_operation_id &&
+              combo.needMatin.besoin_operation_id === need.besoin_operation_id) {
+            const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
+            assigned.push({
+              id: combo.secretaire_id,
+              nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
+              is_backup: false
+            });
+          }
+        } else if (need.periode === 'apres_midi' && combo.needAM) {
+          if (combo.needAM.site_id === need.site_id &&
+              combo.needAM.type === need.type &&
+              combo.needAM.bloc_operation_id === need.bloc_operation_id &&
+              combo.needAM.besoin_operation_id === need.besoin_operation_id) {
+            const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
+            assigned.push({
+              id: combo.secretaire_id,
+              nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
+              is_backup: false
+            });
+          }
+        }
+      }
+
+      afterAssignments.push({
+        date: need.date,
+        site_id: need.site_id,
+        site_nom: need.site_nom,
+        periode: need.periode,
+        type: need.type,
+        bloc_operation_id: need.bloc_operation_id,
+        besoin_operation_id: need.besoin_operation_id,
+        secretaires: assigned,
+        nombre_requis: Math.ceil(need.nombre_suggere),
+        nombre_assigne: assigned.length,
+        status: assigned.length >= Math.ceil(need.nombre_suggere) ? 'satisfait' : 
+                assigned.length > 0 ? 'partiel' : 'non_satisfait'
+      });
+    }
+
+    // Count unsatisfied needs
+    const beforeUnsatisfied = beforeAssignments.filter(a => a.status !== 'satisfait').length;
+    const afterUnsatisfied = afterAssignments.filter(a => a.status !== 'satisfait').length;
+
+    console.log(`📊 Besoins non satisfaits: AVANT=${beforeUnsatisfied}, APRÈS=${afterUnsatisfied}`);
+
+    // Only proceed if we improve or maintain the same level
+    if (afterUnsatisfied > beforeUnsatisfied) {
+      return new Response(
+        JSON.stringify({
+          feasible: true,
+          improvement: false,
+          message: `L'optimisation n'améliore pas la situation (${afterUnsatisfied} vs ${beforeUnsatisfied} besoins non satisfaits)`,
+          before: { 
+            assignments: beforeAssignments,
+            besoins_non_satisfaits: beforeUnsatisfied
+          },
+          after: {
+            assignments: afterAssignments,
+            besoins_non_satisfaits: afterUnsatisfied
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Write to dry_run table
+    console.log(`✅ Amélioration détectée, écriture dans capacite_effective_dry_run...`);
+
+    // Clear existing dry_run data for this date
+    await supabase
+      .from('capacite_effective_dry_run')
+      .delete()
+      .eq('date', date);
+
+    // Write new assignments
+    const dryRunRecords: any[] = [];
+    
+    for (const combo of selectedCombos) {
+      // Morning assignment
+      if (combo.needMatin && combo.needMatin.site_id !== ADMIN_SITE_ID) {
+        dryRunRecords.push({
+          secretaire_id: combo.secretaire_id,
+          date,
+          demi_journee: 'matin',
+          site_id: combo.needMatin.site_id,
+          besoin_operation_id: combo.needMatin.besoin_operation_id,
+          planning_genere_bloc_operatoire_id: combo.needMatin.bloc_operation_id,
+          is_1r: false,
+          is_2f: false,
+          is_3f: false,
+          actif: true
+        });
+      }
+
+      // Afternoon assignment
+      if (combo.needAM && combo.needAM.site_id !== ADMIN_SITE_ID) {
+        dryRunRecords.push({
+          secretaire_id: combo.secretaire_id,
+          date,
+          demi_journee: 'apres_midi',
+          site_id: combo.needAM.site_id,
+          besoin_operation_id: combo.needAM.besoin_operation_id,
+          planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
+          is_1r: false,
+          is_2f: false,
+          is_3f: false,
+          actif: true
+        });
+      }
+    }
+
+    if (dryRunRecords.length > 0) {
+      const { error: insertError } = await supabase
+        .from('capacite_effective_dry_run')
+        .insert(dryRunRecords);
+
+      if (insertError) {
+        console.error('❌ Erreur insertion dry_run:', insertError);
+        throw insertError;
+      }
+    }
+
+    console.log(`✅ ${dryRunRecords.length} assignations écrites dans capacite_effective_dry_run`);
 
     // Calculate changes
     const changes = calculateChanges(beforeAssignments, afterAssignments);
 
-    // Check if all needs satisfied
-    const all_needs_satisfied = afterAssignments.every(a => a.status === 'satisfait');
-
-    console.log(`✅ Solution: ${all_needs_satisfied ? 'Tous besoins satisfaits' : 'Partiel'}`);
-    console.log(`📝 Changes: ${changes.length} modifications`);
-
     return new Response(
       JSON.stringify({
         feasible: true,
-        all_needs_satisfied,
-        before: { assignments: beforeAssignments },
-        after: { assignments: afterAssignments },
+        improvement: true,
+        before: { 
+          assignments: beforeAssignments,
+          besoins_non_satisfaits: beforeUnsatisfied
+        },
+        after: {
+          assignments: afterAssignments,
+          besoins_non_satisfaits: afterUnsatisfied
+        },
         changes,
+        dry_run_records: dryRunRecords.length,
         solution_score: solution.result || 0
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
