@@ -57,13 +57,13 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
     }
   };
 
-  // Sort secretaires: journee > matin > apres_midi, then alphabetically
-  const sortSecretaires = (secretaires: PersonnePresence[]) => {
-    return [...secretaires].sort((a, b) => {
+  // Sort personnes: journee > matin > apres_midi, then alphabetically
+  const sortPersonnes = (personnes: PersonnePresence[]) => {
+    return [...personnes].sort((a, b) => {
       // Priority: journee (3) > matin (2) > apres_midi (1)
-      const getPriority = (s: PersonnePresence) => {
-        if (s.matin && s.apres_midi) return 3; // vert
-        if (s.matin) return 2; // bleu
+      const getPriority = (p: PersonnePresence) => {
+        if (p.matin && p.apres_midi) return 3; // vert
+        if (p.matin) return 2; // bleu
         return 1; // jaune
       };
       const priorityDiff = getPriority(b) - getPriority(a);
@@ -96,7 +96,8 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
   const manquantAM = Math.max(0, Math.ceil(data.besoin_secretaires_apres_midi) - data.secretaires.filter(s => s.apres_midi).length);
   const totalManquant = manquantMatin + manquantAM;
 
-  const sortedSecretaires = sortSecretaires(data.secretaires);
+  const sortedMedecins = sortPersonnes(data.medecins);
+  const sortedSecretaires = sortPersonnes(data.secretaires);
 
   return (
     <div
@@ -138,7 +139,7 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
             )}
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {data.medecins.map((m) => {
+            {sortedMedecins.map((m) => {
               const nomComplet = m.prenom ? `${m.prenom} ${m.nom}` : m.nom;
               return (
                 <span
