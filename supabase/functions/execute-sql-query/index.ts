@@ -16,8 +16,12 @@ serve(async (req) => {
     
     console.log('📊 Requête SQL reçue:', query);
     
+    // Sanitize la requête: enlever les point-virgules en fin de chaîne
+    const sanitizedQuery = query.replace(/;+\s*$/g, '').trim();
+    console.log('🧹 Requête sanitisée:', sanitizedQuery);
+    
     // Validation stricte de sécurité
-    if (!isValidReadOnlySQL(query)) {
+    if (!isValidReadOnlySQL(sanitizedQuery)) {
       console.error('❌ Requête SQL invalide ou non autorisée');
       return new Response(
         JSON.stringify({ error: 'Requête SQL invalide ou non autorisée' }),
@@ -38,16 +42,43 @@ serve(async (req) => {
     console.log('⚡ Exécution de la requête via RPC...');
     const { data: rpcData, error: rpcError } = await supabaseClient.rpc(
       'execute_readonly_sql',
-      { query_text: query }
+      { query_text: sanitizedQuery }
     );
 
     if (rpcError) {
       console.error('❌ Erreur lors de l\'exécution de la requête:', rpcError);
+      
+      // Message d'erreur clair pour l'erreur de syntaxe
+      if (rpcError.code === '42601') {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erreur de syntaxe SQL. Assurez-vous que votre requête ne se termine pas par un point-virgule (;).',
+            details: rpcError.message 
+          }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
       throw rpcError;
     }
 
-    // Parse the JSON result
-    const data = rpcData ? JSON.parse(rpcData) : [];
+    // Parse the JSON result de manière plus robuste
+    let data: any = [];
+    if (Array.isArray(rpcData)) {
+      data = rpcData;
+    } else if (typeof rpcData === 'string') {
+      try {
+        data = JSON.parse(rpcData);
+      } catch (parseError) {
+        console.warn('⚠️ Impossible de parser la réponse JSON:', parseError);
+        data = [];
+      }
+    } else if (rpcData) {
+      data = rpcData;
+    }
 
     console.log('✅ Requête exécutée avec succès, résultats:', data?.length || 0, 'lignes');
 
@@ -97,7 +128,7 @@ function isValidReadOnlySQL(sql: string): boolean {
   }
   
   // Vérifier qu'il y a une limite (max 100 lignes)
-  if (!normalized.includes('limit')) {
+  if (!normalized.match(/limit\s+\d+/i)) {
     console.warn('⚠️ La requête doit contenir une clause LIMIT');
     return false;
   }

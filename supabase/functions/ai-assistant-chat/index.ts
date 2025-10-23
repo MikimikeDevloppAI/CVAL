@@ -44,7 +44,7 @@ serve(async (req) => {
             properties: {
               query: {
                 type: 'string',
-                description: 'La requête SQL SELECT à exécuter. Doit être en lecture seule (SELECT uniquement) et contenir une clause LIMIT (max 100).'
+                description: 'La requête SQL SELECT à exécuter. Doit être en lecture seule (SELECT uniquement) et contenir une clause LIMIT (max 100). IMPORTANT: Ne termine JAMAIS la requête par un point-virgule (;).'
               },
               explanation: {
                 type: 'string',
@@ -456,6 +456,7 @@ LIMIT 100;
 3. Toujours ajouter LIMIT 100 pour limiter les résultats
 4. Filtrer sur actif = true quand pertinent
 5. Pour les dates, utiliser le format 'YYYY-MM-DD'
+6. ⚠️ CRITIQUE: Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
 
 Pour toute question nécessitant des données de la base, utilise l'outil execute_sql_query avec une requête SQL appropriée.`;
 }
