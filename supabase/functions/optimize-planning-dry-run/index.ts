@@ -264,12 +264,22 @@ serve(async (req) => {
       );
     }
 
-    // Analyze solution from combos
     const selectedCombos = combos.filter(c => solution[c.varName] > 0.5);
     
-    console.log(`  ✅ Combos sélectionnés: ${selectedCombos.length}`);
+    // Enforce at most ONE combo per secretary per day (dedupe safeguard)
+    const selectedCombosDedup = Array.from(
+      selectedCombos.reduce((map, combo) => {
+        const existing = map.get(combo.secretaire_id);
+        if (!existing || combo.score > existing.score) {
+          map.set(combo.secretaire_id, combo);
+        }
+        return map;
+      }, new Map<string, typeof combos[number]>() ).values()
+    );
+    
+    console.log(`  ✅ Combos sélectionnés: ${selectedCombosDedup.length}`);
     console.log(`\n📊 Détails des combos sélectionnés:`);
-    for (const combo of selectedCombos) {
+    for (const combo of selectedCombosDedup) {
       const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
       const matinSite = combo.needMatin ? week_data.sites.find(s => s.id === combo.needMatin!.site_id)?.nom : 'Admin/Libre';
       const amSite = combo.needAM ? week_data.sites.find(s => s.id === combo.needAM!.site_id)?.nom : 'Admin/Libre';
@@ -281,36 +291,46 @@ serve(async (req) => {
     for (const need of needs) {
       const assigned: any[] = [];
 
-      for (const combo of selectedCombos) {
+      for (const combo of selectedCombosDedup) {
         let matches = false;
-        
-        // Check if this combo covers this need
-        if (need.periode === 'matin' && combo.needMatin) {
-          // Match site_id and type first
-          if (combo.needMatin.site_id === need.site_id && combo.needMatin.type === need.type) {
-            // For bloc_operatoire, also check bloc-specific IDs
-            if (need.type === 'bloc_operatoire') {
-              matches = combo.needMatin.bloc_operation_id === need.bloc_operation_id &&
-                       combo.needMatin.besoin_operation_id === need.besoin_operation_id;
-            } else {
-              // For site type, site_id and type match is enough
+
+        if (need.periode === 'matin') {
+          if (need.type === 'site') {
+            if (need.site_id === ADMIN_SITE_ID) {
+              // Admin: match when morning is unassigned (null)
+              matches = combo.needMatin == null;
+            } else if (combo.needMatin && combo.needMatin.type === 'site') {
+              matches = combo.needMatin.site_id === need.site_id;
+            }
+          } else if (need.type === 'bloc_operatoire') {
+            if (
+              combo.needMatin &&
+              combo.needMatin.type === 'bloc_operatoire' &&
+              combo.needMatin.bloc_operation_id === need.bloc_operation_id &&
+              combo.needMatin.besoin_operation_id === need.besoin_operation_id
+            ) {
               matches = true;
             }
           }
-        } else if (need.periode === 'apres_midi' && combo.needAM) {
-          // Match site_id and type first
-          if (combo.needAM.site_id === need.site_id && combo.needAM.type === need.type) {
-            // For bloc_operatoire, also check bloc-specific IDs
-            if (need.type === 'bloc_operatoire') {
-              matches = combo.needAM.bloc_operation_id === need.bloc_operation_id &&
-                       combo.needAM.besoin_operation_id === need.besoin_operation_id;
-            } else {
-              // For site type, site_id and type match is enough
+        } else if (need.periode === 'apres_midi') {
+          if (need.type === 'site') {
+            if (need.site_id === ADMIN_SITE_ID) {
+              matches = combo.needAM == null;
+            } else if (combo.needAM && combo.needAM.type === 'site') {
+              matches = combo.needAM.site_id === need.site_id;
+            }
+          } else if (need.type === 'bloc_operatoire') {
+            if (
+              combo.needAM &&
+              combo.needAM.type === 'bloc_operatoire' &&
+              combo.needAM.bloc_operation_id === need.bloc_operation_id &&
+              combo.needAM.besoin_operation_id === need.besoin_operation_id
+            ) {
               matches = true;
             }
           }
         }
-        
+
         if (matches) {
           const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
           assigned.push({
@@ -321,6 +341,14 @@ serve(async (req) => {
         }
       }
 
+      // Deduplicate by secretary id within this need
+      const seen = new Set<string>();
+      const assignedUnique = assigned.filter(a => {
+        if (seen.has(a.id)) return false;
+        seen.add(a.id);
+        return true;
+      });
+
       afterAssignments.push({
         date: need.date,
         site_id: need.site_id,
@@ -329,11 +357,11 @@ serve(async (req) => {
         type: need.type,
         bloc_operation_id: need.bloc_operation_id,
         besoin_operation_id: need.besoin_operation_id,
-        secretaires: assigned,
+        secretaires: assignedUnique,
         nombre_requis: Math.ceil(need.nombre_suggere),
-        nombre_assigne: assigned.length,
-        status: assigned.length >= Math.ceil(need.nombre_suggere) ? 'satisfait' : 
-                assigned.length > 0 ? 'partiel' : 'non_satisfait'
+        nombre_assigne: assignedUnique.length,
+        status: assignedUnique.length >= Math.ceil(need.nombre_suggere) ? 'satisfait' :
+                assignedUnique.length > 0 ? 'partiel' : 'non_satisfait'
       });
     }
 
@@ -396,6 +424,20 @@ serve(async (req) => {
             is_3f: false,
             actif: true
           });
+        } else {
+          // Record admin assignment explicitly
+          dryRunRecords.push({
+            secretaire_id: combo.secretaire_id,
+            date,
+            demi_journee: 'matin',
+            site_id: ADMIN_SITE_ID,
+            besoin_operation_id: null,
+            planning_genere_bloc_operatoire_id: null,
+            is_1r: false,
+            is_2f: false,
+            is_3f: false,
+            actif: true
+          });
         }
 
         // Afternoon assignment (include Admin)
@@ -407,6 +449,20 @@ serve(async (req) => {
             site_id: combo.needAM.site_id,
             besoin_operation_id: combo.needAM.besoin_operation_id,
             planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
+            is_1r: false,
+            is_2f: false,
+            is_3f: false,
+            actif: true
+          });
+        } else {
+          // Record admin assignment explicitly
+          dryRunRecords.push({
+            secretaire_id: combo.secretaire_id,
+            date,
+            demi_journee: 'apres_midi',
+            site_id: ADMIN_SITE_ID,
+            besoin_operation_id: null,
+            planning_genere_bloc_operatoire_id: null,
             is_1r: false,
             is_2f: false,
             is_3f: false,

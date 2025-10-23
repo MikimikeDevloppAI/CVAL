@@ -69,7 +69,7 @@ export const DryRunOptimizationDialog = ({
     const grouped: Record<string, { matin?: Assignment; apres_midi?: Assignment }> = {};
     
     for (const assignment of assignments) {
-      const key = `${assignment.site_id}_${assignment.type}_${assignment.bloc_operation_id || ''}`;
+      const key = `${assignment.site_id}_${assignment.type}_${assignment.bloc_operation_id || ''}_${assignment.besoin_operation_id || ''}`;
       if (!grouped[key]) {
         grouped[key] = {};
       }
