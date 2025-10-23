@@ -522,17 +522,39 @@ function generatePlanningHTML(
     `;
   };
 
-  // Split secretaries into two columns (zigzag)
+  // Determine max number of weeks across all secretaries
+  const maxWeeks = Math.max(...secretaries.map(sec => {
+    const byDate = new Map<string, Assignment[]>();
+    sec.assignments.forEach(a => {
+      if (!byDate.has(a.date)) byDate.set(a.date, []);
+      byDate.get(a.date)!.push(a);
+    });
+    const sortedDates = Array.from(byDate.keys()).sort();
+    const byWeek = new Map<string, string[]>();
+    sortedDates.forEach(date => {
+      const weekStart = getWeekStart(date);
+      if (!byWeek.has(weekStart)) byWeek.set(weekStart, []);
+      byWeek.get(weekStart)!.push(date);
+    });
+    return byWeek.size;
+  }));
+
+  // Determine grid layout based on max weeks
+  const useDoubleColumn = maxWeeks <= 2;
+  
+  // Split secretaries into columns if using double column layout
   const leftColumn: SecretaryData[] = [];
   const rightColumn: SecretaryData[] = [];
   
-  secretaries.forEach((sec, idx) => {
-    if (idx % 2 === 0) {
-      leftColumn.push(sec);
-    } else {
-      rightColumn.push(sec);
-    }
-  });
+  if (useDoubleColumn) {
+    secretaries.forEach((sec, idx) => {
+      if (idx % 2 === 0) {
+        leftColumn.push(sec);
+      } else {
+        rightColumn.push(sec);
+      }
+    });
+  }
 
   return `
 <!DOCTYPE html>
@@ -576,8 +598,15 @@ function generatePlanningHTML(
     
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
       gap: 20px;
+    }
+    
+    .grid-double {
+      grid-template-columns: 1fr 1fr;
+    }
+    
+    .grid-single {
+      grid-template-columns: 1fr;
     }
     
     .secretary-card {
@@ -613,11 +642,19 @@ function generatePlanningHTML(
     }
     
     .weeks-container-3 {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
     }
     
     .weeks-container-4 {
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+    
+    .weeks-container-5 {
       grid-template-columns: 1fr 1fr;
+    }
+    
+    .weeks-container-6 {
+      grid-template-columns: 1fr 1fr 1fr;
     }
     
     .week-section {
@@ -712,21 +749,24 @@ function generatePlanningHTML(
     }
     
     .badge-1r {
-      background: rgba(59, 130, 246, 0.1);
-      border-color: rgba(59, 130, 246, 0.3);
-      color: #1e40af;
+      background: rgba(59, 130, 246, 0.25);
+      border-color: rgba(59, 130, 246, 0.6);
+      color: #1e3a8a;
+      font-weight: 700;
     }
     
     .badge-2f {
-      background: rgba(234, 179, 8, 0.1);
-      border-color: rgba(234, 179, 8, 0.3);
-      color: #a16207;
+      background: rgba(234, 179, 8, 0.25);
+      border-color: rgba(234, 179, 8, 0.6);
+      color: #854d0e;
+      font-weight: 700;
     }
     
     .badge-3f {
-      background: rgba(34, 197, 94, 0.1);
-      border-color: rgba(34, 197, 94, 0.3);
-      color: #15803d;
+      background: rgba(34, 197, 94, 0.25);
+      border-color: rgba(34, 197, 94, 0.6);
+      color: #14532d;
+      font-weight: 700;
     }
     
     .text-admin {
@@ -741,13 +781,11 @@ function generatePlanningHTML(
     <p class="period">Du ${formatDate(dateDebut)} au ${formatDate(dateFin)}</p>
   </div>
   
-  <div class="grid">
-    <div>
-      ${leftColumn.map(sec => renderCard(sec)).join('')}
-    </div>
-    <div>
-      ${rightColumn.map(sec => renderCard(sec)).join('')}
-    </div>
+  <div class="grid ${useDoubleColumn ? 'grid-double' : 'grid-single'}">
+    ${useDoubleColumn 
+      ? `<div>${leftColumn.map(sec => renderCard(sec)).join('')}</div><div>${rightColumn.map(sec => renderCard(sec)).join('')}</div>`
+      : secretaries.map(sec => renderCard(sec)).join('')
+    }
   </div>
 </body>
 </html>
