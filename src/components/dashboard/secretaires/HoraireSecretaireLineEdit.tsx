@@ -13,9 +13,10 @@ interface HoraireSecretaireLineEditProps {
   onUpdate: () => void;
   onDelete: (horaireId: string) => void;
   isNew?: boolean;
+  hideSiteSelection?: boolean;
 }
 
-export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDelete, isNew = false }: HoraireSecretaireLineEditProps) {
+export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDelete, isNew = false, hideSiteSelection = false }: HoraireSecretaireLineEditProps) {
   const [isEditing, setIsEditing] = useState(isNew);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -248,23 +249,25 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
         </div>
 
         {/* Deuxième ligne: Site */}
-        <div className="flex items-center mb-2">
-          <Select 
-            value={formData.site_id} 
-            onValueChange={(value) => setFormData({ ...formData, site_id: value })}
-          >
-            <SelectTrigger className="h-8 w-full text-xs border-teal-200/50">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sites.map((site) => (
-                <SelectItem key={site.id} value={site.id}>
-                  {site.nom}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!hideSiteSelection && (
+          <div className="flex items-center mb-2">
+            <Select 
+              value={formData.site_id} 
+              onValueChange={(value) => setFormData({ ...formData, site_id: value })}
+            >
+              <SelectTrigger className="h-8 w-full text-xs border-teal-200/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Troisième ligne: Dates + Boutons */}
         <div className="flex items-center gap-1.5">
@@ -339,9 +342,11 @@ export function HoraireSecretaireLineEdit({ horaire, jour, sites, onUpdate, onDe
           </>
         )}
 
-        <span className="text-sm text-muted-foreground truncate flex-1">
-          {formatSiteName(horaire.sites?.nom)}
-        </span>
+        {!hideSiteSelection && (
+          <span className="text-sm text-muted-foreground truncate flex-1">
+            {formatSiteName(horaire.sites?.nom)}
+          </span>
+        )}
 
         <Button
           type="button"

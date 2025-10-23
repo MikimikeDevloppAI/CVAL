@@ -443,6 +443,7 @@ export function SecretaireCard({
                           sites={sites}
                           onUpdate={handleHoraireUpdate}
                           onDelete={handleDeleteHoraire}
+                          hideSiteSelection={true}
                         />
                       ))}
                     </div>
@@ -460,6 +461,7 @@ export function SecretaireCard({
                 onUpdate={handleHoraireUpdate}
                 onDelete={handleCancelNew}
                 isNew={true}
+                hideSiteSelection={true}
               />
             )}
 
