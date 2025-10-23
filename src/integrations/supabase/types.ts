@@ -293,6 +293,54 @@ export type Database = {
           },
         ]
       }
+      capacite_effective_dry_run: {
+        Row: {
+          actif: boolean
+          besoin_operation_id: string | null
+          created_at: string
+          date: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
+          id: string
+          is_1r: boolean
+          is_2f: boolean
+          is_3f: boolean
+          planning_genere_bloc_operatoire_id: string | null
+          secretaire_id: string | null
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          besoin_operation_id?: string | null
+          created_at?: string
+          date: string
+          demi_journee: Database["public"]["Enums"]["demi_journee"]
+          id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
+          planning_genere_bloc_operatoire_id?: string | null
+          secretaire_id?: string | null
+          site_id?: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          besoin_operation_id?: string | null
+          created_at?: string
+          date?: string
+          demi_journee?: Database["public"]["Enums"]["demi_journee"]
+          id?: string
+          is_1r?: boolean
+          is_2f?: boolean
+          is_3f?: boolean
+          planning_genere_bloc_operatoire_id?: string | null
+          secretaire_id?: string | null
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       configurations_multi_flux: {
         Row: {
           actif: boolean

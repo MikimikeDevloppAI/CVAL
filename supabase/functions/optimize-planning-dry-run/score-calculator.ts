@@ -1,253 +1,127 @@
 import type {
   SiteNeed,
-  DynamicContext,
-  PreferencesData,
   Secretaire,
-  TodayAssignment
+  AssignmentSummary,
+  PreferencesData,
+  DynamicContext
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES } from './types.ts';
+import { ADMIN_SITE_ID } from './types.ts';
 
-function countTodayAdminAssignments(
+// Helper to find current assignment for a secretaire on the target date
+function getCurrentAssignment(
   secretaire_id: string,
-  current_periode: 'matin' | 'apres_midi',
-  today_assignments: Map<string, TodayAssignment>
-): number {
-  const assignment = today_assignments.get(secretaire_id);
-  if (!assignment) return 0;
-  
-  let count = 0;
-  
-  // Only count periods BEFORE the current one
-  if (current_periode === 'apres_midi' && assignment.matin) {
-    if (assignment.matin.site_id === ADMIN_SITE_ID) {
-      count++;
-    }
-  }
-  
-  return count;
+  date: string,
+  periode: 'matin' | 'apres_midi',
+  currentAssignments: AssignmentSummary[]
+): AssignmentSummary | null {
+  return currentAssignments.find(
+    a => a.secretaire_id === secretaire_id && a.date === date && a.periode === periode
+  ) || null;
 }
 
-function countTodaySiteAssignments(
+// Calculate score for a combo (morning + afternoon)
+// SCORING: +100 for all preferences, -20 per half-day change from current state
+export function calculateComboScore(
   secretaire_id: string,
-  site_id: string,
-  current_periode: 'matin' | 'apres_midi',
-  today_assignments: Map<string, TodayAssignment>
-): number {
-  const assignment = today_assignments.get(secretaire_id);
-  if (!assignment) return 0;
-  
-  let count = 0;
-  
-  // Only count periods BEFORE the current one
-  if (current_periode === 'apres_midi' && assignment.matin) {
-    if (assignment.matin.site_id === site_id) {
-      count++;
-    }
-  }
-  
-  return count;
-}
-
-export function calculateDynamicScore(
-  secretaire_id: string,
-  need: SiteNeed,
-  context: DynamicContext,
+  needMatin: SiteNeed | null,
+  needAM: SiteNeed | null,
+  currentAssignments: AssignmentSummary[],
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
   let score = 0;
-  
-  // ============================================================
-  // 1. SCORES POSITIFS (Prendre le MAX)
-  // ============================================================
-  const positiveScores: number[] = [];
-  
-  // 1a. Score BESOIN OPÉRATOIRE
-  if (need.type === 'bloc_operatoire' && need.besoin_operation_id) {
-    const besoinMatch = preferences.besoins.find(
-      sb => sb.secretaire_id === secretaire_id && 
-            sb.besoin_operation_id === need.besoin_operation_id
-    );
-    if (besoinMatch) {
-      const besoinScore = besoinMatch.preference === 1 ? SCORE_WEIGHTS.BESOIN_OP_PREF_1 :
-                          besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
-                          SCORE_WEIGHTS.BESOIN_OP_PREF_3;
-      positiveScores.push(besoinScore);
-    }
-  }
-  
-  // 1b. Score MÉDECIN
-  for (const medecin_id of need.medecins_ids) {
-    const medecinMatch = preferences.medecins.find(
-      sm => sm.secretaire_id === secretaire_id && sm.medecin_id === medecin_id
-    );
-    if (medecinMatch) {
-      const medecinScore = medecinMatch.priorite === '1' ? 
-        SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
-      positiveScores.push(medecinScore);
-    }
-  }
-  
-  // 1c. Score SITE
-  const siteMatch = preferences.sites.find(
-    ss => ss.secretaire_id === secretaire_id && ss.site_id === need.site_id
-  );
-  if (siteMatch) {
-    const siteScore = siteMatch.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
-                      siteMatch.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                      SCORE_WEIGHTS.SITE_PREF_3;
-    positiveScores.push(siteScore);
-  }
-  
-  // Prendre le MAX des scores positifs
-  const base_score = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
-  if (base_score > 0) {
-    score += base_score;
-  }
-  
-  // ============================================================
-  // 2. BONUS ADMIN PROGRESSIF (DYNAMIQUE)
-  // ============================================================
-  const isAdminSite = need.site_id === ADMIN_SITE_ID;
-  
-  if (isAdminSite) {
-    // Count admin assignments already made (week + today)
-    const weekAdminCount = context.week_assignments.filter(
-      a => a.secretaire_id === secretaire_id && a.is_admin
-    ).length;
-    
-    const todayAdminCount = countTodayAdminAssignments(
-      secretaire_id, 
-      need.periode, 
-      context.today_assignments
-    );
-    
-    const totalAdminCount = weekAdminCount + todayAdminCount;
-    
-    // Bonus spécial pour les secrétaires avec prefered_admin
-    if (secretaire.prefered_admin) {
-      // Objectif : 2 demi-journées admin minimum
-      if (totalAdminCount < 2) {
-        // Bonus fixe de 90 pour les 2 premières demi-journées
-        const adminBonus = 90;
-        score += adminBonus;
-      } else {
-        // À partir de la 3ème demi-journée admin : bonus fixe de 6 points
-        const adminBonus = 6;
-        score += adminBonus;
-      }
-    } else {
-      // Bonus dégressif standard pour les autres (10, 9, 8, 7...)
-      const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
-      score += adminBonus;
-    }
-  }
-  
-  // ============================================================
-  // 3. PÉNALITÉ CHANGEMENT DE SITE (DYNAMIQUE)
-  // ============================================================
-  if (need.periode === 'apres_midi') {
-    // Check morning assignment (today or existing)
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const morningAssignment = todayAssignment?.matin || 
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === 'matin'
+  const date = needMatin?.date || needAM?.date;
+  if (!date) return score;
+
+  // Get current assignments for comparison
+  const currentMatin = getCurrentAssignment(secretaire_id, date, 'matin', currentAssignments);
+  const currentAM = getCurrentAssignment(secretaire_id, date, 'apres_midi', currentAssignments);
+
+  // ====================
+  // MORNING PERIOD
+  // ====================
+  if (needMatin) {
+    // +100 for preferences (besoin operation, site)
+    if (needMatin.type === 'bloc_operatoire' && needMatin.besoin_operation_id) {
+      const pref = preferences.besoins.find(
+        b => b.secretaire_id === secretaire_id && b.besoin_operation_id === needMatin.besoin_operation_id
       );
-    
-    if (morningAssignment) {
-      const morning_site_id = morningAssignment.site_id;
-      
-      // Site change detected
-      if (morning_site_id !== need.site_id) {
-        // Don't penalize if admin is involved
-        const isAdminInvolved = 
-          morning_site_id === ADMIN_SITE_ID ||
-          need.site_id === ADMIN_SITE_ID;
-        
-        if (!isAdminInvolved) {
-          // Vérifier si un des deux sites est Centre Esplanade ou Vieille ville
-          const morningIsHighPenalty = HIGH_PENALTY_SITES.includes(morning_site_id);
-          const afternoonIsHighPenalty = HIGH_PENALTY_SITES.includes(need.site_id);
-          
-          if (morningIsHighPenalty || afternoonIsHighPenalty) {
-            score += PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY;
-          } else {
-            score += PENALTIES.CHANGEMENT_SITE;
-          }
-        }
+      if (pref) {
+        score += 100; // Always +100 for any preference level
       }
     }
-  }
-  
-  // ============================================================
-  // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3 (DYNAMIQUE)
-  // ============================================================
-  if (siteMatch && (siteMatch.priorite === '2' || siteMatch.priorite === '3')) {
-    // Count assignments to this site (week + today)
-    const weekSiteCount = context.week_assignments.filter(
-      a => a.secretaire_id === secretaire_id && 
-           a.site_id === need.site_id &&
-           (a.site_priorite === 2 || a.site_priorite === 3)
-    ).length;
-    
-    const todaySiteCount = countTodaySiteAssignments(
-      secretaire_id,
-      need.site_id,
-      need.periode,
-      context.today_assignments
-    );
-    
-    const totalSiteCount = weekSiteCount + todaySiteCount;
-    
-    // Penalty: -10 per half-day beyond 2
-    if (totalSiteCount >= 2) {
-      const overload = totalSiteCount - 2;
-      const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
-      score += penalty;
-    }
-  }
-  
-  // ============================================================
-  // 5. PÉNALITÉ BLOC -> SITES INTERDITS (DYNAMIQUE)
-  // ============================================================
-  
-  // If this assignment is to a forbidden site
-  if (FORBIDDEN_SITES.includes(need.site_id)) {
-    // Check if assigned to bloc on the OTHER half-day
-    const otherPeriode = need.periode === 'matin' ? 'apres_midi' : 'matin';
-    
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const otherAssignment = todayAssignment?.[otherPeriode] ||
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === otherPeriode
+
+    if (needMatin.site_id !== ADMIN_SITE_ID) {
+      const sitePref = preferences.sites.find(
+        s => s.secretaire_id === secretaire_id && s.site_id === needMatin.site_id
       );
-    
-    if (otherAssignment && otherAssignment.is_bloc) {
-      score += PENALTIES.BLOC_EXCLUSION;
+      if (sitePref) {
+        score += 100; // Always +100 for any site preference
+      }
+    }
+
+    // -20 if different from current state
+    if (!currentMatin || 
+        currentMatin.site_id !== needMatin.site_id ||
+        (needMatin.type === 'bloc_operatoire' && currentMatin.site_id !== needMatin.site_id)) {
+      score -= 20;
+    }
+  } else {
+    // Null morning = admin
+    // -20 if it was not admin before
+    if (currentMatin && currentMatin.site_id !== ADMIN_SITE_ID) {
+      score -= 20;
     }
   }
-  
-  // If this assignment is to BLOC
-  if (need.type === 'bloc_operatoire') {
-    // Check if assigned to forbidden site on the OTHER half-day
-    const otherPeriode = need.periode === 'matin' ? 'apres_midi' : 'matin';
-    
-    const todayAssignment = context.today_assignments.get(secretaire_id);
-    const otherAssignment = todayAssignment?.[otherPeriode] ||
-      context.week_assignments.find(
-        a => a.secretaire_id === secretaire_id && 
-             a.date === need.date && 
-             a.periode === otherPeriode
+
+  // ====================
+  // AFTERNOON PERIOD
+  // ====================
+  if (needAM) {
+    // +100 for preferences (besoin operation, site)
+    if (needAM.type === 'bloc_operatoire' && needAM.besoin_operation_id) {
+      const pref = preferences.besoins.find(
+        b => b.secretaire_id === secretaire_id && b.besoin_operation_id === needAM.besoin_operation_id
       );
-    
-    if (otherAssignment && FORBIDDEN_SITES.includes(otherAssignment.site_id)) {
-      score += PENALTIES.BLOC_EXCLUSION;
+      if (pref) {
+        score += 100; // Always +100 for any preference level
+      }
+    }
+
+    if (needAM.site_id !== ADMIN_SITE_ID) {
+      const sitePref = preferences.sites.find(
+        s => s.secretaire_id === secretaire_id && s.site_id === needAM.site_id
+      );
+      if (sitePref) {
+        score += 100; // Always +100 for any site preference
+      }
+    }
+
+    // -20 if different from current state
+    if (!currentAM || 
+        currentAM.site_id !== needAM.site_id ||
+        (needAM.type === 'bloc_operatoire' && currentAM.site_id !== needAM.site_id)) {
+      score -= 20;
+    }
+  } else {
+    // Null afternoon = admin
+    // -20 if it was not admin before
+    if (currentAM && currentAM.site_id !== ADMIN_SITE_ID) {
+      score -= 20;
     }
   }
-  
+
   return score;
+}
+
+// Stub function for compatibility with existing milp-builder
+// This is not used in the new combo-based approach
+export function calculateDynamicScore(
+  _secretaire_id: string,
+  _need: SiteNeed,
+  _context: DynamicContext,
+  _preferences: PreferencesData,
+  _secretaire: Secretaire
+): number {
+  return 0; // Not used in dry-run
 }

@@ -2,10 +2,10 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
-// Import exact same modules as v2 to guarantee identical results
 import { loadWeekData } from './data-loader.ts';
-import { buildMILPModelSoft } from './milp-builder.ts';
+import { buildMILPModelCombo } from './milp-builder-combo.ts';
 import type { SiteNeed, CapaciteEffective, AssignmentSummary } from './types.ts';
+import { ADMIN_SITE_ID } from './types.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
