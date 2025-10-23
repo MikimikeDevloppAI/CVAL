@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Edit, CalendarDays, Mail, Phone } from 'lucide-react';
+import { Edit, CalendarDays, Mail, Phone, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { HoraireLineEdit } from './HoraireLineEdit';
 import { AddHoraireDialog } from './AddHoraireDialog';
 import { Medecin } from './useMedecins';
@@ -24,6 +25,7 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
   const [typesIntervention, setTypesIntervention] = useState<any[]>([]);
   const [localMedecin, setLocalMedecin] = useState(medecin);
   const [newHoraire, setNewHoraire] = useState<any>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -163,54 +165,67 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
       style={{ animationDelay: `${index * 50}ms` }}
     >
       
-      <div className="relative p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-start gap-2 mb-2">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                  {medecin.first_name}
-                </span>
-                <h3 className="text-lg font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-tight">
-                  {medecin.name}
-                </h3>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="relative">
+        <div className="relative p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-start gap-2 mb-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-muted-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                    {medecin.first_name}
+                  </span>
+                  <h3 className="text-lg font-semibold text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-tight">
+                    {medecin.name}
+                  </h3>
+                </div>
+                {medecin.actif === false && (
+                  <Badge variant="secondary" className="text-xs">
+                    Inactif
+                  </Badge>
+                )}
               </div>
-              {medecin.actif === false && (
-                <Badge variant="secondary" className="text-xs">
-                  Inactif
-                </Badge>
-              )}
+              <Badge className="bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 border-teal-500/20">
+                {medecin.specialites?.nom}
+              </Badge>
             </div>
-            <Badge className="bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 border-teal-500/20">
-              {medecin.specialites?.nom}
-            </Badge>
-          </div>
-          
-          {canManage && (
+            
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(medecin)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-cyan-500/10 hover:text-cyan-600"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onOpenCalendar({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
-                className="hover:bg-cyan-500/10 hover:text-cyan-600 hover:border-cyan-500/50"
-              >
-                <CalendarDays className="h-4 w-4" />
-              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(medecin)}
+                    className="hover:bg-cyan-500/10 hover:text-cyan-600"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenCalendar({ id: medecin.id, nom: `${medecin.first_name} ${medecin.name}` })}
+                    className="hover:bg-cyan-500/10 hover:text-cyan-600 hover:border-cyan-500/50"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hover:bg-cyan-500/10 hover:text-cyan-600"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Contact Info */}
-        <div className="space-y-3 mb-4">
+        <CollapsibleContent className="animate-accordion-down">
+          {/* Contact Info */}
+          <div className="space-y-3 mb-4 mt-4">
           {medecin.email && (
             <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
@@ -330,7 +345,9 @@ export function MedecinCard({ medecin, index, onEdit, onToggleStatus, onOpenCale
             )}
           </div>
         )}
-      </div>
+        </CollapsibleContent>
+        </div>
+      </Collapsible>
     </div>
   );
 }

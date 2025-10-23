@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Edit, CalendarDays, Mail, Phone, MapPin, Stethoscope, Briefcase, Plus } from 'lucide-react';
+import { Edit, CalendarDays, Mail, Phone, MapPin, Stethoscope, Briefcase, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { HoraireSecretaireLineEdit } from './HoraireSecretaireLineEdit';
 import { AddHoraireSecretaireDialog } from './AddHoraireSecretaireDialog';
 import { SiteAssigneLineEdit } from './SiteAssigneLineEdit';
@@ -40,6 +41,7 @@ export function SecretaireCard({
   const [newSite, setNewSite] = useState<any>(null);
   const [newMedecin, setNewMedecin] = useState<any>(null);
   const [newBesoin, setNewBesoin] = useState<any>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -283,61 +285,74 @@ export function SecretaireCard({
       `}
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="relative p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-start gap-2 flex-wrap mb-2">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                  {secretaire.first_name || 'Prénom'}
-                </span>
-                <h3 className="text-lg font-semibold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-tight">
-                  {secretaire.name || `Secrétaire ${secretaire.id.slice(0, 8)}`}
-                </h3>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="relative">
+        <div className="relative p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-start gap-2 flex-wrap mb-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-muted-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                    {secretaire.first_name || 'Prénom'}
+                  </span>
+                  <h3 className="text-lg font-semibold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-tight">
+                    {secretaire.name || `Secrétaire ${secretaire.id.slice(0, 8)}`}
+                  </h3>
+                </div>
+                {secretaire.actif === false && (
+                  <Badge variant="secondary" className="text-xs">
+                    Inactif
+                  </Badge>
+                )}
+                {secretaire.horaire_flexible && (
+                  <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 border-blue-500/20 text-xs">
+                    Flexible {secretaire.pourcentage_temps && `(${secretaire.pourcentage_temps}%)`}
+                  </Badge>
+                )}
+                {secretaire.flexible_jours_supplementaires && (
+                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border-amber-500/20 text-xs">
+                    +{secretaire.nombre_jours_supplementaires || 1}j
+                  </Badge>
+                )}
               </div>
-              {secretaire.actif === false && (
-                <Badge variant="secondary" className="text-xs">
-                  Inactif
-                </Badge>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(secretaire)}
+                    className="hover:bg-teal-500/10 hover:text-teal-600"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenCalendar({ id: secretaire.id, nom: nomComplet })}
+                    className="hover:bg-teal-500/10 hover:text-teal-600 hover:border-teal-500/50"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                  </Button>
+                </>
               )}
-              {secretaire.horaire_flexible && (
-                <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 border-blue-500/20 text-xs">
-                  Flexible {secretaire.pourcentage_temps && `(${secretaire.pourcentage_temps}%)`}
-                </Badge>
-              )}
-              {secretaire.flexible_jours_supplementaires && (
-                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border-amber-500/20 text-xs">
-                  +{secretaire.nombre_jours_supplementaires || 1}j
-                </Badge>
-              )}
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hover:bg-teal-500/10 hover:text-teal-600"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
             </div>
           </div>
-          
-          {canManage && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(secretaire)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-teal-500/10 hover:text-teal-600"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onOpenCalendar({ id: secretaire.id, nom: nomComplet })}
-                className="hover:bg-teal-500/10 hover:text-teal-600 hover:border-teal-500/50"
-              >
-                <CalendarDays className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
 
-        {/* Contact Info */}
-        <div className="space-y-3 mb-4">
+        <CollapsibleContent className="animate-accordion-down">
+          {/* Contact Info */}
+          <div className="space-y-3 mb-4 mt-4">
           {secretaire.email && (
             <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
@@ -584,7 +599,9 @@ export function SecretaireCard({
             )}
           </div>
         )}
-      </div>
+        </CollapsibleContent>
+        </div>
+      </Collapsible>
     </div>
   );
 }
