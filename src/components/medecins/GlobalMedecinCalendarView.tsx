@@ -73,10 +73,11 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ 
     open: boolean; 
-    besoinId: string;
+    besoinIds: string[];
     medecinName: string;
     date: string;
     period: string;
+    isFullDay: boolean;
   } | null>(null);
   const [joursFeries, setJoursFeries] = useState<string[]>([]);
   const [editDialog, setEditDialog] = useState<{
@@ -259,21 +260,47 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
     return label;
   };
 
-  const handleDeleteBesoin = async () => {
+  const handleDeleteBesoin = async (deleteOption?: 'all' | 'matin' | 'apres_midi') => {
     if (!deleteConfirmation) return;
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('besoin_effectif')
-        .delete()
-        .eq('id', deleteConfirmation.besoinId);
+      let idsToDelete: string[] = [];
 
-      if (error) throw error;
+      if (deleteConfirmation.isFullDay && deleteOption !== 'all') {
+        // Journée entière mais on ne veut supprimer qu'une partie
+        // On doit identifier quel besoin correspond à quelle période
+        const besoinsToCheck = await supabase
+          .from('besoin_effectif')
+          .select('id, demi_journee')
+          .in('id', deleteConfirmation.besoinIds);
+
+        if (besoinsToCheck.data) {
+          if (deleteOption === 'matin') {
+            const matinBesoin = besoinsToCheck.data.find(b => b.demi_journee === 'matin');
+            if (matinBesoin) idsToDelete.push(matinBesoin.id);
+          } else if (deleteOption === 'apres_midi') {
+            const apresMidiBesoin = besoinsToCheck.data.find(b => b.demi_journee === 'apres_midi');
+            if (apresMidiBesoin) idsToDelete.push(apresMidiBesoin.id);
+          }
+        }
+      } else {
+        // Supprimer tous les besoins
+        idsToDelete = deleteConfirmation.besoinIds;
+      }
+
+      for (const id of idsToDelete) {
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+      }
 
       toast({
         title: 'Succès',
-        description: 'Besoin supprimé',
+        description: idsToDelete.length > 1 ? 'Besoins supprimés' : 'Besoin supprimé',
       });
 
       setDeleteConfirmation(null);
@@ -777,10 +804,11 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                                         : 'Après-midi';
                                       setDeleteConfirmation({ 
                                         open: true, 
-                                        besoinId: firstBesoin.besoinIds[0],
+                                        besoinIds: firstBesoin.besoinIds,
                                         medecinName: `${medecin.first_name} ${medecin.name}`,
                                         date: format(new Date(dateStr), 'dd/MM/yyyy', { locale: fr }),
-                                        period: periodLabel
+                                        period: periodLabel,
+                                        isFullDay: firstBesoin.demi_journee === 'toute_journee'
                                       });
                                     }}
                                     disabled={loading}
@@ -953,14 +981,49 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce besoin pour {deleteConfirmation?.medecinName} le {deleteConfirmation?.date} ({deleteConfirmation?.period}) ?
+              {deleteConfirmation?.isFullDay ? (
+                <>Que souhaitez-vous supprimer pour {deleteConfirmation?.medecinName} le {deleteConfirmation?.date} ?</>
+              ) : (
+                <>Êtes-vous sûr de vouloir supprimer ce besoin pour {deleteConfirmation?.medecinName} le {deleteConfirmation?.date} ({deleteConfirmation?.period}) ?</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteBesoin} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
-            </AlertDialogAction>
+            {deleteConfirmation?.isFullDay ? (
+              <div className="flex flex-col gap-2 w-full sm:flex-row sm:justify-end">
+                <AlertDialogCancel className="m-0">Annuler</AlertDialogCancel>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDeleteBesoin('matin')}
+                  disabled={loading}
+                  className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                >
+                  Supprimer le matin
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDeleteBesoin('apres_midi')}
+                  disabled={loading}
+                  className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                >
+                  Supprimer l'après-midi
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDeleteBesoin('all')}
+                  disabled={loading}
+                >
+                  Supprimer toute la journée
+                </Button>
+              </div>
+            ) : (
+              <>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleDeleteBesoin()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Supprimer
+                </AlertDialogAction>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
