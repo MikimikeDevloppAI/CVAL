@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, CalendarDays, Mail, Phone, MapPin, Stethoscope, Briefcase, Plus, ChevronDown } from 'lucide-react';
+import { Edit, CalendarDays, Mail, Phone, Stethoscope, Briefcase, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -7,7 +7,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { HoraireSecretaireLineEdit } from './HoraireSecretaireLineEdit';
 import { AddHoraireSecretaireDialog } from './AddHoraireSecretaireDialog';
-import { SiteAssigneLineEdit } from './SiteAssigneLineEdit';
 import { MedecinAssigneLineEdit } from './MedecinAssigneLineEdit';
 import { BesoinOperationnelLineEdit } from './BesoinOperationnelLineEdit';
 import type { Secretaire } from './useSecretaires';
@@ -38,7 +37,6 @@ export function SecretaireCard({
   const [besoins, setBesoins] = useState<any[]>([]);
   const [localSecretaire, setLocalSecretaire] = useState(secretaire);
   const [newHoraire, setNewHoraire] = useState<any>(null);
-  const [newSite, setNewSite] = useState<any>(null);
   const [newMedecin, setNewMedecin] = useState<any>(null);
   const [newBesoin, setNewBesoin] = useState<any>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -152,45 +150,6 @@ export function SecretaireCard({
 
   const handleCancelNew = () => {
     setNewHoraire(null);
-  };
-
-  const handleDeleteSite = async (assignmentId: string) => {
-    if (assignmentId === 'new') {
-      setNewSite(null);
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('secretaires_sites')
-        .delete()
-        .eq('id', assignmentId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Succès",
-        description: "Site supprimé",
-      });
-
-      onSuccess();
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer le site",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAddNewSite = () => {
-    setNewSite({
-      id: 'new',
-      site_id: sites[0]?.id || '',
-      priorite: '1',
-      secretaire_id: secretaire.id
-    });
   };
 
   const handleDeleteMedecin = async (assignmentId: string) => {
@@ -370,49 +329,6 @@ export function SecretaireCard({
               <span className="truncate">{secretaire.phone_number}</span>
             </div>
           )}
-        </div>
-
-        {/* Sites assignés */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-              <MapPin className="h-3 w-3 text-teal-600 dark:text-teal-400" />
-              Sites assignés
-            </p>
-          </div>
-          <div className="space-y-1">
-            {secretaire.sites_assignes_details?.map((site) => (
-              <SiteAssigneLineEdit
-                key={site.id}
-                assignment={site}
-                sites={sites}
-                onUpdate={onSuccess}
-                onDelete={handleDeleteSite}
-              />
-            ))}
-
-            {newSite && (
-              <SiteAssigneLineEdit
-                assignment={newSite}
-                sites={sites}
-                onUpdate={onSuccess}
-                onDelete={handleDeleteSite}
-                isNew={true}
-              />
-            )}
-
-            {canManage && !newSite && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAddNewSite}
-                className="w-full border-dashed border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/5 text-teal-600 dark:text-teal-400 mt-1"
-              >
-                <Plus className="h-3 w-3 mr-2" />
-                Ajouter un site
-              </Button>
-            )}
-          </div>
         </div>
 
         {/* Médecins assignés */}
