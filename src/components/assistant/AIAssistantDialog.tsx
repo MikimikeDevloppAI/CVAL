@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Send, Loader2, Bot, User } from 'lucide-react';
+import { Send, Loader2, Bot, User, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -94,17 +96,39 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
     }
   };
 
+  const handleClearConversation = () => {
+    setMessages([]);
+    toast({
+      title: "Conversation effacée",
+      description: "L'historique de la conversation a été supprimé"
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center gap-2">
-            <Bot className="h-6 w-6 text-primary" />
-            <DialogTitle>Assistant IA - Planning</DialogTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="h-6 w-6 text-primary" />
+              <div>
+                <DialogTitle>Assistant IA - Planning</DialogTitle>
+                <DialogDescription>
+                  Posez des questions sur les absences, les affectations et les horaires
+                </DialogDescription>
+              </div>
+            </div>
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleClearConversation}
+                title="Effacer la conversation"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          <DialogDescription>
-            Posez des questions sur les absences, les affectations et les horaires
-          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6" ref={scrollRef}>
@@ -180,35 +204,36 @@ function MessageBubble({ message }: { message: Message }) {
       
       <div className={`flex flex-col gap-1 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
         <Card className={`p-3 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-          <div 
-            className="text-sm whitespace-pre-wrap prose prose-sm max-w-none dark:prose-invert"
-            dangerouslySetInnerHTML={{ 
-              __html: message.content
-                .replace(/\n/g, '<br />')
-                .replace(/\|(.+?)\|/g, (match) => {
-                  // Convertir les tableaux markdown en HTML
-                  const lines = match.split('\n').filter(line => line.trim());
-                  if (lines.length < 2) return match;
-                  
-                  const hasHeader = lines[1].includes('---');
-                  if (!hasHeader) return match;
-                  
-                  let html = '<table class="w-full border-collapse border border-border mt-2 mb-2"><thead><tr>';
-                  const headers = lines[0].split('|').filter(h => h.trim());
-                  headers.forEach(h => html += `<th class="border border-border px-2 py-1 text-left bg-muted">${h.trim()}</th>`);
-                  html += '</tr></thead><tbody>';
-                  
-                  for (let i = 2; i < lines.length; i++) {
-                    html += '<tr>';
-                    const cells = lines[i].split('|').filter(c => c.trim());
-                    cells.forEach(c => html += `<td class="border border-border px-2 py-1">${c.trim()}</td>`);
-                    html += '</tr>';
-                  }
-                  html += '</tbody></table>';
-                  return html;
-                })
-            }}
-          />
+          <div className={`text-sm prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({ node, ...props }) => (
+                  <table className="w-full border-collapse border border-border my-2" {...props} />
+                ),
+                thead: ({ node, ...props }) => (
+                  <thead className="bg-muted/50" {...props} />
+                ),
+                th: ({ node, ...props }) => (
+                  <th className="border border-border px-3 py-2 text-left font-medium" {...props} />
+                ),
+                td: ({ node, ...props }) => (
+                  <td className="border border-border px-3 py-2" {...props} />
+                ),
+                p: ({ node, ...props }) => (
+                  <p className="mb-2 last:mb-0" {...props} />
+                ),
+                ul: ({ node, ...props }) => (
+                  <ul className="list-disc list-inside my-2" {...props} />
+                ),
+                ol: ({ node, ...props }) => (
+                  <ol className="list-decimal list-inside my-2" {...props} />
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
         </Card>
 
         <span className="text-xs text-muted-foreground">
