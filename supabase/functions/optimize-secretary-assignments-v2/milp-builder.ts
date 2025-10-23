@@ -114,8 +114,8 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleMatin.push(need);
         }
       }
-    } else if (hasAnyMatinCap) {
-      // Has ONLY fictive ADMIN capacity → add ADMIN only
+    } else if (hasAnyMatinCap || hasAnyAMCap) {
+      // Has capacity somewhere (morning fictive OR afternoon) → force ADMIN for morning
       eligibleMatin.push(null);
     }
     // else: no capacity at all → eligibleMatin stays empty []
@@ -146,8 +146,8 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleAM.push(need);
         }
       }
-    } else if (hasAnyAMCap) {
-      // Has ONLY fictive ADMIN capacity → add ADMIN only
+    } else if (hasAnyAMCap || hasAnyMatinCap) {
+      // Has capacity somewhere (afternoon fictive OR morning) → force ADMIN for afternoon
       eligibleAM.push(null);
     }
     // else: no capacity at all → eligibleAM stays empty []
@@ -224,6 +224,24 @@ export function buildMILPModelSoft(
   }
   
   console.log(`  ✅ Combos générés: ${comboCount} (exclus: ${excludedComboCount})`);
+  
+  // Count half-day only secretaries
+  let halfDayOnlyCount = 0;
+  for (const secretaire_id of activeSecretaires) {
+    const hasRealMatin = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && c.date === date && 
+           c.demi_journee === 'matin' && c.site_id !== ADMIN_SITE_ID
+    );
+    const hasRealAM = todayCapacites.some(
+      c => c.secretaire_id === secretaire_id && c.date === date && 
+           c.demi_journee === 'apres_midi' && c.site_id !== ADMIN_SITE_ID
+    );
+    
+    if ((hasRealMatin && !hasRealAM) || (!hasRealMatin && hasRealAM)) {
+      halfDayOnlyCount++;
+    }
+  }
+  console.log(`  👥 Secrétaires à demi-journée: ${halfDayOnlyCount}`);
   
   // ============================================================
   // CONSTRAINT: One combo per secretary per day

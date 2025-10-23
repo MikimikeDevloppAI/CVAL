@@ -151,57 +151,6 @@ export async function loadWeekData(
   const admin_needs = generateAdminNeeds(dates);
   console.log(`  ✅ Besoins ADMIN générés : ${admin_needs.length}`);
 
-  // ============================================================
-  // ADD MISSING HALF-DAY CAPACITIES (ADMIN FICTIVE)
-  // ============================================================
-  console.log(`\n🔧 Ajout de capacités fictives pour demi-journées manquantes...`);
-
-  const capacitesWithFictitious = [...(capacitesRes.data || [])];
-  let addedFictitious = 0;
-
-  // Group capacities by secretaire_id and date
-  const capacitesBySecDate = new Map<string, Set<string>>();
-
-  for (const cap of capacitesWithFictitious) {
-    if (!cap.secretaire_id || !cap.actif) continue;
-    
-    const key = `${cap.secretaire_id}|${cap.date}`;
-    if (!capacitesBySecDate.has(key)) {
-      capacitesBySecDate.set(key, new Set());
-    }
-    capacitesBySecDate.get(key)!.add(cap.demi_journee);
-  }
-
-  // For each secretaire-date, check if they have both periods
-  for (const [key, periods] of capacitesBySecDate) {
-    if (periods.size === 2) continue; // Has both periods
-    
-    const [secretaire_id, date] = key.split('|');
-    const missingPeriod = periods.has('matin') ? 'apres_midi' : 'matin';
-    
-    // Add fictitious capacity for missing period
-    capacitesWithFictitious.push({
-      id: crypto.randomUUID(),
-      secretaire_id,
-      date,
-      demi_journee: missingPeriod as 'matin' | 'apres_midi',
-      site_id: '00000000-0000-0000-0000-000000000001', // ADMIN_SITE_ID
-      planning_genere_bloc_operatoire_id: null,
-      besoin_operation_id: null,
-      is_1r: false,
-      is_2f: false,
-      is_3f: false,
-      actif: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
-    
-    addedFictitious++;
-  }
-
-  console.log(`  ✅ ${addedFictitious} demi-journées manquantes ajoutées (ADMIN fictif)`);
-  console.log(`  ✅ Total capacités (avec fictives): ${capacitesWithFictitious.length}`);
-
   return {
     secretaires: secretairesRes.data || [],
     medecins,
@@ -211,7 +160,7 @@ export async function loadWeekData(
     secretaires_besoins: secBesoinsRes.data || [],
     secretaires_medecins: secMedecinsRes.data || [],
     secretaires_sites: secSitesRes.data || [],
-    capacites_effective: capacitesWithFictitious,
+    capacites_effective: capacitesRes.data || [],
     besoins_effectifs: besoinsEffRes.data || [],
     planning_bloc: planningBlocRes.data || [],
     types_intervention_besoins: typesIntervRes.data || [],
