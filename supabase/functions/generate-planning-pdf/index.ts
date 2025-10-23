@@ -395,16 +395,6 @@ function generatePlanningHTML(
     return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNum}`;
   };
 
-  const getSalleColor = (salle?: string) => {
-    if (!salle) return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
-    const lower = salle.toLowerCase();
-    if (lower.includes('rouge')) return { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c' };
-    if (lower.includes('verte')) return { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' };
-    if (lower.includes('jaune')) return { bg: '#fefce8', border: '#fde047', text: '#a16207' };
-    if (lower.includes('bleue')) return { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' };
-    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
-  };
-
   const renderAssignment = (assignment: Assignment) => {
     const badges: string[] = [];
     
@@ -414,30 +404,28 @@ function generatePlanningHTML(
 
     if (assignment.type === 'bloc') {
       const parts: string[] = [];
-      parts.push('<strong>Bloc opératoire</strong>');
-      
-      if (assignment.salle) {
-        const color = getSalleColor(assignment.salle);
-        parts.push(`<span class="badge-salle" style="background: ${color.bg}; border-color: ${color.border}; color: ${color.text};">${assignment.salle}</span>`);
-      }
       
       if (assignment.typeIntervention) {
-        parts.push(`<span class="badge-intervention">${assignment.typeIntervention}</span>`);
-      }
-      
-      if (assignment.typeBesoinBloc) {
-        parts.push(`<span class="badge-besoin">${assignment.typeBesoinBloc}</span>`);
+        parts.push(assignment.typeIntervention);
       }
       
       if (assignment.medecin) {
-        parts.push(`<span class="badge-medecin">Dr ${assignment.medecin}</span>`);
+        parts.push(`Dr ${assignment.medecin}`);
       }
       
-      return parts.join(' ') + (badges.length > 0 ? ' ' + badges.join(' ') : '');
+      if (assignment.salle) {
+        parts.push(assignment.salle);
+      }
+      
+      if (assignment.typeBesoinBloc) {
+        parts.push(assignment.typeBesoinBloc);
+      }
+      
+      return parts.join(' - ') + (badges.length > 0 ? ' ' + badges.join(' ') : '');
     } else if (assignment.type === 'administratif') {
       return '<span class="text-admin">Administratif</span>' + (badges.length > 0 ? ' ' + badges.join(' ') : '');
     } else {
-      return `<strong>${assignment.site}</strong>` + (badges.length > 0 ? ' ' + badges.join(' ') : '');
+      return assignment.site + (badges.length > 0 ? ' ' + badges.join(' ') : '');
     }
   };
 
@@ -734,29 +722,9 @@ function generatePlanningHTML(
       color: #15803d;
     }
     
-    .badge-salle,
-    .badge-intervention,
-    .badge-besoin,
-    .badge-medecin {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-      margin-left: 4px;
-      background: #f3f4f6;
-      border: 1px solid #d1d5db;
-      color: #374151;
-    }
-    
     .text-admin {
       color: #6b7280;
       font-style: italic;
-    }
-    
-    strong {
-      font-weight: 600;
-      color: #111827;
     }
   </style>
 </head>
