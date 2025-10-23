@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
+import { Loader2 } from 'lucide-react';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -50,65 +51,98 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-accent/20 to-primary/5 px-4">
       <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
-          <img 
-            src={cliniqueLogoImg} 
-            alt="Clinique La Vallée" 
-            className="h-16 w-auto"
-          />
+        <div className="flex flex-col items-center mb-8 space-y-4">
+          <div className="p-4 bg-card rounded-2xl shadow-lg border">
+            <img 
+              src={cliniqueLogoImg} 
+              alt="Clinique La Vallée" 
+              className="h-14 w-auto"
+            />
+          </div>
+          <div className="text-center">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Clinique La Vallée
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Système de planning médical
+            </p>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Clinique La Vallée</CardTitle>
+        <Card className="shadow-xl border-border/50">
+          <CardHeader className="text-center space-y-1 pb-4">
+            <CardTitle className="text-2xl font-bold">Connexion</CardTitle>
             <CardDescription>
-              Connexion au système de planning médical
+              Entrez vos identifiants pour accéder à votre espace
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-2">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  placeholder="votre.email@example.com"
+                  className="bg-background h-11"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
+                <Label htmlFor="password" className="text-sm font-semibold">Mot de passe</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  placeholder="••••••••"
+                  className="bg-background h-11"
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Connexion...' : 'Se connecter'}
+              
+              <Button 
+                type="submit" 
+                className="w-full h-11 shadow-sm font-semibold" 
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connexion en cours...
+                  </>
+                ) : (
+                  'Se connecter'
+                )}
               </Button>
               
-              <div className="text-center text-sm">
-                <Link to="/reset-password" className="text-primary hover:underline">
+              <div className="text-center pt-2">
+                <Link 
+                  to="/reset-password" 
+                  className="text-sm text-primary hover:underline font-medium transition-colors"
+                >
                   Mot de passe oublié ?
                 </Link>
               </div>
             </form>
 
             {error && (
-              <Alert className="mt-4 border-destructive">
-                <AlertDescription className="text-destructive">
+              <Alert className="mt-4 border-destructive/50 bg-destructive/5">
+                <AlertDescription className="text-destructive text-sm">
                   {error}
                 </AlertDescription>
               </Alert>
             )}
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          © 2025 Clinique La Vallée - Tous droits réservés
+        </p>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
@@ -65,24 +66,24 @@ export default function UpdatePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Nouveau mot de passe</CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-accent/20 to-primary/5 p-4">
+      <Card className="w-full max-w-md shadow-xl border-border/50">
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="text-2xl font-bold">Nouveau mot de passe</CardTitle>
           <CardDescription>
             Le mot de passe doit contenir au moins 8 caractères, une minuscule, une majuscule et un caractère spécial
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2">
           <form onSubmit={handleUpdatePassword} className="space-y-4">
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert className="border-destructive/50 bg-destructive/5">
+                <AlertDescription className="text-destructive text-sm">{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="password">Nouveau mot de passe</Label>
+              <Label htmlFor="password" className="text-sm font-semibold">Nouveau mot de passe</Label>
               <Input
                 id="password"
                 type="password"
@@ -92,11 +93,12 @@ export default function UpdatePasswordPage() {
                 required
                 disabled={loading}
                 minLength={6}
+                className="bg-background h-11"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+              <Label htmlFor="confirmPassword" className="text-sm font-semibold">Confirmer le mot de passe</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -106,11 +108,19 @@ export default function UpdatePasswordPage() {
                 required
                 disabled={loading}
                 minLength={6}
+                className="bg-background h-11"
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+            <Button type="submit" className="w-full h-11 shadow-sm font-semibold" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mise à jour...
+                </>
+              ) : (
+                'Mettre à jour le mot de passe'
+              )}
             </Button>
           </form>
         </CardContent>

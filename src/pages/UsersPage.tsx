@@ -97,72 +97,78 @@ export default function UsersPage() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <PageHeader
           title="Gestion des utilisateurs"
           icon={UsersRound}
           action={
-            <Button onClick={() => setInviteDialogOpen(true)}>
+            <Button onClick={() => setInviteDialogOpen(true)} className="shadow-sm">
               <UserPlus className="h-4 w-4 mr-2" />
               Inviter un utilisateur
             </Button>
           }
         />
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 bg-card p-4 rounded-lg border shadow-sm">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Rechercher un utilisateur..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-background"
             />
           </div>
         </div>
 
-        <div className="border rounded-lg">
+        <div className="bg-card border rounded-lg shadow-sm overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Accès planning</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableRow className="bg-accent/50 hover:bg-accent/50">
+                <TableHead className="font-semibold">Nom</TableHead>
+                <TableHead className="font-semibold">Email</TableHead>
+                <TableHead className="font-semibold">Rôle</TableHead>
+                <TableHead className="font-semibold">Accès planning</TableHead>
+                <TableHead className="text-right font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    Chargement...
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <p className="text-sm text-muted-foreground">Chargement...</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : filteredUsers?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Aucun utilisateur trouvé
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-muted-foreground">Aucun utilisateur trouvé</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredUsers?.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.id} className="hover:bg-accent/30 transition-colors">
                     <TableCell className="font-medium">
                       {user.prenom} {user.nom}
                     </TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant={getRoleVariant(user.role)} className="gap-1">
+                      <Badge variant={getRoleVariant(user.role)} className="gap-1 shadow-sm">
                         {getRoleIcon(user.role)}
                         {getRoleLabel(user.role)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {user.planning ? (
-                        <Badge variant="default">Oui</Badge>
+                        <Badge variant="default" className="shadow-sm">Oui</Badge>
                       ) : (
-                        <Badge variant="secondary">Non</Badge>
+                        <Badge variant="secondary" className="shadow-sm">Non</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -170,6 +176,7 @@ export default function UsersPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEdit(user)}
+                        className="hover:bg-accent"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>

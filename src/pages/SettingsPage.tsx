@@ -139,109 +139,118 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8 max-w-2xl">
-      <PageHeader
-        title="Paramètres"
-        icon={Settings}
-      />
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 px-6 space-y-8 max-w-3xl">
+        <PageHeader
+          title="Paramètres"
+          icon={Settings}
+        />
 
-      {/* Profile Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Informations personnelles</CardTitle>
-          <CardDescription>
-            Modifiez vos informations de profil
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="prenom">Prénom</Label>
-              <Input
-                id="prenom"
-                value={prenom}
-                onChange={(e) => setPrenom(e.target.value)}
-                required
-                disabled={profileLoading}
-              />
-            </div>
+        {/* Profile Section */}
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="bg-accent/30 border-b">
+            <CardTitle className="text-xl">Informations personnelles</CardTitle>
+            <CardDescription>
+              Modifiez vos informations de profil
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleProfileUpdate} className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="prenom" className="text-sm font-semibold">Prénom</Label>
+                  <Input
+                    id="prenom"
+                    value={prenom}
+                    onChange={(e) => setPrenom(e.target.value)}
+                    required
+                    disabled={profileLoading}
+                    className="bg-background"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="nom">Nom</Label>
-              <Input
-                id="nom"
-                value={nom}
-                onChange={(e) => setNom(e.target.value)}
-                required
-                disabled={profileLoading}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nom" className="text-sm font-semibold">Nom</Label>
+                  <Input
+                    id="nom"
+                    value={nom}
+                    onChange={(e) => setNom(e.target.value)}
+                    required
+                    disabled={profileLoading}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={user?.email || ''}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-sm text-muted-foreground">
-                L'email ne peut pas être modifié
-              </p>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="bg-muted/50"
+                />
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/50" />
+                  L'email ne peut pas être modifié
+                </p>
+              </div>
 
-            <Button type="submit" disabled={profileLoading}>
-              {profileLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Enregistrer les modifications
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" disabled={profileLoading} className="shadow-sm">
+                {profileLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Enregistrer les modifications
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-      {/* Password Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Changer le mot de passe</CardTitle>
-          <CardDescription>
-            Le mot de passe doit contenir au moins 8 caractères, une minuscule, une majuscule et un caractère spécial
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">Nouveau mot de passe</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                disabled={passwordLoading}
-                placeholder="••••••••"
-              />
-            </div>
+        {/* Password Section */}
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="bg-accent/30 border-b">
+            <CardTitle className="text-xl">Changer le mot de passe</CardTitle>
+            <CardDescription>
+              Le mot de passe doit contenir au moins 8 caractères, une minuscule, une majuscule et un caractère spécial
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handlePasswordChange} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword" className="text-sm font-semibold">Nouveau mot de passe</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  disabled={passwordLoading}
+                  placeholder="••••••••"
+                  className="bg-background"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={passwordLoading}
-                placeholder="••••••••"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold">Confirmer le mot de passe</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={passwordLoading}
+                  placeholder="••••••••"
+                  className="bg-background"
+                />
+              </div>
 
-            <Button type="submit" disabled={passwordLoading}>
-              {passwordLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Modifier le mot de passe
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" disabled={passwordLoading} className="shadow-sm">
+                {passwordLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Modifier le mot de passe
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
