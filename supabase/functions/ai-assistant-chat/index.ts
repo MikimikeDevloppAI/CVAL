@@ -588,21 +588,30 @@ serve(async (req) => {
               };
             }
 
+            // Nettoyer le nom en supprimant les titres
+            let cleanedSearchTerm = searchTerm
+              .replace(/^(docteur|doctoresse|dr\.?|dre\.?)\s+/i, '')
+              .trim();
+
             const medecins = allMedecins.filter(m => {
               const fullName = `${m.first_name} ${m.name}`.toLowerCase();
               const reverseName = `${m.name} ${m.first_name}`.toLowerCase();
-              return fullName.includes(searchTerm) ||
-                     reverseName.includes(searchTerm) ||
-                     m.first_name?.toLowerCase().includes(searchTerm) ||
-                     m.name?.toLowerCase().includes(searchTerm);
+              return fullName.includes(cleanedSearchTerm) ||
+                     reverseName.includes(cleanedSearchTerm) ||
+                     m.first_name?.toLowerCase().includes(cleanedSearchTerm) ||
+                     m.name?.toLowerCase().includes(cleanedSearchTerm);
             });
 
             if (medecins.length === 0) {
               // Essayer de suggérer des noms similaires
-              const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
-              if (suggestions.length > 0 && suggestions[0].distance <= 2) {
-                // Auto-sélectionner si très similaire (distance ≤ 2)
+              const suggestions = findSimilarPersons(cleanedSearchTerm, allMedecins, 3);
+              if (suggestions.length > 0 && suggestions[0].distance <= 4) {
+                // Auto-sélectionner si très similaire (distance ≤ 4)
                 console.log(`🎯 Auto-sélection du médecin similaire: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
+                medecins.push(suggestions[0].person);
+              } else if (suggestions.length === 1 && suggestions[0].distance <= 5) {
+                // Si une seule correspondance, même avec distance 5, l'utiliser
+                console.log(`🎯 Auto-sélection unique: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
                 medecins.push(suggestions[0].person);
               } else if (suggestions.length > 0 && suggestions[0].distance <= 5) {
                 const suggestionsList = suggestions.map(s => s.displayName).join(', ');
@@ -734,21 +743,30 @@ serve(async (req) => {
               };
             }
 
+            // Nettoyer le nom en supprimant les titres
+            let cleanedSearchTerm = searchTerm
+              .replace(/^(docteur|doctoresse|dr\.?|dre\.?)\s+/i, '')
+              .trim();
+
             const medecins = allMedecins.filter(m => {
               const fullName = `${m.first_name} ${m.name}`.toLowerCase();
               const reverseName = `${m.name} ${m.first_name}`.toLowerCase();
-              return fullName.includes(searchTerm) ||
-                     reverseName.includes(searchTerm) ||
-                     m.first_name?.toLowerCase().includes(searchTerm) ||
-                     m.name?.toLowerCase().includes(searchTerm);
+              return fullName.includes(cleanedSearchTerm) ||
+                     reverseName.includes(cleanedSearchTerm) ||
+                     m.first_name?.toLowerCase().includes(cleanedSearchTerm) ||
+                     m.name?.toLowerCase().includes(cleanedSearchTerm);
             });
 
             if (medecins.length === 0) {
               // Essayer de suggérer des noms similaires
-              const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
-              if (suggestions.length > 0 && suggestions[0].distance <= 2) {
-                // Auto-sélectionner si très similaire (distance ≤ 2)
+              const suggestions = findSimilarPersons(cleanedSearchTerm, allMedecins, 3);
+              if (suggestions.length > 0 && suggestions[0].distance <= 4) {
+                // Auto-sélectionner si très similaire (distance ≤ 4)
                 console.log(`🎯 Auto-sélection du médecin similaire: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
+                medecins.push(suggestions[0].person);
+              } else if (suggestions.length === 1 && suggestions[0].distance <= 5) {
+                // Si une seule correspondance, même avec distance 5, l'utiliser
+                console.log(`🎯 Auto-sélection unique: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
                 medecins.push(suggestions[0].person);
               } else if (suggestions.length > 0 && suggestions[0].distance <= 5) {
                 const suggestionsList = suggestions.map(s => s.displayName).join(', ');
@@ -824,7 +842,25 @@ serve(async (req) => {
 
             const typeIntervention = types[0];
 
-            // Retourner les données préparées
+            // Récupérer le site "Bloc opératoire"
+            const { data: blocSite, error: blocError } = await supabaseClient
+              .from('sites')
+              .select('id, nom')
+              .ilike('nom', '%bloc%opératoire%')
+              .eq('actif', true)
+              .single();
+
+            if (blocError || !blocSite) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: 'Le site "Bloc opératoire" n\'est pas configuré dans le système. Veuillez contacter l\'administrateur.' 
+                })
+              };
+            }
+
+            // Retourner les données préparées avec le site
             return {
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -836,7 +872,9 @@ serve(async (req) => {
                   date: args.date,
                   periode: args.period,
                   type_intervention_id: typeIntervention.id,
-                  type_intervention_name: typeIntervention.nom
+                  type_intervention_name: typeIntervention.nom,
+                  site_id: blocSite.id,
+                  site_name: blocSite.nom
                 }
               })
             };
@@ -1044,7 +1082,10 @@ Principes de communication CRITIQUES:
    - Pour créer un créneau médecin: utiliser prepare_creneau_medecin_creation
      * Exemples: "Crée un créneau pour Dr Dupont au Centre Esplanade vendredi matin", "Ajoute Docteur Martin à l'Hôpital Sud mercredi après-midi"
    - Pour créer une opération: utiliser prepare_operation_creation
-     * Exemples: "Crée une opération de type Cataracte pour Dr Leblanc mardi matin", "Ajoute une intervention de PTH pour Doctoresse Martin jeudi après-midi"
+     * RÈGLE CRITIQUE: Les opérations sont TOUJOURS créées au Bloc opératoire
+     * NE JAMAIS demander à l'utilisateur de préciser le site pour une opération
+     * Le tool prepare_operation_creation récupère automatiquement le site "Bloc opératoire"
+     * Exemples: "Crée une opération de type Cataracte pour Dr Leblanc mardi matin", "Ajoute une intervention de PTH pour Doctoresse Martin jeudi après-midi", "Planifie une cataracte demain après-midi pour le docteur Jacquier"
    - Pour créer un jour férié: utiliser prepare_jour_ferie_creation
      * Exemples: "Ajoute le 25 décembre comme jour férié", "Crée un jour férié pour Noël"
    - Interpréter les dates relatives ("vendredi", "la semaine prochaine", "du 15 au 20", etc.)

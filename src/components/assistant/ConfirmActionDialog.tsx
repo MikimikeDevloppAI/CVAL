@@ -61,6 +61,8 @@ interface OperationAction {
     type_intervention_name: string;
     date: string;
     periode: 'matin' | 'apres_midi';
+    site_id: string;
+    site_name: string;
   };
 }
 

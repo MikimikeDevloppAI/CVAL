@@ -254,14 +254,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
           if (deleteError) throw deleteError;
         }
 
-        // 3. Récupérer l'ID du site "Bloc opératoire"
-        const { data: blocSite } = await supabase
-          .from('sites')
-          .select('id')
-          .eq('nom', 'Clinique La Vallée - Bloc opératoire')
-          .single();
-
-        // 4. Créer le nouveau besoin effectif
+        // 3. Créer le nouveau besoin effectif (site_id vient du backend)
         const { error: insertError } = await supabase
           .from('besoin_effectif')
           .insert({
@@ -269,7 +262,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
             type_intervention_id: pendingAction.data.type_intervention_id,
             date: pendingAction.data.date,
             demi_journee: pendingAction.data.periode,
-            site_id: blocSite?.id,
+            site_id: pendingAction.data.site_id,
             type: 'medecin',
             actif: true
           });
