@@ -9,6 +9,7 @@ import { ChangeSalleDialog } from '@/components/planning/ChangeSalleDialog';
 import { DeleteOperationDialog } from '@/components/operations/DeleteOperationDialog';
 import { Button } from '@/components/ui/button';
 import { SecretaireActionsDialog } from '@/components/dashboard/SecretaireActionsDialog';
+import { AssignSecretaireOperationDialog } from '@/components/dashboard/AssignSecretaireOperationDialog';
 
 interface Besoin {
   nombre_requis: number;
@@ -58,6 +59,11 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
     nom: string;
     siteId: string;
     besoinOperationId: string;
+  } | null>(null);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedBesoinForAssign, setSelectedBesoinForAssign] = useState<{
+    id: string;
+    nom: string;
   } | null>(null);
 
   useEffect(() => {
@@ -247,8 +253,18 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                       </div>
                     ))}
                     {assigned.length === 0 && (
-                      <div className="px-3 py-1.5 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/20 text-xs text-muted-foreground italic">
-                        Aucun personnel assigné
+                      <div 
+                        className="px-3 py-1.5 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/20 text-xs text-muted-foreground italic cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
+                        onClick={() => {
+                          setSelectedBesoinForAssign({
+                            id: besoin.besoins_operations.id,
+                            nom: besoin.besoins_operations.nom
+                          });
+                          setAssignDialogOpen(true);
+                        }}
+                        title="Cliquer pour assigner une secrétaire"
+                      >
+                        Aucun personnel assigné - Cliquer pour assigner
                       </div>
                     )}
                   </div>
@@ -311,6 +327,24 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
             fetchBesoins();
             fetchAssignments();
             onRefresh?.();
+          }}
+        />
+      )}
+
+      {selectedBesoinForAssign && (
+        <AssignSecretaireOperationDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          date={operation.date}
+          periode={operation.periode}
+          besoinOperationId={selectedBesoinForAssign.id}
+          besoinOperationNom={selectedBesoinForAssign.nom}
+          planningBlocId={operation.id}
+          onSuccess={() => {
+            fetchBesoins();
+            fetchAssignments();
+            onRefresh?.();
+            setSelectedBesoinForAssign(null);
           }}
         />
       )}
