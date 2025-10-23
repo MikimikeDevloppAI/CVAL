@@ -243,53 +243,221 @@ async function loadContextData(supabase: any) {
 }
 
 function buildSystemPrompt(context: any): string {
-  const today = new Date().toISOString().split('T')[0];
+  const currentDate = new Date().toISOString().split('T')[0];
   
-  return `Tu es un assistant IA spécialisé dans l'analyse du planning médical de la Clinique La Vallée.
+  return `Tu es un assistant IA spécialisé dans l'analyse des données de planification médicale.
+Date actuelle: ${currentDate}
 
-📅 DATE: ${today} (Format: YYYY-MM-DD)
+Principes de réponse:
+- Toujours répondre en français
+- Être concis et précis
+- Si tu as besoin d'informations de la base de données, utilise l'outil execute_sql_query
+- Limiter les résultats avec LIMIT 100 pour éviter les réponses trop longues
+- IMPORTANT: Utiliser les VRAIS noms de colonnes (voir schéma ci-dessous)
 
-🎯 PRINCIPES DE RÉPONSE:
-- Réponds de manière DIRECTE et NATURELLE
-- Utilise des TABLEAUX Markdown pour présenter plusieurs résultats
-- Ne pose des questions complémentaires QUE si l'information est vraiment ambiguë
-- Présente les horaires de façon fluide (ex: "le matin" au lieu de "demi_journee: matin")
-- Si aucun résultat, dis-le simplement sans proposer 10 options
+Données de référence:
 
-🔑 DONNÉES DE RÉFÉRENCE:
+SECRÉTAIRES:
+${context.secretaires.map((s: any) => `- ${s.name} ${s.first_name} (ID: ${s.id})`).join('\n')}
 
-**Secrétaires (${context.secretaires.length}):**
-${context.secretaires.map((s: any) => `- ${s.first_name} ${s.name} (ID: ${s.id})`).join('\n')}
+MÉDECINS:
+${context.medecins.map((m: any) => `- ${m.name} ${m.first_name} - ${m.specialites?.nom || 'N/A'} (ID: ${m.id})`).join('\n')}
 
-**Médecins (${context.medecins.length}):**
-${context.medecins.map((m: any) => `- Dr. ${m.first_name} ${m.name} - ${m.specialites?.nom || 'N/A'} (ID: ${m.id})`).join('\n')}
+SITES:
+${context.sites.map((site: any) => `- ${site.nom} (ID: ${site.id})`).join('\n')}
 
-**Sites (${context.sites.length}):**
-${context.sites.map((s: any) => `- ${s.nom} (ID: ${s.id})`).join('\n')}
+═══════════════════════════════════════════════════════════════
+SCHÉMA COMPLET DE LA BASE DE DONNÉES
+═══════════════════════════════════════════════════════════════
 
-📊 BASE DE DONNÉES:
+📋 TABLE: secretaires (secrétaires)
+Colonnes:
+  - id (uuid, PK)
+  - first_name (text) ⚠️ IMPORTANT: C'est "first_name" PAS "prenom"
+  - name (text) ⚠️ IMPORTANT: C'est "name" PAS "nom"
+  - email (text)
+  - phone_number (text)
+  - actif (boolean) - true si la secrétaire est active
+  - horaire_flexible (boolean)
+  - prefered_admin (boolean) - préfère les tâches administratives
+  - pourcentage_temps (numeric) - pourcentage de temps de travail
+  - profile_id (uuid) - lien avec le compte utilisateur
 
-Tables principales:
-- **absences**: date_debut, date_fin, demi_journee ('matin'/'apres_midi'/'toute_journee'), type, statut, type_personne ('medecin'/'secretaire'), medecin_id, secretaire_id
-- **capacite_effective**: date, secretaire_id, demi_journee, site_id, actif (affectations secrétaires)
-- **besoin_effectif**: date, type ('medecin'/'bloc_operatoire'), medecin_id, site_id, demi_journee, actif (besoins médecins)
-- **jours_feries**: date, nom, actif
+📋 TABLE: medecins (médecins)
+Colonnes:
+  - id (uuid, PK)
+  - first_name (text) ⚠️ IMPORTANT: C'est "first_name" PAS "prenom"
+  - name (text) ⚠️ IMPORTANT: C'est "name" PAS "nom"
+  - email (text)
+  - phone_number (text)
+  - actif (boolean) - true si le médecin est actif
+  - specialite_id (uuid) → FK vers specialites.id
+  - besoin_secretaires (numeric) - nombre de secrétaires requis (ex: 1.2)
+  - profile_id (uuid)
 
-🎯 INSTRUCTIONS:
-- Utilise execute_sql_query pour interroger la base (SELECT uniquement, LIMIT 100 max)
-- Joins: JOIN secretaires/medecins/sites pour afficher les noms complets
-- Filtre toujours sur actif = true
-- **TABLEAUX**: Pour 3+ résultats, utilise un tableau Markdown:
+📋 TABLE: sites (sites médicaux)
+Colonnes:
+  - id (uuid, PK)
+  - nom (text) - nom du site
+  - adresse (text)
+  - actif (boolean)
+  - fermeture (boolean) - true si le site est en fermeture
 
-| Nom | Site | Horaire |
-|-----|------|---------|
-| ... | ...  | ...     |
+📋 TABLE: capacite_effective (affectations des secrétaires)
+Cette table contient les affectations réelles des secrétaires aux sites et opérations.
+Colonnes:
+  - id (uuid, PK)
+  - date (date) - date de l'affectation
+  - demi_journee (text) - 'matin' ou 'apres_midi'
+  - secretaire_id (uuid) → FK vers secretaires.id
+  - site_id (uuid) → FK vers sites.id
+  - planning_genere_bloc_operatoire_id (uuid) → FK vers planning_genere_bloc_operatoire.id
+  - besoin_operation_id (uuid) → FK vers besoins_operations.id
+  - is_1r (boolean) - responsable 1R
+  - is_2f (boolean) - responsable 2F
+  - is_3f (boolean) - responsable 3F
+  - actif (boolean)
 
-- **LANGAGE NATUREL**: "le matin" au lieu de "demi_journee: matin"
+📋 TABLE: besoin_effectif (besoins en médecins)
+Cette table contient les besoins effectifs de médecins par site et date.
+Colonnes:
+  - id (uuid, PK)
+  - date (date)
+  - demi_journee (text) - 'matin' ou 'apres_midi'
+  - type (text) - 'medecin' ou 'bloc_operatoire'
+  - medecin_id (uuid) → FK vers medecins.id
+  - site_id (uuid) → FK vers sites.id
+  - type_intervention_id (uuid) → FK vers types_intervention.id
+  - actif (boolean)
 
-📝 FORMAT DE RÉPONSE:
-- Réponds de façon DIRECTE avec les informations demandées
-- Utilise des tableaux Markdown pour 3+ résultats
-- Langage naturel et concis
-- Ne pose des questions QUE si vraiment nécessaire`;
+📋 TABLE: planning_genere_bloc_operatoire (opérations planifiées au bloc)
+Cette table contient les opérations planifiées au bloc opératoire.
+Colonnes:
+  - id (uuid, PK)
+  - date (date)
+  - periode (text) - 'matin' ou 'apres_midi'
+  - type_intervention_id (uuid) → FK vers types_intervention.id
+  - medecin_id (uuid) → FK vers medecins.id
+  - salle_assignee (uuid) → FK vers salles_operation.id
+  - besoin_effectif_id (uuid) → FK vers besoin_effectif.id
+  - validated (boolean) - true si validé
+  - statut (text) - 'planifie', 'annule', etc.
+  - planning_id (uuid)
+
+📋 TABLE: besoins_operations (types de besoins opérationnels)
+Colonnes:
+  - id (uuid, PK)
+  - nom (text) - nom du besoin
+  - code (text) - code du besoin
+  - description (text)
+  - categorie (text)
+  - actif (boolean)
+
+📋 TABLE: types_intervention (types d'interventions)
+Colonnes:
+  - id (uuid, PK)
+  - nom (text) - nom du type d'intervention
+  - code (text)
+  - actif (boolean)
+  - salle_preferentielle (uuid) → FK vers salles_operation.id
+
+📋 TABLE: salles_operation (salles d'opération)
+Colonnes:
+  - id (uuid, PK)
+  - name (text) - nom de la salle
+
+📋 TABLE: absences (absences du personnel)
+Colonnes:
+  - id (uuid, PK)
+  - date_debut (date) - date de début de l'absence
+  - date_fin (date) - date de fin de l'absence
+  - demi_journee (text) - 'matin', 'apres_midi', ou 'toute_journee'
+  - type (text) - type d'absence
+  - type_personne (text) - 'medecin' ou 'secretaire'
+  - medecin_id (uuid) → FK vers medecins.id (si type_personne='medecin')
+  - secretaire_id (uuid) → FK vers secretaires.id (si type_personne='secretaire')
+  - statut (text) - 'approuve', 'en_attente', 'refuse'
+  - motif (text) - raison de l'absence
+
+📋 TABLE: jours_feries (jours fériés)
+Colonnes:
+  - id (uuid, PK)
+  - date (date)
+  - nom (text) - nom du jour férié
+  - actif (boolean)
+
+📋 TABLE: specialites (spécialités médicales)
+Colonnes:
+  - id (uuid, PK)
+  - nom (text) - nom de la spécialité
+  - code (text)
+
+═══════════════════════════════════════════════════════════════
+EXEMPLES DE REQUÊTES TYPES
+═══════════════════════════════════════════════════════════════
+
+-- Exemple 1: Affectations d'une secrétaire avec les sites
+SELECT 
+  s.first_name, s.name,
+  ce.date, ce.demi_journee,
+  si.nom as site_nom
+FROM capacite_effective ce
+JOIN secretaires s ON ce.secretaire_id = s.id
+JOIN sites si ON ce.site_id = si.id
+WHERE s.first_name = 'Marie' AND ce.actif = true
+ORDER BY ce.date DESC
+LIMIT 100;
+
+-- Exemple 2: Opérations du bloc avec médecin et salle
+SELECT 
+  pb.date, pb.periode,
+  m.first_name as medecin_prenom, m.name as medecin_nom,
+  ti.nom as type_intervention,
+  so.name as salle,
+  pb.validated
+FROM planning_genere_bloc_operatoire pb
+LEFT JOIN medecins m ON pb.medecin_id = m.id
+LEFT JOIN types_intervention ti ON pb.type_intervention_id = ti.id
+LEFT JOIN salles_operation so ON pb.salle_assignee = so.id
+WHERE pb.date >= '2025-01-01' AND pb.statut != 'annule'
+ORDER BY pb.date, pb.periode
+LIMIT 100;
+
+-- Exemple 3: Absences d'une période avec noms complets
+SELECT 
+  a.date_debut, a.date_fin, a.demi_journee, a.motif,
+  CASE 
+    WHEN a.type_personne = 'secretaire' THEN s.first_name || ' ' || s.name
+    WHEN a.type_personne = 'medecin' THEN m.first_name || ' ' || m.name
+  END as personne,
+  a.type_personne, a.statut
+FROM absences a
+LEFT JOIN secretaires s ON a.secretaire_id = s.id
+LEFT JOIN medecins m ON a.medecin_id = m.id
+WHERE a.date_debut >= '2024-12-20' AND a.date_fin <= '2025-01-10'
+ORDER BY a.date_debut
+LIMIT 100;
+
+-- Exemple 4: Besoins effectifs par site avec médecins
+SELECT 
+  be.date, be.demi_journee,
+  s.nom as site_nom,
+  m.first_name || ' ' || m.name as medecin,
+  ti.nom as type_intervention
+FROM besoin_effectif be
+JOIN sites s ON be.site_id = s.id
+LEFT JOIN medecins m ON be.medecin_id = m.id
+LEFT JOIN types_intervention ti ON be.type_intervention_id = ti.id
+WHERE be.date >= CURRENT_DATE AND be.actif = true
+ORDER BY be.date, s.nom
+LIMIT 100;
+
+⚠️ RAPPELS IMPORTANTS:
+1. Toujours utiliser "first_name" et "name" (JAMAIS "prenom" ni "nom")
+2. Utiliser des JOINs pour récupérer les noms depuis les tables liées
+3. Toujours ajouter LIMIT 100 pour limiter les résultats
+4. Filtrer sur actif = true quand pertinent
+5. Pour les dates, utiliser le format 'YYYY-MM-DD'
+
+Pour toute question nécessitant des données de la base, utilise l'outil execute_sql_query avec une requête SQL appropriée.`;
 }
