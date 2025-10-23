@@ -27,12 +27,16 @@ function calculateNeeds(
   for (const besoin of besoins_effectifs) {
     if (besoin.date !== date || besoin.type !== 'medecin') continue;
     
+    const site = sites.find(s => s.id === besoin.site_id);
+    // Exclure les sites de type "bloc opératoire" des besoins site
+    const siteName = (site?.nom || '').toLowerCase();
+    if (siteName.includes('bloc')) continue;
+    
     const key = `${besoin.site_id}_${besoin.demi_journee}`;
     const medecin = medecins_map.get(besoin.medecin_id);
     if (!medecin) continue;
 
     if (!needsMap.has(key)) {
-      const site = sites.find(s => s.id === besoin.site_id);
       needsMap.set(key, {
         site_id: besoin.site_id,
         date,
@@ -221,11 +225,8 @@ serve(async (req) => {
       week_data.sites
     );
 
-    // Merge with admin needs
-    const admin_need = week_data.admin_needs.find(n => n.date === date);
-    if (admin_need) {
-      needs.push(admin_need);
-    }
+
+
 
     // Get current assignments BEFORE optimization
     const beforeAssignments = getCurrentAssignments(
@@ -234,6 +235,30 @@ serve(async (req) => {
       needs,
       week_data.secretaires
     );
+
+    // Compute residual maxima (prevent overfilling already satisfied sites)
+    console.log(`\n🧮 Calcul des maxima résiduels par site/période:`);
+    const beforeMap = new Map<string, number>();
+    for (const a of beforeAssignments) {
+      if (a.type === 'site' && a.site_id !== ADMIN_SITE_ID) {
+        const k = `${a.site_id}_${a.periode}`;
+        beforeMap.set(k, (beforeMap.get(k) || 0) + a.secretaires.length);
+      } else if (a.type === 'bloc_operatoire' && a.bloc_operation_id && a.besoin_operation_id) {
+        const k = `bloc_${a.bloc_operation_id}_${a.besoin_operation_id}_${a.periode}`;
+        beforeMap.set(k, (beforeMap.get(k) || 0) + a.secretaires.length);
+      }
+    }
+
+    for (const need of needs) {
+      const requis = Math.ceil(need.nombre_suggere);
+      const k = need.type === 'site'
+        ? `${need.site_id}_${need.periode}`
+        : `bloc_${need.bloc_operation_id}_${need.besoin_operation_id}_${need.periode}`;
+      const assignedBefore = beforeMap.get(k) || 0;
+      const residual = Math.max(0, requis - assignedBefore);
+      console.log(`  ${need.site_nom} ${need.periode}: requis=${requis}, avant=${assignedBefore}, max_residuel=${residual}`);
+      need.nombre_max = residual;
+    }
 
     // Get available capacities for optimization
     const capacites = week_data.capacites_effective.filter(c => c.date === date);

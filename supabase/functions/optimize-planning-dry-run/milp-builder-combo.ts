@@ -220,12 +220,26 @@ export function buildMILPModelCombo(
     const current = morningTotals.get(need.site_id) || 0;
     morningTotals.set(need.site_id, current + need.nombre_max);
   }
-  
+  // Logging morning site constraints
+  console.log(`\n🧱 Contraintes site (matin):`);
+  for (const [site_id, total] of morningTotals) {
+    const siteName = week_data.sites.find(s => s.id === site_id)?.nom || site_id;
+    const combosCount = combos.filter(c => c.needMatin && c.needMatin.type !== 'bloc_operatoire' && c.needMatin.site_id === site_id).length;
+    console.log(`  ${siteName} (max=${total}) - combos possibles: ${combosCount}`);
+  }
+
   // Aggregate afternoon site needs by site_id
   const afternoonTotals = new Map<string, number>();
   for (const need of needsAMSite) {
     const current = afternoonTotals.get(need.site_id) || 0;
     afternoonTotals.set(need.site_id, current + need.nombre_max);
+  }
+  // Logging afternoon site constraints
+  console.log(`\n🧱 Contraintes site (après-midi):`);
+  for (const [site_id, total] of afternoonTotals) {
+    const siteName = week_data.sites.find(s => s.id === site_id)?.nom || site_id;
+    const combosCount = combos.filter(c => c.needAM && c.needAM.type !== 'bloc_operatoire' && c.needAM.site_id === site_id).length;
+    console.log(`  ${siteName} (max=${total}) - combos possibles: ${combosCount}`);
   }
   
   // Create constraints for morning site totals (aggregated by site)
