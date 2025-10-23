@@ -25,6 +25,19 @@ interface AbsenceAction {
   };
 }
 
+interface AbsenceBatchAction {
+  type: 'absence_batch';
+  data: {
+    person_id: string;
+    person_name: string;
+    person_type: 'medecin' | 'secretaire';
+    type: 'conges' | 'maladie' | 'formation' | 'autre';
+    dates: string[];
+    demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
+    motif?: string;
+  };
+}
+
 interface JourFerieAction {
   type: 'jour_ferie';
   data: {
@@ -33,7 +46,7 @@ interface JourFerieAction {
   };
 }
 
-type PendingAction = AbsenceAction | JourFerieAction;
+type PendingAction = AbsenceAction | AbsenceBatchAction | JourFerieAction;
 
 interface ConfirmActionDialogProps {
   open: boolean;
@@ -86,10 +99,10 @@ export function ConfirmActionDialog({
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            {action.type === 'absence' ? (
+            {(action.type === 'absence' || action.type === 'absence_batch') ? (
               <>
                 <User className="h-5 w-5 text-primary" />
-                Confirmer la création de l'absence
+                Confirmer la création {action.type === 'absence_batch' ? 'des absences' : 'de l\'absence'}
               </>
             ) : (
               <>
@@ -104,7 +117,7 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
 
         <div className="space-y-4 py-4">
-          {action.type === 'absence' ? (
+          {(action.type === 'absence' || action.type === 'absence_batch') ? (
             <>
               <div className="flex items-start gap-3">
                 <User className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -133,12 +146,18 @@ export function ConfirmActionDialog({
                 <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium">Période</p>
-                  <p className="text-sm text-muted-foreground">
-                    Du {formatDate(action.data.date_debut)}
-                    {action.data.date_debut !== action.data.date_fin && (
-                      <> au {formatDate(action.data.date_fin)}</>
-                    )}
-                  </p>
+                  {action.type === 'absence_batch' ? (
+                    <p className="text-sm text-muted-foreground">
+                      {action.data.dates.length} jour{action.data.dates.length > 1 ? 's' : ''}, du {formatDate(action.data.dates[0])} au {formatDate(action.data.dates[action.data.dates.length - 1])}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Du {formatDate(action.data.date_debut)}
+                      {action.data.date_debut !== action.data.date_fin && (
+                        <> au {formatDate(action.data.date_fin)}</>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
 

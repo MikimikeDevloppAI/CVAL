@@ -300,22 +300,53 @@ serve(async (req) => {
               };
             }
 
+            // Générer la liste de toutes les dates si c'est une plage
+            const dates: string[] = [];
+            if (args.date_debut === args.date_fin) {
+              // Un seul jour
+              dates.push(args.date_debut);
+            } else {
+              // Plage de dates - générer tous les jours entre date_debut et date_fin inclus
+              const current = new Date(dateDebut);
+              const end = new Date(dateFin);
+              
+              while (current <= end) {
+                const year = current.getFullYear();
+                const month = String(current.getMonth() + 1).padStart(2, '0');
+                const day = String(current.getDate()).padStart(2, '0');
+                dates.push(`${year}-${month}-${day}`);
+                current.setDate(current.getDate() + 1);
+              }
+            }
+
+            console.log(`📅 Génération de ${dates.length} date(s) d'absence`);
+
+            // Si c'est une plage (plusieurs dates), retourner absence_batch
+            // Sinon, retourner absence (comportement actuel)
+            const actionType = dates.length > 1 ? 'absence_batch' : 'absence';
+            const responseData: any = {
+              person_id: person.id,
+              person_name: `${person.first_name} ${person.name}`,
+              person_type: args.person_type,
+              type: args.type,
+              demi_journee: args.period,
+              motif: args.motif || null
+            };
+
+            if (actionType === 'absence_batch') {
+              responseData.dates = dates;
+            } else {
+              responseData.date_debut = args.date_debut;
+              responseData.date_fin = args.date_fin;
+            }
+
             // Retourner les données préparées avec un marqueur spécial
             return {
               role: 'tool',
               tool_call_id: toolCall.id,
               content: JSON.stringify({ 
-                action_prepared: 'absence',
-                data: {
-                  person_id: person.id,
-                  person_name: `${person.first_name} ${person.name}`,
-                  person_type: args.person_type,
-                  type: args.type,
-                  date_debut: args.date_debut,
-                  date_fin: args.date_fin,
-                  demi_journee: args.period,
-                  motif: args.motif || null
-                }
+                action_prepared: actionType,
+                data: responseData
               })
             };
           }

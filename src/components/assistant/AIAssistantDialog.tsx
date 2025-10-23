@@ -165,6 +165,41 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         };
         setMessages(prev => [...prev, confirmMessage]);
 
+      } else if (pendingAction.type === 'absence_batch') {
+        // Créer une ligne par date
+        const rows = pendingAction.data.dates.map((date: string) => ({
+          [`${pendingAction.data.person_type}_id`]: pendingAction.data.person_id,
+          type_personne: pendingAction.data.person_type,
+          type: pendingAction.data.type,
+          date_debut: date,
+          date_fin: date,
+          demi_journee: pendingAction.data.demi_journee,
+          motif: pendingAction.data.motif,
+          statut: 'en_attente'
+        }));
+
+        const { error } = await supabase
+          .from('absences')
+          .insert(rows);
+
+        if (error) throw error;
+
+        const firstDate = new Date(pendingAction.data.dates[0]).toLocaleDateString('fr-FR');
+        const lastDate = new Date(pendingAction.data.dates[pendingAction.data.dates.length - 1]).toLocaleDateString('fr-FR');
+
+        toast({
+          title: "Absences créées",
+          description: `${pendingAction.data.dates.length} absences créées du ${firstDate} au ${lastDate} pour ${pendingAction.data.person_name}.`
+        });
+
+        // Ajouter un message de confirmation dans le chat
+        const confirmMessage: Message = {
+          role: 'assistant',
+          content: `✅ ${pendingAction.data.dates.length} absences ont été créées du ${firstDate} au ${lastDate} pour ${pendingAction.data.person_name}.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+
       } else if (pendingAction.type === 'jour_ferie') {
         const { error } = await supabase
           .from('jours_feries')
