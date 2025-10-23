@@ -9,6 +9,54 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper: calculer la distance de Levenshtein pour la similarité de chaînes
+function levenshteinDistance(str1: string, str2: string): number {
+  const s1 = str1.toLowerCase();
+  const s2 = str2.toLowerCase();
+  const costs: number[] = [];
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) {
+        costs[j] = j;
+      } else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+}
+
+// Helper: trouver les personnes similaires par distance de Levenshtein
+function findSimilarPersons(searchTerm: string, persons: any[], maxSuggestions = 3) {
+  return persons
+    .map(p => {
+      const fullName = `${p.first_name} ${p.name}`.toLowerCase();
+      const reverseName = `${p.name} ${p.first_name}`.toLowerCase();
+      const lastName = p.name?.toLowerCase() || '';
+      
+      const distances = [
+        levenshteinDistance(searchTerm, fullName),
+        levenshteinDistance(searchTerm, reverseName),
+        levenshteinDistance(searchTerm, lastName)
+      ];
+      
+      return {
+        person: p,
+        distance: Math.min(...distances),
+        displayName: `${p.first_name} ${p.name}`
+      };
+    })
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, maxSuggestions);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -329,6 +377,18 @@ serve(async (req) => {
             console.log(`🔍 Recherche "${searchTerm}" dans ${allPersons.length} personnes, ${persons.length} résultat(s)`);
 
             if (persons.length === 0) {
+              // Essayer de suggérer des noms similaires
+              const suggestions = findSimilarPersons(searchTerm, allPersons, 3);
+              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+                const suggestionsList = suggestions.map(s => s.displayName).join(', ');
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucune personne trouvée avec le nom "${args.person_name}". Vouliez-vous dire : ${suggestionsList} ?` 
+                  })
+                };
+              }
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
@@ -492,6 +552,18 @@ serve(async (req) => {
             });
 
             if (medecins.length === 0) {
+              // Essayer de suggérer des noms similaires
+              const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
+              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+                const suggestionsList = suggestions.map(s => s.displayName).join(', ');
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucun médecin trouvé avec le nom "${args.medecin_name}". Vouliez-vous dire : ${suggestionsList} ?` 
+                  })
+                };
+              }
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
@@ -611,6 +683,18 @@ serve(async (req) => {
             });
 
             if (medecins.length === 0) {
+              // Essayer de suggérer des noms similaires
+              const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
+              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+                const suggestionsList = suggestions.map(s => s.displayName).join(', ');
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucun médecin trouvé avec le nom "${args.medecin_name}". Vouliez-vous dire : ${suggestionsList} ?` 
+                  })
+                };
+              }
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
