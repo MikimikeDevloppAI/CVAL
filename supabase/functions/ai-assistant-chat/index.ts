@@ -4,6 +4,26 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
+// ═══════════════════════════════════════════════════════════════
+// LISTES MANUELLES À ÉDITER (prioritaires sur les listes dynamiques)
+// ═══════════════════════════════════════════════════════════════
+const MANUAL_PROMPT_APPEND = `
+SECRÉTAIRES (liste manuelle) :
+- À compléter manuellement si nécessaire
+- Exemple: Marie Dupont, Jean Martin, etc.
+
+MÉDECINS (liste manuelle) :
+- À compléter manuellement si nécessaire  
+- Exemple: Dr. Sophie Leblanc — Cardiologie
+
+SITES (liste manuelle) :
+- À compléter manuellement si nécessaire
+- Exemple: Centre Esplanade, Clinique La Vallée, etc.
+
+(Si cette section est vide, les listes dynamiques seront utilisées)
+`;
+// ═══════════════════════════════════════════════════════════════
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -106,14 +126,23 @@ serve(async (req) => {
         assistantMessage.tool_calls.map(async (toolCall: any) => {
           if (toolCall.function.name === 'execute_sql_query') {
             const args = JSON.parse(toolCall.function.arguments);
-            console.log('📊 Requête SQL:', args.query);
+            let sqlQuery = args.query;
+            
+            // Sécurité: s'assurer que la requête a LIMIT et pas de ;
+            sqlQuery = sqlQuery.replace(/;+\s*$/g, '').trim();
+            if (!sqlQuery.toLowerCase().match(/limit\s+\d+/i)) {
+              sqlQuery += ' LIMIT 100';
+              console.log('➕ LIMIT 100 ajouté à la requête');
+            }
+            
+            console.log('📊 Requête SQL:', sqlQuery);
             console.log('💡 Explication:', args.explanation);
             
             // Appeler l'edge function pour exécuter la requête
             const { data: sqlData, error: sqlError } = await supabaseClient.functions.invoke(
               'execute-sql-query',
               {
-                body: { query: args.query }
+                body: { query: sqlQuery }
               }
             );
 
@@ -122,7 +151,10 @@ serve(async (req) => {
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: JSON.stringify({ error: sqlError.message })
+                content: JSON.stringify({ 
+                  error: 'Erreur lors de la récupération des données. Explique à l\'utilisateur que les données n\'ont pas pu être récupérées et propose une solution alternative si possible.',
+                  details: sqlError.message 
+                })
               };
             }
 
@@ -169,7 +201,7 @@ serve(async (req) => {
       }
 
       const finalData = await finalResponse.json();
-      const finalMessage = finalData.choices?.[0]?.message?.content || '';
+      const finalMessage = finalData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.';
 
       console.log('✅ Réponse finale reçue');
 
@@ -288,6 +320,15 @@ Principes de communication CRITIQUES:
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
 
 Données de référence:
+
+═══════════════════════════════════════════════════════════════
+LISTES MANUELLES (prioritaires)
+═══════════════════════════════════════════════════════════════
+${MANUAL_PROMPT_APPEND}
+
+═══════════════════════════════════════════════════════════════
+LISTES DYNAMIQUES (chargées de la base de données)
+═══════════════════════════════════════════════════════════════
 
 SECRÉTAIRES:
 ${context.secretaires.map((s: any) => `- ${s.name} ${s.first_name} (ID: ${s.id})`).join('\n')}

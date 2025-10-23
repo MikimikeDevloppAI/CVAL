@@ -17,8 +17,14 @@ serve(async (req) => {
     console.log('📊 Requête SQL reçue:', query);
     
     // Sanitize la requête: enlever les point-virgules en fin de chaîne
-    const sanitizedQuery = query.replace(/;+\s*$/g, '').trim();
+    let sanitizedQuery = query.replace(/;+\s*$/g, '').trim();
     console.log('🧹 Requête sanitisée:', sanitizedQuery);
+    
+    // Auto-ajouter LIMIT 100 si absent
+    if (!sanitizedQuery.toLowerCase().match(/limit\s+\d+/i)) {
+      sanitizedQuery += ' LIMIT 100';
+      console.log('➕ LIMIT 100 ajouté automatiquement');
+    }
     
     // Validation stricte de sécurité
     if (!isValidReadOnlySQL(sanitizedQuery)) {
@@ -41,8 +47,8 @@ serve(async (req) => {
     // Exécuter la requête via la fonction RPC
     console.log('⚡ Exécution de la requête via RPC...');
     const { data: rpcData, error: rpcError } = await supabaseClient.rpc(
-      'execute_readonly_sql',
-      { query_text: sanitizedQuery }
+      'execute_read_query',
+      { query: sanitizedQuery }
     );
 
     if (rpcError) {
