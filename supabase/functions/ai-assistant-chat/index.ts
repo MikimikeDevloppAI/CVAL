@@ -76,7 +76,7 @@ serve(async (req) => {
           ],
           tools: tools,
           tool_choice: 'auto',
-          stream: true
+          stream: false
         }),
     });
 
@@ -86,64 +86,12 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error}`);
     }
 
-    // Parser le stream SSE pour détecter les tool_calls
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No reader available');
+    // Parser la réponse JSON
+    const data = await response.json();
+    const assistantMessage = data.choices?.[0]?.message;
     
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let assistantMessage: any = { role: 'assistant', content: '', tool_calls: [] };
-    let currentToolCall: any = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim() || line.startsWith(':')) continue;
-        if (!line.startsWith('data: ')) continue;
-        
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta;
-          
-          if (!delta) continue;
-
-          // Accumuler le contenu
-          if (delta.content) {
-            assistantMessage.content += delta.content;
-          }
-
-          // Détecter les tool_calls
-          if (delta.tool_calls) {
-            for (const tc of delta.tool_calls) {
-              if (tc.index !== undefined) {
-                if (!assistantMessage.tool_calls[tc.index]) {
-                  assistantMessage.tool_calls[tc.index] = {
-                    id: tc.id || '',
-                    type: tc.type || 'function',
-                    function: { name: '', arguments: '' }
-                  };
-                }
-                currentToolCall = assistantMessage.tool_calls[tc.index];
-                
-                if (tc.id) currentToolCall.id = tc.id;
-                if (tc.function?.name) currentToolCall.function.name = tc.function.name;
-                if (tc.function?.arguments) currentToolCall.function.arguments += tc.function.arguments;
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing SSE line:', e);
-        }
-      }
+    if (!assistantMessage) {
+      throw new Error('No assistant message in response');
     }
     
     console.log('📝 Réponse OpenAI reçue, tool_calls:', assistantMessage.tool_calls?.length || 0);
@@ -195,7 +143,7 @@ serve(async (req) => {
         })
       );
 
-      // Appeler à nouveau OpenAI avec tous les résultats en streaming
+      // Appeler à nouveau OpenAI avec tous les résultats
       const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -210,7 +158,7 @@ serve(async (req) => {
             assistantMessage,
             ...toolResults
           ],
-          stream: true
+          stream: false
         }),
       });
 
@@ -220,130 +168,34 @@ serve(async (req) => {
         throw new Error(`OpenAI API error: ${error}`);
       }
 
-      console.log('✅ Streaming de la réponse finale...');
+      const finalData = await finalResponse.json();
+      const finalMessage = finalData.choices?.[0]?.message?.content || '';
 
-      // Retourner le stream SSE directement
-      const stream = new ReadableStream({
-        async start(controller) {
-          const reader = finalResponse.body?.getReader();
-          if (!reader) {
-            controller.close();
-            return;
-          }
+      console.log('✅ Réponse finale reçue');
 
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
-
-              for (const line of lines) {
-                if (!line.trim() || line.startsWith(':')) continue;
-                if (!line.startsWith('data: ')) continue;
-                
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') {
-                  controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-                  continue;
-                }
-
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta?.content;
-                  
-                  if (delta) {
-                    controller.enqueue(
-                      new TextEncoder().encode(`data: ${JSON.stringify({ delta })}\n\n`)
-                    );
-                  }
-                } catch (e) {
-                  console.error('Error parsing SSE line:', e);
-                }
-              }
-            }
-          } finally {
-            controller.close();
+      return new Response(
+        JSON.stringify({ content: finalMessage }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
           }
         }
-      });
-
-      return new Response(stream, {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        }
-      });
+      );
     }
 
-    // Si pas de tool call, streamer directement la réponse
-    console.log('✅ Streaming de la réponse directe (sans requête SQL)');
+    // Si pas de tool call, retourner directement la réponse
+    console.log('✅ Réponse directe (sans requête SQL)');
     
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = response.body?.getReader();
-        if (!reader) {
-          controller.close();
-          return;
-        }
-
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (!line.trim() || line.startsWith(':')) continue;
-              if (!line.startsWith('data: ')) continue;
-              
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') {
-                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta?.content;
-                
-                if (delta) {
-                  controller.enqueue(
-                    new TextEncoder().encode(`data: ${JSON.stringify({ delta })}\n\n`)
-                  );
-                }
-              } catch (e) {
-                console.error('Error parsing SSE line:', e);
-              }
-            }
-          }
-        } finally {
-          controller.close();
+    return new Response(
+      JSON.stringify({ content: assistantMessage.content || '' }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         }
       }
-    });
-
-    return new Response(stream, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Erreur:', error);

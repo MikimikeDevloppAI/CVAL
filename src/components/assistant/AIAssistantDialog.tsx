@@ -55,75 +55,23 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         content: m.content
       }));
 
-      // Créer un message assistant vide pour le streaming
+      // Appeler l'edge function
+      const { data, error } = await supabase.functions.invoke('ai-assistant-chat', {
+        body: { messages: conversationMessages }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Créer le message assistant avec la réponse
       const assistantMessage: Message = {
         role: 'assistant',
-        content: '',
+        content: data.content || "Désolé, je n'ai pas pu générer de réponse.",
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, assistantMessage]);
-
-      // Utiliser fetch pour récupérer le stream SSE
-      const response = await fetch(
-        `https://xvuugxjseavbxpxhfprb.supabase.co/functions/v1/ai-assistant-chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ messages: conversationMessages })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Parser le stream SSE
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader available');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim() || line.startsWith(':')) continue;
-          if (!line.startsWith('data: ')) continue;
-
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.delta;
-
-            if (delta) {
-              // Mettre à jour le dernier message assistant
-              setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg?.role === 'assistant') {
-                  return [
-                    ...prev.slice(0, -1),
-                    { ...lastMsg, content: lastMsg.content + delta }
-                  ];
-                }
-                return prev;
-              });
-            }
-          } catch (e) {
-            console.error('Error parsing SSE:', e);
-          }
-        }
-      }
 
     } catch (error: any) {
       console.error('Erreur:', error);
