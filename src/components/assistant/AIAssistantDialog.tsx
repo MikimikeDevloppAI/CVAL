@@ -391,8 +391,8 @@ function MessageBubble({ message }: { message: Message }) {
       <div className={`flex flex-col gap-1.5 max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
         <Card className={`p-4 shadow-sm border transition-all ${
           isUser 
-            ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20' 
-            : 'bg-gradient-to-br from-background to-muted/30 border-border/50'
+            ? 'bg-white text-foreground border-border/50' 
+            : 'bg-white border-border/50'
         }`}>
           <div className={`text-sm prose prose-sm max-w-none leading-relaxed ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
             <ReactMarkdown
