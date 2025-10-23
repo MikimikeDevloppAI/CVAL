@@ -142,7 +142,7 @@ export const DryRunOptimizationDialog = ({
 
   // Calculate site satisfaction from result
   const siteSatisfaction = useMemo<SiteSatisfaction[]>(() => {
-    if (!result) return [];
+    if (!result || !result.before || !result.after) return [];
     
     const siteStats = new Map<string, SiteSatisfaction>();
     
