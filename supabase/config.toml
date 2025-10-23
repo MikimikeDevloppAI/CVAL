@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.ai-assistant-chat]
 verify_jwt = true
 
+[functions.ai-assistant-usage]
+verify_jwt = true
+
 [functions.execute-sql-query]
 verify_jwt = true
 

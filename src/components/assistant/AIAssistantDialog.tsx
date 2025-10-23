@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Send, Loader2, Bot, User, Trash2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Send, Loader2, Bot, User, Trash2, HelpCircle, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -22,11 +23,16 @@ interface AIAssistantDialogProps {
 }
 
 export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [mode, setMode] = useState<'planning' | 'usage'>('usage');
+  const [planningMessages, setPlanningMessages] = useState<Message[]>([]);
+  const [usageMessages, setUsageMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const messages = mode === 'planning' ? planningMessages : usageMessages;
+  const setMessages = mode === 'planning' ? setPlanningMessages : setUsageMessages;
 
   // Auto-scroll vers le bas quand de nouveaux messages arrivent
   useEffect(() => {
@@ -49,14 +55,16 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
     setIsLoading(true);
 
     try {
-      // Appeler l'edge function avec les 3 derniers messages
-      const conversationMessages = [...messages, userMessage].slice(-3).map(m => ({
-        role: m.role,
-        content: m.content
-      }));
+      const functionName = mode === 'planning' ? 'ai-assistant-chat' : 'ai-assistant-usage';
+      
+      // Pour le mode planning, envoyer les 3 derniers messages
+      // Pour le mode usage, envoyer tous les messages (contexte complet nécessaire)
+      const conversationMessages = mode === 'planning' 
+        ? [...messages, userMessage].slice(-3).map(m => ({ role: m.role, content: m.content }))
+        : [...messages, userMessage].map(m => ({ role: m.role, content: m.content }));
 
-      // Appeler l'edge function
-      const { data, error } = await supabase.functions.invoke('ai-assistant-chat', {
+      // Appeler l'edge function appropriée
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { messages: conversationMessages }
       });
 
@@ -67,7 +75,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
       // Créer le message assistant avec la réponse
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.content || "Désolé, je n'ai pas pu générer de réponse.",
+        content: data.message || data.content || "Désolé, je n'ai pas pu générer de réponse.",
         timestamp: new Date()
       };
       
@@ -101,24 +109,46 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   };
 
   const handleClearConversation = () => {
-    setMessages([]);
+    if (mode === 'planning') {
+      setPlanningMessages([]);
+    } else {
+      setUsageMessages([]);
+    }
     toast({
       title: "Conversation effacée",
       description: "L'historique de la conversation a été supprimé"
     });
   };
 
+  const getExampleQuestions = () => {
+    if (mode === 'usage') {
+      return [
+        "Comment créer un horaire de base pour un médecin ?",
+        "Comment fonctionne l'algorithme d'optimisation ?",
+        "Que se passe-t-il quand je déclare une absence ?",
+        "Comment générer un PDF du planning ?"
+      ];
+    } else {
+      return [
+        "Qui est en congé cette semaine ?",
+        "Où travaille Marie Dupont demain ?",
+        "Quels sont les jours fériés en octobre ?",
+        "Combien de secrétaires travaillent au Centre Esplanade vendredi ?"
+      ];
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Bot className="h-6 w-6 text-primary" />
               <div>
                 <DialogTitle>Assistant IA - Planning</DialogTitle>
                 <DialogDescription>
-                  Posez des questions sur les absences, les affectations et les horaires
+                  Posez vos questions sur l'utilisation ou les données
                 </DialogDescription>
               </div>
             </div>
@@ -133,22 +163,42 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
               </Button>
             )}
           </div>
+
+          <Tabs value={mode} onValueChange={(v) => setMode(v as 'planning' | 'usage')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="usage" className="flex items-center gap-2">
+                <HelpCircle className="h-4 w-4" />
+                <span className="text-sm">❓ Aide à l'utilisation</span>
+              </TabsTrigger>
+              <TabsTrigger value="planning" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                <span className="text-sm">📊 Questions sur le planning</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="text-xs text-muted-foreground px-3 py-2 bg-muted/30 rounded-md mt-3">
+            {mode === 'usage' ? (
+              <span>💡 Posez vos questions sur comment utiliser l'application, l'algorithme, etc.</span>
+            ) : (
+              <span>💡 Interrogez les données de votre planning (secrétaires, médecins, opérations, etc.)</span>
+            )}
+          </div>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6" ref={scrollRef}>
           <div className="space-y-4 py-4">
             {messages.length === 0 && (
               <Card className="p-6 bg-muted/50 border-dashed">
-                <p className="text-sm text-muted-foreground text-center">
+                <p className="text-sm text-muted-foreground text-center mb-3">
                   💬 Commencez la conversation en posant une question
                 </p>
                 <div className="mt-4 space-y-2 text-xs text-muted-foreground">
                   <p className="font-medium">Exemples de questions :</p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Qui est en congé cette semaine ?</li>
-                    <li>Où travaille Marie Dupont demain ?</li>
-                    <li>Quels sont les jours fériés en octobre ?</li>
-                    <li>Combien de secrétaires travaillent au Centre Esplanade vendredi ?</li>
+                    {getExampleQuestions().map((question, i) => (
+                      <li key={i}>{question}</li>
+                    ))}
                   </ul>
                 </div>
               </Card>
