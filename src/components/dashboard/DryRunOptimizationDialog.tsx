@@ -50,12 +50,14 @@ export const DryRunOptimizationDialog = ({
   onApply,
   isApplying
 }: DryRunOptimizationDialogProps) => {
+  const formattedDate = date ? format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr }) : 'Date non spécifiée';
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Optimisation Dry Run - {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
+            Optimisation Dry Run - {formattedDate}
           </DialogTitle>
         </DialogHeader>
 
