@@ -83,7 +83,7 @@ export function ExchangeSecretaireDialog({
       console.error('Error fetching available secretaires:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les secrétaires disponibles',
+        description: 'Impossible de charger les assistants médicaux disponibles',
         variant: 'destructive',
       });
     } finally {
@@ -95,7 +95,7 @@ export function ExchangeSecretaireDialog({
     if (!selectedSecretaireId) {
       toast({
         title: 'Erreur',
-        description: 'Veuillez sélectionner une secrétaire',
+        description: 'Veuillez sélectionner un assistant médical',
         variant: 'destructive',
       });
       return;
@@ -221,12 +221,12 @@ export function ExchangeSecretaireDialog({
               </div>
             ) : availableSecretaires.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                Aucune secrétaire disponible pour cet échange
+                Aucun assistant médical disponible pour cet échange
               </p>
             ) : (
               <Select value={selectedSecretaireId} onValueChange={setSelectedSecretaireId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une secrétaire" />
+                  <SelectValue placeholder="Sélectionner un assistant médical" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableSecretaires.map((sec) => {

@@ -54,7 +54,7 @@ export function SecretairesForBesoinDialog({
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Récupérer les secrétaires associées à ce besoin
+      // Récupérer les assistants médicaux associés à ce besoin
       const { data: besoinsData, error: besoinsError } = await supabase
         .from('secretaires_besoins_operations')
         .select(`
@@ -72,7 +72,7 @@ export function SecretairesForBesoinDialog({
       if (besoinsError) throw besoinsError;
       setSecretaireBesoins(besoinsData || []);
 
-      // Récupérer toutes les secrétaires actives
+      // Récupérer tous les assistants médicaux actifs
       const { data: secretairesData, error: secretairesError } = await supabase
         .from('secretaires')
         .select('id, name, first_name')
@@ -101,7 +101,7 @@ export function SecretairesForBesoinDialog({
     if (!selectedSecretaireId) {
       toast({
         title: 'Erreur',
-        description: 'Veuillez sélectionner une secrétaire',
+        description: 'Veuillez sélectionner un assistant médical',
         variant: 'destructive',
       });
       return;
@@ -120,7 +120,7 @@ export function SecretairesForBesoinDialog({
 
       toast({
         title: 'Succès',
-        description: 'Secrétaire ajoutée avec succès',
+        description: 'Assistant médical ajouté avec succès',
       });
 
       setSelectedSecretaireId('');
@@ -130,7 +130,7 @@ export function SecretairesForBesoinDialog({
       console.error('Erreur:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible d\'ajouter la secrétaire',
+        description: 'Impossible d\'ajouter l\'assistant médical',
         variant: 'destructive',
       });
     }
@@ -174,7 +174,7 @@ export function SecretairesForBesoinDialog({
 
       toast({
         title: 'Succès',
-        description: 'Secrétaire retirée avec succès',
+        description: 'Assistant médical retiré avec succès',
       });
 
       setDeleteId(null);
@@ -183,7 +183,7 @@ export function SecretairesForBesoinDialog({
       console.error('Erreur:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de retirer la secrétaire',
+        description: 'Impossible de retirer l\'assistant médical',
         variant: 'destructive',
       });
     }
@@ -196,15 +196,15 @@ export function SecretairesForBesoinDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Secrétaires pour {besoinOperationNom}
+              Assistants médicaux pour {besoinOperationNom}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Liste des secrétaires assignées */}
+            {/* Liste des assistants médicaux assignés */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">
-                Secrétaires assignées ({secretaireBesoins.length})
+                Assistants médicaux assignés ({secretaireBesoins.length})
               </h3>
               {loading ? (
                 <div className="text-center py-4 text-muted-foreground">Chargement...</div>
@@ -257,26 +257,26 @@ export function SecretairesForBesoinDialog({
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                  Aucune secrétaire assignée à ce besoin
+                  Aucun assistant médical assigné à ce besoin
                 </div>
               )}
             </div>
 
-            {/* Ajouter une nouvelle secrétaire */}
+            {/* Ajouter un nouvel assistant médical */}
             {availableSecretaires.length > 0 && (
               <div className="space-y-3 pt-4 border-t">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Ajouter une secrétaire
+                  Ajouter un assistant médical
                 </h3>
                 <div className="flex items-end gap-3">
                   <div className="flex-1 space-y-2">
-                    <label className="text-sm font-medium">Secrétaire</label>
+                    <label className="text-sm font-medium">Assistant médical</label>
                     <Select
                       value={selectedSecretaireId}
                       onValueChange={setSelectedSecretaireId}
                     >
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner une secrétaire" />
+                        <SelectValue placeholder="Sélectionner un assistant médical" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
                         {availableSecretaires.map((sec) => (
@@ -325,7 +325,7 @@ export function SecretairesForBesoinDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir retirer cette secrétaire de ce besoin ?
+              Êtes-vous sûr de vouloir retirer cet assistant médical de ce besoin ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -489,7 +489,7 @@ export const DryRunOptimizationDialog = ({
                     <table className="w-full">
                       <thead className="bg-muted/30 text-xs">
                         <tr>
-                          <th className="text-left p-2 font-medium">Secrétaire</th>
+                          <th className="text-left p-2 font-medium">Assistant médical</th>
                           <th className="text-left p-2 font-medium">Période</th>
                           <th className="text-left p-2 font-medium">Avant</th>
                           <th className="text-left p-2 font-medium">Après</th>

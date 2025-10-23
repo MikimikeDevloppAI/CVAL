@@ -126,7 +126,7 @@ export function SecretaireDayActionsDialog({
 
       toast({
         title: 'Succès',
-        description: 'Secrétaire retirée avec succès',
+        description: 'Assistant médical retiré avec succès',
       });
 
       handleSuccess();

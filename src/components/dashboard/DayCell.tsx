@@ -160,13 +160,13 @@ export const DayCell = ({ date, data, onOpenDetail, onSecretaireClick, onMedecin
         </div>
       )}
 
-      {/* Secrétaires Section */}
+      {/* Assistants médicaux Section */}
       <div className="cursor-pointer">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5 text-primary" />
             <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-              Secrétaires
+              Assistants médicaux
             </span>
           </div>
           {onAddSecretaire && (

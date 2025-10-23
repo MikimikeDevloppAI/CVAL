@@ -176,7 +176,7 @@ export function AddSecretaireToDayDialog({
     if (!selectedSecretaireId) {
       toast({
         title: 'Erreur',
-        description: 'Veuillez sélectionner une secrétaire',
+        description: 'Veuillez sélectionner un assistant médical',
         variant: 'destructive',
       });
       return;
@@ -195,7 +195,7 @@ export function AddSecretaireToDayDialog({
     if (existingAssignment && existingAssignment.length > 0) {
       toast({
         title: 'Erreur',
-        description: 'Cette secrétaire a déjà une assignation pour cette période',
+        description: 'Cet assistant médical a déjà une assignation pour cette période',
         variant: 'destructive',
       });
       return;
@@ -227,7 +227,7 @@ export function AddSecretaireToDayDialog({
 
       toast({
         title: 'Succès',
-        description: 'Secrétaire ajoutée avec succès',
+        description: 'Assistant médical ajouté avec succès',
       });
 
       onSuccess();
@@ -238,7 +238,7 @@ export function AddSecretaireToDayDialog({
       console.error('Error adding secretaire:', error);
       toast({
         title: 'Erreur',
-        description: error.message || 'Impossible d\'ajouter la secrétaire',
+        description: error.message || 'Impossible d\'ajouter l\'assistant médical',
         variant: 'destructive',
       });
     } finally {
@@ -253,16 +253,16 @@ export function AddSecretaireToDayDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
-            Ajouter une secrétaire
+            Ajouter un assistant médical
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez une secrétaire et la période pour ce jour
+            Sélectionnez un assistant médical et la période pour ce jour
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Secrétaire</Label>
+            <Label>Assistant médical</Label>
             <Popover open={comboOpen} onOpenChange={setComboOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -273,14 +273,14 @@ export function AddSecretaireToDayDialog({
                 >
                   {selectedSecretaire
                     ? `${selectedSecretaire.first_name} ${selectedSecretaire.name}`
-                    : "Sélectionner une secrétaire..."}
+                    : "Sélectionner un assistant médical..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0">
                 <Command>
-                  <CommandInput placeholder="Rechercher une secrétaire..." />
-                  <CommandEmpty>Aucune secrétaire trouvée.</CommandEmpty>
+                  <CommandInput placeholder="Rechercher un assistant médical..." />
+                  <CommandEmpty>Aucun assistant médical trouvé.</CommandEmpty>
                   <CommandGroup className="max-h-[300px] overflow-y-auto">
                     {secretaires.map((secretaire) => (
                       <CommandItem
@@ -316,7 +316,7 @@ export function AddSecretaireToDayDialog({
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Cette secrétaire a déjà une assignation pour cette période. Veuillez choisir une autre période.
+                  Cet assistant médical a déjà une assignation pour cette période. Veuillez choisir une autre période.
                 </AlertDescription>
               </Alert>
             )}

@@ -570,7 +570,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           }
         }
       } else {
-        // Pour site: identifier les secrétaires déjà assignées sur un site NON-ADMINISTRATIF
+        // Pour site: identifier les assistants médicaux déjà assignés sur un site NON-ADMINISTRATIF
         const { data: nonAdminAssignments } = await supabase
           .from('capacite_effective')
           .select('secretaire_id')
@@ -974,7 +974,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Créer une journée entière</h4>
             
-            {/* Dropdown pour sélectionner la secrétaire */}
+            {/* Dropdown pour sélectionner l'assistant médical */}
             <Select
               value={selectedSecretaire[needKey] || ""}
               onValueChange={(value) => {
@@ -987,7 +987,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
               }}
             >
               <SelectTrigger className="w-full bg-background">
-                <SelectValue placeholder="Sélectionner une secrétaire..." />
+                <SelectValue placeholder="Sélectionner un assistant médical..." />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
                 {loadingSuggestions.has(`${need.date}-fullday-${need.site_id}-site`) ? (
@@ -997,7 +997,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   </div>
                 ) : (
                   <>
-                {/* Secrétaires en administratif */}
+                {/* Assistants médicaux en administratif */}
                 {need.full_day_suggestions.suggestions_admin.length > 0 && (
                   <>
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
@@ -1011,7 +1011,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   </>
                 )}
                 
-                {/* Secrétaires non disponibles */}
+                {/* Assistants médicaux non disponibles */}
                 {need.full_day_suggestions.suggestions_not_working.length > 0 && (
                   <>
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
@@ -1119,7 +1119,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Assigner pour {periode === 'matin' ? 'le matin' : 'l\'après-midi'}</h4>
           
-          {/* Dropdown pour sélectionner la secrétaire */}
+          {/* Dropdown pour sélectionner l'assistant médical */}
           <Select
             value={selectedSecretaire[periodKey] || ""}
             onValueChange={(value) => {
@@ -1132,7 +1132,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             }}
           >
             <SelectTrigger className="w-full bg-background">
-              <SelectValue placeholder="Sélectionner une secrétaire..." />
+              <SelectValue placeholder="Sélectionner un assistant médical..." />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
               {loadingSuggestions.has(`${need.date}-${periode}-${need.site_id}-site`) ? (
@@ -1142,7 +1142,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 </div>
               ) : (
                 <>
-              {/* Secrétaires en administratif */}
+              {/* Assistants médicaux en administratif */}
               {periodData.suggestions_admin.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
@@ -1156,7 +1156,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 </>
               )}
               
-              {/* Secrétaires non disponibles */}
+              {/* Assistants médicaux non disponibles */}
               {periodData.suggestions_not_working.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">

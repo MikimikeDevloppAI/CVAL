@@ -276,17 +276,17 @@ export function BesoinsOperationsManagement() {
                   variant="ghost"
                   size="sm"
                   onClick={() => openSecretairesDialog(besoin)}
-                  title="Gérer les secrétaires"
+                  title="Gérer les assistants médicaux"
                 >
                   <Users className="h-4 w-4" />
                 </Button>
               </div>
             </div>
             
-            {/* Liste des secrétaires assignées */}
+            {/* Liste des assistants médicaux assignés */}
             {besoin.secretaires_besoins_operations && besoin.secretaires_besoins_operations.length > 0 && (
               <div className="pt-2 border-t">
-                <div className="text-xs text-muted-foreground mb-2">Secrétaires assignées:</div>
+                <div className="text-xs text-muted-foreground mb-2">Assistants médicaux assignés:</div>
                 <div className="flex flex-wrap gap-2">
                   {besoin.secretaires_besoins_operations
                     .sort((a, b) => a.preference - b.preference)
@@ -302,7 +302,7 @@ export function BesoinsOperationsManagement() {
         ))}
       </div>
 
-      {/* Dialog pour gérer les secrétaires d'un besoin */}
+      {/* Dialog pour gérer les assistants médicaux d'un besoin */}
       {selectedBesoinForSecretaires && (
         <SecretairesForBesoinDialog
           open={isSecretairesDialogOpen}

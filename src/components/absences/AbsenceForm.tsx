@@ -175,7 +175,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="medecin">Médecin</SelectItem>
-                  <SelectItem value="secretaire">Secrétaire</SelectItem>
+                  <SelectItem value="secretaire">Assistant médical</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

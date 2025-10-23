@@ -231,7 +231,7 @@ export function MedecinFormDialog({ medecin, onSuccess, onBack }: MedecinFormDia
               name="besoin_secretaires"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Besoin en secrétaires</FormLabel>
+                  <FormLabel>Besoin en assistants médicaux</FormLabel>
                   <FormControl>
                     <Input 
                       {...field} 

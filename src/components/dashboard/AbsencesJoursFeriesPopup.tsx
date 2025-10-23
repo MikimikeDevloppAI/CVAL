@@ -428,7 +428,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
                               </h4>
                               <div className="flex gap-2 flex-wrap">
                                 <Badge className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-cyan-500/20 text-xs">
-                                  {absence.type_personne === 'medecin' ? 'Médecin' : 'Secrétaire'}
+                                  {absence.type_personne === 'medecin' ? 'Médecin' : 'Assistant médical'}
                                 </Badge>
                                 <Badge className="bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20 border-red-500/20 text-xs">
                                   {getTypeLabel(absence.type)}

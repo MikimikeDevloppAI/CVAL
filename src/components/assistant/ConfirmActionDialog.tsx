@@ -164,7 +164,7 @@ export function ConfirmActionDialog({
                   <p className="text-sm text-muted-foreground">
                     {action.data.person_name}
                     <Badge variant="outline" className="ml-2 text-xs">
-                      {action.data.person_type === 'medecin' ? 'Médecin' : 'Secrétaire'}
+                      {action.data.person_type === 'medecin' ? 'Médecin' : 'Assistant médical'}
                     </Badge>
                   </p>
                 </div>

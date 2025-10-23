@@ -130,7 +130,7 @@ export function EditSecretaireAssignmentDialog({
   const fetchSites = async () => {
     const adminSiteId = '00000000-0000-0000-0000-000000000001';
     
-    // 1. Récupérer les sites de préférence de la secrétaire
+    // 1. Récupérer les sites de préférence de l'assistant médical
     const { data: preferencesData } = await supabase
       .from('secretaires_sites')
       .select('site_id, sites(id, nom)')
@@ -164,14 +164,14 @@ export function EditSecretaireAssignmentDialog({
       }
     }
 
-    // 4. Ajouter le bloc opératoire si la secrétaire a des besoins opératoires
+    // 4. Ajouter le bloc opératoire si l'assistant médical a des besoins opératoires
     const { data: besoinOps } = await supabase
       .from('secretaires_besoins_operations')
       .select('besoin_operation_id')
       .eq('secretaire_id', secretaire.id);
     
     if (besoinOps && besoinOps.length > 0) {
-      // La secrétaire a des besoins opératoires, on peut ajouter le bloc opératoire
+      // L'assistant médical a des besoins opératoires, on peut ajouter le bloc opératoire
       const { data: blocSite } = await supabase
         .from('sites')
         .select('id, nom')
@@ -243,7 +243,7 @@ export function EditSecretaireAssignmentDialog({
       const operationsWithNeeds: OperationWithNeed[] = [];
 
       for (const op of filteredOps) {
-        // Récupérer le nombre de secrétaires requis pour ce type d'intervention
+        // Récupérer le nombre d'assistants médicaux requis pour ce type d'intervention
         const { data: besoinsData } = await supabase
           .from('types_intervention_besoins_personnel')
           .select('nombre_requis, besoin_operation_id, besoins_operations(nom)')
@@ -265,7 +265,7 @@ export function EditSecretaireAssignmentDialog({
             ? (periode === 'journee' ? 'matin' : periode)
             : op.periode;
           
-          // Compter les secrétaires assignées POUR CE BESOIN SPÉCIFIQUE
+          // Compter les assistants médicaux assignés POUR CE BESOIN SPÉCIFIQUE
           const { data: assignedData } = await supabase
             .from('capacite_effective')
             .select('id')
@@ -360,7 +360,7 @@ export function EditSecretaireAssignmentDialog({
 
     setLoading(true);
     try {
-      // 1. Récupérer les capacités existantes pour cette secrétaire à cette date
+      // 1. Récupérer les capacités existantes pour cet assistant médical à cette date
       const { data: existingCapacites } = await supabase
         .from('capacite_effective')
         .select('id, demi_journee')
@@ -440,7 +440,7 @@ export function EditSecretaireAssignmentDialog({
             Modifier l'assignation
           </DialogTitle>
           <DialogDescription>
-            Secrétaire : {secretaire.nom}
+            Assistant médical : {secretaire.nom}
           </DialogDescription>
         </DialogHeader>
 

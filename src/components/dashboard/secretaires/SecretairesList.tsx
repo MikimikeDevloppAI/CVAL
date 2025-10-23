@@ -50,10 +50,10 @@ export function SecretairesList({
       <div className="text-center py-12">
         <p className="text-muted-foreground">
           {searchTerm 
-            ? "Aucune secrétaire ne correspond à votre recherche"
-            : showInactive 
-              ? "Aucune secrétaire inactive"
-              : "Aucune secrétaire active"
+            ? "Aucun assistant médical ne correspond à votre recherche"
+            : showInactive
+              ? "Aucun assistant médical inactif"
+              : "Aucun assistant médical actif"
           }
         </p>
       </div>

@@ -67,7 +67,7 @@ export function AssignSecretaireOperationDialog({
   const fetchSecretaires = async () => {
     setFetchingData(true);
     try {
-      // Récupérer les secrétaires éligibles pour ce besoin opératoire
+      // Récupérer les assistants médicaux éligibles pour ce besoin opératoire
       const { data: eligibleSecretaires, error: eligibleError } = await supabase
         .from('secretaires_besoins_operations')
         .select(`
@@ -101,7 +101,7 @@ export function AssignSecretaireOperationDialog({
 
       if (capacitesError) throw capacitesError;
 
-      // Récupérer toutes les secrétaires actives
+      // Récupérer toutes les assistants médicaux actifs
       const { data: allSecretaires, error: allError } = await supabase
         .from('secretaires')
         .select('id, first_name, name')
@@ -109,10 +109,10 @@ export function AssignSecretaireOperationDialog({
 
       if (allError) throw allError;
 
-      // Construire la liste des secrétaires avec leur statut
+      // Construire la liste des assistants médicaux avec leur statut
       const secretairesList: Secretaire[] = [];
 
-      // Secrétaires éligibles pour ce besoin
+      // Assistants médicaux éligibles pour ce besoin
       const eligibleIds = new Set(
         eligibleSecretaires
           ?.filter(es => es.secretaires)
@@ -120,11 +120,11 @@ export function AssignSecretaireOperationDialog({
       );
 
       for (const sec of allSecretaires || []) {
-        // Vérifier si la secrétaire a une capacité pour cette période
+        // Vérifier si l'assistant médical a une capacité pour cette période
         const capacite = capacites?.find(c => c.secretaire_id === sec.id);
 
         if (capacite) {
-          // Secrétaire déjà assignée
+          // Assistant médical déjà assigné
           if (capacite.site_id === '00000000-0000-0000-0000-000000000001') {
             // Administratif
             secretairesList.push({
@@ -134,7 +134,7 @@ export function AssignSecretaireOperationDialog({
               status: 'available_admin',
             });
           } else {
-            // Assignée ailleurs
+            // Assigné ailleurs
             let existingInfo = capacite.sites?.nom || 'Site inconnu';
             if (capacite.besoin_operation_id && capacite.besoins_operations) {
               existingInfo = capacite.besoins_operations.nom;
@@ -149,7 +149,7 @@ export function AssignSecretaireOperationDialog({
             });
           }
         } else if (eligibleIds.has(sec.id)) {
-          // Secrétaire éligible mais ne travaille pas ce jour
+          // Assistant médical éligible mais ne travaille pas ce jour
           secretairesList.push({
             id: sec.id,
             first_name: sec.first_name,
@@ -174,7 +174,7 @@ export function AssignSecretaireOperationDialog({
       console.error('Error fetching secretaires:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les secrétaires',
+        description: 'Impossible de charger les assistants médicaux',
         variant: 'destructive',
       });
     } finally {
@@ -186,7 +186,7 @@ export function AssignSecretaireOperationDialog({
     if (!selectedSecretaireId) {
       toast({
         title: 'Erreur',
-        description: 'Veuillez sélectionner une secrétaire',
+        description: 'Veuillez sélectionner un assistant médical',
         variant: 'destructive',
       });
       return;
@@ -227,7 +227,7 @@ export function AssignSecretaireOperationDialog({
 
         toast({
           title: 'Succès',
-          description: 'Secrétaire assignée avec succès',
+          description: 'Assistant médical assigné avec succès',
         });
       } else {
         // Mettre à jour la capacité existante
@@ -247,8 +247,8 @@ export function AssignSecretaireOperationDialog({
         toast({
           title: 'Succès',
           description: selectedSecretaire.status === 'assigned_elsewhere'
-            ? 'Secrétaire réassignée avec succès'
-            : 'Secrétaire assignée avec succès',
+            ? 'Assistant médical réassigné avec succès'
+            : 'Assistant médical assigné avec succès',
         });
       }
 
@@ -259,7 +259,7 @@ export function AssignSecretaireOperationDialog({
       console.error('Error assigning secretaire:', error);
       toast({
         title: 'Erreur',
-        description: error.message || 'Impossible d\'assigner la secrétaire',
+        description: error.message || 'Impossible d\'assigner l\'assistant médical',
         variant: 'destructive',
       });
     } finally {
@@ -285,9 +285,9 @@ export function AssignSecretaireOperationDialog({
         );
       case 'assigned_elsewhere':
         return (
-          <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
             <AlertCircle className="h-3 w-3 mr-1" />
-            Déjà assignée
+            Déjà assigné
           </Badge>
         );
     }
@@ -300,7 +300,7 @@ export function AssignSecretaireOperationDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="bg-gradient-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">
-            Assigner une secrétaire
+            Assigner un assistant médical
           </DialogTitle>
           <DialogDescription>
             {besoinOperationNom} - {periode === 'matin' ? 'Matin' : 'Après-midi'}
@@ -315,11 +315,11 @@ export function AssignSecretaireOperationDialog({
           ) : (
             <>
               <div className="space-y-2">
-                <Label>Secrétaire</Label>
+                <Label>Assistant médical</Label>
                 <Command className="border rounded-lg">
-                  <CommandInput placeholder="Rechercher une secrétaire..." />
+                  <CommandInput placeholder="Rechercher un assistant médical..." />
                   <CommandList>
-                    <CommandEmpty>Aucune secrétaire trouvée.</CommandEmpty>
+                    <CommandEmpty>Aucun assistant médical trouvé.</CommandEmpty>
                     <CommandGroup className="max-h-[300px] overflow-y-auto">
                       {secretaires.map((secretaire) => (
                         <CommandItem
@@ -363,7 +363,7 @@ export function AssignSecretaireOperationDialog({
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Cette secrétaire ne travaille pas ce jour. Un créneau sera automatiquement créé.
+                    Cet assistant médical ne travaille pas ce jour. Un créneau sera automatiquement créé.
                   </AlertDescription>
                 </Alert>
               )}
@@ -372,7 +372,7 @@ export function AssignSecretaireOperationDialog({
                 <Alert className="border-orange-500/20 bg-orange-500/5">
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertDescription className="text-orange-600">
-                    Cette secrétaire sera retirée de son assignation actuelle ({selectedSecretaire.existing_besoin || selectedSecretaire.existing_site}) et réassignée ici.
+                    Cet assistant médical sera retiré de son assignation actuelle ({selectedSecretaire.existing_besoin || selectedSecretaire.existing_site}) et réassigné ici.
                   </AlertDescription>
                 </Alert>
               )}

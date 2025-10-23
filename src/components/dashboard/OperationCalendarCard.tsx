@@ -262,7 +262,7 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                           });
                           setAssignDialogOpen(true);
                         }}
-                        title="Cliquer pour assigner une secrétaire"
+                        title="Cliquer pour assigner un assistant médical"
                       >
                         Aucun personnel assigné - Cliquer pour assigner
                       </div>

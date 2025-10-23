@@ -559,7 +559,7 @@ export function SecretaireCard({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Confirmer la désactivation</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Êtes-vous sûr de vouloir passer cette secrétaire en inactif ?
+                      Êtes-vous sûr de vouloir passer cet assistant médical en inactif ?
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

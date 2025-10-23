@@ -110,7 +110,7 @@ export function DayDetailDialog({
         setMedecins(Array.from(medecinsMap.values()));
       }
 
-      // Fetch secrétaires
+      // Fetch assistants médicaux
       const capaciteQuery = supabase
         .from('capacite_effective')
         .select('*, secretaires(id, first_name, name)')
@@ -194,7 +194,7 @@ export function DayDetailDialog({
 
       toast({
         title: 'Succès',
-        description: `${deleteItem.type === 'medecin' ? 'Médecin' : 'Secrétaire'} retiré(e) avec succès`,
+        description: `${deleteItem.type === 'medecin' ? 'Médecin' : 'Assistant médical'} retiré(e) avec succès`,
       });
 
       fetchData();
@@ -320,12 +320,12 @@ export function DayDetailDialog({
                 </div>
               </div>
 
-              {/* Secrétaires Section */}
+              {/* Assistants médicaux Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-teal-600" />
-                    <h3 className="text-lg font-semibold">Secrétaires</h3>
+                    <h3 className="text-lg font-semibold">Assistants médicaux</h3>
                     <Badge variant="secondary">{secretaires.length}</Badge>
                   </div>
                   <Button
@@ -341,7 +341,7 @@ export function DayDetailDialog({
                 <div className="grid gap-2">
                   {secretaires.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      Aucune secrétaire pour ce jour
+                      Aucun assistant médical pour ce jour
                     </p>
                   ) : (
                     secretaires.map((secretaire) => (
@@ -463,7 +463,7 @@ export function DayDetailDialog({
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
               Êtes-vous sûr de vouloir retirer{' '}
-              {deleteItem?.type === 'medecin' ? 'ce médecin' : 'cette secrétaire'} de ce jour ?
+              {deleteItem?.type === 'medecin' ? 'ce médecin' : 'cet assistant médical'} de ce jour ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

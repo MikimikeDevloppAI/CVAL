@@ -349,7 +349,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         "Qui est en congé cette semaine ?",
         "Où travaille Marie Dupont demain ?",
         "Quels sont les jours fériés en octobre ?",
-        "Combien de secrétaires travaillent au Centre Esplanade vendredi ?"
+        "Combien d'assistants médicaux travaillent au Centre Esplanade vendredi ?"
       ];
     }
   };
@@ -410,7 +410,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
             {mode === 'usage' ? (
               <span>Posez vos questions sur comment utiliser l'application, l'algorithme, etc.</span>
             ) : (
-              <span>Interrogez les données de votre planning (secrétaires, médecins, opérations, etc.)</span>
+              <span>Interrogez les données de votre planning (assistants médicaux, médecins, opérations, etc.)</span>
             )}
           </div>
         </div>
