@@ -26,8 +26,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { AIAssistantDialog } from '@/components/assistant/AIAssistantDialog';
-import { GlobalCalendarView } from '@/components/secretaires/GlobalCalendarView';
-import { GlobalMedecinCalendarView } from '@/components/medecins/GlobalMedecinCalendarView';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -41,8 +39,6 @@ export const Sidebar = () => {
   const { signOut, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
-  const [secretaireCalendarOpen, setSecretaireCalendarOpen] = useState(false);
-  const [medecinCalendarOpen, setMedecinCalendarOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
@@ -135,35 +131,6 @@ export const Sidebar = () => {
             </ul>
           )}
         </div>
-
-        {/* Calendriers section */}
-        {canManage && (
-          <div className="mt-6 pt-6 border-t border-sidebar-border border-opacity-30">
-            <div className="px-3 mb-2">
-              <span className="text-xs font-semibold text-sidebar-foreground/70">Calendriers</span>
-            </div>
-            <ul className="space-y-1">
-              <li>
-                <button
-                  onClick={() => { setSecretaireCalendarOpen(true); onLinkClick?.(); }}
-                  className="w-full group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent"
-                >
-                  <User className="h-4 w-4 shrink-0 transition-colors text-sidebar-foreground group-hover:text-sidebar-primary-foreground" />
-                  Secrétaires
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => { setMedecinCalendarOpen(true); onLinkClick?.(); }}
-                  className="w-full group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent"
-                >
-                  <Stethoscope className="h-4 w-4 shrink-0 transition-colors text-sidebar-foreground group-hover:text-sidebar-primary-foreground" />
-                  Médecins
-                </button>
-              </li>
-            </ul>
-          </div>
-        )}
 
         {/* Admin section */}
         {isAdmin && (
@@ -274,16 +241,6 @@ export const Sidebar = () => {
       <AIAssistantDialog 
         open={aiAssistantOpen} 
         onOpenChange={setAiAssistantOpen} 
-      />
-
-      <GlobalCalendarView
-        open={secretaireCalendarOpen}
-        onOpenChange={setSecretaireCalendarOpen}
-      />
-
-      <GlobalMedecinCalendarView
-        open={medecinCalendarOpen}
-        onOpenChange={setMedecinCalendarOpen}
       />
     </div>
   );

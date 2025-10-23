@@ -221,11 +221,11 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
   const getColorForPeriod = (demiJournee: string) => {
     switch (demiJournee) {
       case 'toute_journee':
-        return 'bg-blue-100 border-blue-300 text-blue-800';
+        return 'bg-green-100 border-green-300 text-green-800';
       case 'matin':
-        return 'bg-amber-100 border-amber-300 text-amber-800';
+        return 'bg-blue-100 border-blue-300 text-blue-800';
       case 'apres_midi':
-        return 'bg-purple-100 border-purple-300 text-purple-800';
+        return 'bg-yellow-100 border-yellow-300 text-yellow-800';
       default:
         return 'bg-gray-100 border-gray-300 text-gray-800';
     }
@@ -235,13 +235,13 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
     let label = '';
     switch (demiJournee) {
       case 'toute_journee':
-        label = 'J';
+        label = 'Toute la journée';
         break;
       case 'matin':
-        label = 'AM';
+        label = 'Matin';
         break;
       case 'apres_midi':
-        label = 'PM';
+        label = 'Après-midi';
         break;
       default:
         label = '';
@@ -439,9 +439,9 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
               const periods = dayBesoins.map(b => {
                 let periodStr = '';
                 switch (b.demi_journee) {
-                  case 'toute_journee': periodStr = 'Journée'; break;
+                  case 'toute_journee': periodStr = 'Toute la journée'; break;
                   case 'matin': periodStr = 'Matin'; break;
-                  case 'apres_midi': periodStr = 'AM'; break;
+                  case 'apres_midi': periodStr = 'Après-midi'; break;
                 }
                 if (b.types_intervention?.nom) {
                   periodStr += ` (${b.types_intervention.nom})`;
@@ -590,6 +590,50 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                           const isWeekendDay = isWeekend(dayInfo);
                           const isHolidayDay = isHoliday(day);
 
+                          // Regrouper matin et après-midi si les deux sont présents ET même site
+                          const hasMatin = besoinsDay.some(b => b.demi_journee === 'matin');
+                          const hasApresMidi = besoinsDay.some(b => b.demi_journee === 'apres_midi');
+                          const besoinsToDisplay = [];
+
+                          if (hasMatin && hasApresMidi) {
+                            const matinBesoin = besoinsDay.find(b => b.demi_journee === 'matin');
+                            const apresMidiBesoin = besoinsDay.find(b => b.demi_journee === 'apres_midi');
+                            
+                            // Fusionner uniquement si même site
+                            if (matinBesoin?.site_id === apresMidiBesoin?.site_id) {
+                              besoinsToDisplay.push({
+                                id: 'merged',
+                                demi_journee: 'toute_journee',
+                                sites: matinBesoin?.sites,
+                                types_intervention: matinBesoin?.types_intervention,
+                                site_id: matinBesoin?.site_id,
+                                besoinIds: [matinBesoin.id, apresMidiBesoin.id]
+                              });
+                            } else {
+                              // Sites différents, afficher séparément
+                              if (matinBesoin) {
+                                besoinsToDisplay.push({
+                                  ...matinBesoin,
+                                  besoinIds: [matinBesoin.id]
+                                });
+                              }
+                              if (apresMidiBesoin) {
+                                besoinsToDisplay.push({
+                                  ...apresMidiBesoin,
+                                  besoinIds: [apresMidiBesoin.id]
+                                });
+                              }
+                            }
+                          } else {
+                            // Afficher les périodes séparément
+                            besoinsDay.forEach(besoin => {
+                              besoinsToDisplay.push({
+                                ...besoin,
+                                besoinIds: [besoin.id]
+                              });
+                            });
+                          }
+
                           return (
                             <div
                               key={index}
@@ -601,43 +645,43 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                                   : 'bg-card'
                               }`}
                             >
-                              {besoinsDay.length > 0 ? (
-                                <div className="flex flex-col h-full">
-                                  {besoinsDay.map((besoin) => (
+                              {besoinsToDisplay.length > 0 ? (
+                                <div className="flex flex-col h-full relative">
+                                  {besoinsToDisplay.map((besoin) => (
                                     <div
                                       key={besoin.id}
-                                      className={`text-[8px] flex-1 w-full relative group/badge leading-none text-center flex items-center justify-center ${getColorForPeriod(
+                                      className={`text-[8px] flex-1 w-full leading-none text-center flex items-center justify-center ${getColorForPeriod(
                                         besoin.demi_journee
                                       )}`}
                                       title={`${besoin.sites?.nom}${besoin.types_intervention?.nom ? ' - ' + besoin.types_intervention.nom : ''}`}
                                     >
-                                      <div className="truncate font-semibold">
+                                      <div className="truncate font-semibold px-1">
                                         {getPeriodLabel(besoin.demi_journee, besoin.types_intervention?.nom)}
                                       </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="absolute top-0 right-0 h-4 w-4 p-0 opacity-0 group-hover/badge:opacity-100 transition-opacity bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-sm"
-                                        onClick={() => {
-                                          const periodLabel = besoin.demi_journee === 'toute_journee' 
-                                            ? 'Journée' 
-                                            : besoin.demi_journee === 'matin' 
-                                            ? 'Matin' 
-                                            : 'Après-midi';
-                                          setDeleteConfirmation({ 
-                                            open: true, 
-                                            besoinId: besoin.id,
-                                            medecinName: `${medecin.first_name} ${medecin.name}`,
-                                            date: format(new Date(besoin.date), 'dd/MM/yyyy', { locale: fr }),
-                                            period: periodLabel
-                                          });
-                                        }}
-                                        disabled={loading}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
                                     </div>
                                   ))}
+                                  <button
+                                    className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer disabled:opacity-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const firstBesoin = besoinsToDisplay[0];
+                                      const periodLabel = firstBesoin.demi_journee === 'toute_journee' 
+                                        ? 'Toute la journée' 
+                                        : firstBesoin.demi_journee === 'matin' 
+                                        ? 'Matin' 
+                                        : 'Après-midi';
+                                      setDeleteConfirmation({ 
+                                        open: true, 
+                                        besoinId: firstBesoin.besoinIds[0],
+                                        medecinName: `${medecin.first_name} ${medecin.name}`,
+                                        date: format(new Date(dateStr), 'dd/MM/yyyy', { locale: fr }),
+                                        period: periodLabel
+                                      });
+                                    }}
+                                    disabled={loading}
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
                                 </div>
                               ) : (
                                 <Button
@@ -684,7 +728,7 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                   <SelectContent>
                     <SelectItem value="matin">Matin</SelectItem>
                     <SelectItem value="apres_midi">Après-midi</SelectItem>
-                    <SelectItem value="toute_journee">Journée complète</SelectItem>
+                    <SelectItem value="toute_journee">Toute la journée</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

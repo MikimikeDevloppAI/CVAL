@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, CalendarDays } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { useMedecins, Medecin } from './useMedecins';
 import { MedecinsList } from './MedecinsList';
 import { MedecinFormDialog } from './MedecinFormDialog';
 import { MedecinCalendarDialog } from './MedecinCalendarDialog';
+import { GlobalMedecinCalendarView } from '@/components/medecins/GlobalMedecinCalendarView';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
 interface MedecinsPopupProps {
@@ -21,6 +22,7 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
   const [selectedMedecin, setSelectedMedecin] = useState<Medecin | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [calendarMedecin, setCalendarMedecin] = useState<{ id: string; nom: string } | null>(null);
+  const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
   
   const { medecins, loading, fetchMedecins, toggleStatus } = useMedecins();
   const { canManage } = useCanManagePlanning();
@@ -54,6 +56,7 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
     setShowForm(false);
     setSelectedMedecin(null);
     setSearchTerm('');
+    setGlobalCalendarOpen(false);
     onOpenChange(false);
   };
 
@@ -103,13 +106,23 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
                     </div>
 
                     {canManage && (
-                      <Button 
-                        onClick={handleAdd}
-                        className="gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Ajouter un médecin
-                      </Button>
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setGlobalCalendarOpen(true)}
+                          className="gap-2 border-cyan-200/50 hover:bg-cyan-50 dark:hover:bg-cyan-950/20"
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                          Calendrier Global
+                        </Button>
+                        <Button 
+                          onClick={handleAdd}
+                          className="gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Ajouter un médecin
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -148,6 +161,12 @@ export function MedecinsPopup({ open, onOpenChange }: MedecinsPopupProps) {
           medecinNom={calendarMedecin.nom}
         />
       )}
+
+      {/* Global Calendar Dialog */}
+      <GlobalMedecinCalendarView 
+        open={globalCalendarOpen} 
+        onOpenChange={setGlobalCalendarOpen}
+      />
     </>
   );
 }
