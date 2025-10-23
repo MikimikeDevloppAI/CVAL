@@ -395,10 +395,95 @@ serve(async (req) => {
       }))
     );
 
-    // Write to dry_run table if improvement found
-    if (afterUnsatisfied < beforeUnsatisfied) {
-      console.log(`  ✅ AMÉLIORATION: ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`);
-      console.log(`✅ Écriture des changements dans capacite_effective_dry_run...`);
+    // Build records for dry-run to show proposed changes
+    // Helper to find existing capacite by secretaire + date + period only
+    const findExistingCap = (secretaireId: string, demiJournee: string) => {
+      return capacites.find(c => 
+        c.secretaire_id === secretaireId &&
+        c.date === date &&
+        c.demi_journee === demiJournee
+      );
+    };
+
+    // Build records for ONLY changed assignments
+    const dryRunRecords: any[] = [];
+    
+    for (const combo of selectedCombosDedup) {
+      // Morning
+      if (combo.needMatin) {
+        const existingCap = findExistingCap(combo.secretaire_id, 'matin');
+        
+        if (existingCap) {
+          const proposedSiteId = combo.needMatin.site_id;
+          const proposedBesoinOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.besoin_operation_id : null;
+          const proposedBlocOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.bloc_operation_id : null;
+          
+          // Check if there's a change
+          const hasChange = 
+            existingCap.site_id !== proposedSiteId ||
+            existingCap.besoin_operation_id !== proposedBesoinOpId ||
+            existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
+          
+          if (hasChange) {
+            dryRunRecords.push({
+              capacite_effective_id: existingCap.id,
+              secretaire_id: combo.secretaire_id,
+              date,
+              demi_journee: 'matin',
+              site_id: proposedSiteId,
+              besoin_operation_id: proposedBesoinOpId,
+              planning_genere_bloc_operatoire_id: proposedBlocOpId,
+              is_1r: false,
+              is_2f: false,
+              is_3f: false,
+              actif: true
+            });
+          }
+        }
+      }
+
+      // Afternoon
+      if (combo.needAM) {
+        const existingCap = findExistingCap(combo.secretaire_id, 'apres_midi');
+        
+        if (existingCap) {
+          const proposedSiteId = combo.needAM.site_id;
+          const proposedBesoinOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.besoin_operation_id : null;
+          const proposedBlocOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.bloc_operation_id : null;
+          
+          // Check if there's a change
+          const hasChange = 
+            existingCap.site_id !== proposedSiteId ||
+            existingCap.besoin_operation_id !== proposedBesoinOpId ||
+            existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
+          
+          if (hasChange) {
+            dryRunRecords.push({
+              capacite_effective_id: existingCap.id,
+              secretaire_id: combo.secretaire_id,
+              date,
+              demi_journee: 'apres_midi',
+              site_id: proposedSiteId,
+              besoin_operation_id: proposedBesoinOpId,
+              planning_genere_bloc_operatoire_id: proposedBlocOpId,
+              is_1r: false,
+              is_2f: false,
+              is_3f: false,
+              actif: true
+            });
+          }
+        }
+      }
+    }
+
+    // Write to dry_run table if there are changes to show
+    if (dryRunRecords.length > 0) {
+      if (afterUnsatisfied < beforeUnsatisfied) {
+        console.log(`  ✅ AMÉLIORATION: ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`);
+      } else if (afterUnsatisfied === beforeUnsatisfied) {
+        console.log(`  ℹ️  Même nombre de besoins non satisfaits, mais ${dryRunRecords.length} réorganisation(s) proposée(s)`);
+      }
+      console.log(`✅ Écriture de ${dryRunRecords.length} changement(s) dans capacite_effective_dry_run...`);
 
       // Clear existing dry_run data for this date
       await supabase
@@ -406,99 +491,18 @@ serve(async (req) => {
         .delete()
         .eq('date', date);
 
-      // Helper to find existing capacite by secretaire + date + period only
-      const findExistingCap = (secretaireId: string, demiJournee: string) => {
-        return capacites.find(c => 
-          c.secretaire_id === secretaireId &&
-          c.date === date &&
-          c.demi_journee === demiJournee
-        );
-      };
+      const { error: insertError } = await supabase
+        .from('capacite_effective_dry_run')
+        .insert(dryRunRecords);
 
-      // Build records for ONLY changed assignments
-      const dryRunRecords: any[] = [];
-      
-      for (const combo of selectedCombosDedup) {
-        // Morning
-        if (combo.needMatin) {
-          const existingCap = findExistingCap(combo.secretaire_id, 'matin');
-          
-          if (existingCap) {
-            const proposedSiteId = combo.needMatin.site_id;
-            const proposedBesoinOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.besoin_operation_id : null;
-            const proposedBlocOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.bloc_operation_id : null;
-            
-            // Check if there's a change
-            const hasChange = 
-              existingCap.site_id !== proposedSiteId ||
-              existingCap.besoin_operation_id !== proposedBesoinOpId ||
-              existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
-            
-            if (hasChange) {
-              dryRunRecords.push({
-                capacite_effective_id: existingCap.id,
-                secretaire_id: combo.secretaire_id,
-                date,
-                demi_journee: 'matin',
-                site_id: proposedSiteId,
-                besoin_operation_id: proposedBesoinOpId,
-                planning_genere_bloc_operatoire_id: proposedBlocOpId,
-                is_1r: false,
-                is_2f: false,
-                is_3f: false,
-                actif: true
-              });
-            }
-          }
-        }
-
-        // Afternoon
-        if (combo.needAM) {
-          const existingCap = findExistingCap(combo.secretaire_id, 'apres_midi');
-          
-          if (existingCap) {
-            const proposedSiteId = combo.needAM.site_id;
-            const proposedBesoinOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.besoin_operation_id : null;
-            const proposedBlocOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.bloc_operation_id : null;
-            
-            // Check if there's a change
-            const hasChange = 
-              existingCap.site_id !== proposedSiteId ||
-              existingCap.besoin_operation_id !== proposedBesoinOpId ||
-              existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
-            
-            if (hasChange) {
-              dryRunRecords.push({
-                capacite_effective_id: existingCap.id,
-                secretaire_id: combo.secretaire_id,
-                date,
-                demi_journee: 'apres_midi',
-                site_id: proposedSiteId,
-                besoin_operation_id: proposedBesoinOpId,
-                planning_genere_bloc_operatoire_id: proposedBlocOpId,
-                is_1r: false,
-                is_2f: false,
-                is_3f: false,
-                actif: true
-              });
-            }
-          }
-        }
+      if (insertError) {
+        console.error('❌ Erreur insertion dry_run:', insertError);
+        throw insertError;
       }
-
-      if (dryRunRecords.length > 0) {
-        const { error: insertError } = await supabase
-          .from('capacite_effective_dry_run')
-          .insert(dryRunRecords);
-
-        if (insertError) {
-          console.error('❌ Erreur insertion dry_run:', insertError);
-          throw insertError;
-        }
-        console.log(`✅ ${dryRunRecords.length} changements écrits dans capacite_effective_dry_run`);
-      } else {
-        console.log(`ℹ️ Aucun changement détecté, dry_run vide`);
-      }
+      console.log(`✅ ${dryRunRecords.length} changements écrits dans capacite_effective_dry_run`);
+    } else {
+      console.log(`ℹ️ Aucun changement détecté, dry_run vide`);
+    }
       
       return new Response(
         JSON.stringify({
@@ -522,34 +526,6 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    } else {
-      console.log(`  ⚠️ Aucune amélioration trouvée`);
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: afterUnsatisfied === beforeUnsatisfied 
-            ? `Situation maintenue (${afterUnsatisfied} besoins non satisfaits)`
-            : `Dégradation : ${afterUnsatisfied - beforeUnsatisfied} besoin(s) non satisfait(s) en plus`,
-          before: {
-            total_unmet: beforeUnsatisfied,
-            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
-            assignments: beforeAssignments
-          },
-          after: {
-            total_unmet: afterUnsatisfied,
-            assignments_count: afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
-            assignments: afterAssignments
-          },
-          improvement: {
-            unmet_diff: afterUnsatisfied - beforeUnsatisfied,
-            assignment_changes: changes.length,
-            score_improvement: solution.result || 0
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
   } catch (error) {
     const err = error as Error;
