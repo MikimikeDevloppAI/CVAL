@@ -328,13 +328,18 @@ L'algorithme d'optimisation utilise une **méthode MILP** (programmation linéai
      - **1R** : Première responsable
      - **2F** : Deuxième responsable pour fermeture
 
-### 🚀 Lancer l'optimisation
+### 🚀 Lancer l'optimisation pour répartir les secrétaires
 
-1. Aller dans le **Dashboard**
-2. Cliquer sur "**Lancer l'optimisation pour les secrétaires flexibles**"
-3. L'algorithme calcule et assigne automatiquement les assistants médicaux de manière optimale
+1. Aller dans le menu **"Planning"** (barre supérieure)
+2. Cliquer sur le bouton pour lancer l'optimisation
+3. Une fenêtre s'ouvre pour vous demander de **remplir manuellement le nombre de jours** où les secrétaires avec **horaire flexible** doivent être rajoutées
+4. Valider pour lancer l'algorithme
+5. L'algorithme calcule et assigne automatiquement les assistants médicaux de manière optimale
 
-⚠️ **Seules les secrétaires avec "Horaire flexible" activé sont réorganisées par l'optimisation.**
+⚠️ **Important :**
+- **Seules les secrétaires avec "Horaire flexible" activé** sont réorganisées par l'optimisation
+- Vous devez indiquer manuellement combien de jours supplémentaires chaque secrétaire flexible doit travailler
+- Les secrétaires sans horaire flexible restent sur leurs horaires de base
 
 ---
 
