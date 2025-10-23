@@ -33,6 +33,37 @@ function levenshteinDistance(str1: string, str2: string): number {
   return costs[s2.length];
 }
 
+// Helper: générer le contexte temporel dynamique
+function generateTemporalContext(): string {
+  const now = new Date();
+  const daysOfWeek = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
+                  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  
+  // Date actuelle avec jour de la semaine
+  const currentDayName = daysOfWeek[now.getDay()];
+  const currentDay = now.getDate();
+  const currentMonth = months[now.getMonth()];
+  const currentYear = now.getFullYear();
+  
+  let context = `Date et heure actuelles: ${currentDayName} ${currentDay} ${currentMonth} ${currentYear}\n\n`;
+  context += "CALENDRIER DES 14 PROCHAINS JOURS:\n";
+  
+  // Générer les 14 prochains jours avec leur jour de la semaine et date ISO
+  for (let i = 1; i <= 14; i++) {
+    const futureDate = new Date(now);
+    futureDate.setDate(now.getDate() + i);
+    const dayName = daysOfWeek[futureDate.getDay()];
+    const dateISO = futureDate.toISOString().split('T')[0];
+    const day = futureDate.getDate();
+    const month = months[futureDate.getMonth()];
+    
+    context += `  ${dayName} ${day} ${month} ${currentYear} → ${dateISO}\n`;
+  }
+  
+  return context;
+}
+
 // Helper: trouver les personnes similaires par distance de Levenshtein
 function findSimilarPersons(searchTerm: string, persons: any[], maxSuggestions = 3) {
   return persons
@@ -959,10 +990,11 @@ async function loadContextData(supabase: any) {
 }
 
 function buildSystemPrompt(context: any): string {
-  const currentDate = new Date().toISOString().split('T')[0];
+  const temporalContext = generateTemporalContext();
   
   return `Tu es un assistant IA spécialisé dans l'analyse des plannings médicaux d'une clinique.
-Date actuelle: ${currentDate}
+
+${temporalContext}
 
 Principes de communication CRITIQUES:
 1. LANGAGE NATUREL UNIQUEMENT:
@@ -1019,17 +1051,35 @@ Principes de communication CRITIQUES:
    - Si la période (matin/après-midi) n'est pas précisée, utiliser "toute_journee" par défaut pour absences et créneaux
    - NE PAS poser de questions de clarification si les valeurs par défaut sont raisonnables
    - Appeler directement le tool et laisser l'utilisateur confirmer ou annuler via le dialog
-   - IMPORTANT: Ces tools ne créent RIEN dans la base, ils préparent juste les données pour validation
-   - Après l'appel du tool, NE PAS demander de confirmation dans le message, car le dialog de confirmation s'affichera automatiquement
-   - Message après préparation: "Je prépare [l'action] pour [résumé rapide]." (le dialog s'ouvrira automatiquement)
-    
-6. COMPORTEMENT PROACTIF:
+    - IMPORTANT: Ces tools ne créent RIEN dans la base, ils préparent juste les données pour validation
+    - Après l'appel du tool, NE PAS demander de confirmation dans le message, car le dialog de confirmation s'affichera automatiquement
+    - Message après préparation: "Je prépare [l'action] pour [résumé rapide]." (le dialog s'ouvrira automatiquement)
+
+6. INTERPRÉTATION DES DATES RELATIVES - RÈGLES CRITIQUES:
+   - TOUJOURS se référer au calendrier ci-dessus pour interpréter les dates relatives
+   - NE JAMAIS calculer toi-même une date, UNIQUEMENT utiliser le calendrier fourni
+   
+   Exemples d'interprétation (basés sur le calendrier ci-dessus):
+   - "demain" → chercher la date du jour suivant dans le calendrier
+   - "lundi" ou "lundi prochain" → chercher le prochain lundi dans le calendrier
+   - "cette semaine" → du jour actuel jusqu'au dimanche qui suit
+   - "la semaine prochaine" → du lundi suivant jusqu'au dimanche d'après
+   - "dans 3 jours" → compter 3 jours dans le calendrier
+   
+   Si l'utilisateur dit "lundi" et qu'on est déjà lundi:
+   - Prendre le lundi de la semaine suivante (le prochain lundi dans le calendrier)
+   
+   En cas de doute sur l'interprétation d'une date relative:
+   - Demander clarification à l'utilisateur avec les options du calendrier
+   - Exemple: "Voulez-vous dire lundi 28 octobre ou lundi 4 novembre ?"
+     
+7. COMPORTEMENT PROACTIF:
    - NE PAS poser trop de questions de clarification
    - Faire une interprétation raisonnable de la demande et exécuter la requête
    - L'utilisateur reposera une question s'il n'est pas satisfait de la réponse
    - Privilégier l'action plutôt que la validation
 
-7. FORMAT DES RÉPONSES:
+8. FORMAT DES RÉPONSES:
    - Présenter les résultats de manière claire et lisible
    - Regrouper par personne plutôt que par jour si c'est plus lisible
    - Simplifier: si matin + après-midi = dire "journée entière"
@@ -1037,13 +1087,13 @@ Principes de communication CRITIQUES:
    - Ne mentionner la limite de 100 lignes QUE si elle est atteinte (exemple: "Attention, seules les 100 premières lignes sont affichées")
    - Utiliser des tableaux markdown bien formatés avec des en-têtes clairs
    
-8. TABLEAUX MARKDOWN:
+9. TABLEAUX MARKDOWN:
    - Utiliser le format markdown avec alignement
    - Exemples de bonnes en-têtes: "Date", "Personne", "Site", "Période" (pas "demi_journee")
    - Simplifier les rôles: is_1r = "Responsable 1R", is_2f = "Responsable 2F", etc.
    - Si aucun rôle spécial, ne rien afficher
    
-9. TECHNIQUES:
+10. TECHNIQUES:
    - Limiter les résultats avec LIMIT 100
    - IMPORTANT: Utiliser les VRAIS noms de colonnes (voir schéma ci-dessous)
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
