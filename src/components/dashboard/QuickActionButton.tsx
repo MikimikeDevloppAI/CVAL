@@ -62,23 +62,8 @@ export const QuickActionButton = ({ label, icon, href, onClick, gradient, count 
             <p className="text-sm font-medium text-foreground">
               {label}
             </p>
-            {count !== undefined && count > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {count} {count > 1 ? 'éléments' : 'élément'}
-              </p>
-            )}
           </div>
         </div>
-
-        {/* Count Badge */}
-        {count !== undefined && count > 0 && (
-          <Badge
-            variant="secondary"
-            className="ml-2 font-semibold"
-          >
-            {count}
-          </Badge>
-        )}
       </div>
     </button>
   );
