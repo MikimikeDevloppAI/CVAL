@@ -403,25 +403,25 @@ function generatePlanningHTML(
     if (assignment.is3F) badges.push('<span class="badge badge-3f">3F</span>');
 
     if (assignment.type === 'bloc') {
-      const parts: string[] = [];
+      const lines: string[] = [];
       
-      if (assignment.typeIntervention) {
-        parts.push(assignment.typeIntervention);
+      if (assignment.salle) {
+        lines.push(`Salle ${assignment.salle}`);
       }
       
       if (assignment.medecin) {
-        parts.push(`Dr ${assignment.medecin}`);
+        lines.push(`Médecin : Dr ${assignment.medecin}`);
       }
       
-      if (assignment.salle) {
-        parts.push(assignment.salle);
+      if (assignment.typeIntervention) {
+        lines.push(`Type d'intervention : ${assignment.typeIntervention}`);
       }
       
       if (assignment.typeBesoinBloc) {
-        parts.push(assignment.typeBesoinBloc);
+        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
       }
       
-      return parts.join(' - ') + (badges.length > 0 ? ' ' + badges.join(' ') : '');
+      return lines.join('<br>') + (badges.length > 0 ? '<br>' + badges.join(' ') : '');
     } else if (assignment.type === 'administratif') {
       return '<span class="text-admin">Administratif</span>' + (badges.length > 0 ? ' ' + badges.join(' ') : '');
     } else {
@@ -660,7 +660,7 @@ function generatePlanningHTML(
     
     .assignment-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
       padding: 8px;
       margin-bottom: 6px;
@@ -684,14 +684,17 @@ function generatePlanningHTML(
     }
     
     .period-label {
-      font-weight: 600;
+      font-weight: 400;
       min-width: 100px;
       font-size: 13px;
+      padding-right: 12px;
+      border-right: 1px solid rgba(0, 0, 0, 0.1);
     }
     
     .assignment-content {
       flex: 1;
       font-size: 13px;
+      line-height: 1.6;
     }
     
     .badge {
