@@ -3,9 +3,6 @@ project_id = "xvuugxjseavbxpxhfprb"
 [functions.generate-planning-pdf]
 verify_jwt = false
 
-[functions.validate-planning]
-verify_jwt = false
-
 [functions.assign-closing-responsibles]
 verify_jwt = false
 
