@@ -405,6 +405,10 @@ function generatePlanningHTML(
     if (assignment.type === 'bloc') {
       const lines: string[] = [];
       
+      if (assignment.typeBesoinBloc) {
+        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
+      }
+      
       if (assignment.salle) {
         lines.push(`Salle ${assignment.salle}`);
       }
@@ -415,10 +419,6 @@ function generatePlanningHTML(
       
       if (assignment.typeIntervention) {
         lines.push(`Type d'intervention : ${assignment.typeIntervention}`);
-      }
-      
-      if (assignment.typeBesoinBloc) {
-        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
       }
       
       return lines.join('<br>') + (badges.length > 0 ? '<br>' + badges.join(' ') : '');
@@ -660,8 +660,8 @@ function generatePlanningHTML(
     
     .assignment-row {
       display: flex;
-      align-items: flex-start;
-      gap: 12px;
+      align-items: center;
+      gap: 0;
       padding: 8px;
       margin-bottom: 6px;
       border-radius: 6px;
@@ -687,14 +687,18 @@ function generatePlanningHTML(
       font-weight: 400;
       min-width: 100px;
       font-size: 13px;
-      padding-right: 12px;
+      padding: 8px 12px;
+      margin: -8px 0;
       border-right: 1px solid rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
     }
     
     .assignment-content {
       flex: 1;
       font-size: 13px;
       line-height: 1.6;
+      padding-left: 12px;
     }
     
     .badge {
