@@ -231,19 +231,50 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         setMessages(prev => [...prev, confirmMessage]);
 
       } else if (pendingAction.type === 'operation') {
-        // Créer une opération au bloc opératoire
-        const { error } = await supabase
-          .from('planning_genere_bloc_operatoire')
+        // Créer un besoin effectif pour une opération au bloc opératoire
+        
+        // 1. Vérifier s'il existe déjà un besoin effectif pour ce médecin/date/période
+        const { data: existingBesoin, error: checkError } = await supabase
+          .from('besoin_effectif')
+          .select('id')
+          .eq('medecin_id', pendingAction.data.medecin_id)
+          .eq('date', pendingAction.data.date)
+          .eq('demi_journee', pendingAction.data.periode)
+          .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        // 2. Si existe, le supprimer d'abord
+        if (existingBesoin) {
+          const { error: deleteError } = await supabase
+            .from('besoin_effectif')
+            .delete()
+            .eq('id', existingBesoin.id);
+
+          if (deleteError) throw deleteError;
+        }
+
+        // 3. Récupérer l'ID du site "Bloc opératoire"
+        const { data: blocSite } = await supabase
+          .from('sites')
+          .select('id')
+          .eq('nom', 'Clinique La Vallée - Bloc opératoire')
+          .single();
+
+        // 4. Créer le nouveau besoin effectif
+        const { error: insertError } = await supabase
+          .from('besoin_effectif')
           .insert({
             medecin_id: pendingAction.data.medecin_id,
             type_intervention_id: pendingAction.data.type_intervention_id,
             date: pendingAction.data.date,
-            periode: pendingAction.data.periode,
-            statut: 'planifie',
-            validated: false
+            demi_journee: pendingAction.data.periode,
+            site_id: blocSite?.id,
+            type: 'medecin',
+            actif: true
           });
 
-        if (error) throw error;
+        if (insertError) throw insertError;
 
         const dateFormatted = new Date(pendingAction.data.date).toLocaleDateString('fr-FR');
         
