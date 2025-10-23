@@ -1280,6 +1280,7 @@ export type Database = {
         Returns: undefined
       }
       execute_read_query: { Args: { query: string }; Returns: Json }
+      execute_readonly_sql: { Args: { query_text: string }; Returns: Json }
       generate_besoin_effectif: { Args: never; Returns: undefined }
       generate_capacite_effective: { Args: never; Returns: undefined }
       get_current_user_role: {
