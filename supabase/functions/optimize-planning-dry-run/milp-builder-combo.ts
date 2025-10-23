@@ -187,6 +187,25 @@ export function buildMILPModelCombo(
   }
   
   // ==================================================================
+  // CONSTRAINT: Each secretary MUST be assigned (no staying home)
+  // ==================================================================
+  for (const secretaire_id of activeSecretaires) {
+    const secretaireCombos = combos.filter(c => c.secretaire_id === secretaire_id);
+    
+    if (secretaireCombos.length === 0) continue;
+    
+    const constraintName = `must_work_${secretaire_id}`;
+    model.constraints[constraintName] = { min: 1 };
+    
+    for (const combo of secretaireCombos) {
+      // Only count combos where secretary is assigned somewhere (not null-null)
+      if (combo.needMatin || combo.needAM) {
+        model.variables[combo.varName][constraintName] = 1;
+      }
+    }
+  }
+  
+  // ==================================================================
   // CONSTRAINT: Maximum capacity per SITE and HALF-DAY
   // ==================================================================
   // Separate site needs from bloc needs

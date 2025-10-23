@@ -79,7 +79,8 @@ export const DryRunOptimizationDialog = ({
                 <span className="font-medium">{result.message}</span>
               </div>
 
-              {result.success && (
+              {/* Always show results, even without improvement */}
+              {result.before && result.after && (
                 <>
                   {/* Comparison */}
                   <div className="grid grid-cols-2 gap-4">

@@ -244,7 +244,11 @@ serve(async (req) => {
     console.log(`📊 Model: ${Object.keys(model.variables).length} vars, ${Object.keys(model.constraints).length} constraints`);
 
     // Solve
+    console.log(`\n🎯 RÉSOLUTION MILP`);
     const solution = solver.Solve(model);
+    
+    console.log(`  ✅ Solution feasible: ${solution.feasible}`);
+    console.log(`  ✅ Score: ${solution.result || 0}`);
 
     if (!solution.feasible) {
       return new Response(
@@ -262,6 +266,16 @@ serve(async (req) => {
 
     // Analyze solution from combos
     const selectedCombos = combos.filter(c => solution[c.varName] > 0.5);
+    
+    console.log(`  ✅ Combos sélectionnés: ${selectedCombos.length}`);
+    console.log(`\n📊 Détails des combos sélectionnés:`);
+    for (const combo of selectedCombos) {
+      const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
+      const matinSite = combo.needMatin ? week_data.sites.find(s => s.id === combo.needMatin!.site_id)?.nom : 'Admin/Libre';
+      const amSite = combo.needAM ? week_data.sites.find(s => s.id === combo.needAM!.site_id)?.nom : 'Admin/Libre';
+      console.log(`  ${sec?.name}: ${matinSite} / ${amSite} (score: ${combo.score})`);
+    }
+    
     const afterAssignments: any[] = [];
 
     for (const need of needs) {
@@ -327,108 +341,139 @@ serve(async (req) => {
     const beforeUnsatisfied = beforeAssignments.filter(a => a.status !== 'satisfait').length;
     const afterUnsatisfied = afterAssignments.filter(a => a.status !== 'satisfait').length;
 
-    console.log(`📊 Besoins non satisfaits: AVANT=${beforeUnsatisfied}, APRÈS=${afterUnsatisfied}`);
+    console.log(`\n📊 Résultats:`);
+    console.log(`  AVANT: ${beforeUnsatisfied} besoins non satisfaits, ${beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)} assignations`);
+    for (const a of beforeAssignments) {
+      console.log(`    ${a.site_nom} ${a.periode}: ${a.secretaires.map((s: any) => s.nom).join(', ')} (${a.status})`);
+    }
+    
+    console.log(`  APRÈS: ${afterUnsatisfied} besoins non satisfaits, ${afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)} assignations`);
+    for (const a of afterAssignments) {
+      console.log(`    ${a.site_nom} ${a.periode}: ${a.secretaires.map((s: any) => s.nom).join(', ')} (${a.status})`);
+    }
 
-    // Only proceed if we improve or maintain the same level
-    if (afterUnsatisfied > beforeUnsatisfied) {
+    // Calculate changes
+    const changes = calculateChanges(beforeAssignments, afterAssignments);
+    
+    console.log(`  CHANGEMENTS: ${changes.length} modifications`);
+    
+    // Build new assignments list for UI
+    const newAssignments = changes.flatMap(change => 
+      change.added.map((nom: any) => ({
+        secretaire_nom: nom,
+        site_nom: change.site_nom,
+        demi_journee: change.periode,
+        is_new: true
+      }))
+    );
+
+    // Write to dry_run table if improvement found
+    if (afterUnsatisfied < beforeUnsatisfied) {
+      console.log(`  ✅ AMÉLIORATION: ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`);
+      console.log(`✅ Écriture dans capacite_effective_dry_run...`);
+
+      // Clear existing dry_run data for this date
+      await supabase
+        .from('capacite_effective_dry_run')
+        .delete()
+        .eq('date', date);
+
+      // Write new assignments (INCLUDING ADMIN)
+      const dryRunRecords: any[] = [];
+      
+      for (const combo of selectedCombos) {
+        // Morning assignment (include Admin)
+        if (combo.needMatin) {
+          dryRunRecords.push({
+            secretaire_id: combo.secretaire_id,
+            date,
+            demi_journee: 'matin',
+            site_id: combo.needMatin.site_id,
+            besoin_operation_id: combo.needMatin.besoin_operation_id,
+            planning_genere_bloc_operatoire_id: combo.needMatin.bloc_operation_id,
+            is_1r: false,
+            is_2f: false,
+            is_3f: false,
+            actif: true
+          });
+        }
+
+        // Afternoon assignment (include Admin)
+        if (combo.needAM) {
+          dryRunRecords.push({
+            secretaire_id: combo.secretaire_id,
+            date,
+            demi_journee: 'apres_midi',
+            site_id: combo.needAM.site_id,
+            besoin_operation_id: combo.needAM.besoin_operation_id,
+            planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
+            is_1r: false,
+            is_2f: false,
+            is_3f: false,
+            actif: true
+          });
+        }
+      }
+
+      if (dryRunRecords.length > 0) {
+        const { error: insertError } = await supabase
+          .from('capacite_effective_dry_run')
+          .insert(dryRunRecords);
+
+        if (insertError) {
+          console.error('❌ Erreur insertion dry_run:', insertError);
+          throw insertError;
+        }
+      }
+
+      console.log(`✅ ${dryRunRecords.length} assignations écrites dans capacite_effective_dry_run`);
+      
       return new Response(
         JSON.stringify({
-          feasible: true,
-          improvement: false,
-          message: `L'optimisation n'améliore pas la situation (${afterUnsatisfied} vs ${beforeUnsatisfied} besoins non satisfaits)`,
-          before: { 
-            assignments: beforeAssignments,
-            besoins_non_satisfaits: beforeUnsatisfied
+          success: true,
+          message: `✅ Amélioration : ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`,
+          before: {
+            total_unmet: beforeUnsatisfied,
+            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)
           },
           after: {
-            assignments: afterAssignments,
-            besoins_non_satisfaits: afterUnsatisfied
+            total_unmet: afterUnsatisfied,
+            assignments_count: afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
+            assignments: newAssignments
+          },
+          improvement: {
+            unmet_diff: afterUnsatisfied - beforeUnsatisfied,
+            assignment_changes: changes.length,
+            score_improvement: solution.result || 0
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      console.log(`  ⚠️ Aucune amélioration trouvée`);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `✅ Situation maintenue (${afterUnsatisfied} besoins non satisfaits)`,
+          before: {
+            total_unmet: beforeUnsatisfied,
+            assignments_count: beforeAssignments.reduce((sum, a) => sum + a.secretaires.length, 0)
+          },
+          after: {
+            total_unmet: afterUnsatisfied,
+            assignments_count: afterAssignments.reduce((sum, a) => sum + a.secretaires.length, 0),
+            assignments: newAssignments
+          },
+          improvement: {
+            unmet_diff: afterUnsatisfied - beforeUnsatisfied,
+            assignment_changes: changes.length,
+            score_improvement: solution.result || 0
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Write to dry_run table
-    console.log(`✅ Amélioration détectée, écriture dans capacite_effective_dry_run...`);
-
-    // Clear existing dry_run data for this date
-    await supabase
-      .from('capacite_effective_dry_run')
-      .delete()
-      .eq('date', date);
-
-    // Write new assignments
-    const dryRunRecords: any[] = [];
-    
-    for (const combo of selectedCombos) {
-      // Morning assignment
-      if (combo.needMatin && combo.needMatin.site_id !== ADMIN_SITE_ID) {
-        dryRunRecords.push({
-          secretaire_id: combo.secretaire_id,
-          date,
-          demi_journee: 'matin',
-          site_id: combo.needMatin.site_id,
-          besoin_operation_id: combo.needMatin.besoin_operation_id,
-          planning_genere_bloc_operatoire_id: combo.needMatin.bloc_operation_id,
-          is_1r: false,
-          is_2f: false,
-          is_3f: false,
-          actif: true
-        });
-      }
-
-      // Afternoon assignment
-      if (combo.needAM && combo.needAM.site_id !== ADMIN_SITE_ID) {
-        dryRunRecords.push({
-          secretaire_id: combo.secretaire_id,
-          date,
-          demi_journee: 'apres_midi',
-          site_id: combo.needAM.site_id,
-          besoin_operation_id: combo.needAM.besoin_operation_id,
-          planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
-          is_1r: false,
-          is_2f: false,
-          is_3f: false,
-          actif: true
-        });
-      }
-    }
-
-    if (dryRunRecords.length > 0) {
-      const { error: insertError } = await supabase
-        .from('capacite_effective_dry_run')
-        .insert(dryRunRecords);
-
-      if (insertError) {
-        console.error('❌ Erreur insertion dry_run:', insertError);
-        throw insertError;
-      }
-    }
-
-    console.log(`✅ ${dryRunRecords.length} assignations écrites dans capacite_effective_dry_run`);
-
-    // Calculate changes
-    const changes = calculateChanges(beforeAssignments, afterAssignments);
-
-    return new Response(
-      JSON.stringify({
-        feasible: true,
-        improvement: true,
-        before: { 
-          assignments: beforeAssignments,
-          besoins_non_satisfaits: beforeUnsatisfied
-        },
-        after: {
-          assignments: afterAssignments,
-          besoins_non_satisfaits: afterUnsatisfied
-        },
-        changes,
-        dry_run_records: dryRunRecords.length,
-        solution_score: solution.result || 0
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     const err = error as Error;
