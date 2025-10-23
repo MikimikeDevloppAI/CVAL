@@ -285,6 +285,43 @@ serve(async (req) => {
     
     console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
 
+    // Add missing half-days for secretaries who only have matin OR apres_midi
+    console.log(`\n🔧 Ajout de capacités fictives pour les demi-journées manquantes...`);
+    const secretaireHalfDays = new Map<string, Set<string>>();
+    
+    for (const cap of fictitiousCapacites) {
+      if (!cap.secretaire_id || !cap.actif) continue;
+      if (!secretaireHalfDays.has(cap.secretaire_id)) {
+        secretaireHalfDays.set(cap.secretaire_id, new Set());
+      }
+      secretaireHalfDays.get(cap.secretaire_id)!.add(cap.demi_journee);
+    }
+    
+    let addedFictitious = 0;
+    for (const [secretaire_id, halfDays] of secretaireHalfDays) {
+      // If secretary only has one half-day, add the missing one
+      if (halfDays.size === 1) {
+        const missingPeriod = halfDays.has('matin') ? 'apres_midi' : 'matin';
+        fictitiousCapacites.push({
+          id: crypto.randomUUID(),
+          secretaire_id,
+          date,
+          demi_journee: missingPeriod as 'matin' | 'apres_midi',
+          site_id: ADMIN_SITE_ID,
+          planning_genere_bloc_operatoire_id: undefined,
+          besoin_operation_id: undefined,
+          is_1r: false,
+          is_2f: false,
+          is_3f: false,
+          actif: true
+        });
+        addedFictitious++;
+      }
+    }
+    
+    console.log(`  ✅ ${addedFictitious} demi-journées manquantes ajoutées (ADMIN fictif)`);
+    console.log(`  ✅ Total capacités: ${fictitiousCapacites.length}`);
+
     // Calculate week assignments for scoring context (no changes here)
     const week_assignments: AssignmentSummary[] = [];
     for (const cap of week_data.capacites_effective.filter(c => c.date !== date && c.actif)) {
