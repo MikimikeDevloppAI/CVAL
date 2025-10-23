@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowRight, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,6 +85,7 @@ export const DryRunOptimizationDialog = ({
   const formattedDate = date ? format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr }) : 'Date non spécifiée';
   const [changes, setChanges] = useState<Change[]>([]);
   const [loadingChanges, setLoadingChanges] = useState(false);
+  const [validatingChanges, setValidatingChanges] = useState<Set<string>>(new Set());
 
   // Group changes by secretary when both morning and afternoon have the same change
   const groupedChanges = useMemo(() => {
@@ -285,6 +286,87 @@ export const DryRunOptimizationDialog = ({
     fetchChanges();
   }, [open, result, date]);
 
+  const applyChanges = async (changesToApply: Change[]) => {
+    try {
+      const changeKeys = changesToApply.map(c => 
+        `${c.secretaire_id}-${c.date}-${c.demi_journee}`
+      );
+      setValidatingChanges(new Set(changeKeys));
+
+      // Get all dry_run records for these changes
+      const { data: dryRunRecords, error: fetchError } = await supabase
+        .from('capacite_effective_dry_run')
+        .select('*')
+        .eq('date', date)
+        .in('secretaire_id', changesToApply.map(c => c.secretaire_id));
+
+      if (fetchError) throw fetchError;
+
+      // Update capacite_effective with dry_run values
+      for (const dryRun of dryRunRecords || []) {
+        const matchingChange = changesToApply.find(
+          c => c.secretaire_id === dryRun.secretaire_id && 
+               c.demi_journee === dryRun.demi_journee
+        );
+        
+        if (matchingChange && dryRun.capacite_effective_id) {
+          const { error: updateError } = await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: dryRun.site_id,
+              besoin_operation_id: dryRun.besoin_operation_id,
+              planning_genere_bloc_operatoire_id: dryRun.planning_genere_bloc_operatoire_id,
+              is_1r: dryRun.is_1r,
+              is_2f: dryRun.is_2f,
+              is_3f: dryRun.is_3f
+            })
+            .eq('id', dryRun.capacite_effective_id);
+
+          if (updateError) throw updateError;
+        }
+      }
+
+      // Delete validated dry_run records
+      const { error: deleteError } = await supabase
+        .from('capacite_effective_dry_run')
+        .delete()
+        .eq('date', date)
+        .in('secretaire_id', changesToApply.map(c => c.secretaire_id))
+        .in('demi_journee', changesToApply.map(c => c.demi_journee));
+
+      if (deleteError) throw deleteError;
+
+      // Remove validated changes from state
+      setChanges(prev => prev.filter(c => !changesToApply.includes(c)));
+      
+      toast.success(
+        `${changesToApply.length} changement${changesToApply.length > 1 ? 's' : ''} appliqué${changesToApply.length > 1 ? 's' : ''}`
+      );
+
+      // If all changes are applied, call onApply callback
+      if (changes.length === changesToApply.length && onApply) {
+        onApply();
+      }
+    } catch (error) {
+      console.error('Error applying changes:', error);
+      toast.error('Erreur lors de l\'application des changements');
+    } finally {
+      setValidatingChanges(new Set());
+    }
+  };
+
+  const applyIndividualChange = (change: Change) => {
+    // Find all changes for this secretary on this date (both periods if merged)
+    const relatedChanges = changes.filter(
+      c => c.secretaire_id === change.secretaire_id && c.date === change.date
+    );
+    applyChanges(relatedChanges);
+  };
+
+  const applyAllChanges = () => {
+    applyChanges(changes);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -411,6 +493,7 @@ export const DryRunOptimizationDialog = ({
                           <th className="text-left p-2 font-medium">Période</th>
                           <th className="text-left p-2 font-medium">Avant</th>
                           <th className="text-left p-2 font-medium">Après</th>
+                          <th className="text-center p-2 font-medium w-24">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -422,6 +505,20 @@ export const DryRunOptimizationDialog = ({
                               <td className="p-2">Journée complète</td>
                               <td className="p-2 text-muted-foreground">{group.periods[0].avant}</td>
                               <td className="p-2">{group.periods[0].apres}</td>
+                              <td className="p-2 text-center">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => applyIndividualChange(changes.find(c => c.secretaire_id === group.secretaire_id)!)}
+                                  disabled={validatingChanges.size > 0}
+                                >
+                                  {validatingChanges.has(`${group.secretaire_id}-${date}-matin`) ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </td>
                             </tr>
                           ) : (
                             // Separate entries for each period
@@ -437,6 +534,22 @@ export const DryRunOptimizationDialog = ({
                                 </td>
                                 <td className="p-2 text-muted-foreground">{period.avant}</td>
                                 <td className="p-2">{period.apres}</td>
+                                {periodIdx === 0 && (
+                                  <td className="p-2 text-center" rowSpan={group.periods.length}>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => applyIndividualChange(changes.find(c => c.secretaire_id === group.secretaire_id)!)}
+                                      disabled={validatingChanges.size > 0}
+                                    >
+                                      {validatingChanges.has(`${group.secretaire_id}-${date}-${period.demi_journee}`) ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Check className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </td>
+                                )}
                               </tr>
                             ))
                           )
@@ -455,19 +568,19 @@ export const DryRunOptimizationDialog = ({
               )}
 
               {/* Action Buttons */}
-              {onApply && result.improvement && (result.improvement.unmet_diff || 0) <= 0 && changes.length > 0 && (
+              {result.improvement && (result.improvement.unmet_diff || 0) <= 0 && changes.length > 0 && (
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isApplying}>
-                    Annuler
+                  <Button variant="outline" onClick={() => onOpenChange(false)} disabled={validatingChanges.size > 0}>
+                    Fermer
                   </Button>
-                  <Button onClick={onApply} disabled={isApplying}>
-                    {isApplying ? (
+                  <Button onClick={applyAllChanges} disabled={validatingChanges.size > 0}>
+                    {validatingChanges.size > 0 ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Application en cours...
+                        Validation en cours...
                       </>
                     ) : (
-                      `Appliquer ces changements (${changes.length})`
+                      `Tout valider (${changes.length})`
                     )}
                   </Button>
                 </div>
