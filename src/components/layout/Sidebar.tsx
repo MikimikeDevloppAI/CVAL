@@ -13,7 +13,8 @@ import {
   BarChart3,
   ChevronDown,
   LayoutDashboard,
-  BotMessageSquare
+  BotMessageSquare,
+  HelpCircle
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { AIAssistantDialog } from '@/components/assistant/AIAssistantDialog';
+import { UserHelpSheet } from '@/components/assistant/UserHelpSheet';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -39,6 +41,7 @@ export const Sidebar = () => {
   const { signOut, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [helpSheetOpen, setHelpSheetOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
@@ -227,6 +230,16 @@ export const Sidebar = () => {
             className="h-8 w-auto"
           />
           
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setHelpSheetOpen(true)}
+            className="ml-2 hover:bg-emerald-500/10 hover:text-emerald-600"
+            title="Aide utilisateur"
+          >
+            <HelpCircle className="h-5 w-5" />
+          </Button>
+          
           <div className="flex-1" />
           
           <Button
@@ -241,6 +254,10 @@ export const Sidebar = () => {
       <AIAssistantDialog 
         open={aiAssistantOpen} 
         onOpenChange={setAiAssistantOpen} 
+      />
+      <UserHelpSheet 
+        open={helpSheetOpen} 
+        onOpenChange={setHelpSheetOpen} 
       />
     </div>
   );

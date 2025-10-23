@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, Loader2, BotMessageSquare, User, Trash2, HelpCircle, Database } from 'lucide-react';
+import { Send, Loader2, BotMessageSquare, User, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -24,9 +23,7 @@ interface AIAssistantDialogProps {
 }
 
 export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps) {
-  const [mode, setMode] = useState<'planning' | 'usage'>('planning');
-  const [planningMessages, setPlanningMessages] = useState<Message[]>([]);
-  const [usageMessages, setUsageMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<any>(null);
@@ -34,9 +31,6 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   const [isCreating, setIsCreating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-
-  const messages = mode === 'planning' ? planningMessages : usageMessages;
-  const setMessages = mode === 'planning' ? setPlanningMessages : setUsageMessages;
 
   // Auto-scroll vers le bas quand de nouveaux messages arrivent
   useEffect(() => {
@@ -59,15 +53,12 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
     setIsLoading(true);
 
     try {
-      const functionName = mode === 'planning' ? 'ai-assistant-chat' : 'ai-assistant-usage';
+      const functionName = 'ai-assistant-chat';
       
-      // Pour le mode planning, envoyer les 3 derniers messages
-      // Pour le mode usage, envoyer tous les messages (contexte complet nécessaire)
-      const conversationMessages = mode === 'planning' 
-        ? [...messages, userMessage].slice(-3).map(m => ({ role: m.role, content: m.content }))
-        : [...messages, userMessage].map(m => ({ role: m.role, content: m.content }));
+      // Envoyer les 3 derniers messages
+      const conversationMessages = [...messages, userMessage].slice(-3).map(m => ({ role: m.role, content: m.content }));
 
-      // Appeler l'edge function appropriée
+      // Appeler l'edge function
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: { messages: conversationMessages }
       });
@@ -120,11 +111,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   };
 
   const handleClearConversation = () => {
-    if (mode === 'planning') {
-      setPlanningMessages([]);
-    } else {
-      setUsageMessages([]);
-    }
+    setMessages([]);
     toast({
       title: "Conversation effacée",
       description: "L'historique de la conversation a été supprimé"
@@ -337,21 +324,12 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
   };
 
   const getExampleQuestions = () => {
-    if (mode === 'usage') {
-      return [
-        "Comment créer un horaire de base pour un médecin ?",
-        "Comment fonctionne l'algorithme d'optimisation ?",
-        "Que se passe-t-il quand je déclare une absence ?",
-        "Comment générer un PDF du planning ?"
-      ];
-    } else {
-      return [
-        "Qui est en congé cette semaine ?",
-        "Où travaille Marie Dupont demain ?",
-        "Quels sont les jours fériés en octobre ?",
-        "Combien d'assistants médicaux travaillent au Centre Esplanade vendredi ?"
-      ];
-    }
+    return [
+      "Qui est en congé cette semaine ?",
+      "Où travaille Marie Dupont demain ?",
+      "Quels sont les jours fériés en octobre ?",
+      "Combien d'assistants médicaux travaillent au Centre Esplanade vendredi ?"
+    ];
   };
 
   return (
@@ -386,32 +364,9 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
           </div>
         </DialogHeader>
 
-        <div className="px-6 pt-4 pb-3 space-y-3">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as 'planning' | 'usage')} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50 p-1 rounded-xl">
-              <TabsTrigger 
-                value="planning" 
-                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-              >
-                <Database className="h-4 w-4" />
-                <span className="font-medium">Questions sur le planning</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="usage" 
-                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-              >
-                <HelpCircle className="h-4 w-4" />
-                <span className="font-medium">Aide à l'utilisation</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
+        <div className="px-6 pt-4 pb-3">
           <div className="text-xs text-muted-foreground px-4 py-2.5 bg-muted/30 backdrop-blur-sm rounded-lg border border-border/50">
-            {mode === 'usage' ? (
-              <span>Posez vos questions sur comment utiliser l'application, l'algorithme, etc.</span>
-            ) : (
-              <span>Interrogez les données de votre planning (assistants médicaux, médecins, opérations, etc.)</span>
-            )}
+            <span>Interrogez les données de votre planning (assistants médicaux, médecins, opérations, etc.)</span>
           </div>
         </div>
 
