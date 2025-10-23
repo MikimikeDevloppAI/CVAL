@@ -4,64 +4,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
-// ═══════════════════════════════════════════════════════════════
-// LISTES MANUELLES À ÉDITER (prioritaires sur les listes dynamiques)
-// ═══════════════════════════════════════════════════════════════
-const MANUAL_PROMPT_APPEND = `
-SECRÉTAIRES (liste manuelle) :
-- Sarah Bortolon
-- Florence Bron
-- Maryline Cattin
-- Mathilde Etique
-- Meliha Filieri
-- Alexandrine Fleury
-- Stéphanie Guillaume
-- Mirlinda Hasani
-- Gaëlle Jeannerat
-- Mélanie Joray
-- Léna Jurot
-- Stéphanie Kaufmann
-- Julianne Kunz
-- Loïs Lambelet
-- Vivianne Lovis
-- Gilles Mourey
-- Aurélie Nusbaumer
-- Lucie Pratillo
-- Inès Ramseier
-- Christine Ribeaud
-- Sabrina Schlüchter
-- Laura Spring
-- Lucie Vanni
-- Adéline Vural
-- Cynthia Zimmermann
-
-MÉDECINS (liste manuelle) :
-- Dr. Amandine Abiltzer — Ophtalmologie
-- Dr. Rui De Melo — Rhumatologie
-- Dr. Michèle Depairon — Angiologie
-- Dr. Sonia Dresse Kerkour — Ophtalmologie
-- Dr. Anna-Maria Forster — Dermatologie
-- Dr. Florian Froelich — Gastroentérologie
-- Dr. Paul Jacquier — Ophtalmologie
-- Dr. Alexandar Krunic — Dermatologie
-- Dr. Soydan Kurun — Ophtalmologie
-- Dr. Vasilios Papastefanou — Ophtalmologie
-- Dr. Dimitrios Polyzois — Gastroentérologie
-- Dr. Claude Schwarz — Ophtalmologie
-- Dr. Massimo Vento — Ophtalmologie
-
-SITES (liste manuelle) :
-- Administratif
-- Bloc opératoire
-- Centre Esplanade - Ophtalmologie
-- Clinique La Vallée - Angiologie
-- Clinique La Vallée - Dermatologie
-- Clinique La Vallée - Ophtalmologie
-- Clinique La Vallée - Rhumatologie
-- Vieille ville Delémont - Gastroentérologie
-`;
-// ═══════════════════════════════════════════════════════════════
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -358,15 +300,6 @@ Principes de communication CRITIQUES:
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
 
 Données de référence:
-
-═══════════════════════════════════════════════════════════════
-LISTES MANUELLES (prioritaires)
-═══════════════════════════════════════════════════════════════
-${MANUAL_PROMPT_APPEND}
-
-═══════════════════════════════════════════════════════════════
-LISTES DYNAMIQUES (chargées de la base de données)
-═══════════════════════════════════════════════════════════════
 
 SECRÉTAIRES:
 ${context.secretaires.map((s: any) => `- ${s.name} ${s.first_name} (ID: ${s.id})`).join('\n')}
