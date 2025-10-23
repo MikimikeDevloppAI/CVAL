@@ -84,8 +84,7 @@ export const DryRunOptimizationDialog = ({
               site_id,
               besoin_operation_id,
               planning_genere_bloc_operatoire_id
-            ),
-            secretaires!inner(nom, prenom)
+            )
           `)
           .eq('date', date);
 
@@ -94,16 +93,23 @@ export const DryRunOptimizationDialog = ({
           throw dryRunError;
         }
 
-        // Fetch site and besoin_operation names
+        // Fetch secretaires, site and besoin_operation names
+        const secretaireIds = new Set<string>();
         const siteIds = new Set<string>();
         const besoinOpIds = new Set<string>();
 
         (dryRunData || []).forEach((record: any) => {
+          if (record.secretaire_id) secretaireIds.add(record.secretaire_id);
           if (record.capacite_effective.site_id) siteIds.add(record.capacite_effective.site_id);
           if (record.site_id) siteIds.add(record.site_id);
           if (record.capacite_effective.besoin_operation_id) besoinOpIds.add(record.capacite_effective.besoin_operation_id);
           if (record.besoin_operation_id) besoinOpIds.add(record.besoin_operation_id);
         });
+
+        const { data: secretairesData } = await supabase
+          .from('secretaires')
+          .select('id, name, first_name')
+          .in('id', Array.from(secretaireIds));
 
         const { data: sitesData } = await supabase
           .from('sites')
@@ -115,6 +121,7 @@ export const DryRunOptimizationDialog = ({
           .select('id, nom')
           .in('id', Array.from(besoinOpIds));
 
+        const secretairesMap = new Map(secretairesData?.map(s => [s.id, `${s.first_name} ${s.name}`]) || []);
         const sitesMap = new Map(sitesData?.map(s => [s.id, s.nom]) || []);
         const besoinsMap = new Map(besoinsData?.map(b => [b.id, b.nom]) || []);
 
@@ -123,7 +130,7 @@ export const DryRunOptimizationDialog = ({
           
           return {
             secretaire_id: record.secretaire_id,
-            secretaire_nom: `${record.secretaires.prenom} ${record.secretaires.nom}`,
+            secretaire_nom: secretairesMap.get(record.secretaire_id) || 'Inconnu',
             date: record.date,
             demi_journee: record.demi_journee,
             site_avant_id: record.capacite_effective.site_id,
