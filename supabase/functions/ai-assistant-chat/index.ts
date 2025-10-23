@@ -57,11 +57,11 @@ serve(async (req) => {
       }
     ];
 
-    // Garder seulement les 5 derniers messages utilisateur/assistant pour le contexte
-    const recentMessages = messages.slice(-5);
+    // Garder seulement les 3 derniers messages utilisateur/assistant pour le contexte
+    const recentMessages = messages.slice(-3);
     
     // Appeler OpenAI avec les tools
-    console.log('🤖 Appel de OpenAI GPT-5-mini...');
+    console.log('🤖 Appel de OpenAI GPT-4o-mini...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -69,13 +69,14 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
         body: JSON.stringify({
-          model: 'gpt-5-mini-2025-08-07',
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             ...recentMessages
           ],
           tools: tools,
-          tool_choice: 'auto'
+          tool_choice: 'auto',
+          stream: true
         }),
     });
 
@@ -85,9 +86,65 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${error}`);
     }
 
-    const data = await response.json();
-    console.log('🔍 Réponse OpenAI complète:', JSON.stringify(data, null, 2));
-    const assistantMessage = data.choices[0].message;
+    // Parser le stream SSE pour détecter les tool_calls
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No reader available');
+    
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let assistantMessage: any = { role: 'assistant', content: '', tool_calls: [] };
+    let currentToolCall: any = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim() || line.startsWith(':')) continue;
+        if (!line.startsWith('data: ')) continue;
+        
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta;
+          
+          if (!delta) continue;
+
+          // Accumuler le contenu
+          if (delta.content) {
+            assistantMessage.content += delta.content;
+          }
+
+          // Détecter les tool_calls
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              if (tc.index !== undefined) {
+                if (!assistantMessage.tool_calls[tc.index]) {
+                  assistantMessage.tool_calls[tc.index] = {
+                    id: tc.id || '',
+                    type: tc.type || 'function',
+                    function: { name: '', arguments: '' }
+                  };
+                }
+                currentToolCall = assistantMessage.tool_calls[tc.index];
+                
+                if (tc.id) currentToolCall.id = tc.id;
+                if (tc.function?.name) currentToolCall.function.name = tc.function.name;
+                if (tc.function?.arguments) currentToolCall.function.arguments += tc.function.arguments;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing SSE line:', e);
+        }
+      }
+    }
     
     console.log('📝 Réponse OpenAI reçue, tool_calls:', assistantMessage.tool_calls?.length || 0);
     console.log('📝 Content:', assistantMessage.content);
@@ -138,7 +195,7 @@ serve(async (req) => {
         })
       );
 
-      // Appeler à nouveau OpenAI avec tous les résultats
+      // Appeler à nouveau OpenAI avec tous les résultats en streaming
       const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -146,13 +203,14 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini-2025-08-07',
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             ...recentMessages,
             assistantMessage,
             ...toolResults
-          ]
+          ],
+          stream: true
         }),
       });
 
@@ -162,36 +220,130 @@ serve(async (req) => {
         throw new Error(`OpenAI API error: ${error}`);
       }
 
-      const finalData = await finalResponse.json();
-      const finalMessage = finalData.choices[0].message.content;
-      
-      console.log('✅ Réponse finale générée');
+      console.log('✅ Streaming de la réponse finale...');
 
-      return new Response(
-        JSON.stringify({ 
-          response: finalMessage
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Retourner le stream SSE directement
+      const stream = new ReadableStream({
+        async start(controller) {
+          const reader = finalResponse.body?.getReader();
+          if (!reader) {
+            controller.close();
+            return;
+          }
+
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+
+              for (const line of lines) {
+                if (!line.trim() || line.startsWith(':')) continue;
+                if (!line.startsWith('data: ')) continue;
+                
+                const data = line.slice(6).trim();
+                if (data === '[DONE]') {
+                  controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+                  continue;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  const delta = parsed.choices?.[0]?.delta?.content;
+                  
+                  if (delta) {
+                    controller.enqueue(
+                      new TextEncoder().encode(`data: ${JSON.stringify({ delta })}\n\n`)
+                    );
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE line:', e);
+                }
+              }
+            }
+          } finally {
+            controller.close();
+          }
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        }
+      });
     }
 
-    // Si pas de tool call, retourner directement la réponse
-    const responseContent = assistantMessage.content || '';
-    console.log('✅ Réponse directe (sans requête SQL)');
-    console.log('📄 Contenu de la réponse:', responseContent);
-    console.log('📊 Longueur:', responseContent.length);
+    // Si pas de tool call, streamer directement la réponse
+    console.log('✅ Streaming de la réponse directe (sans requête SQL)');
     
-    if (!responseContent || responseContent.trim() === '') {
-      console.error('⚠️ ATTENTION: Réponse vide d\'OpenAI!');
-      console.error('Message complet:', JSON.stringify(assistantMessage, null, 2));
-    }
-    
-    return new Response(
-      JSON.stringify({ 
-        response: responseContent
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body?.getReader();
+        if (!reader) {
+          controller.close();
+          return;
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.trim() || line.startsWith(':')) continue;
+              if (!line.startsWith('data: ')) continue;
+              
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') {
+                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                
+                if (delta) {
+                  controller.enqueue(
+                    new TextEncoder().encode(`data: ${JSON.stringify({ delta })}\n\n`)
+                  );
+                }
+              } catch (e) {
+                console.error('Error parsing SSE line:', e);
+              }
+            }
+          }
+        } finally {
+          controller.close();
+        }
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    });
 
   } catch (error) {
     console.error('❌ Erreur:', error);
