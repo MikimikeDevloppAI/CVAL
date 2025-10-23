@@ -243,16 +243,34 @@ async function loadContextData(supabase: any) {
     .eq('actif', true)
     .order('nom');
 
+  console.log('  🏥 Chargement des types d\'intervention et besoins opérationnels...');
+  const { data: typesIntervention } = await supabase
+    .from('types_intervention')
+    .select(`
+      id, 
+      nom, 
+      code,
+      actif,
+      types_intervention_besoins_personnel(
+        nombre_requis,
+        besoins_operations(nom, code, categorie)
+      )
+    `)
+    .eq('actif', true)
+    .order('nom');
+
   console.log('  ✅ Contexte chargé:', {
     secretaires: secretaires?.length || 0,
     medecins: medecins?.length || 0,
-    sites: sites?.length || 0
+    sites: sites?.length || 0,
+    typesIntervention: typesIntervention?.length || 0
   });
 
   return {
     secretaires: secretaires || [],
     medecins: medecins || [],
-    sites: sites || []
+    sites: sites || [],
+    typesIntervention: typesIntervention || []
   };
 }
 
@@ -309,6 +327,15 @@ ${context.medecins.map((m: any) => `- ${m.name} ${m.first_name} - ${m.specialite
 
 SITES:
 ${context.sites.map((site: any) => `- ${site.nom} (ID: ${site.id})`).join('\n')}
+
+TYPES D'INTERVENTION (OPÉRATIONS) avec leurs besoins en aides opératoires/assistantes de bloc:
+${context.typesIntervention.map((type: any) => {
+  const besoins = type.types_intervention_besoins_personnel || [];
+  const besoinsList = besoins
+    .map((b: any) => `${b.nombre_requis}x ${b.besoins_operations?.nom || 'N/A'} (${b.besoins_operations?.categorie || 'N/A'})`)
+    .join(', ');
+  return `- ${type.nom} (Code: ${type.code}, ID: ${type.id})${besoinsList ? `\n  Besoins: ${besoinsList}` : ''}`;
+}).join('\n')}
 
 ═══════════════════════════════════════════════════════════════
 SCHÉMA COMPLET DE LA BASE DE DONNÉES
