@@ -409,9 +409,21 @@ serve(async (req) => {
       // Write new assignments (INCLUDING ADMIN)
       const dryRunRecords: any[] = [];
       
-      for (const combo of selectedCombos) {
+      for (const combo of selectedCombosDedup) {
         // Morning assignment (include Admin)
         if (combo.needMatin) {
+          // Find corresponding capacite_effective_id
+          const existingCapMatin = capacites.find(c => 
+            c.secretaire_id === combo.secretaire_id &&
+            c.date === date &&
+            c.demi_journee === 'matin' &&
+            c.site_id === combo.needMatin!.site_id &&
+            (combo.needMatin!.type === 'bloc_operatoire' 
+              ? (c.planning_genere_bloc_operatoire_id === combo.needMatin!.bloc_operation_id &&
+                 c.besoin_operation_id === combo.needMatin!.besoin_operation_id)
+              : true)
+          );
+          
           dryRunRecords.push({
             secretaire_id: combo.secretaire_id,
             date,
@@ -419,6 +431,7 @@ serve(async (req) => {
             site_id: combo.needMatin.site_id,
             besoin_operation_id: combo.needMatin.besoin_operation_id,
             planning_genere_bloc_operatoire_id: combo.needMatin.bloc_operation_id,
+            capacite_effective_id: existingCapMatin?.id || null,
             is_1r: false,
             is_2f: false,
             is_3f: false,
@@ -426,6 +439,13 @@ serve(async (req) => {
           });
         } else {
           // Record admin assignment explicitly
+          const existingCapMatinAdmin = capacites.find(c => 
+            c.secretaire_id === combo.secretaire_id &&
+            c.date === date &&
+            c.demi_journee === 'matin' &&
+            c.site_id === ADMIN_SITE_ID
+          );
+          
           dryRunRecords.push({
             secretaire_id: combo.secretaire_id,
             date,
@@ -433,6 +453,7 @@ serve(async (req) => {
             site_id: ADMIN_SITE_ID,
             besoin_operation_id: null,
             planning_genere_bloc_operatoire_id: null,
+            capacite_effective_id: existingCapMatinAdmin?.id || null,
             is_1r: false,
             is_2f: false,
             is_3f: false,
@@ -442,6 +463,18 @@ serve(async (req) => {
 
         // Afternoon assignment (include Admin)
         if (combo.needAM) {
+          // Find corresponding capacite_effective_id
+          const existingCapAM = capacites.find(c => 
+            c.secretaire_id === combo.secretaire_id &&
+            c.date === date &&
+            c.demi_journee === 'apres_midi' &&
+            c.site_id === combo.needAM!.site_id &&
+            (combo.needAM!.type === 'bloc_operatoire' 
+              ? (c.planning_genere_bloc_operatoire_id === combo.needAM!.bloc_operation_id &&
+                 c.besoin_operation_id === combo.needAM!.besoin_operation_id)
+              : true)
+          );
+          
           dryRunRecords.push({
             secretaire_id: combo.secretaire_id,
             date,
@@ -449,6 +482,7 @@ serve(async (req) => {
             site_id: combo.needAM.site_id,
             besoin_operation_id: combo.needAM.besoin_operation_id,
             planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
+            capacite_effective_id: existingCapAM?.id || null,
             is_1r: false,
             is_2f: false,
             is_3f: false,
@@ -456,6 +490,13 @@ serve(async (req) => {
           });
         } else {
           // Record admin assignment explicitly
+          const existingCapAMAdmin = capacites.find(c => 
+            c.secretaire_id === combo.secretaire_id &&
+            c.date === date &&
+            c.demi_journee === 'apres_midi' &&
+            c.site_id === ADMIN_SITE_ID
+          );
+          
           dryRunRecords.push({
             secretaire_id: combo.secretaire_id,
             date,
@@ -463,6 +504,7 @@ serve(async (req) => {
             site_id: ADMIN_SITE_ID,
             besoin_operation_id: null,
             planning_genere_bloc_operatoire_id: null,
+            capacite_effective_id: existingCapAMAdmin?.id || null,
             is_1r: false,
             is_2f: false,
             is_3f: false,

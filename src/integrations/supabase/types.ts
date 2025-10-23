@@ -297,6 +297,7 @@ export type Database = {
         Row: {
           actif: boolean
           besoin_operation_id: string | null
+          capacite_effective_id: string | null
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -312,6 +313,7 @@ export type Database = {
         Insert: {
           actif?: boolean
           besoin_operation_id?: string | null
+          capacite_effective_id?: string | null
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
@@ -327,6 +329,7 @@ export type Database = {
         Update: {
           actif?: boolean
           besoin_operation_id?: string | null
+          capacite_effective_id?: string | null
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
@@ -339,7 +342,15 @@ export type Database = {
           site_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "capacite_effective_dry_run_capacite_effective_id_fkey"
+            columns: ["capacite_effective_id"]
+            isOneToOne: false
+            referencedRelation: "capacite_effective"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       configurations_multi_flux: {
         Row: {
