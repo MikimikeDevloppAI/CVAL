@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DayCell } from './DayCell';
 import { DayDetailDialog } from './DayDetailDialog';
 import { SecretaireActionsDialog } from './SecretaireActionsDialog';
@@ -10,6 +11,7 @@ import { AddSecretaireToDayDialog } from './AddSecretaireToDayDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface PersonnePresence {
   id: string;
@@ -67,6 +69,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
   } | null>(null);
   const [addMedecinDate, setAddMedecinDate] = useState<Date | null>(null);
   const [addSecretaireDate, setAddSecretaireDate] = useState<Date | null>(null);
+  const [currentDayIndex, setCurrentDayIndex] = useState(0);
 
   // Filter out Sundays (day 0)
   const days = eachDayOfInterval({
@@ -187,7 +190,32 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
       {/* Calendar Grid */}
       <div className="p-4">
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+        {/* Mobile navigation */}
+        <div className="md:hidden flex items-center justify-between mb-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentDayIndex(Math.max(0, currentDayIndex - 1))}
+            disabled={currentDayIndex === 0}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-foreground">
+              {format(days[currentDayIndex], 'EEEE d MMMM', { locale: fr })}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentDayIndex(Math.min(days.length - 1, currentDayIndex + 1))}
+            disabled={currentDayIndex === days.length - 1}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="hidden md:grid gap-2" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
           {/* Day Headers */}
           {days.map((day) => {
             const dayData = getDayData(day);
@@ -263,6 +291,71 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
               />
             );
           })}
+        </div>
+
+        {/* Mobile single day view */}
+        <div className="md:hidden">
+          {(() => {
+            const day = days[currentDayIndex];
+            const dayData = getDayData(day);
+            
+            // Calculate needs and capacities
+            let besoinMatin = 0;
+            let capaciteMatin = 0;
+            let besoinAM = 0;
+            let capaciteAM = 0;
+            
+            if (dayData) {
+              const isSaturday = day.getDay() === 6;
+              
+              if (isSaturday) {
+                besoinMatin = dayData.medecins.filter(m => m.matin).length;
+                besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
+              } else {
+                besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+                besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
+              }
+              
+              capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
+              capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
+            }
+
+            const hasManqueMatin = besoinMatin > capaciteMatin;
+            const hasManqueAM = besoinAM > capaciteAM;
+
+            return (
+              <div>
+                {/* Day header for mobile */}
+                <div className="text-center pb-2 mb-2 border-b border-border/30">
+                  {dayData && (hasManqueMatin || hasManqueAM) && (
+                    <div className="space-y-0.5">
+                      {hasManqueMatin && (
+                        <p className="text-sm font-semibold text-destructive">
+                          Matin: {capaciteMatin}/{besoinMatin}
+                        </p>
+                      )}
+                      {hasManqueAM && (
+                        <p className="text-sm font-semibold text-destructive">
+                          Après-midi: {capaciteAM}/{besoinAM}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Day cell content */}
+                <DayCell
+                  date={day}
+                  data={dayData}
+                  onOpenDetail={handleOpenDetail}
+                  onSecretaireClick={(id, nom, prenom, periode) => handleSecretaireClick(id, nom, prenom, periode, day)}
+                  onMedecinClick={(id, nom, prenom) => handleMedecinClick(id, nom, prenom, day)}
+                  onAddMedecin={(date) => setAddMedecinDate(date)}
+                  onAddSecretaire={(date) => setAddSecretaireDate(date)}
+                />
+              </div>
+            );
+          })()}
         </div>
       </div>
 
