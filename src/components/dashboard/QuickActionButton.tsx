@@ -42,43 +42,39 @@ export const QuickActionButton = ({ label, icon, href, onClick, gradient, count 
         )}
       />
 
-      <div className="relative flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {/* Icon with Gradient */}
-          <div
-            className={cn(
-              "p-3 rounded-lg bg-gradient-to-br shadow-lg",
-              "transition-transform duration-300 group-hover:scale-110",
-              gradient
-            )}
-          >
-            <div className="text-white">
-              {icon}
-            </div>
-          </div>
-
-          {/* Label */}
-          <div className="text-left">
-            <p className="text-sm font-medium text-foreground">
-              {label}
-            </p>
-            {count !== undefined && count > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {count} {count > 1 ? 'éléments' : 'élément'}
-              </p>
-            )}
+      <div className="relative flex flex-col gap-3">
+        {/* Icon with Gradient */}
+        <div
+          className={cn(
+            "p-3 rounded-lg bg-gradient-to-br shadow-lg w-fit",
+            "transition-transform duration-300 group-hover:scale-110",
+            gradient
+          )}
+        >
+          <div className="text-white">
+            {icon}
           </div>
         </div>
 
-        {/* Count Badge */}
-        {count !== undefined && count > 0 && (
-          <Badge
-            variant="secondary"
-            className="ml-2 font-semibold"
-          >
-            {count}
-          </Badge>
-        )}
+        {/* Label */}
+        <div className="text-left">
+          <p className="text-sm font-medium text-foreground break-words leading-tight">
+            {label}
+          </p>
+          {count !== undefined && count > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <p className="text-xs text-muted-foreground">
+                {count} {count > 1 ? 'éléments' : 'élément'}
+              </p>
+              <Badge
+                variant="secondary"
+                className="font-semibold"
+              >
+                {count}
+              </Badge>
+            </div>
+          )}
+        </div>
       </div>
     </button>
   );
