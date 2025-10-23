@@ -65,22 +65,10 @@ serve(async (req) => {
       throw rpcError;
     }
 
-    // Parse the JSON result de manière plus robuste
-    let data: any = [];
-    if (Array.isArray(rpcData)) {
-      data = rpcData;
-    } else if (typeof rpcData === 'string') {
-      try {
-        data = JSON.parse(rpcData);
-      } catch (parseError) {
-        console.warn('⚠️ Impossible de parser la réponse JSON:', parseError);
-        data = [];
-      }
-    } else if (rpcData) {
-      data = rpcData;
-    }
+    // La fonction RPC retourne déjà du JSON parsé par le client Supabase
+    const data = rpcData || [];
 
-    console.log('✅ Requête exécutée avec succès, résultats:', data?.length || 0, 'lignes');
+    console.log('✅ Requête exécutée avec succès, résultats:', Array.isArray(data) ? data.length : 0, 'lignes');
 
     return new Response(
       JSON.stringify({ data }),
