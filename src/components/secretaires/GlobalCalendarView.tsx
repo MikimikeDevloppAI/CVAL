@@ -40,11 +40,20 @@ interface CapaciteEffective {
   };
 }
 
+interface Absence {
+  id: string;
+  date_debut: string;
+  date_fin: string;
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
+  secretaire_id: string;
+}
+
 export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [capacites, setCapacites] = useState<CapaciteEffective[]>([]);
+  const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialog, setAddDialog] = useState<{
     open: boolean;
@@ -120,6 +129,17 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
 
       if (capData) setCapacites(capData);
 
+      // Fetch absences secrétaires
+      const { data: absencesData } = await supabase
+        .from('absences')
+        .select('id, date_debut, date_fin, demi_journee, secretaire_id')
+        .not('secretaire_id', 'is', null)
+        .in('statut', ['approuve', 'en_attente'])
+        .gte('date_fin', formatDate(startDate))
+        .lte('date_debut', formatDate(endDate));
+
+      if (absencesData) setAbsences(absencesData);
+
       // Fetch jours fériés
       const { data: feriesData } = await supabase
         .from('jours_feries')
@@ -171,6 +191,16 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
     return capacites.filter(c => c.secretaire_id === secretaireId && c.date === dateStr);
+  };
+
+  const getAbsenceForSecretaireAndDate = (secretaireId: string, day: number) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = formatDate(date);
+    
+    return absences.find(abs => {
+      if (abs.secretaire_id !== secretaireId) return false;
+      return dateStr >= abs.date_debut && dateStr <= abs.date_fin;
+    });
   };
 
   const getColorForPeriod = (demiJournee: string) => {
@@ -509,8 +539,36 @@ export function GlobalCalendarView({ open, onOpenChange }: GlobalCalendarViewPro
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(date);
                     const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day);
+                    const absence = getAbsenceForSecretaireAndDate(secretaire.id, day);
                     const isWeekendDay = isWeekend(dayInfo);
                     const isHolidayDay = isHoliday(day);
+
+                    // Si absence, afficher uniquement l'absence
+                    if (absence) {
+                      const isFullDayAbsence = absence.demi_journee === 'toute_journee';
+                      
+                      return (
+                        <div
+                          key={index}
+                          className={`h-7 border rounded relative ${
+                            isHolidayDay
+                              ? 'bg-red-50'
+                              : isWeekendDay
+                              ? 'bg-accent/5'
+                              : 'bg-card'
+                          }`}
+                          title={`Absence ${getPeriodLabel(absence.demi_journee)}`}
+                        >
+                          <div className={`h-full w-full flex items-center justify-center text-[8px] font-bold ${
+                            isFullDayAbsence 
+                              ? 'bg-red-200 text-red-800' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            ABS
+                          </div>
+                        </div>
+                      );
+                    }
 
                     // Regrouper matin et après-midi si les deux sont présents ET même site
                     const hasMatin = capacitesDay.some(c => c.demi_journee === 'matin');
