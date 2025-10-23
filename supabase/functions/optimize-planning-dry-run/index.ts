@@ -398,7 +398,7 @@ serve(async (req) => {
     // Write to dry_run table if improvement found
     if (afterUnsatisfied < beforeUnsatisfied) {
       console.log(`  ✅ AMÉLIORATION: ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`);
-      console.log(`✅ Écriture dans capacite_effective_dry_run...`);
+      console.log(`✅ Écriture des changements dans capacite_effective_dry_run...`);
 
       // Clear existing dry_run data for this date
       await supabase
@@ -406,110 +406,83 @@ serve(async (req) => {
         .delete()
         .eq('date', date);
 
-      // Write new assignments (INCLUDING ADMIN)
+      // Helper to find existing capacite by secretaire + date + period only
+      const findExistingCap = (secretaireId: string, demiJournee: string) => {
+        return capacites.find(c => 
+          c.secretaire_id === secretaireId &&
+          c.date === date &&
+          c.demi_journee === demiJournee
+        );
+      };
+
+      // Build records for ONLY changed assignments
       const dryRunRecords: any[] = [];
       
       for (const combo of selectedCombosDedup) {
-        // Morning assignment (include Admin)
+        // Morning
         if (combo.needMatin) {
-          // Find corresponding capacite_effective_id
-          const existingCapMatin = capacites.find(c => 
-            c.secretaire_id === combo.secretaire_id &&
-            c.date === date &&
-            c.demi_journee === 'matin' &&
-            c.site_id === combo.needMatin!.site_id &&
-            (combo.needMatin!.type === 'bloc_operatoire' 
-              ? (c.planning_genere_bloc_operatoire_id === combo.needMatin!.bloc_operation_id &&
-                 c.besoin_operation_id === combo.needMatin!.besoin_operation_id)
-              : true)
-          );
+          const existingCap = findExistingCap(combo.secretaire_id, 'matin');
           
-          dryRunRecords.push({
-            secretaire_id: combo.secretaire_id,
-            date,
-            demi_journee: 'matin',
-            site_id: combo.needMatin.site_id,
-            besoin_operation_id: combo.needMatin.besoin_operation_id,
-            planning_genere_bloc_operatoire_id: combo.needMatin.bloc_operation_id,
-            capacite_effective_id: existingCapMatin?.id || null,
-            is_1r: false,
-            is_2f: false,
-            is_3f: false,
-            actif: true
-          });
-        } else {
-          // Record admin assignment explicitly
-          const existingCapMatinAdmin = capacites.find(c => 
-            c.secretaire_id === combo.secretaire_id &&
-            c.date === date &&
-            c.demi_journee === 'matin' &&
-            c.site_id === ADMIN_SITE_ID
-          );
-          
-          dryRunRecords.push({
-            secretaire_id: combo.secretaire_id,
-            date,
-            demi_journee: 'matin',
-            site_id: ADMIN_SITE_ID,
-            besoin_operation_id: null,
-            planning_genere_bloc_operatoire_id: null,
-            capacite_effective_id: existingCapMatinAdmin?.id || null,
-            is_1r: false,
-            is_2f: false,
-            is_3f: false,
-            actif: true
-          });
+          if (existingCap) {
+            const proposedSiteId = combo.needMatin.site_id;
+            const proposedBesoinOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.besoin_operation_id : null;
+            const proposedBlocOpId = combo.needMatin.type === 'bloc_operatoire' ? combo.needMatin.bloc_operation_id : null;
+            
+            // Check if there's a change
+            const hasChange = 
+              existingCap.site_id !== proposedSiteId ||
+              existingCap.besoin_operation_id !== proposedBesoinOpId ||
+              existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
+            
+            if (hasChange) {
+              dryRunRecords.push({
+                capacite_effective_id: existingCap.id,
+                secretaire_id: combo.secretaire_id,
+                date,
+                demi_journee: 'matin',
+                site_id: proposedSiteId,
+                besoin_operation_id: proposedBesoinOpId,
+                planning_genere_bloc_operatoire_id: proposedBlocOpId,
+                is_1r: false,
+                is_2f: false,
+                is_3f: false,
+                actif: true
+              });
+            }
+          }
         }
 
-        // Afternoon assignment (include Admin)
+        // Afternoon
         if (combo.needAM) {
-          // Find corresponding capacite_effective_id
-          const existingCapAM = capacites.find(c => 
-            c.secretaire_id === combo.secretaire_id &&
-            c.date === date &&
-            c.demi_journee === 'apres_midi' &&
-            c.site_id === combo.needAM!.site_id &&
-            (combo.needAM!.type === 'bloc_operatoire' 
-              ? (c.planning_genere_bloc_operatoire_id === combo.needAM!.bloc_operation_id &&
-                 c.besoin_operation_id === combo.needAM!.besoin_operation_id)
-              : true)
-          );
+          const existingCap = findExistingCap(combo.secretaire_id, 'apres_midi');
           
-          dryRunRecords.push({
-            secretaire_id: combo.secretaire_id,
-            date,
-            demi_journee: 'apres_midi',
-            site_id: combo.needAM.site_id,
-            besoin_operation_id: combo.needAM.besoin_operation_id,
-            planning_genere_bloc_operatoire_id: combo.needAM.bloc_operation_id,
-            capacite_effective_id: existingCapAM?.id || null,
-            is_1r: false,
-            is_2f: false,
-            is_3f: false,
-            actif: true
-          });
-        } else {
-          // Record admin assignment explicitly
-          const existingCapAMAdmin = capacites.find(c => 
-            c.secretaire_id === combo.secretaire_id &&
-            c.date === date &&
-            c.demi_journee === 'apres_midi' &&
-            c.site_id === ADMIN_SITE_ID
-          );
-          
-          dryRunRecords.push({
-            secretaire_id: combo.secretaire_id,
-            date,
-            demi_journee: 'apres_midi',
-            site_id: ADMIN_SITE_ID,
-            besoin_operation_id: null,
-            planning_genere_bloc_operatoire_id: null,
-            capacite_effective_id: existingCapAMAdmin?.id || null,
-            is_1r: false,
-            is_2f: false,
-            is_3f: false,
-            actif: true
-          });
+          if (existingCap) {
+            const proposedSiteId = combo.needAM.site_id;
+            const proposedBesoinOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.besoin_operation_id : null;
+            const proposedBlocOpId = combo.needAM.type === 'bloc_operatoire' ? combo.needAM.bloc_operation_id : null;
+            
+            // Check if there's a change
+            const hasChange = 
+              existingCap.site_id !== proposedSiteId ||
+              existingCap.besoin_operation_id !== proposedBesoinOpId ||
+              existingCap.planning_genere_bloc_operatoire_id !== proposedBlocOpId;
+            
+            if (hasChange) {
+              dryRunRecords.push({
+                capacite_effective_id: existingCap.id,
+                secretaire_id: combo.secretaire_id,
+                date,
+                demi_journee: 'apres_midi',
+                site_id: proposedSiteId,
+                besoin_operation_id: proposedBesoinOpId,
+                planning_genere_bloc_operatoire_id: proposedBlocOpId,
+                is_1r: false,
+                is_2f: false,
+                is_3f: false,
+                actif: true
+              });
+            }
+          }
         }
       }
 
@@ -522,9 +495,10 @@ serve(async (req) => {
           console.error('❌ Erreur insertion dry_run:', insertError);
           throw insertError;
         }
+        console.log(`✅ ${dryRunRecords.length} changements écrits dans capacite_effective_dry_run`);
+      } else {
+        console.log(`ℹ️ Aucun changement détecté, dry_run vide`);
       }
-
-      console.log(`✅ ${dryRunRecords.length} assignations écrites dans capacite_effective_dry_run`);
       
       return new Response(
         JSON.stringify({
