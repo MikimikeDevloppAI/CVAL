@@ -44,14 +44,15 @@ function countWeekSiteAssignments(
 }
 
 // Calculate score for a combo (morning + afternoon)
-// SCORING: Same as assign-v2 but +100 bonus to all positive scores
+// SCORING: Same as assign-v2 but with optional +30 bonus for current state match
 export function calculateComboScore(
   secretaire_id: string,
   needMatin: SiteNeed | null,
   needAM: SiteNeed | null,
   currentAssignments: AssignmentSummary[],
   preferences: PreferencesData,
-  secretaire: Secretaire
+  secretaire: Secretaire,
+  currentState?: Map<string, import('./types.ts').CurrentState>
 ): number {
   let totalScore = 0;
   
@@ -111,10 +112,10 @@ export function calculateComboScore(
       positiveScores.push(siteScore);
     }
     
-    // Prendre le MAX et ajouter +100 bonus pour dry-run
+    // Prendre le MAX (identique à v2, sans bonus +100)
     const matinBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
     if (matinBaseScore > 0) {
-      totalScore += matinBaseScore + 100; // +100 bonus par rapport à assign-v2
+      totalScore += matinBaseScore;
     }
     
     // 1d. Bonus admin progressif (MATIN)
@@ -188,10 +189,10 @@ export function calculateComboScore(
       positiveScores.push(siteScore);
     }
     
-    // Prendre le MAX et ajouter +100 bonus pour dry-run
+    // Prendre le MAX (identique à v2, sans bonus +100)
     const amBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
     if (amBaseScore > 0) {
-      totalScore += amBaseScore + 100; // +100 bonus par rapport à assign-v2
+      totalScore += amBaseScore;
     }
     
     // 2d. Bonus admin progressif (AM)
@@ -234,6 +235,35 @@ export function calculateComboScore(
         PENALTIES.CHANGEMENT_SITE;
       
       totalScore += changePenalty;
+    }
+  }
+  
+  // ============================================================
+  // 4. BONUS +30 SI COMBO CORRESPOND À L'ÉTAT ACTUEL
+  // ============================================================
+  if (currentState) {
+    const state = currentState.get(secretaire_id);
+    if (state) {
+      const matchesMatin = (
+        (needMatin === null && state.matin_site_id === ADMIN_SITE_ID) ||
+        (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
+        (needMatin && needMatin.type === 'bloc_operatoire' && 
+         needMatin.bloc_operation_id === state.matin_bloc_op_id &&
+         needMatin.besoin_operation_id === state.matin_besoin_op_id)
+      );
+      
+      const matchesAM = (
+        (needAM === null && state.am_site_id === ADMIN_SITE_ID) ||
+        (needAM && needAM.type === 'site' && needAM.site_id === state.am_site_id) ||
+        (needAM && needAM.type === 'bloc_operatoire' && 
+         needAM.bloc_operation_id === state.am_bloc_op_id &&
+         needAM.besoin_operation_id === state.am_besoin_op_id)
+      );
+      
+      if (matchesMatin && matchesAM) {
+        totalScore += 30;
+        console.log(`  🎯 BONUS +30: Combo correspond à l'état actuel`);
+      }
     }
   }
   

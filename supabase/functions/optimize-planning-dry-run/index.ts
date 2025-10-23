@@ -3,8 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 import { loadWeekData } from './data-loader.ts';
-import { buildMILPModelCombo } from './milp-builder-combo.ts';
-import type { SiteNeed, CapaciteEffective, AssignmentSummary } from './types.ts';
+import { buildMILPModelSoft } from './milp-builder.ts';
+import type { SiteNeed, CapaciteEffective, AssignmentSummary, CurrentState } from './types.ts';
 import { ADMIN_SITE_ID } from './types.ts';
 
 const corsHeaders = {
@@ -236,62 +236,78 @@ serve(async (req) => {
       week_data.secretaires
     );
 
-    // Compute residual maxima (prevent overfilling already satisfied sites)
-    console.log(`\n🧮 Calcul des maxima résiduels par site/période:`);
-    const beforeMap = new Map<string, number>();
-    for (const a of beforeAssignments) {
-      if (a.type === 'site' && a.site_id !== ADMIN_SITE_ID) {
-        const k = `${a.site_id}_${a.periode}`;
-        beforeMap.set(k, (beforeMap.get(k) || 0) + a.secretaires.length);
-      } else if (a.type === 'bloc_operatoire' && a.bloc_operation_id && a.besoin_operation_id) {
-        const k = `bloc_${a.bloc_operation_id}_${a.besoin_operation_id}_${a.periode}`;
-        beforeMap.set(k, (beforeMap.get(k) || 0) + a.secretaires.length);
+    // Capture current state (before reset)
+    console.log(`\n🎯 Capture de l'état actuel pour bonus +30...`);
+    const currentState = new Map<string, CurrentState>();
+    const capacites = week_data.capacites_effective.filter(c => c.date === date);
+    
+    for (const cap of capacites) {
+      if (!cap.secretaire_id) continue;
+      
+      const key = cap.secretaire_id;
+      if (!currentState.has(key)) {
+        currentState.set(key, {
+          secretaire_id: cap.secretaire_id,
+          matin_site_id: null,
+          matin_besoin_op_id: null,
+          matin_bloc_op_id: null,
+          am_site_id: null,
+          am_besoin_op_id: null,
+          am_bloc_op_id: null
+        });
+      }
+      
+      const state = currentState.get(key)!;
+      if (cap.demi_journee === 'matin') {
+        state.matin_site_id = cap.site_id;
+        state.matin_besoin_op_id = cap.besoin_operation_id || null;
+        state.matin_bloc_op_id = cap.planning_genere_bloc_operatoire_id || null;
+      } else {
+        state.am_site_id = cap.site_id;
+        state.am_besoin_op_id = cap.besoin_operation_id || null;
+        state.am_bloc_op_id = cap.planning_genere_bloc_operatoire_id || null;
       }
     }
-
-    for (const need of needs) {
-      const requis = Math.ceil(need.nombre_suggere);
-      const k = need.type === 'site'
-        ? `${need.site_id}_${need.periode}`
-        : `bloc_${need.bloc_operation_id}_${need.besoin_operation_id}_${need.periode}`;
-      const assignedBefore = beforeMap.get(k) || 0;
-      const residual = Math.max(0, requis - assignedBefore);
-      console.log(`  ${need.site_nom} ${need.periode}: requis=${requis}, avant=${assignedBefore}, max_residuel=${residual}`);
-      need.nombre_max = residual;
-    }
-
-    // Get available capacities for optimization
-    const capacites = week_data.capacites_effective.filter(c => c.date === date);
-
-    // Calculate existing full-day assignments for closure sites
-    console.log(`\n🏢 Calcul des journées complètes existantes pour sites de fermeture:`);
-    const fullDayCountsBySite = new Map<string, number>();
     
-    for (const site of week_data.sites.filter(s => s.fermeture)) {
-      const matinCaps = capacites.filter(c => 
-        c.date === date && 
-        c.demi_journee === 'matin' && 
-        c.site_id === site.id
+    console.log(`  ✅ État actuel capturé pour ${currentState.size} secrétaires`);
+
+    // Create fictitious capacities with everyone in ADMIN (in memory only, NO DB update)
+    console.log(`\n📝 Création de capacités fictives (en mémoire) avec tout le monde en ADMIN...`);
+    const fictitiousCapacites: CapaciteEffective[] = capacites.map(cap => ({
+      ...cap,
+      site_id: ADMIN_SITE_ID,
+      besoin_operation_id: undefined,
+      planning_genere_bloc_operatoire_id: undefined,
+      is_1r: false,
+      is_2f: false,
+      is_3f: false
+    }));
+    
+    console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
+
+    // Calculate week assignments for scoring context (no changes here)
+    const week_assignments: AssignmentSummary[] = [];
+    for (const cap of week_data.capacites_effective.filter(c => c.date !== date && c.actif)) {
+      const is_admin = cap.site_id === ADMIN_SITE_ID;
+      const is_bloc = cap.planning_genere_bloc_operatoire_id !== null || cap.besoin_operation_id !== null;
+      
+      const sitePrio = week_data.secretaires_sites.find(
+        ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === cap.site_id
       );
       
-      const afternoonCaps = capacites.filter(c => 
-        c.date === date && 
-        c.demi_journee === 'apres_midi' && 
-        c.site_id === site.id
-      );
-      
-      // Count how many secretaries have BOTH morning AND afternoon on this site
-      const matinSecIds = new Set(matinCaps.map(c => c.secretaire_id));
-      const afternoonSecIds = new Set(afternoonCaps.map(c => c.secretaire_id));
-      
-      const fullDayCount = Array.from(matinSecIds).filter(id => afternoonSecIds.has(id)).length;
-      fullDayCountsBySite.set(site.id, fullDayCount);
-      
-      console.log(`  Site fermeture ${site.nom}: ${fullDayCount} journées complètes existantes`);
+      week_assignments.push({
+        secretaire_id: cap.secretaire_id!,
+        site_id: cap.site_id,
+        date: cap.date,
+        periode: cap.demi_journee as 'matin' | 'apres_midi',
+        is_admin,
+        is_bloc,
+        site_priorite: sitePrio ? parseInt(sitePrio.priorite) as 1 | 2 | 3 : null
+      });
     }
 
-    // Build MILP model using combo approach with current state penalties
-    const { model, combos } = buildMILPModelCombo(date, needs, capacites, week_data, beforeAssignments, fullDayCountsBySite);
+    // Build MILP model using combo approach with current state bonus
+    const { model, combos } = buildMILPModelSoft(date, needs, fictitiousCapacites, week_data, week_assignments, currentState);
 
     console.log(`📊 Model: ${Object.keys(model.variables).length} vars, ${Object.keys(model.constraints).length} constraints`);
 

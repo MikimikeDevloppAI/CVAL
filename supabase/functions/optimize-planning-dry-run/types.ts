@@ -176,3 +176,13 @@ export const FORBIDDEN_SITES = [
   '7723c334-d06c-413d-96f0-be281d76520d',
   '043899a1-a232-4c4b-9d7d-0eb44dad00ad'
 ];
+
+export interface CurrentState {
+  secretaire_id: string;
+  matin_site_id: string | null;
+  matin_besoin_op_id: string | null;
+  matin_bloc_op_id: string | null;
+  am_site_id: string | null;
+  am_besoin_op_id: string | null;
+  am_bloc_op_id: string | null;
+}
