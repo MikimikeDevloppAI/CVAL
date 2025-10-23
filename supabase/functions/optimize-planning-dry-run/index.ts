@@ -14,75 +14,96 @@ const corsHeaders = {
 
 // Calculate needs exactly like v2
 function calculateNeeds(
-  date: string,
-  besoins_effectifs: any[],
+  besoins_effectifs: any[], // Already filtered by date
   medecins_map: Map<string, any>,
-  planning_bloc: any[],
+  planning_bloc: any[], // Already filtered by date + status
   types_intervention_besoins: any[],
   sites: any[]
 ): SiteNeed[] {
-  const needsMap = new Map<string, SiteNeed>();
-
-  // Site needs
+  const needs: SiteNeed[] = [];
+  
+  // ============================================================
+  // 1. SITE NEEDS (from besoin_effectif)
+  // ============================================================
+  // Group by site + demi_journee (NO date filter here, done before)
+  const siteGroups = new Map<string, any[]>();
+  
   for (const besoin of besoins_effectifs) {
-    if (besoin.date !== date || besoin.type !== 'medecin') continue;
+    if (besoin.type !== 'medecin') continue;
     
+    // Exclude bloc sites
     const site = sites.find(s => s.id === besoin.site_id);
-    // Exclure les sites de type "bloc opératoire" des besoins site
     const siteName = (site?.nom || '').toLowerCase();
     if (siteName.includes('bloc')) continue;
     
     const key = `${besoin.site_id}_${besoin.demi_journee}`;
-    const medecin = medecins_map.get(besoin.medecin_id);
-    if (!medecin) continue;
-
-    if (!needsMap.has(key)) {
-      needsMap.set(key, {
-        site_id: besoin.site_id,
-        date,
-        periode: besoin.demi_journee,
-        nombre_suggere: 0,
-        nombre_max: 999,
-        medecins_ids: [],
-        type: 'site',
-        site_nom: site?.nom || 'Site inconnu'
-      });
+    if (!siteGroups.has(key)) {
+      siteGroups.set(key, []);
     }
-
-    const need = needsMap.get(key)!;
-    need.medecins_ids.push(besoin.medecin_id);
-    need.nombre_suggere += medecin.besoin_secretaires || 1.2;
-    need.nombre_max = Math.ceil(need.nombre_suggere);
+    siteGroups.get(key)!.push(besoin);
   }
-
-  // Bloc needs
-  for (const bloc of planning_bloc) {
-    if (bloc.date !== date || bloc.statut === 'annule') continue;
-
-    const tibs = types_intervention_besoins.filter(
-      tib => tib.type_intervention_id === bloc.type_intervention_id && tib.actif
-    );
-
-    for (const tib of tibs) {
-      const key = `bloc_${bloc.id}_${tib.besoin_operation_id}`;
-      const site = sites.find(s => s.nom.toLowerCase().includes('bloc'));
+  
+  for (const [key, besoins] of siteGroups) {
+    const [site_id, demi_journee] = key.split('_');
+    
+    let totalBesoin = 0;
+    const medecins_ids: string[] = [];
+    
+    for (const besoin of besoins) {
+      const medecin = medecins_map.get(besoin.medecin_id);
+      if (!medecin) continue;
       
-      needsMap.set(key, {
-        site_id: site?.id || '86f1047f-c4ff-441f-a064-42ee2f8ef37a',
-        date,
+      medecins_ids.push(besoin.medecin_id);
+      totalBesoin += medecin.besoin_secretaires || 1.2;
+    }
+    
+    const nombre_max = Math.ceil(totalBesoin);
+    const site = sites.find(s => s.id === site_id);
+    
+    needs.push({
+      site_id,
+      date: besoins[0].date, // All besoins have same date
+      periode: demi_journee as 'matin' | 'apres_midi',
+      nombre_suggere: nombre_max,
+      nombre_max,
+      medecins_ids,
+      type: 'site',
+      site_nom: site?.nom || 'Site inconnu'
+    });
+  }
+  
+  // ============================================================
+  // 2. BLOC NEEDS (from planning_genere_bloc_operatoire)
+  // ============================================================
+  const blocSite = sites.find(s => 
+    s.nom.toLowerCase().includes('bloc') && 
+    s.nom.toLowerCase().includes('opératoire')
+  );
+  
+  // NO date/status filter here - already done before call
+  for (const bloc of planning_bloc) {
+    // Get personnel needs for this intervention type
+    const besoinsPersonnel = types_intervention_besoins.filter(
+      tb => tb.type_intervention_id === bloc.type_intervention_id && tb.actif
+    );
+    
+    for (const besoinPersonnel of besoinsPersonnel) {
+      needs.push({
+        site_id: blocSite?.id || bloc.site_id,
+        date: bloc.date,
         periode: bloc.periode,
-        nombre_suggere: tib.nombre_requis,
-        nombre_max: tib.nombre_requis,
+        nombre_suggere: besoinPersonnel.nombre_requis,
+        nombre_max: besoinPersonnel.nombre_requis,
         medecins_ids: bloc.medecin_id ? [bloc.medecin_id] : [],
         type: 'bloc_operatoire',
         bloc_operation_id: bloc.id,
-        besoin_operation_id: tib.besoin_operation_id,
-        site_nom: site?.nom || 'Bloc opératoire'
+        besoin_operation_id: besoinPersonnel.besoin_operation_id
+        // NO site_nom here
       });
     }
   }
-
-  return Array.from(needsMap.values());
+  
+  return needs;
 }
 
 // Get current assignments for comparison
@@ -90,7 +111,8 @@ function getCurrentAssignments(
   date: string,
   capacites: CapaciteEffective[],
   needs: SiteNeed[],
-  secretaires: any[]
+  secretaires: any[],
+  sites: any[]
 ): any[] {
   const assignments: any[] = [];
 
@@ -136,10 +158,17 @@ function getCurrentAssignments(
     const status = nombre_assigne >= nombre_requis ? 'satisfait' :
                    nombre_assigne > 0 ? 'partiel' : 'non_satisfait';
 
+    // For bloc needs without site_nom, find site name from sites array
+    let site_nom = need.site_nom;
+    if (!site_nom && need.type === 'bloc_operatoire') {
+      const site = sites.find(s => s.id === need.site_id);
+      site_nom = site?.nom || 'Bloc opératoire';
+    }
+
     assignments.push({
       date: need.date,
       site_id: need.site_id,
-      site_nom: need.site_nom,
+      site_nom: site_nom || 'Site inconnu',
       periode: need.periode,
       type: need.type,
       bloc_operation_id: need.bloc_operation_id,
@@ -217,10 +246,9 @@ serve(async (req) => {
     
     // Calculate needs using exact same logic as v2
     const needs = calculateNeeds(
-      date,
-      week_data.besoins_effectifs,
+      week_data.besoins_effectifs.filter(b => b.date === date),
       week_data.medecins_map,
-      week_data.planning_bloc,
+      week_data.planning_bloc.filter(p => p.date === date),
       week_data.types_intervention_besoins,
       week_data.sites
     );
@@ -233,7 +261,8 @@ serve(async (req) => {
       date,
       week_data.capacites_effective,
       needs,
-      week_data.secretaires
+      week_data.secretaires,
+      week_data.sites
     );
 
     // Capture current state (before reset)
