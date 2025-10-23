@@ -91,75 +91,102 @@ serve(async (req) => {
     
     console.log('📝 Réponse OpenAI reçue, tool_calls:', assistantMessage.tool_calls?.length || 0);
 
-    // Si l'IA veut appeler un tool
+    // Si l'IA veut appeler des tools
     if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-      const toolCall = assistantMessage.tool_calls[0];
+      console.log('🔧 Exécution de', assistantMessage.tool_calls.length, 'tool(s)...');
       
-      if (toolCall.function.name === 'execute_sql_query') {
-        console.log('🔧 Exécution du tool execute_sql_query...');
-        const args = JSON.parse(toolCall.function.arguments);
-        console.log('📊 Requête SQL:', args.query);
-        console.log('💡 Explication:', args.explanation);
-        
-        // Appeler l'edge function pour exécuter la requête
-        const { data: sqlData, error: sqlError } = await supabaseClient.functions.invoke(
-          'execute-sql-query',
-          {
-            body: { query: args.query }
-          }
-        );
-
-        if (sqlError) {
-          console.error('❌ Erreur lors de l\'exécution SQL:', sqlError);
-          throw sqlError;
-        }
-
-        console.log('✅ Résultats SQL obtenus:', sqlData?.data?.length || 0, 'lignes');
-
-        // Appeler à nouveau OpenAI avec les résultats
-        const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-5-mini-2025-08-07',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...recentMessages,
-              assistantMessage,
+      // Exécuter tous les tool_calls en parallèle
+      const toolResults = await Promise.all(
+        assistantMessage.tool_calls.map(async (toolCall: any) => {
+          if (toolCall.function.name === 'execute_sql_query') {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('📊 Requête SQL:', args.query);
+            console.log('💡 Explication:', args.explanation);
+            
+            // Appeler l'edge function pour exécuter la requête
+            const { data: sqlData, error: sqlError } = await supabaseClient.functions.invoke(
+              'execute-sql-query',
               {
+                body: { query: args.query }
+              }
+            );
+
+            if (sqlError) {
+              console.error('❌ Erreur lors de l\'exécution SQL:', sqlError);
+              return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: JSON.stringify(sqlData.data || [])
-              }
-            ],
-            max_completion_tokens: 2000
-          }),
-        });
+                content: JSON.stringify({ error: sqlError.message })
+              };
+            }
 
-        if (!finalResponse.ok) {
-          const error = await finalResponse.text();
-          console.error('❌ Erreur OpenAI (2ème appel):', error);
-          throw new Error(`OpenAI API error: ${error}`);
-        }
+            console.log('✅ Résultats SQL obtenus:', sqlData?.data?.length || 0, 'lignes');
 
-        const finalData = await finalResponse.json();
-        const finalMessage = finalData.choices[0].message.content;
-        
-        console.log('✅ Réponse finale générée');
+            return {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(sqlData.data || [])
+            };
+          }
+          
+          return {
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({ error: 'Tool non supporté' })
+          };
+        })
+      );
 
-        return new Response(
-          JSON.stringify({ 
-            response: finalMessage,
-            sql_executed: args.query,
-            sql_explanation: args.explanation,
-            results_count: sqlData?.data?.length || 0
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      // Appeler à nouveau OpenAI avec tous les résultats
+      const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-5-mini-2025-08-07',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...recentMessages,
+            assistantMessage,
+            ...toolResults
+          ],
+          max_completion_tokens: 2000
+        }),
+      });
+
+      if (!finalResponse.ok) {
+        const error = await finalResponse.text();
+        console.error('❌ Erreur OpenAI (2ème appel):', error);
+        throw new Error(`OpenAI API error: ${error}`);
       }
+
+      const finalData = await finalResponse.json();
+      const finalMessage = finalData.choices[0].message.content;
+      
+      console.log('✅ Réponse finale générée');
+
+      // Récupérer la première requête SQL pour l'affichage
+      const firstToolCall = assistantMessage.tool_calls[0];
+      const firstArgs = JSON.parse(firstToolCall.function.arguments);
+
+      return new Response(
+        JSON.stringify({ 
+          response: finalMessage,
+          sql_executed: firstArgs.query,
+          sql_explanation: firstArgs.explanation,
+          results_count: toolResults.reduce((sum, r) => {
+            try {
+              const data = JSON.parse(r.content);
+              return sum + (Array.isArray(data) ? data.length : 0);
+            } catch {
+              return sum;
+            }
+          }, 0)
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Si pas de tool call, retourner directement la réponse
