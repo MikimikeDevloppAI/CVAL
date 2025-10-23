@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, CalendarDays, Mail, Phone, Stethoscope, Briefcase, Plus, ChevronDown } from 'lucide-react';
+import { Edit, CalendarDays, Mail, Phone, Stethoscope, Briefcase, Plus, ChevronDown, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -9,6 +9,7 @@ import { HoraireSecretaireLineEdit } from './HoraireSecretaireLineEdit';
 import { AddHoraireSecretaireDialog } from './AddHoraireSecretaireDialog';
 import { MedecinAssigneLineEdit } from './MedecinAssigneLineEdit';
 import { BesoinOperationnelLineEdit } from './BesoinOperationnelLineEdit';
+import { SiteAssigneLineEdit } from './SiteAssigneLineEdit';
 import type { Secretaire } from './useSecretaires';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +40,7 @@ export function SecretaireCard({
   const [newHoraire, setNewHoraire] = useState<any>(null);
   const [newMedecin, setNewMedecin] = useState<any>(null);
   const [newBesoin, setNewBesoin] = useState<any>(null);
+  const [newSite, setNewSite] = useState<any>(null);
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
@@ -230,6 +232,45 @@ export function SecretaireCard({
     });
   };
 
+  const handleDeleteSite = async (assignmentId: string) => {
+    if (assignmentId === 'new') {
+      setNewSite(null);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('secretaires_sites')
+        .delete()
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Site préféré supprimé",
+      });
+
+      onSuccess();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le site préféré",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddNewSite = () => {
+    setNewSite({
+      id: 'new',
+      site_id: sites[0]?.id || '',
+      priorite: '1',
+      secretaire_id: secretaire.id
+    });
+  };
+
   const nomComplet = `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim() || 
     `Secrétaire ${secretaire.id.slice(0, 8)}`;
 
@@ -369,6 +410,49 @@ export function SecretaireCard({
               >
                 <Plus className="h-3 w-3 mr-2" />
                 Ajouter un médecin
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Sites préférés */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <MapPin className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+              Sites préférés
+            </p>
+          </div>
+          <div className="space-y-1">
+            {secretaire.sites_assignes_details?.map((site) => (
+              <SiteAssigneLineEdit
+                key={site.id}
+                assignment={site}
+                sites={sites}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteSite}
+              />
+            ))}
+
+            {newSite && (
+              <SiteAssigneLineEdit
+                assignment={newSite}
+                sites={sites}
+                onUpdate={onSuccess}
+                onDelete={handleDeleteSite}
+                isNew={true}
+              />
+            )}
+
+            {canManage && !newSite && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddNewSite}
+                className="w-full border-dashed border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-500/5 text-purple-600 dark:text-purple-400 mt-1"
+              >
+                <Plus className="h-3 w-3 mr-2" />
+                Ajouter un site préféré
               </Button>
             )}
           </div>
