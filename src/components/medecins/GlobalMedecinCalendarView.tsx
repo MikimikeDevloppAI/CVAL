@@ -573,10 +573,10 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
                     {siteMedecins.map((medecin, medIndex) => (
                       <div
                         key={medecin.id}
-                        className={`grid gap-1 mb-0.5 hover:bg-accent/20 py-0.5 ${medIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}
+                        className={`grid gap-1 mb-0.5 hover:bg-accent/20 py-0.5 ${medIndex % 2 === 0 ? 'bg-muted' : 'bg-card'}`}
                         style={{ gridTemplateColumns: `180px repeat(${days.length}, 60px)` }}
                       >
-                        <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 border-r ${medIndex % 2 === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
+                        <div className={`font-medium text-xs py-1 px-2 sticky left-0 z-10 border-r ${medIndex % 2 === 0 ? 'bg-muted' : 'bg-card'}`}>
                           <div className="flex flex-col leading-tight">
                             <span className="text-[10px] text-muted-foreground">{medecin.first_name}</span>
                             <span className="truncate">{medecin.name}</span>
