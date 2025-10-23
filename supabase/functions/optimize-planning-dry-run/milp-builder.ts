@@ -64,9 +64,12 @@ export function buildMILPModelSoft(
       c => c.secretaire_id === secretaire_id && c.date === date && c.demi_journee === 'apres_midi'
     );
     
-    // Get eligible morning needs (null = admin)
-    const eligibleMatin: (SiteNeed | null)[] = hasMatinCap ? [null] : [];
+    // Get eligible morning needs
+    const eligibleMatin: (SiteNeed | null)[] = [];
+    
     if (hasMatinCap) {
+      // Has morning capacity → add ADMIN + eligible sites
+      eligibleMatin.push(null); // ADMIN
       for (const need of needsMatin) {
         if (need.site_id === ADMIN_SITE_ID) {
           eligibleMatin.push(need);
@@ -87,11 +90,18 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleMatin.push(need);
         }
       }
+    } else if (hasAMCap) {
+      // NO morning capacity but HAS afternoon → force ADMIN for morning
+      eligibleMatin.push(null);
     }
+    // else: no capacity at all → eligibleMatin stays []
     
-    // Get eligible afternoon needs (null = admin)
-    const eligibleAM: (SiteNeed | null)[] = hasAMCap ? [null] : [];
+    // Get eligible afternoon needs
+    const eligibleAM: (SiteNeed | null)[] = [];
+    
     if (hasAMCap) {
+      // Has afternoon capacity → add ADMIN + eligible sites
+      eligibleAM.push(null); // ADMIN
       for (const need of needsAM) {
         if (need.site_id === ADMIN_SITE_ID) {
           eligibleAM.push(need);
@@ -112,7 +122,11 @@ export function buildMILPModelSoft(
           if (isEligible) eligibleAM.push(need);
         }
       }
+    } else if (hasMatinCap) {
+      // NO afternoon capacity but HAS morning → force ADMIN for afternoon
+      eligibleAM.push(null);
     }
+    // else: no capacity at all → eligibleAM stays []
     
     // Generate all combos (matin × AM)
     for (const needM of eligibleMatin) {
