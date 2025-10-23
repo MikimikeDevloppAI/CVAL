@@ -379,7 +379,11 @@ serve(async (req) => {
             if (persons.length === 0) {
               // Essayer de suggérer des noms similaires
               const suggestions = findSimilarPersons(searchTerm, allPersons, 3);
-              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+              if (suggestions.length > 0 && suggestions[0].distance <= 2) {
+                // Auto-sélectionner si très similaire (distance ≤ 2)
+                console.log(`🎯 Auto-sélection de la personne similaire: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
+                persons.push(suggestions[0].person);
+              } else if (suggestions.length > 0 && suggestions[0].distance <= 5) {
                 const suggestionsList = suggestions.map(s => s.displayName).join(', ');
                 return {
                   role: 'tool',
@@ -388,12 +392,23 @@ serve(async (req) => {
                     error: `Aucune personne trouvée avec le nom "${args.person_name}". Vouliez-vous dire : ${suggestionsList} ?` 
                   })
                 };
+              } else {
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucune personne trouvée avec le nom "${args.person_name}". Vérifie l'orthographe ou demande à l'utilisateur de préciser.` 
+                  })
+                };
               }
+            }
+
+            if (persons.length === 0) {
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: JSON.stringify({ 
-                  error: `Aucune personne trouvée avec le nom "${args.person_name}". Vérifie l'orthographe ou demande à l'utilisateur de préciser.` 
+                  error: `Aucune personne trouvée avec le nom "${args.person_name}".` 
                 })
               };
             }
@@ -554,7 +569,11 @@ serve(async (req) => {
             if (medecins.length === 0) {
               // Essayer de suggérer des noms similaires
               const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
-              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+              if (suggestions.length > 0 && suggestions[0].distance <= 2) {
+                // Auto-sélectionner si très similaire (distance ≤ 2)
+                console.log(`🎯 Auto-sélection du médecin similaire: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
+                medecins.push(suggestions[0].person);
+              } else if (suggestions.length > 0 && suggestions[0].distance <= 5) {
                 const suggestionsList = suggestions.map(s => s.displayName).join(', ');
                 return {
                   role: 'tool',
@@ -563,7 +582,18 @@ serve(async (req) => {
                     error: `Aucun médecin trouvé avec le nom "${args.medecin_name}". Vouliez-vous dire : ${suggestionsList} ?` 
                   })
                 };
+              } else {
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucun médecin trouvé avec le nom "${args.medecin_name}".` 
+                  })
+                };
               }
+            }
+
+            if (medecins.length === 0) {
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
@@ -685,7 +715,11 @@ serve(async (req) => {
             if (medecins.length === 0) {
               // Essayer de suggérer des noms similaires
               const suggestions = findSimilarPersons(searchTerm, allMedecins, 3);
-              if (suggestions.length > 0 && suggestions[0].distance <= 5) {
+              if (suggestions.length > 0 && suggestions[0].distance <= 2) {
+                // Auto-sélectionner si très similaire (distance ≤ 2)
+                console.log(`🎯 Auto-sélection du médecin similaire: ${suggestions[0].displayName} (distance: ${suggestions[0].distance})`);
+                medecins.push(suggestions[0].person);
+              } else if (suggestions.length > 0 && suggestions[0].distance <= 5) {
                 const suggestionsList = suggestions.map(s => s.displayName).join(', ');
                 return {
                   role: 'tool',
@@ -694,7 +728,18 @@ serve(async (req) => {
                     error: `Aucun médecin trouvé avec le nom "${args.medecin_name}". Vouliez-vous dire : ${suggestionsList} ?` 
                   })
                 };
+              } else {
+                return {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ 
+                    error: `Aucun médecin trouvé avec le nom "${args.medecin_name}".` 
+                  })
+                };
               }
+            }
+
+            if (medecins.length === 0) {
               return {
                 role: 'tool',
                 tool_call_id: toolCall.id,
