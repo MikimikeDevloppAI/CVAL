@@ -324,21 +324,22 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const handleEditClick = (slot: DaySlot) => {
     setEditingSlot(slot);
     setSelectedSiteId(slot.siteId);
-    setSelectedTypeInterventionId(''); // Will be set from existing data if available
     
     // Détecter la période initiale: si les deux périodes sont présentes, afficher "toute_journee"
     if (slot.periodes.length === 2) {
       setSelectedPeriode('toute_journee');
     } else if (slot.periodes.includes('matin')) {
       setSelectedPeriode('matin');
-    } else {
+    } else if (slot.periodes.includes('apres_midi')) {
       setSelectedPeriode('apres_midi');
     }
     
-    // Find if there's a type intervention on the first besoin
+    // Récupérer le type d'intervention du premier besoin
     const firstBesoin = besoins.find(b => slot.ids.includes(b.id));
     if (firstBesoin?.type_intervention_id) {
       setSelectedTypeInterventionId(firstBesoin.type_intervention_id);
+    } else {
+      setSelectedTypeInterventionId('');
     }
     
     setEditDialogOpen(true);
@@ -687,7 +688,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
               <label className="text-sm font-medium">Période</label>
               <Select 
                 value={selectedPeriode || ''} 
-                onValueChange={(value) => setSelectedPeriode(value as 'matin' | 'apres_midi' | 'toute_journee')}
+                onValueChange={(value: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriode(value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner une période" />
@@ -758,7 +759,10 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Période</label>
-              <Select value={selectedPeriode} onValueChange={(value: any) => setSelectedPeriode(value)}>
+              <Select 
+                value={selectedPeriode || ''} 
+                onValueChange={(value: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriode(value)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
