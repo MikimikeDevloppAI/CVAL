@@ -26,12 +26,11 @@ export const QuickActionButton = ({ label, icon, href, onClick, gradient, count 
     <button
       onClick={handleClick}
       className={cn(
-        "group relative overflow-hidden rounded-xl p-4",
+        "group relative overflow-hidden rounded-xl p-6",
         "bg-card/50 backdrop-blur-xl border border-border/50",
         "shadow-lg hover:shadow-xl",
         "transition-all duration-300 ease-out",
-        "focus:outline-none focus:ring-2 focus:ring-primary/50",
-        "min-h-[80px]"
+        "focus:outline-none focus:ring-2 focus:ring-primary/50"
       )}
     >
       {/* Gradient Background on Hover */}
@@ -43,41 +42,43 @@ export const QuickActionButton = ({ label, icon, href, onClick, gradient, count 
         )}
       />
 
-      <div className="relative flex items-start gap-4">
-        {/* Icon with Gradient */}
-        <div
-          className={cn(
-            "p-3 rounded-lg bg-gradient-to-br shadow-lg flex-shrink-0",
-            "transition-transform duration-300 group-hover:scale-110",
-            gradient
-          )}
-        >
-          <div className="text-white">
-            {icon}
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {/* Icon with Gradient */}
+          <div
+            className={cn(
+              "p-3 rounded-lg bg-gradient-to-br shadow-lg",
+              "transition-transform duration-300 group-hover:scale-110",
+              gradient
+            )}
+          >
+            <div className="text-white">
+              {icon}
+            </div>
+          </div>
+
+          {/* Label */}
+          <div className="text-left">
+            <p className="text-sm font-medium text-foreground">
+              {label}
+            </p>
+            {count !== undefined && count > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {count} {count > 1 ? 'éléments' : 'élément'}
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col justify-between">
-          {/* Label */}
-          <p className="text-sm font-medium text-foreground break-words whitespace-normal leading-tight">
-            {label}
-          </p>
-          
-          {/* Count info and badge */}
-          {count !== undefined && count > 0 && (
-            <div className="flex items-center gap-2 mt-2">
-              <p className="text-xs text-muted-foreground">
-                {count} {count > 1 ? 'éléments' : 'élément'}
-              </p>
-              <Badge
-                variant="secondary"
-                className="font-semibold"
-              >
-                {count}
-              </Badge>
-            </div>
-          )}
-        </div>
+        {/* Count Badge */}
+        {count !== undefined && count > 0 && (
+          <Badge
+            variant="secondary"
+            className="ml-2 font-semibold"
+          >
+            {count}
+          </Badge>
+        )}
       </div>
     </button>
   );
