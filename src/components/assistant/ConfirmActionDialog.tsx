@@ -38,6 +38,32 @@ interface AbsenceBatchAction {
   };
 }
 
+interface CreneauMedecinAction {
+  type: 'creneau_medecin';
+  data: {
+    medecin_id: string;
+    medecin_name: string;
+    site_id: string;
+    site_name: string;
+    date: string;
+    demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
+    type_intervention_id?: string;
+    type_intervention_name?: string;
+  };
+}
+
+interface OperationAction {
+  type: 'operation';
+  data: {
+    medecin_id: string;
+    medecin_name: string;
+    type_intervention_id: string;
+    type_intervention_name: string;
+    date: string;
+    periode: 'matin' | 'apres_midi';
+  };
+}
+
 interface JourFerieAction {
   type: 'jour_ferie';
   data: {
@@ -46,7 +72,7 @@ interface JourFerieAction {
   };
 }
 
-type PendingAction = AbsenceAction | AbsenceBatchAction | JourFerieAction;
+type PendingAction = AbsenceAction | AbsenceBatchAction | CreneauMedecinAction | OperationAction | JourFerieAction;
 
 interface ConfirmActionDialogProps {
   open: boolean;
@@ -103,6 +129,16 @@ export function ConfirmActionDialog({
               <>
                 <User className="h-5 w-5 text-primary" />
                 Confirmer la création {action.type === 'absence_batch' ? 'des absences' : 'de l\'absence'}
+              </>
+            ) : action.type === 'creneau_medecin' ? (
+              <>
+                <Calendar className="h-5 w-5 text-primary" />
+                Confirmer la création du créneau
+              </>
+            ) : action.type === 'operation' ? (
+              <>
+                <Calendar className="h-5 w-5 text-primary" />
+                Confirmer la création de l'opération
               </>
             ) : (
               <>
@@ -180,6 +216,84 @@ export function ConfirmActionDialog({
                   </div>
                 </div>
               )}
+            </>
+          ) : action.type === 'creneau_medecin' ? (
+            <>
+              <div className="flex items-start gap-3">
+                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Médecin</p>
+                  <p className="text-sm text-muted-foreground">{action.data.medecin_name}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Site</p>
+                  <Badge variant="secondary">{action.data.site_name}</Badge>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Date</p>
+                  <p className="text-sm text-muted-foreground">{formatDate(action.data.date)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Période</p>
+                  <Badge variant="outline">{getPeriodLabel(action.data.demi_journee)}</Badge>
+                </div>
+              </div>
+
+              {action.data.type_intervention_name && (
+                <div className="flex items-start gap-3">
+                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium">Type d'intervention</p>
+                    <p className="text-sm text-muted-foreground">{action.data.type_intervention_name}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : action.type === 'operation' ? (
+            <>
+              <div className="flex items-start gap-3">
+                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Médecin</p>
+                  <p className="text-sm text-muted-foreground">{action.data.medecin_name}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Type d'intervention</p>
+                  <Badge variant="secondary">{action.data.type_intervention_name}</Badge>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Date</p>
+                  <p className="text-sm text-muted-foreground">{formatDate(action.data.date)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Période</p>
+                  <Badge variant="outline">{getPeriodLabel(action.data.periode)}</Badge>
+                </div>
+              </div>
             </>
           ) : (
             <>

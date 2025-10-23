@@ -200,6 +200,65 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
         };
         setMessages(prev => [...prev, confirmMessage]);
 
+      } else if (pendingAction.type === 'creneau_medecin') {
+        // Créer un besoin effectif pour un médecin sur un site
+        const { error } = await supabase
+          .from('besoin_effectif')
+          .insert({
+            medecin_id: pendingAction.data.medecin_id,
+            site_id: pendingAction.data.site_id,
+            date: pendingAction.data.date,
+            demi_journee: pendingAction.data.demi_journee,
+            type: 'medecin',
+            type_intervention_id: pendingAction.data.type_intervention_id,
+            actif: true
+          });
+
+        if (error) throw error;
+
+        const dateFormatted = new Date(pendingAction.data.date).toLocaleDateString('fr-FR');
+        
+        toast({
+          title: "Créneau créé",
+          description: `Créneau créé pour ${pendingAction.data.medecin_name} au ${pendingAction.data.site_name} le ${dateFormatted}.`
+        });
+
+        const confirmMessage: Message = {
+          role: 'assistant',
+          content: `✅ Le créneau a été créé pour ${pendingAction.data.medecin_name} au ${pendingAction.data.site_name} le ${dateFormatted}.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+
+      } else if (pendingAction.type === 'operation') {
+        // Créer une opération au bloc opératoire
+        const { error } = await supabase
+          .from('planning_genere_bloc_operatoire')
+          .insert({
+            medecin_id: pendingAction.data.medecin_id,
+            type_intervention_id: pendingAction.data.type_intervention_id,
+            date: pendingAction.data.date,
+            periode: pendingAction.data.periode,
+            statut: 'planifie',
+            validated: false
+          });
+
+        if (error) throw error;
+
+        const dateFormatted = new Date(pendingAction.data.date).toLocaleDateString('fr-FR');
+        
+        toast({
+          title: "Opération créée",
+          description: `Opération ${pendingAction.data.type_intervention_name} créée pour ${pendingAction.data.medecin_name} le ${dateFormatted}.`
+        });
+
+        const confirmMessage: Message = {
+          role: 'assistant',
+          content: `✅ L'opération ${pendingAction.data.type_intervention_name} a été créée pour ${pendingAction.data.medecin_name} le ${dateFormatted}.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+
       } else if (pendingAction.type === 'jour_ferie') {
         const { error } = await supabase
           .from('jours_feries')

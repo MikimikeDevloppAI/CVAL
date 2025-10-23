@@ -119,6 +119,70 @@ serve(async (req) => {
             required: ['date', 'nom']
           }
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'prepare_creneau_medecin_creation',
+          description: 'Prépare la création d\'un créneau ponctuel pour un médecin sur un site à une date donnée. Ne crée PAS le créneau directement, retourne les données pour confirmation utilisateur.',
+          parameters: {
+            type: 'object',
+            properties: {
+              medecin_name: {
+                type: 'string',
+                description: 'Nom complet ou partiel du médecin'
+              },
+              site_name: {
+                type: 'string',
+                description: 'Nom du site'
+              },
+              date: {
+                type: 'string',
+                description: 'Date du créneau au format YYYY-MM-DD'
+              },
+              period: {
+                type: 'string',
+                enum: ['matin', 'apres_midi', 'toute_journee'],
+                description: 'Période: "matin", "apres_midi", ou "toute_journee"'
+              },
+              type_intervention_name: {
+                type: 'string',
+                description: 'Nom du type d\'intervention (optionnel)'
+              }
+            },
+            required: ['medecin_name', 'site_name', 'date', 'period']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'prepare_operation_creation',
+          description: 'Prépare la création d\'une opération au bloc opératoire. Ne crée PAS l\'opération directement, retourne les données pour confirmation utilisateur.',
+          parameters: {
+            type: 'object',
+            properties: {
+              medecin_name: {
+                type: 'string',
+                description: 'Nom complet ou partiel du médecin'
+              },
+              date: {
+                type: 'string',
+                description: 'Date de l\'opération au format YYYY-MM-DD'
+              },
+              period: {
+                type: 'string',
+                enum: ['matin', 'apres_midi'],
+                description: 'Période: "matin" ou "apres_midi" uniquement (pas de journée entière pour les opérations)'
+              },
+              type_intervention_name: {
+                type: 'string',
+                description: 'Nom du type d\'intervention'
+              }
+            },
+            required: ['medecin_name', 'date', 'period', 'type_intervention_name']
+          }
+        }
       }
     ];
 
@@ -396,6 +460,227 @@ serve(async (req) => {
               })
             };
           }
+
+          if (toolCall.function.name === 'prepare_creneau_medecin_creation') {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('🔧 Préparation créneau médecin:', args);
+
+            // Rechercher le médecin
+            const searchTerm = args.medecin_name.toLowerCase().trim();
+            const { data: allMedecins, error: medecinError } = await supabaseClient
+              .from('medecins')
+              .select('id, name, first_name')
+              .eq('actif', true);
+
+            if (medecinError || !allMedecins || allMedecins.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: 'Erreur lors de la recherche du médecin.' 
+                })
+              };
+            }
+
+            const medecins = allMedecins.filter(m => {
+              const fullName = `${m.first_name} ${m.name}`.toLowerCase();
+              const reverseName = `${m.name} ${m.first_name}`.toLowerCase();
+              return fullName.includes(searchTerm) ||
+                     reverseName.includes(searchTerm) ||
+                     m.first_name?.toLowerCase().includes(searchTerm) ||
+                     m.name?.toLowerCase().includes(searchTerm);
+            });
+
+            if (medecins.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucun médecin trouvé avec le nom "${args.medecin_name}".` 
+                })
+              };
+            }
+
+            if (medecins.length > 1) {
+              const names = medecins.map(m => `${m.first_name} ${m.name}`).join(', ');
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Plusieurs médecins trouvés: ${names}. Demande à l'utilisateur de préciser.` 
+                })
+              };
+            }
+
+            const medecin = medecins[0];
+
+            // Rechercher le site
+            const siteSearchTerm = args.site_name.toLowerCase().trim();
+            const { data: sites, error: siteError } = await supabaseClient
+              .from('sites')
+              .select('id, nom')
+              .eq('actif', true)
+              .ilike('nom', `%${siteSearchTerm}%`);
+
+            if (siteError || !sites || sites.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucun site trouvé avec le nom "${args.site_name}".` 
+                })
+              };
+            }
+
+            if (sites.length > 1) {
+              const names = sites.map(s => s.nom).join(', ');
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Plusieurs sites trouvés: ${names}. Demande à l'utilisateur de préciser.` 
+                })
+              };
+            }
+
+            const site = sites[0];
+
+            // Rechercher le type d'intervention si spécifié
+            let typeIntervention = null;
+            if (args.type_intervention_name) {
+              const typeSearchTerm = args.type_intervention_name.toLowerCase().trim();
+              const { data: types, error: typeError } = await supabaseClient
+                .from('types_intervention')
+                .select('id, nom')
+                .eq('actif', true)
+                .ilike('nom', `%${typeSearchTerm}%`);
+
+              if (!typeError && types && types.length > 0) {
+                typeIntervention = types[0];
+              }
+            }
+
+            // Retourner les données préparées
+            return {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ 
+                action_prepared: 'creneau_medecin',
+                data: {
+                  medecin_id: medecin.id,
+                  medecin_name: `${medecin.first_name} ${medecin.name}`,
+                  site_id: site.id,
+                  site_name: site.nom,
+                  date: args.date,
+                  demi_journee: args.period,
+                  type_intervention_id: typeIntervention?.id || null,
+                  type_intervention_name: typeIntervention?.nom || null
+                }
+              })
+            };
+          }
+
+          if (toolCall.function.name === 'prepare_operation_creation') {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('🔧 Préparation opération:', args);
+
+            // Rechercher le médecin
+            const searchTerm = args.medecin_name.toLowerCase().trim();
+            const { data: allMedecins, error: medecinError } = await supabaseClient
+              .from('medecins')
+              .select('id, name, first_name')
+              .eq('actif', true);
+
+            if (medecinError || !allMedecins || allMedecins.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: 'Erreur lors de la recherche du médecin.' 
+                })
+              };
+            }
+
+            const medecins = allMedecins.filter(m => {
+              const fullName = `${m.first_name} ${m.name}`.toLowerCase();
+              const reverseName = `${m.name} ${m.first_name}`.toLowerCase();
+              return fullName.includes(searchTerm) ||
+                     reverseName.includes(searchTerm) ||
+                     m.first_name?.toLowerCase().includes(searchTerm) ||
+                     m.name?.toLowerCase().includes(searchTerm);
+            });
+
+            if (medecins.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucun médecin trouvé avec le nom "${args.medecin_name}".` 
+                })
+              };
+            }
+
+            if (medecins.length > 1) {
+              const names = medecins.map(m => `${m.first_name} ${m.name}`).join(', ');
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Plusieurs médecins trouvés: ${names}. Demande à l'utilisateur de préciser.` 
+                })
+              };
+            }
+
+            const medecin = medecins[0];
+
+            // Rechercher le type d'intervention
+            const typeSearchTerm = args.type_intervention_name.toLowerCase().trim();
+            const { data: types, error: typeError } = await supabaseClient
+              .from('types_intervention')
+              .select('id, nom')
+              .eq('actif', true)
+              .ilike('nom', `%${typeSearchTerm}%`);
+
+            if (typeError || !types || types.length === 0) {
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Aucun type d'intervention trouvé avec le nom "${args.type_intervention_name}".` 
+                })
+              };
+            }
+
+            if (types.length > 1) {
+              const names = types.map(t => t.nom).join(', ');
+              return {
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ 
+                  error: `Plusieurs types d'intervention trouvés: ${names}. Demande à l'utilisateur de préciser.` 
+                })
+              };
+            }
+
+            const typeIntervention = types[0];
+
+            // Retourner les données préparées
+            return {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ 
+                action_prepared: 'operation',
+                data: {
+                  medecin_id: medecin.id,
+                  medecin_name: `${medecin.first_name} ${medecin.name}`,
+                  date: args.date,
+                  periode: args.period,
+                  type_intervention_id: typeIntervention.id,
+                  type_intervention_name: typeIntervention.nom
+                }
+              })
+            };
+          }
           
           return {
             role: 'tool',
@@ -575,20 +860,24 @@ Principes de communication CRITIQUES:
      * "qui travaille au [SITE]" → filtrer par site_id
      * "la semaine prochaine" → date >= CURRENT_DATE AND date < CURRENT_DATE + INTERVAL '1 week'
 
-4. CRÉATION D'ABSENCES ET JOURS FÉRIÉS:
-   - Quand l'utilisateur demande de créer une absence ou un jour férié, utiliser les tools appropriés
+4. CRÉATION D'ABSENCES, JOURS FÉRIÉS, CRÉNEAUX ET OPÉRATIONS:
+   - Quand l'utilisateur demande de créer une absence, un jour férié, un créneau ou une opération, utiliser les tools appropriés
    - Pour créer une absence: utiliser prepare_absence_creation
      * Exemples: "Crée une absence pour Christine vendredi matin", "Marie est en congés la semaine prochaine"
      * Identifier la personne, le type (si non précisé, utiliser "conges" par défaut), les dates et la période
-     * Interpréter les dates relatives ("vendredi", "la semaine prochaine", "du 15 au 20", etc.)
-     * Si la période (matin/après-midi) n'est pas précisée, utiliser "toute_journee" par défaut
-     * NE PAS poser de questions de clarification si les valeurs par défaut sont raisonnables
-     * Appeler directement le tool et laisser l'utilisateur confirmer ou annuler via le dialog
+   - Pour créer un créneau médecin: utiliser prepare_creneau_medecin_creation
+     * Exemples: "Crée un créneau pour Dr Dupont au Centre Esplanade vendredi matin", "Ajoute Dr Martin à l'Hôpital Sud mercredi après-midi"
+   - Pour créer une opération: utiliser prepare_operation_creation
+     * Exemples: "Crée une opération de type Cataracte pour Dr Leblanc mardi matin", "Ajoute une intervention de PTH pour Dr Martin jeudi après-midi"
    - Pour créer un jour férié: utiliser prepare_jour_ferie_creation
      * Exemples: "Ajoute le 25 décembre comme jour férié", "Crée un jour férié pour Noël"
+   - Interpréter les dates relatives ("vendredi", "la semaine prochaine", "du 15 au 20", etc.)
+   - Si la période (matin/après-midi) n'est pas précisée, utiliser "toute_journee" par défaut pour absences et créneaux
+   - NE PAS poser de questions de clarification si les valeurs par défaut sont raisonnables
+   - Appeler directement le tool et laisser l'utilisateur confirmer ou annuler via le dialog
    - IMPORTANT: Ces tools ne créent RIEN dans la base, ils préparent juste les données pour validation
    - Après l'appel du tool, NE PAS demander de confirmation dans le message, car le dialog de confirmation s'affichera automatiquement
-   - Message après préparation: "Je prépare l'absence/le jour férié pour [résumé rapide]." (le dialog s'ouvrira automatiquement)
+   - Message après préparation: "Je prépare [l'action] pour [résumé rapide]." (le dialog s'ouvrira automatiquement)
     
 5. COMPORTEMENT PROACTIF:
    - NE PAS poser trop de questions de clarification
