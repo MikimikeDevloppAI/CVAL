@@ -268,31 +268,42 @@ serve(async (req) => {
       const assigned: any[] = [];
 
       for (const combo of selectedCombos) {
+        let matches = false;
+        
         // Check if this combo covers this need
         if (need.periode === 'matin' && combo.needMatin) {
-          if (combo.needMatin.site_id === need.site_id &&
-              combo.needMatin.type === need.type &&
-              combo.needMatin.bloc_operation_id === need.bloc_operation_id &&
-              combo.needMatin.besoin_operation_id === need.besoin_operation_id) {
-            const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
-            assigned.push({
-              id: combo.secretaire_id,
-              nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
-              is_backup: false
-            });
+          // Match site_id and type first
+          if (combo.needMatin.site_id === need.site_id && combo.needMatin.type === need.type) {
+            // For bloc_operatoire, also check bloc-specific IDs
+            if (need.type === 'bloc_operatoire') {
+              matches = combo.needMatin.bloc_operation_id === need.bloc_operation_id &&
+                       combo.needMatin.besoin_operation_id === need.besoin_operation_id;
+            } else {
+              // For site type, site_id and type match is enough
+              matches = true;
+            }
           }
         } else if (need.periode === 'apres_midi' && combo.needAM) {
-          if (combo.needAM.site_id === need.site_id &&
-              combo.needAM.type === need.type &&
-              combo.needAM.bloc_operation_id === need.bloc_operation_id &&
-              combo.needAM.besoin_operation_id === need.besoin_operation_id) {
-            const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
-            assigned.push({
-              id: combo.secretaire_id,
-              nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
-              is_backup: false
-            });
+          // Match site_id and type first
+          if (combo.needAM.site_id === need.site_id && combo.needAM.type === need.type) {
+            // For bloc_operatoire, also check bloc-specific IDs
+            if (need.type === 'bloc_operatoire') {
+              matches = combo.needAM.bloc_operation_id === need.bloc_operation_id &&
+                       combo.needAM.besoin_operation_id === need.besoin_operation_id;
+            } else {
+              // For site type, site_id and type match is enough
+              matches = true;
+            }
           }
+        }
+        
+        if (matches) {
+          const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
+          assigned.push({
+            id: combo.secretaire_id,
+            nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
+            is_backup: false
+          });
         }
       }
 

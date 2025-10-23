@@ -5,7 +5,7 @@ import type {
   PreferencesData,
   DynamicContext
 } from './types.ts';
-import { ADMIN_SITE_ID } from './types.ts';
+import { ADMIN_SITE_ID, SCORE_WEIGHTS, PENALTIES, HIGH_PENALTY_SITES } from './types.ts';
 
 // Helper to find current assignment for a secretaire on the target date
 function getCurrentAssignment(
@@ -19,8 +19,32 @@ function getCurrentAssignment(
   ) || null;
 }
 
+// Helper to count admin assignments in week (not including current day)
+function countWeekAdminAssignments(
+  secretaire_id: string,
+  week_assignments: AssignmentSummary[]
+): number {
+  return week_assignments.filter(
+    a => a.secretaire_id === secretaire_id && a.is_admin
+  ).length;
+}
+
+// Helper to count site assignments in week for P2/P3 sites
+function countWeekSiteAssignments(
+  secretaire_id: string,
+  site_id: string,
+  week_assignments: AssignmentSummary[]
+): number {
+  return week_assignments.filter(
+    a => a.secretaire_id === secretaire_id && 
+         a.site_id === site_id &&
+         a.site_priorite && 
+         (a.site_priorite === 2 || a.site_priorite === 3)
+  ).length;
+}
+
 // Calculate score for a combo (morning + afternoon)
-// SCORING: +100 for all preferences, -20 per half-day change from current state
+// SCORING: Same as assign-v2 but +100 bonus to all positive scores
 export function calculateComboScore(
   secretaire_id: string,
   needMatin: SiteNeed | null,
@@ -29,97 +53,191 @@ export function calculateComboScore(
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
-  let score = 0;
-  const date = needMatin?.date || needAM?.date;
-  if (!date) return score;
-
-  // Get current assignments for comparison
-  const currentMatin = getCurrentAssignment(secretaire_id, date, 'matin', currentAssignments);
-  const currentAM = getCurrentAssignment(secretaire_id, date, 'apres_midi', currentAssignments);
-
-  // ====================
-  // MORNING PERIOD
-  // ====================
+  let totalScore = 0;
+  
+  // Compteurs pour bonus/pénalités progressifs
+  let currentAdminCount = countWeekAdminAssignments(secretaire_id, currentAssignments);
+  
+  const sitesCount = new Map<string, number>();
+  for (const assignment of currentAssignments) {
+    if (assignment.secretaire_id === secretaire_id && 
+        assignment.site_priorite && 
+        (assignment.site_priorite === 2 || assignment.site_priorite === 3)) {
+      const count = sitesCount.get(assignment.site_id) || 0;
+      sitesCount.set(assignment.site_id, count + 1);
+    }
+  }
+  
+  // ============================================================
+  // 1. MATIN: Scores positifs
+  // ============================================================
   if (needMatin) {
-    // +100 for preferences (besoin operation, site)
+    const positiveScores: number[] = [];
+    
+    // 1a. Besoin opératoire
     if (needMatin.type === 'bloc_operatoire' && needMatin.besoin_operation_id) {
-      const pref = preferences.besoins.find(
-        b => b.secretaire_id === secretaire_id && b.besoin_operation_id === needMatin.besoin_operation_id
+      const besoinMatch = preferences.besoins.find(
+        sb => sb.secretaire_id === secretaire_id && 
+              sb.besoin_operation_id === needMatin.besoin_operation_id
       );
-      if (pref) {
-        score += 100; // Always +100 for any preference level
+      if (besoinMatch) {
+        const besoinScore = besoinMatch.preference === 1 ? SCORE_WEIGHTS.BESOIN_OP_PREF_1 :
+                            besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
+                            SCORE_WEIGHTS.BESOIN_OP_PREF_3;
+        positiveScores.push(besoinScore);
       }
     }
-
-    if (needMatin.site_id !== ADMIN_SITE_ID) {
-      const sitePref = preferences.sites.find(
-        s => s.secretaire_id === secretaire_id && s.site_id === needMatin.site_id
+    
+    // 1b. Médecin
+    for (const medecin_id of needMatin.medecins_ids) {
+      const medecinMatch = preferences.medecins.find(
+        sm => sm.secretaire_id === secretaire_id && sm.medecin_id === medecin_id
       );
-      if (sitePref) {
-        score += 100; // Always +100 for any site preference
+      if (medecinMatch) {
+        const medecinScore = medecinMatch.priorite === '1' ? 
+          SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
+        positiveScores.push(medecinScore);
       }
     }
-
-    // -20 if different from current state (EXCEPT if moving from admin to another site)
-    if (currentMatin) {
-      const isChangingFromAdmin = currentMatin.site_id === ADMIN_SITE_ID && needMatin.site_id !== ADMIN_SITE_ID;
-      if (!isChangingFromAdmin && currentMatin.site_id !== needMatin.site_id) {
-        score -= 20;
-      }
-    } else {
-      // No current assignment, so creating new one = -20
-      score -= 20;
+    
+    // 1c. Site
+    const siteMatchMatin = preferences.sites.find(
+      ss => ss.secretaire_id === secretaire_id && ss.site_id === needMatin.site_id
+    );
+    if (siteMatchMatin) {
+      const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
+                        siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
+                        SCORE_WEIGHTS.SITE_PREF_3;
+      positiveScores.push(siteScore);
     }
-  } else {
-    // Null morning = admin
-    // -20 if it was not admin before
-    if (currentMatin && currentMatin.site_id !== ADMIN_SITE_ID) {
-      score -= 20;
+    
+    // Prendre le MAX et ajouter +100 bonus pour dry-run
+    const matinBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
+    if (matinBaseScore > 0) {
+      totalScore += matinBaseScore + 100; // +100 bonus par rapport à assign-v2
+    }
+    
+    // 1d. Bonus admin progressif (MATIN)
+    if (needMatin.site_id === ADMIN_SITE_ID) {
+      if (secretaire.prefered_admin) {
+        if (currentAdminCount < 2) {
+          totalScore += 90;
+        } else {
+          totalScore += 6;
+        }
+      } else {
+        const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
+        totalScore += adminBonus;
+      }
+      currentAdminCount++; // Incrémenter pour l'après-midi
+    }
+    
+    // 1e. Pénalité sur-assignation site P2/P3 (MATIN)
+    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3')) {
+      const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
+      if (currentSiteCount >= 2) {
+        const overload = currentSiteCount - 2;
+        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        totalScore += penalty;
+      }
+      // Incrémenter pour l'après-midi
+      sitesCount.set(needMatin.site_id, currentSiteCount + 1);
     }
   }
-
-  // ====================
-  // AFTERNOON PERIOD
-  // ====================
+  
+  // ============================================================
+  // 2. APRÈS-MIDI: Scores positifs
+  // ============================================================
   if (needAM) {
-    // +100 for preferences (besoin operation, site)
+    const positiveScores: number[] = [];
+    
+    // 2a. Besoin opératoire
     if (needAM.type === 'bloc_operatoire' && needAM.besoin_operation_id) {
-      const pref = preferences.besoins.find(
-        b => b.secretaire_id === secretaire_id && b.besoin_operation_id === needAM.besoin_operation_id
+      const besoinMatch = preferences.besoins.find(
+        sb => sb.secretaire_id === secretaire_id && 
+              sb.besoin_operation_id === needAM.besoin_operation_id
       );
-      if (pref) {
-        score += 100; // Always +100 for any preference level
+      if (besoinMatch) {
+        const besoinScore = besoinMatch.preference === 1 ? SCORE_WEIGHTS.BESOIN_OP_PREF_1 :
+                            besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
+                            SCORE_WEIGHTS.BESOIN_OP_PREF_3;
+        positiveScores.push(besoinScore);
       }
     }
-
-    if (needAM.site_id !== ADMIN_SITE_ID) {
-      const sitePref = preferences.sites.find(
-        s => s.secretaire_id === secretaire_id && s.site_id === needAM.site_id
+    
+    // 2b. Médecin
+    for (const medecin_id of needAM.medecins_ids) {
+      const medecinMatch = preferences.medecins.find(
+        sm => sm.secretaire_id === secretaire_id && sm.medecin_id === medecin_id
       );
-      if (sitePref) {
-        score += 100; // Always +100 for any site preference
+      if (medecinMatch) {
+        const medecinScore = medecinMatch.priorite === '1' ? 
+          SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
+        positiveScores.push(medecinScore);
       }
     }
-
-    // -20 if different from current state (EXCEPT if moving from admin to another site)
-    if (currentAM) {
-      const isChangingFromAdmin = currentAM.site_id === ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID;
-      if (!isChangingFromAdmin && currentAM.site_id !== needAM.site_id) {
-        score -= 20;
-      }
-    } else {
-      // No current assignment, so creating new one = -20
-      score -= 20;
+    
+    // 2c. Site
+    const siteMatchAM = preferences.sites.find(
+      ss => ss.secretaire_id === secretaire_id && ss.site_id === needAM.site_id
+    );
+    if (siteMatchAM) {
+      const siteScore = siteMatchAM.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
+                        siteMatchAM.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
+                        SCORE_WEIGHTS.SITE_PREF_3;
+      positiveScores.push(siteScore);
     }
-  } else {
-    // Null afternoon = admin
-    // -20 if it was not admin before
-    if (currentAM && currentAM.site_id !== ADMIN_SITE_ID) {
-      score -= 20;
+    
+    // Prendre le MAX et ajouter +100 bonus pour dry-run
+    const amBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
+    if (amBaseScore > 0) {
+      totalScore += amBaseScore + 100; // +100 bonus par rapport à assign-v2
+    }
+    
+    // 2d. Bonus admin progressif (AM)
+    if (needAM.site_id === ADMIN_SITE_ID) {
+      if (secretaire.prefered_admin) {
+        if (currentAdminCount < 2) {
+          totalScore += 90;
+        } else {
+          totalScore += 6;
+        }
+      } else {
+        const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
+        totalScore += adminBonus;
+      }
+    }
+    
+    // 2e. Pénalité sur-assignation site P2/P3 (AM)
+    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3')) {
+      const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
+      if (currentSiteCount >= 2) {
+        const overload = currentSiteCount - 2;
+        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        totalScore += penalty;
+      }
     }
   }
-
-  return score;
+  
+  // ============================================================
+  // 3. PÉNALITÉ CHANGEMENT DE SITE
+  // ============================================================
+  if (needMatin && needAM && needMatin.site_id !== needAM.site_id) {
+    // Exclure les changements impliquant ADMIN
+    if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
+      const isHighPenalty = 
+        HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
+        HIGH_PENALTY_SITES.includes(needAM.site_id);
+      
+      const changePenalty = isHighPenalty ? 
+        PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
+        PENALTIES.CHANGEMENT_SITE;
+      
+      totalScore += changePenalty;
+    }
+  }
+  
+  return totalScore;
 }
 
 // Stub function for compatibility with existing milp-builder
