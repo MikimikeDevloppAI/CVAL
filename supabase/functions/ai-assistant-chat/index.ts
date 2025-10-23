@@ -268,8 +268,17 @@ Principes de communication CRITIQUES:
    - Présenter les résultats de manière claire et lisible
    - Regrouper par personne plutôt que par jour si c'est plus lisible
    - Simplifier: si matin + après-midi = dire "journée entière"
+   - JAMAIS montrer le SQL à l'utilisateur
+   - Ne mentionner la limite de 100 lignes QUE si elle est atteinte (exemple: "Attention, seules les 100 premières lignes sont affichées")
+   - Utiliser des tableaux markdown bien formatés avec des en-têtes clairs
    
-5. TECHNIQUES:
+5. TABLEAUX MARKDOWN:
+   - Utiliser le format markdown avec alignement
+   - Exemples de bonnes en-têtes: "Date", "Personne", "Site", "Période" (pas "demi_journee")
+   - Simplifier les rôles: is_1r = "Responsable 1R", is_2f = "Responsable 2F", etc.
+   - Si aucun rôle spécial, ne rien afficher
+   
+6. TECHNIQUES:
    - Limiter les résultats avec LIMIT 100
    - IMPORTANT: Utiliser les VRAIS noms de colonnes (voir schéma ci-dessous)
    - Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
@@ -480,11 +489,18 @@ LIMIT 100;
 6. ⚠️ CRITIQUE: Ne JAMAIS terminer les requêtes SQL par un point-virgule (;)
 7. Quand matin ET après-midi sont présents pour la même personne/jour, les regrouper et dire "journée entière"
 
-EXEMPLE DE BONNE RÉPONSE:
-❌ MAUVAIS: "Les secrétaires avec actif = true dans capacite_effective pour la semaine prochaine sont..."
-✅ BON: "Voici les assistantes médicales qui travaillent la semaine prochaine:
-- Marie Dupont: lundi (journée entière), mercredi matin, vendredi (journée entière)
-- Sophie Martin: mardi (journée entière), jeudi après-midi"
+EXEMPLE DE BONNE RÉPONSE AVEC TABLEAU:
+❌ MAUVAIS: Afficher le SQL ou mentionner "actif = true" ou "is_2f"
+✅ BON: 
+"Voici les assistantes médicales qui travaillent les samedis en 2026 :
+
+| Date | Période | Site | Assistante | Rôle |
+|------|---------|------|-----------|------|
+| 10/01/2026 | Matin | Centre Esplanade - Ophtalmologie | Léna Jurot | Responsable 2F |
+| 14/02/2026 | Matin | Centre Esplanade - Ophtalmologie | Léna Jurot | Responsable 2F |
+| 14/03/2026 | Matin | Centre Esplanade - Ophtalmologie | Léna Jurot | Responsable 2F |
+
+Au total, 6 samedis sont planifiés pour cette période."
 
 Pour toute question nécessitant des données, utilise l'outil execute_sql_query avec une requête SQL appropriée.`;
 }
