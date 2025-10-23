@@ -12,7 +12,8 @@ import {
   CalendarX2,
   BarChart3,
   ChevronDown,
-  LayoutDashboard
+  LayoutDashboard,
+  Sparkles
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { AIAssistantDialog } from '@/components/assistant/AIAssistantDialog';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -36,6 +38,7 @@ export const Sidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
@@ -218,10 +221,27 @@ export const Sidebar = () => {
           <SidebarContent onLinkClick={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
-      <img 
-        src={cliniqueLogoImg} 
-        alt="Clinique La Vallée" 
-        className="h-8 w-auto"
+          <img 
+            src={cliniqueLogoImg} 
+            alt="Clinique La Vallée" 
+            className="h-8 w-auto"
+          />
+          
+          <div className="flex-1" />
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAiAssistantOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Assistant IA</span>
+          </Button>
+      
+      <AIAssistantDialog 
+        open={aiAssistantOpen} 
+        onOpenChange={setAiAssistantOpen} 
       />
     </div>
   );
