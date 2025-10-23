@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { OptimizationTestDialog } from './OptimizationTestDialog';
+import { DryRunOptimizationDialog } from './DryRunOptimizationDialog';
 
 interface SecretaireSuggestion {
   secretaire_id: string;
@@ -82,6 +83,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [applyingOptimization, setApplyingOptimization] = useState(false);
   const [testedDate, setTestedDate] = useState<string | null>(null);
+  const [dryRunResult, setDryRunResult] = useState<any>(null);
+  const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [dryRunDate, setDryRunDate] = useState<string | null>(null);
 
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
@@ -824,6 +829,29 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   };
 
+  const handleDryRunOptimization = async (date: string) => {
+    setDryRunLoading(true);
+    setDryRunDate(date);
+    setDryRunDialogOpen(true);
+    setDryRunResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
+        body: { date }
+      });
+
+      if (error) throw error;
+
+      setDryRunResult(data);
+    } catch (error) {
+      console.error('Error running dry run optimization:', error);
+      toast.error('Erreur lors de l\'optimisation dry run');
+      setDryRunDialogOpen(false);
+    } finally {
+      setDryRunLoading(false);
+    }
+  };
+
   const handleApplyOptimization = async () => {
     if (!testResult || !testedDate) {
       toast.error('Aucune date de test disponible');
@@ -1241,18 +1269,25 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
                   </div>
-                  {/* Temporarily hidden
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleTestOptimization(date)}
-                    disabled={testingDays.has(date)}
+                    onClick={() => handleDryRunOptimization(date)}
+                    disabled={dryRunLoading && dryRunDate === date}
                     className="gap-2"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    {testingDays.has(date) ? 'Test en cours...' : 'Tester l\'optimisation'}
+                    {dryRunLoading && dryRunDate === date ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyse...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Optimiser
+                      </>
+                    )}
                   </Button>
-                  */}
                 </div>
 
                 {needs
@@ -1520,6 +1555,14 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         result={testResult}
         onApply={handleApplyOptimization}
         isApplying={applyingOptimization}
+      />
+
+      <DryRunOptimizationDialog
+        open={dryRunDialogOpen}
+        onOpenChange={setDryRunDialogOpen}
+        date={dryRunDate || ''}
+        result={dryRunResult}
+        isLoading={dryRunLoading}
       />
     </Card>
   );
