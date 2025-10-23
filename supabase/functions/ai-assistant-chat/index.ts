@@ -87,9 +87,11 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    console.log('🔍 Réponse OpenAI complète:', JSON.stringify(data, null, 2));
     const assistantMessage = data.choices[0].message;
     
     console.log('📝 Réponse OpenAI reçue, tool_calls:', assistantMessage.tool_calls?.length || 0);
+    console.log('📝 Content:', assistantMessage.content);
 
     // Si l'IA veut appeler des tools
     if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
@@ -176,10 +178,19 @@ serve(async (req) => {
     }
 
     // Si pas de tool call, retourner directement la réponse
+    const responseContent = assistantMessage.content || '';
     console.log('✅ Réponse directe (sans requête SQL)');
+    console.log('📄 Contenu de la réponse:', responseContent);
+    console.log('📊 Longueur:', responseContent.length);
+    
+    if (!responseContent || responseContent.trim() === '') {
+      console.error('⚠️ ATTENTION: Réponse vide d\'OpenAI!');
+      console.error('Message complet:', JSON.stringify(assistantMessage, null, 2));
+    }
+    
     return new Response(
       JSON.stringify({ 
-        response: assistantMessage.content
+        response: responseContent
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
