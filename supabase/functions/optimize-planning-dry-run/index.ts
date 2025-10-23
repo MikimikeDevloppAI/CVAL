@@ -48,7 +48,7 @@ function calculateNeeds(
     const need = needsMap.get(key)!;
     need.medecins_ids.push(besoin.medecin_id);
     need.nombre_suggere += medecin.besoin_secretaires || 1.2;
-    need.nombre_max = Math.max(need.nombre_max, Math.ceil(need.nombre_suggere * 1.5));
+    need.nombre_max = Math.ceil(need.nombre_suggere);
   }
 
   // Bloc needs
