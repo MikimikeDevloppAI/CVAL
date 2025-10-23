@@ -140,14 +140,16 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Bot className="h-6 w-6 text-primary" />
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0 bg-gradient-to-br from-background via-background to-primary/5">
+        <DialogHeader className="px-6 pt-6 pb-0 border-b-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 backdrop-blur-sm border border-primary/20">
+                <Bot className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <DialogTitle>Assistant IA - Planning</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-xl font-semibold">Assistant IA</DialogTitle>
+                <DialogDescription className="text-sm">
                   Posez vos questions sur l'utilisation ou les données
                 </DialogDescription>
               </div>
@@ -155,51 +157,69 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
             {messages.length > 0 && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={handleClearConversation}
+                className="hover:bg-destructive/10 hover:text-destructive transition-colors"
                 title="Effacer la conversation"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-2" />
+                Effacer
               </Button>
-            )}
-          </div>
-
-          <Tabs value={mode} onValueChange={(v) => setMode(v as 'planning' | 'usage')} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="usage" className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4" />
-                <span className="text-sm">❓ Aide à l'utilisation</span>
-              </TabsTrigger>
-              <TabsTrigger value="planning" className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                <span className="text-sm">📊 Questions sur le planning</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="text-xs text-muted-foreground px-3 py-2 bg-muted/30 rounded-md mt-3">
-            {mode === 'usage' ? (
-              <span>💡 Posez vos questions sur comment utiliser l'application, l'algorithme, etc.</span>
-            ) : (
-              <span>💡 Interrogez les données de votre planning (secrétaires, médecins, opérations, etc.)</span>
             )}
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6" ref={scrollRef}>
-          <div className="space-y-4 py-4">
+        <div className="px-6 pt-4 pb-3 space-y-3">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as 'planning' | 'usage')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50 p-1 rounded-xl">
+              <TabsTrigger 
+                value="usage" 
+                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span className="font-medium">Aide à l'utilisation</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="planning" 
+                className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <Database className="h-4 w-4" />
+                <span className="font-medium">Questions sur le planning</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="text-xs text-muted-foreground px-4 py-2.5 bg-muted/30 backdrop-blur-sm rounded-lg border border-border/50">
+            {mode === 'usage' ? (
+              <span>Posez vos questions sur comment utiliser l'application, l'algorithme, etc.</span>
+            ) : (
+              <span>Interrogez les données de votre planning (secrétaires, médecins, opérations, etc.)</span>
+            )}
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1 px-6 bg-background/50" ref={scrollRef}>
+          <div className="space-y-4 py-6">
             {messages.length === 0 && (
-              <Card className="p-6 bg-muted/50 border-dashed">
-                <p className="text-sm text-muted-foreground text-center mb-3">
-                  💬 Commencez la conversation en posant une question
-                </p>
-                <div className="mt-4 space-y-2 text-xs text-muted-foreground">
-                  <p className="font-medium">Exemples de questions :</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    {getExampleQuestions().map((question, i) => (
-                      <li key={i}>{question}</li>
-                    ))}
-                  </ul>
+              <Card className="p-8 bg-gradient-to-br from-muted/30 to-muted/50 border-dashed border-2 shadow-sm">
+                <div className="text-center space-y-4">
+                  <div className="inline-flex p-4 rounded-2xl bg-primary/10">
+                    <Bot className="h-8 w-8 text-primary" />
+                  </div>
+                  <p className="text-base font-medium text-foreground">
+                    Commencez la conversation en posant une question
+                  </p>
+                  <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                    <p className="font-semibold text-foreground">Exemples de questions :</p>
+                    <div className="grid gap-2">
+                      {getExampleQuestions().map((question, i) => (
+                        <div key={i} className="flex items-start gap-2 text-left p-3 rounded-lg bg-background/50 border border-border/50">
+                          <span className="text-primary mt-0.5">•</span>
+                          <span>{question}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </Card>
             )}
@@ -209,33 +229,37 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
             ))}
 
             {isLoading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">L'assistant réfléchit...</span>
+              <div className="flex items-center gap-3 text-muted-foreground p-4 bg-muted/30 rounded-xl border border-border/50">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="text-sm font-medium">L'assistant réfléchit...</span>
               </div>
             )}
           </div>
         </ScrollArea>
 
-        <div className="px-6 py-4 border-t bg-background">
-          <div className="flex gap-2">
+        <div className="px-6 py-4 border-t bg-background/80 backdrop-blur-sm">
+          <div className="flex gap-3">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Posez votre question..."
               disabled={isLoading}
-              className="flex-1"
+              className="flex-1 h-11 bg-background border-border/50 focus-visible:ring-primary/20"
             />
             <Button
               onClick={handleSend}
               disabled={isLoading || !input.trim()}
-              size="icon"
+              size="lg"
+              className="px-5 h-11 shadow-sm"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Envoyer</span>
+                </>
               )}
             </Button>
           </div>
@@ -249,16 +273,20 @@ function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {!isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center shadow-sm">
           <Bot className="h-4 w-4 text-primary" />
         </div>
       )}
       
-      <div className={`flex flex-col gap-1 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
-        <Card className={`p-3 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-          <div className={`text-sm prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
+      <div className={`flex flex-col gap-1.5 max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+        <Card className={`p-4 shadow-sm border transition-all ${
+          isUser 
+            ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20' 
+            : 'bg-gradient-to-br from-background to-muted/30 border-border/50'
+        }`}>
+          <div className={`text-sm prose prose-sm max-w-none leading-relaxed ${isUser ? 'prose-invert' : 'dark:prose-invert'}`}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -290,13 +318,13 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         </Card>
 
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground font-medium px-1">
           {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
 
       {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm">
           <User className="h-4 w-4 text-primary-foreground" />
         </div>
       )}
