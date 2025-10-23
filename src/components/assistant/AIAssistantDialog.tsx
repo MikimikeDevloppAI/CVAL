@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, Loader2, Bot, User, Trash2, HelpCircle, Database } from 'lucide-react';
+import { Send, Loader2, BotMessageSquare, User, Trash2, HelpCircle, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -145,12 +145,12 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-primary/10 backdrop-blur-sm border border-primary/20">
-                <Bot className="h-5 w-5 text-primary" />
+                <BotMessageSquare className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-semibold">Assistant IA</DialogTitle>
+                <DialogTitle className="text-xl font-semibold">ValléeBot</DialogTitle>
                 <DialogDescription className="text-sm">
-                  Posez vos questions sur l'utilisation ou les données
+                  Votre assistant intelligent pour la Clinique La Vallée
                 </DialogDescription>
               </div>
             </div>
@@ -204,7 +204,7 @@ export function AIAssistantDialog({ open, onOpenChange }: AIAssistantDialogProps
               <Card className="p-8 bg-gradient-to-br from-muted/30 to-muted/50 border-dashed border-2 shadow-sm">
                 <div className="text-center space-y-4">
                   <div className="inline-flex p-4 rounded-2xl bg-primary/10">
-                    <Bot className="h-8 w-8 text-primary" />
+                    <BotMessageSquare className="h-8 w-8 text-primary" />
                   </div>
                   <p className="text-base font-medium text-foreground">
                     Commencez la conversation en posant une question
@@ -276,7 +276,7 @@ function MessageBubble({ message }: { message: Message }) {
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {!isUser && (
         <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center shadow-sm">
-          <Bot className="h-4 w-4 text-primary" />
+          <BotMessageSquare className="h-4 w-4 text-primary" />
         </div>
       )}
       
