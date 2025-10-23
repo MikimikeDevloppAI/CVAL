@@ -9,18 +9,56 @@ const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 // ═══════════════════════════════════════════════════════════════
 const MANUAL_PROMPT_APPEND = `
 SECRÉTAIRES (liste manuelle) :
-- À compléter manuellement si nécessaire
-- Exemple: Marie Dupont, Jean Martin, etc.
+- Sarah Bortolon
+- Florence Bron
+- Maryline Cattin
+- Mathilde Etique
+- Meliha Filieri
+- Alexandrine Fleury
+- Stéphanie Guillaume
+- Mirlinda Hasani
+- Gaëlle Jeannerat
+- Mélanie Joray
+- Léna Jurot
+- Stéphanie Kaufmann
+- Julianne Kunz
+- Loïs Lambelet
+- Vivianne Lovis
+- Gilles Mourey
+- Aurélie Nusbaumer
+- Lucie Pratillo
+- Inès Ramseier
+- Christine Ribeaud
+- Sabrina Schlüchter
+- Laura Spring
+- Lucie Vanni
+- Adéline Vural
+- Cynthia Zimmermann
 
 MÉDECINS (liste manuelle) :
-- À compléter manuellement si nécessaire  
-- Exemple: Dr. Sophie Leblanc — Cardiologie
+- Dr. Amandine Abiltzer — Ophtalmologie
+- Dr. Rui De Melo — Rhumatologie
+- Dr. Michèle Depairon — Angiologie
+- Dr. Sonia Dresse Kerkour — Ophtalmologie
+- Dr. Anna-Maria Forster — Dermatologie
+- Dr. Florian Froelich — Gastroentérologie
+- Dr. Paul Jacquier — Ophtalmologie
+- Dr. Alexandar Krunic — Dermatologie
+- Dr. Soydan Kurun — Ophtalmologie
+- Dr. Vasilios Papastefanou — Ophtalmologie
+- Dr. Dimitrios Polyzois — Gastroentérologie
+- Dr. Claude Schwarz — Ophtalmologie
+- Dr. Massimo Vento — Ophtalmologie
 
 SITES (liste manuelle) :
-- À compléter manuellement si nécessaire
-- Exemple: Centre Esplanade, Clinique La Vallée, etc.
-
-(Si cette section est vide, les listes dynamiques seront utilisées)
+- Administratif
+- Bloc opératoire
+- Centre Esplanade - Ophtalmologie
+- Clinique La Vallée - Angiologie
+- Clinique La Vallée - Dermatologie
+- Clinique La Vallée - Ophtalmologie
+- Clinique La Vallée - Rhumatologie
+- Vieille ville Delémont - Gastroentérologie
 `;
 // ═══════════════════════════════════════════════════════════════
 
