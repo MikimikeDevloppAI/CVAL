@@ -196,7 +196,7 @@ export const DryRunOptimizationDialog = ({
     return Array.from(siteStats.values());
   }, [result]);
 
-  // Calculate bloc operatoire satisfaction
+  // Calculate bloc operatoire satisfaction - COUNT EACH BESOIN ONLY ONCE
   const blocSatisfaction = useMemo<SiteSatisfaction[]>(() => {
     if (!result || !result.before || !result.after) return [];
     
@@ -221,10 +221,15 @@ export const DryRunOptimizationDialog = ({
         });
       }
       
+      // Count each besoin only once based on its status
       const stats = blocStats.get(key)!;
-      if (assignment.status === 'satisfait') stats.avant.satisfait++;
-      else if (assignment.status === 'partiel') stats.avant.partiel++;
-      else stats.avant.non_satisfait++;
+      if (assignment.status === 'satisfait') {
+        stats.avant.satisfait = 1;
+      } else if (assignment.status === 'partiel') {
+        stats.avant.partiel = 1;
+      } else {
+        stats.avant.non_satisfait = 1;
+      }
     });
     
     // Process after assignments (only 'bloc_operatoire' type)
@@ -246,10 +251,15 @@ export const DryRunOptimizationDialog = ({
         });
       }
       
+      // Count each besoin only once based on its status
       const stats = blocStats.get(key)!;
-      if (assignment.status === 'satisfait') stats.apres.satisfait++;
-      else if (assignment.status === 'partiel') stats.apres.partiel++;
-      else stats.apres.non_satisfait++;
+      if (assignment.status === 'satisfait') {
+        stats.apres.satisfait = 1;
+      } else if (assignment.status === 'partiel') {
+        stats.apres.partiel = 1;
+      } else {
+        stats.apres.non_satisfait = 1;
+      }
     });
     
     return Array.from(blocStats.values());
