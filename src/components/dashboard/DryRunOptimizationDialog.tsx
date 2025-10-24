@@ -103,12 +103,22 @@ export const DryRunOptimizationDialog = ({
       }
       
       const group = groups.get(key)!;
-      const avant = change.type === 'bloc_operatoire' 
-        ? `${change.site_avant_nom || 'Non assigné'} - ${change.type_intervention_avant_nom || ''} (${change.besoin_operation_avant_nom || ''})`
-        : change.site_avant_nom || 'Non assigné';
-      const apres = change.type === 'bloc_operatoire'
-        ? `${change.site_apres_nom || 'Non assigné'} - ${change.type_intervention_apres_nom || ''} (${change.besoin_operation_apres_nom || ''})`
-        : change.site_apres_nom || 'Non assigné';
+      
+      // Format avant
+      let avant: string;
+      if (change.type === 'bloc_operatoire' && (change.type_intervention_avant_nom || change.besoin_operation_avant_nom)) {
+        avant = `${change.site_avant_nom || 'Non assigné'} - ${change.type_intervention_avant_nom || ''} (${change.besoin_operation_avant_nom || ''})`;
+      } else {
+        avant = change.site_avant_nom || 'Non assigné';
+      }
+      
+      // Format apres
+      let apres: string;
+      if (change.type === 'bloc_operatoire' && (change.type_intervention_apres_nom || change.besoin_operation_apres_nom)) {
+        apres = `${change.site_apres_nom || 'Non assigné'} - ${change.type_intervention_apres_nom || ''} (${change.besoin_operation_apres_nom || ''})`;
+      } else {
+        apres = change.site_apres_nom || 'Non assigné';
+      }
       
       group.periods.push({
         demi_journee: change.demi_journee,
