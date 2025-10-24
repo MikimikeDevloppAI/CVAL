@@ -302,15 +302,17 @@ serve(async (req) => {
 
     // Create fictitious capacities with everyone in ADMIN (in memory only, NO DB update)
     console.log(`\n📝 Création de capacités fictives (en mémoire) avec tout le monde en ADMIN...`);
-    const fictitiousCapacites: CapaciteEffective[] = capacites.map(cap => ({
-      ...cap,
-      site_id: ADMIN_SITE_ID,
-      besoin_operation_id: undefined,
-      planning_genere_bloc_operatoire_id: undefined,
-      is_1r: false,
-      is_2f: false,
-      is_3f: false
-    }));
+    const fictitiousCapacites: CapaciteEffective[] = capacites
+      .filter(cap => cap.actif)  // ← Filter only active capacities
+      .map(cap => ({
+        ...cap,
+        site_id: ADMIN_SITE_ID,
+        besoin_operation_id: undefined,
+        planning_genere_bloc_operatoire_id: undefined,
+        is_1r: false,
+        is_2f: false,
+        is_3f: false
+      }));
     
     console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
 
