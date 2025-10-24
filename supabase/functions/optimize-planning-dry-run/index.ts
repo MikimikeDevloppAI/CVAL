@@ -124,7 +124,8 @@ function getCurrentAssignments(
   besoinsOperations: Map<string, any>,
   typesIntervention: Map<string, any>,
   sallesOperation: Map<string, any>,
-  planningBloc: Map<string, any>
+  planningBloc: Map<string, any>,
+  medecinsMap: Map<string, any>
 ): any[] {
   const assignments: any[] = [];
 
@@ -182,6 +183,7 @@ function getCurrentAssignments(
     let besoin_operation_nom = null;
     let salle_nom = null;
     let periode_display = need.periode;
+    let medecin_nom = null;
 
     if (need.type === 'bloc_operatoire') {
       // Get besoin operation name
@@ -205,6 +207,12 @@ function getCurrentAssignments(
             const salle = sallesOperation.get(planning.salle_assignee);
             salle_nom = salle?.name || null;
           }
+
+          // Get medecin name
+          if (planning.medecin_id) {
+            const medecinInfo = medecinsMap.get(planning.medecin_id);
+            medecin_nom = medecinInfo ? `${medecinInfo.first_name} ${medecinInfo.name}` : null;
+          }
         }
       }
     }
@@ -220,6 +228,7 @@ function getCurrentAssignments(
       type_intervention_nom,
       besoin_operation_nom,
       salle_nom,
+      medecin_nom,
       secretaires: assigned,
       nombre_requis,
       nombre_assigne,
@@ -351,7 +360,8 @@ serve(async (req) => {
       besoinsOperations,
       typesIntervention,
       sallesOperation,
-      planningBlocMap
+      planningBlocMap,
+      week_data.medecins_map
     );
 
     // Capture current state from fictitious capacities too (for bonus +30)
@@ -525,6 +535,7 @@ serve(async (req) => {
       let besoin_operation_nom = null;
       let salle_nom = null;
       let periode_display = need.periode;
+      let medecin_nom = null;
 
       if (need.type === 'bloc_operatoire') {
         // Get besoin operation name
@@ -548,6 +559,12 @@ serve(async (req) => {
               const salle = sallesOperation.get(planning.salle_assignee);
               salle_nom = salle?.name || null;
             }
+
+            // Get medecin name
+            if (planning.medecin_id) {
+              const medecin = week_data.medecins_map.get(planning.medecin_id);
+              medecin_nom = medecin ? `${medecin.first_name} ${medecin.name}` : null;
+            }
           }
         }
       }
@@ -563,6 +580,7 @@ serve(async (req) => {
         type_intervention_nom,
         besoin_operation_nom,
         salle_nom,
+        medecin_nom,
         secretaires: assignedUnique,
         nombre_requis: Math.ceil(need.nombre_suggere),
         nombre_assigne: assignedUnique.length,

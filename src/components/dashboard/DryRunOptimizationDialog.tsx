@@ -241,8 +241,9 @@ export const DryRunOptimizationDialog = ({
       const typeIntervention = assignment.type_intervention_nom || 'Type non spécifié';
       const besoinOp = assignment.besoin_operation_nom || 'Besoin non spécifié';
       const periode = assignment.periode || 'Créneau non spécifié';
+      const medecinNom = assignment.medecin_nom || '';
       
-      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}`;
+      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}${medecinNom ? ' | Dr. ' + medecinNom : ''}`;
       
       if (!blocStats.has(key)) {
         blocStats.set(key, {
@@ -275,8 +276,9 @@ export const DryRunOptimizationDialog = ({
       const typeIntervention = assignment.type_intervention_nom || 'Type non spécifié';
       const besoinOp = assignment.besoin_operation_nom || 'Besoin non spécifié';
       const periode = assignment.periode || 'Créneau non spécifié';
+      const medecinNom = assignment.medecin_nom || '';
       
-      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}`;
+      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}${medecinNom ? ' | Dr. ' + medecinNom : ''}`;
       
       if (!blocStats.has(key)) {
         blocStats.set(key, {
@@ -611,12 +613,9 @@ export const DryRunOptimizationDialog = ({
                                            bloc.avant.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
                           const apresColor = bloc.apres.status === 'satisfait' ? 'text-green-600' :
                                            bloc.apres.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
-                          const hasImprovement = 
-                            (bloc.avant.status === 'non_satisfait' && bloc.apres.status !== 'non_satisfait') ||
-                            (bloc.avant.status === 'partiel' && bloc.apres.status === 'satisfait');
                           
                           return (
-                            <tr key={idx} className={`border-t ${hasImprovement ? 'bg-green-50' : ''}`}>
+                            <tr key={idx} className="border-t">
                               <td className="p-2">{bloc.site_nom}</td>
                               <td className={`p-2 text-center ${avantColor} font-medium`}>
                                 {bloc.avant.nombre_assigne}/{bloc.avant.nombre_requis}
