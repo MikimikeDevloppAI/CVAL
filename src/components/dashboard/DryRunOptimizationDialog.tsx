@@ -416,13 +416,6 @@ export const DryRunOptimizationDialog = ({
                     </div>
                   </CardContent>
                 </Card>
-
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm text-muted-foreground mb-1">Score d'optimisation</div>
-                    <div className="text-2xl font-bold">{Math.round(result.improvement.score_improvement || 0)}</div>
-                  </CardContent>
-                </Card>
               </div>
 
               {/* Site Satisfaction Summary */}
