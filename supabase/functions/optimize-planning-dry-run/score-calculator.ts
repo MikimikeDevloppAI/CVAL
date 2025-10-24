@@ -244,6 +244,9 @@ export function calculateComboScore(
   if (currentState) {
     const state = currentState.get(secretaire_id);
     if (state) {
+      console.log(`  📋 État actuel: Matin=${state.matin_site_id?.slice(0,8)} (besoin=${state.matin_besoin_op_id?.slice(0,8)}, bloc=${state.matin_bloc_op_id?.slice(0,8)}), AM=${state.am_site_id?.slice(0,8)} (besoin=${state.am_besoin_op_id?.slice(0,8)}, bloc=${state.am_bloc_op_id?.slice(0,8)})`);
+      console.log(`  🔍 Combo proposé: Matin=${needMatin?.site_id?.slice(0,8)} (type=${needMatin?.type}), AM=${needAM?.site_id?.slice(0,8)} (type=${needAM?.type})`);
+      
       const matchesMatin = (
         (needMatin === null && state.matin_site_id === ADMIN_SITE_ID) ||
         (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
@@ -265,10 +268,16 @@ export function calculateComboScore(
         (needMatin && needMatin.site_id !== ADMIN_SITE_ID) ||
         (needAM && needAM.site_id !== ADMIN_SITE_ID);
       
+      console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}, Non-admin: ${keepsNonAdmin}`);
+      
       if (matchesMatin && matchesAM && keepsNonAdmin) {
         totalScore += 30;
-        console.log(`  🎯 BONUS +30: état actuel conservé (non-admin)`);
+        console.log(`  🎯 BONUS +30: état actuel conservé (non-admin) ✅`);
+      } else {
+        console.log(`  ❌ Pas de bonus +30 (match=${matchesMatin && matchesAM}, non-admin=${keepsNonAdmin})`);
       }
+    } else {
+      console.log(`  ℹ️ Pas d'état actuel trouvé pour cette secrétaire`);
     }
   }
   
