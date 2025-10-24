@@ -12,7 +12,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Calculate needs exactly like v2
+// Calculate needs exactly like v2 - RAW needs without any current assignment impact
 function calculateNeeds(
   besoins_effectifs: any[], // Already filtered by date
   medecins_map: Map<string, any>,
@@ -25,44 +25,52 @@ function calculateNeeds(
   // ============================================================
   // 1. SITE NEEDS (from besoin_effectif)
   // ============================================================
-  // Group by site + demi_journee (NO date filter here, done before)
+  // Exclude all bloc sites by name
+  const blocSiteIds = sites
+    .filter(s => s.nom.toLowerCase().includes('bloc') || 
+                  s.nom.toLowerCase().includes('opératoire'))
+    .map(s => s.id);
+  
+  // Group by site|date|demi_journee (robust key)
   const siteGroups = new Map<string, any[]>();
   
   for (const besoin of besoins_effectifs) {
     if (besoin.type !== 'medecin') continue;
+    if (blocSiteIds.includes(besoin.site_id)) continue;
     
-    // Exclude bloc sites
-    const site = sites.find(s => s.id === besoin.site_id);
-    const siteName = (site?.nom || '').toLowerCase();
-    if (siteName.includes('bloc')) continue;
-    
-    const key = `${besoin.site_id}_${besoin.demi_journee}`;
+    const key = `${besoin.site_id}|${besoin.date}|${besoin.demi_journee}`;
     if (!siteGroups.has(key)) {
       siteGroups.set(key, []);
     }
     siteGroups.get(key)!.push(besoin);
   }
   
+  console.log('🧮 Besoins calculés (sites):');
   for (const [key, besoins] of siteGroups) {
-    const [site_id, demi_journee] = key.split('_');
+    const [site_id, date, demi_journee] = key.split('|');
     
     let totalBesoin = 0;
     const medecins_ids: string[] = [];
     
+    // CRITICAL: Calculate raw need based on all doctors, NO skipping
     for (const besoin of besoins) {
-      const medecin = medecins_map.get(besoin.medecin_id);
-      if (!medecin) continue;
-      
-      medecins_ids.push(besoin.medecin_id);
-      totalBesoin += medecin.besoin_secretaires || 1.2;
+      if (besoin.medecin_id) {
+        const medecin = medecins_map.get(besoin.medecin_id);
+        if (medecin) {
+          totalBesoin += medecin.besoin_secretaires || 1.2;
+          medecins_ids.push(besoin.medecin_id);
+        }
+      }
     }
     
     const nombre_max = Math.ceil(totalBesoin);
     const site = sites.find(s => s.id === site_id);
     
+    console.log(`  ${date} ${demi_journee} - ${site?.nom || site_id}: nombre_max=${nombre_max} (medecins=${medecins_ids.length})`);
+    
     needs.push({
       site_id,
-      date: besoins[0].date, // All besoins have same date
+      date,
       periode: demi_journee as 'matin' | 'apres_midi',
       nombre_suggere: nombre_max,
       nombre_max,

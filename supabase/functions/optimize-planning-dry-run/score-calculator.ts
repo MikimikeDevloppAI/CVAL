@@ -239,7 +239,7 @@ export function calculateComboScore(
   }
   
   // ============================================================
-  // 4. BONUS +30 SI COMBO CORRESPOND À L'ÉTAT ACTUEL
+  // 4. BONUS +30 SI COMBO CORRESPOND À L'ÉTAT ACTUEL (NON-ADMIN ONLY)
   // ============================================================
   if (currentState) {
     const state = currentState.get(secretaire_id);
@@ -260,9 +260,14 @@ export function calculateComboScore(
          needAM.besoin_operation_id === state.am_besoin_op_id)
       );
       
-      if (matchesMatin && matchesAM) {
+      // Only award +30 if at least one period is NON-ADMIN
+      const keepsNonAdmin = 
+        (needMatin && needMatin.site_id !== ADMIN_SITE_ID) ||
+        (needAM && needAM.site_id !== ADMIN_SITE_ID);
+      
+      if (matchesMatin && matchesAM && keepsNonAdmin) {
         totalScore += 30;
-        console.log(`  🎯 BONUS +30: Combo correspond à l'état actuel`);
+        console.log(`  🎯 BONUS +30: état actuel conservé (non-admin)`);
       }
     }
   }

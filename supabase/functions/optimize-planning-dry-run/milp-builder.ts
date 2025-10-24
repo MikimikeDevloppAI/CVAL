@@ -30,6 +30,11 @@ export function buildMILPModelSoft(
   const adminNeedsForDate = week_data.admin_needs.filter((n: SiteNeed) => n.date === date);
   const allNeeds = [...needs, ...adminNeedsForDate];
   
+  console.log(`🧮 Totaux besoins pour ${date}:`);
+  console.log(`  Sites: ${needs.filter(n => n.type === 'site').length}`);
+  console.log(`  Bloc: ${needs.filter(n => n.type === 'bloc_operatoire').length}`);
+  console.log(`  Admin: ${adminNeedsForDate.length}`);
+  
   const todayCapacites = capacites.filter(c => c.date === date && c.actif);
   const activeSecretaires = new Set(
     todayCapacites.filter(c => c.secretaire_id).map(c => c.secretaire_id!)
