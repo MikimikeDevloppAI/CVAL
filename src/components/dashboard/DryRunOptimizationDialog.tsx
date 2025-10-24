@@ -510,33 +510,6 @@ export const DryRunOptimizationDialog = ({
             </div>
           ) : result && result.before && result.after && result.improvement ? (
             <>
-              {/* Summary Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm text-muted-foreground mb-1">Besoins non satisfaits</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold">{result.before.total_unmet || 0}</span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      <span className={`text-2xl font-bold ${
-                        (result.after.total_unmet || 0) < (result.before.total_unmet || 0) ? 'text-green-500' :
-                        (result.after.total_unmet || 0) > (result.before.total_unmet || 0) ? 'text-destructive' :
-                        'text-muted-foreground'
-                      }`}>
-                        {result.after.total_unmet || 0}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {(result.improvement.unmet_diff || 0) < 0 
-                        ? `${Math.abs(result.improvement.unmet_diff || 0)} de moins` 
-                        : (result.improvement.unmet_diff || 0) > 0
-                        ? `${result.improvement.unmet_diff || 0} de plus`
-                        : 'Identique'
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
 
               {/* Site Satisfaction Summary */}
               {siteSatisfaction.length > 0 && (
