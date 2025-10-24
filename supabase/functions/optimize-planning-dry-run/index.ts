@@ -261,22 +261,37 @@ serve(async (req) => {
       week_data.sites
     );
 
+    // Get real capacities for this date
+    const capacites = week_data.capacites_effective.filter(c => c.date === date);
 
+    // Create fictitious capacities with everyone in ADMIN (in memory only, NO DB update)
+    console.log(`\n📝 Création de capacités fictives (en mémoire) avec tout le monde en ADMIN...`);
+    const fictitiousCapacites: CapaciteEffective[] = capacites
+      .filter(cap => cap.actif)  // ← Filter only active capacities
+      .map(cap => ({
+        ...cap,
+        site_id: ADMIN_SITE_ID,
+        besoin_operation_id: undefined,
+        planning_genere_bloc_operatoire_id: undefined,
+        is_1r: false,
+        is_2f: false,
+        is_3f: false
+      }));
+    
+    console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
 
-
-    // Get current assignments BEFORE optimization
+    // Get current assignments BEFORE optimization (using fictitious capacities = everyone in admin)
     const beforeAssignments = getCurrentAssignments(
       date,
-      week_data.capacites_effective,
+      fictitiousCapacites,  // ← Use fictitious capacities, not real ones
       needs,
       week_data.secretaires,
       week_data.sites
     );
 
-    // Capture current state (before reset)
+    // Capture current state from REAL capacities (for bonus +30)
     console.log(`\n🎯 Capture de l'état actuel pour bonus +30...`);
     const currentState = new Map<string, CurrentState>();
-    const capacites = week_data.capacites_effective.filter(c => c.date === date);
     
     for (const cap of capacites) {
       if (!cap.secretaire_id) continue;
@@ -307,22 +322,6 @@ serve(async (req) => {
     }
     
     console.log(`  ✅ État actuel capturé pour ${currentState.size} secrétaires`);
-
-    // Create fictitious capacities with everyone in ADMIN (in memory only, NO DB update)
-    console.log(`\n📝 Création de capacités fictives (en mémoire) avec tout le monde en ADMIN...`);
-    const fictitiousCapacites: CapaciteEffective[] = capacites
-      .filter(cap => cap.actif)  // ← Filter only active capacities
-      .map(cap => ({
-        ...cap,
-        site_id: ADMIN_SITE_ID,
-        besoin_operation_id: undefined,
-        planning_genere_bloc_operatoire_id: undefined,
-        is_1r: false,
-        is_2f: false,
-        is_3f: false
-      }));
-    
-    console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
 
     // Calculate week assignments for scoring context (no changes here)
     const week_assignments: AssignmentSummary[] = [];
