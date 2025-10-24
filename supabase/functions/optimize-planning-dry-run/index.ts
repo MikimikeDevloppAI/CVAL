@@ -120,7 +120,11 @@ function getCurrentAssignments(
   capacites: CapaciteEffective[],
   needs: SiteNeed[],
   secretaires: any[],
-  sites: any[]
+  sites: any[],
+  besoinsOperations: Map<string, any>,
+  typesIntervention: Map<string, any>,
+  sallesOperation: Map<string, any>,
+  planningBloc: Map<string, any>
 ): any[] {
   const assignments: any[] = [];
 
@@ -173,14 +177,49 @@ function getCurrentAssignments(
       site_nom = site?.nom || 'Bloc opératoire';
     }
 
+    // Add bloc operatoire details if applicable
+    let type_intervention_nom = null;
+    let besoin_operation_nom = null;
+    let salle_nom = null;
+    let periode_display = need.periode;
+
+    if (need.type === 'bloc_operatoire') {
+      // Get besoin operation name
+      if (need.besoin_operation_id) {
+        const besoinOp = besoinsOperations.get(need.besoin_operation_id);
+        besoin_operation_nom = besoinOp?.nom || null;
+      }
+
+      // Get type intervention and salle from planning_genere_bloc_operatoire
+      if (need.bloc_operation_id) {
+        const planning = planningBloc.get(need.bloc_operation_id);
+        if (planning) {
+          periode_display = planning.periode || need.periode;
+          
+          if (planning.type_intervention_id) {
+            const typeIntervention = typesIntervention.get(planning.type_intervention_id);
+            type_intervention_nom = typeIntervention?.nom || null;
+          }
+          
+          if (planning.salle_assignee) {
+            const salle = sallesOperation.get(planning.salle_assignee);
+            salle_nom = salle?.name || null;
+          }
+        }
+      }
+    }
+
     assignments.push({
       date: need.date,
       site_id: need.site_id,
       site_nom: site_nom || 'Site inconnu',
-      periode: need.periode,
+      periode: periode_display,
       type: need.type,
       bloc_operation_id: need.bloc_operation_id,
       besoin_operation_id: need.besoin_operation_id,
+      type_intervention_nom,
+      besoin_operation_nom,
+      salle_nom,
       secretaires: assigned,
       nombre_requis,
       nombre_assigne,
@@ -252,6 +291,28 @@ serve(async (req) => {
     // Load data using exact same function as v2
     const week_data = await loadWeekData([date], supabase);
     
+    // Load additional data for bloc operatoire details
+    const { data: besoinsOpsData } = await supabase
+      .from('besoins_operations')
+      .select('id, nom');
+    
+    const { data: typesInterventionData } = await supabase
+      .from('types_intervention')
+      .select('id, nom');
+    
+    const { data: sallesData } = await supabase
+      .from('salles_operation')
+      .select('id, name');
+    
+    const besoinsOperations = new Map(besoinsOpsData?.map(b => [b.id, b]) || []);
+    const typesIntervention = new Map(typesInterventionData?.map(t => [t.id, t]) || []);
+    const sallesOperation = new Map(sallesData?.map(s => [s.id, s]) || []);
+    const planningBlocMap = new Map(
+      week_data.planning_bloc
+        .filter((p: any) => p.date === date)
+        .map((p: any) => [p.id, p])
+    );
+    
     // Calculate needs using exact same logic as v2
     const needs = calculateNeeds(
       week_data.besoins_effectifs.filter(b => b.date === date),
@@ -280,13 +341,17 @@ serve(async (req) => {
     
     console.log(`  ✅ ${fictitiousCapacites.length} capacités fictives créées`);
 
-    // Get current assignments BEFORE optimization (using fictitious capacities)
+    // Get current assignments BEFORE optimization (using real capacities for display)
     const beforeAssignments = getCurrentAssignments(
       date,
-      fictitiousCapacites,
+      capacites,  // Use real capacites for "Avant" display
       needs,
       week_data.secretaires,
-      week_data.sites
+      week_data.sites,
+      besoinsOperations,
+      typesIntervention,
+      sallesOperation,
+      planningBlocMap
     );
 
     // Capture current state from fictitious capacities too (for bonus +30)
@@ -455,14 +520,49 @@ serve(async (req) => {
         return true;
       });
 
+      // Add bloc operatoire details if applicable
+      let type_intervention_nom = null;
+      let besoin_operation_nom = null;
+      let salle_nom = null;
+      let periode_display = need.periode;
+
+      if (need.type === 'bloc_operatoire') {
+        // Get besoin operation name
+        if (need.besoin_operation_id) {
+          const besoinOp = besoinsOperations.get(need.besoin_operation_id);
+          besoin_operation_nom = besoinOp?.nom || null;
+        }
+
+        // Get type intervention and salle from planning_genere_bloc_operatoire
+        if (need.bloc_operation_id) {
+          const planning = planningBlocMap.get(need.bloc_operation_id);
+          if (planning) {
+            periode_display = planning.periode || need.periode;
+            
+            if (planning.type_intervention_id) {
+              const typeIntervention = typesIntervention.get(planning.type_intervention_id);
+              type_intervention_nom = typeIntervention?.nom || null;
+            }
+            
+            if (planning.salle_assignee) {
+              const salle = sallesOperation.get(planning.salle_assignee);
+              salle_nom = salle?.name || null;
+            }
+          }
+        }
+      }
+
       afterAssignments.push({
         date: need.date,
         site_id: need.site_id,
         site_nom: need.site_nom,
-        periode: need.periode,
+        periode: periode_display,
         type: need.type,
         bloc_operation_id: need.bloc_operation_id,
         besoin_operation_id: need.besoin_operation_id,
+        type_intervention_nom,
+        besoin_operation_nom,
+        salle_nom,
         secretaires: assignedUnique,
         nombre_requis: Math.ceil(need.nombre_suggere),
         nombre_assigne: assignedUnique.length,
