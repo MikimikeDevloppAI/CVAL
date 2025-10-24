@@ -196,6 +196,55 @@ export const DryRunOptimizationDialog = ({
     return Array.from(siteStats.values());
   }, [result]);
 
+  // Calculate bloc operatoire satisfaction
+  const blocSatisfaction = useMemo<SiteSatisfaction[]>(() => {
+    if (!result || !result.before || !result.after) return [];
+    
+    const blocStats = new Map<string, SiteSatisfaction>();
+    
+    // Process before assignments (only 'bloc_operatoire' type)
+    result.before.assignments?.forEach((assignment: any) => {
+      if (assignment.type !== 'bloc_operatoire') return;
+      
+      const key = `${assignment.site_nom} - ${assignment.type_intervention_nom || ''} (${assignment.besoin_operation_nom || ''})`;
+      
+      if (!blocStats.has(key)) {
+        blocStats.set(key, {
+          site_nom: key,
+          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
+          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+        });
+      }
+      
+      const stats = blocStats.get(key)!;
+      if (assignment.status === 'satisfait') stats.avant.satisfait++;
+      else if (assignment.status === 'partiel') stats.avant.partiel++;
+      else stats.avant.non_satisfait++;
+    });
+    
+    // Process after assignments (only 'bloc_operatoire' type)
+    result.after.assignments?.forEach((assignment: any) => {
+      if (assignment.type !== 'bloc_operatoire') return;
+      
+      const key = `${assignment.site_nom} - ${assignment.type_intervention_nom || ''} (${assignment.besoin_operation_nom || ''})`;
+      
+      if (!blocStats.has(key)) {
+        blocStats.set(key, {
+          site_nom: key,
+          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
+          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+        });
+      }
+      
+      const stats = blocStats.get(key)!;
+      if (assignment.status === 'satisfait') stats.apres.satisfait++;
+      else if (assignment.status === 'partiel') stats.apres.partiel++;
+      else stats.apres.non_satisfait++;
+    });
+    
+    return Array.from(blocStats.values());
+  }, [result]);
+
   useEffect(() => {
     if (!open || !result) {
       setChanges([]);
@@ -454,6 +503,41 @@ export const DryRunOptimizationDialog = ({
                               {site.apres.satisfait > 0 && `✓${site.apres.satisfait} `}
                               {site.apres.partiel > 0 && `~${site.apres.partiel} `}
                               {site.apres.non_satisfait > 0 && `✗${site.apres.non_satisfait}`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Bloc Operatoire Satisfaction Summary */}
+              {blocSatisfaction.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Satisfaction des besoins opération</h3>
+                  <div className="border rounded text-xs">
+                    <table className="w-full">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left p-2 font-medium">Besoin opération</th>
+                          <th className="text-center p-2 font-medium">Avant</th>
+                          <th className="text-center p-2 font-medium">Après</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blocSatisfaction.map((bloc, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-2">{bloc.site_nom}</td>
+                            <td className="p-2 text-center">
+                              {bloc.avant.satisfait > 0 && `✓${bloc.avant.satisfait} `}
+                              {bloc.avant.partiel > 0 && `~${bloc.avant.partiel} `}
+                              {bloc.avant.non_satisfait > 0 && `✗${bloc.avant.non_satisfait}`}
+                            </td>
+                            <td className="p-2 text-center">
+                              {bloc.apres.satisfait > 0 && `✓${bloc.apres.satisfait} `}
+                              {bloc.apres.partiel > 0 && `~${bloc.apres.partiel} `}
+                              {bloc.apres.non_satisfait > 0 && `✗${bloc.apres.non_satisfait}`}
                             </td>
                           </tr>
                         ))}
