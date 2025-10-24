@@ -39,8 +39,17 @@ interface GroupedChange {
 
 interface SiteSatisfaction {
   site_nom: string;
-  avant: { satisfait: number; partiel: number; non_satisfait: number };
-  apres: { satisfait: number; partiel: number; non_satisfait: number };
+  periode: string;
+  avant: { 
+    nombre_requis: number;
+    nombre_assigne: number;
+    status: string;
+  };
+  apres: { 
+    nombre_requis: number;
+    nombre_assigne: number;
+    status: string;
+  };
 }
 
 interface DryRunResult {
@@ -155,42 +164,64 @@ export const DryRunOptimizationDialog = ({
   const siteSatisfaction = useMemo<SiteSatisfaction[]>(() => {
     if (!result || !result.before || !result.after) return [];
     
-    const siteStats = new Map<string, SiteSatisfaction>();
+    const siteStats = new Map<string, any>();
     
     // Process before assignments (only 'site' type, exclude 'bloc_operatoire')
     result.before.assignments?.forEach((assignment: any) => {
       if (assignment.type !== 'site') return; // Skip bloc_operatoire
       
-      if (!siteStats.has(assignment.site_nom)) {
-        siteStats.set(assignment.site_nom, {
+      const key = `${assignment.site_nom}|${assignment.periode}`;
+      
+      if (!siteStats.has(key)) {
+        siteStats.set(key, {
           site_nom: assignment.site_nom,
-          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
-          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+          periode: assignment.periode,
+          avant: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          },
+          apres: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          }
         });
       }
       
-      const stats = siteStats.get(assignment.site_nom)!;
-      if (assignment.status === 'satisfait') stats.avant.satisfait++;
-      else if (assignment.status === 'partiel') stats.avant.partiel++;
-      else stats.avant.non_satisfait++;
+      const stats = siteStats.get(key)!;
+      stats.avant.nombre_requis = assignment.nombre_requis || 0;
+      stats.avant.nombre_assigne = assignment.nombre_assigne || 0;
+      stats.avant.status = assignment.status;
     });
     
     // Process after assignments (only 'site' type, exclude 'bloc_operatoire')
     result.after.assignments?.forEach((assignment: any) => {
       if (assignment.type !== 'site') return; // Skip bloc_operatoire
       
-      if (!siteStats.has(assignment.site_nom)) {
-        siteStats.set(assignment.site_nom, {
+      const key = `${assignment.site_nom}|${assignment.periode}`;
+      
+      if (!siteStats.has(key)) {
+        siteStats.set(key, {
           site_nom: assignment.site_nom,
-          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
-          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+          periode: assignment.periode,
+          avant: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          },
+          apres: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          }
         });
       }
       
-      const stats = siteStats.get(assignment.site_nom)!;
-      if (assignment.status === 'satisfait') stats.apres.satisfait++;
-      else if (assignment.status === 'partiel') stats.apres.partiel++;
-      else stats.apres.non_satisfait++;
+      const stats = siteStats.get(key)!;
+      stats.apres.nombre_requis = assignment.nombre_requis || 0;
+      stats.apres.nombre_assigne = assignment.nombre_assigne || 0;
+      stats.apres.status = assignment.status;
     });
     
     return Array.from(siteStats.values());
@@ -200,7 +231,7 @@ export const DryRunOptimizationDialog = ({
   const blocSatisfaction = useMemo<SiteSatisfaction[]>(() => {
     if (!result || !result.before || !result.after) return [];
     
-    const blocStats = new Map<string, SiteSatisfaction>();
+    const blocStats = new Map<string, any>();
     
     // Process before assignments (only 'bloc_operatoire' type)
     result.before.assignments?.forEach((assignment: any) => {
@@ -216,20 +247,24 @@ export const DryRunOptimizationDialog = ({
       if (!blocStats.has(key)) {
         blocStats.set(key, {
           site_nom: key,
-          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
-          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+          periode: periode,
+          avant: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          },
+          apres: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          }
         });
       }
       
-      // Count each besoin only once based on its status
       const stats = blocStats.get(key)!;
-      if (assignment.status === 'satisfait') {
-        stats.avant.satisfait = 1;
-      } else if (assignment.status === 'partiel') {
-        stats.avant.partiel = 1;
-      } else {
-        stats.avant.non_satisfait = 1;
-      }
+      stats.avant.nombre_requis = assignment.nombre_requis || 0;
+      stats.avant.nombre_assigne = assignment.nombre_assigne || 0;
+      stats.avant.status = assignment.status;
     });
     
     // Process after assignments (only 'bloc_operatoire' type)
@@ -246,20 +281,24 @@ export const DryRunOptimizationDialog = ({
       if (!blocStats.has(key)) {
         blocStats.set(key, {
           site_nom: key,
-          avant: { satisfait: 0, partiel: 0, non_satisfait: 0 },
-          apres: { satisfait: 0, partiel: 0, non_satisfait: 0 }
+          periode: periode,
+          avant: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          },
+          apres: { 
+            nombre_requis: 0,
+            nombre_assigne: 0,
+            status: 'non_satisfait'
+          }
         });
       }
       
-      // Count each besoin only once based on its status
       const stats = blocStats.get(key)!;
-      if (assignment.status === 'satisfait') {
-        stats.apres.satisfait = 1;
-      } else if (assignment.status === 'partiel') {
-        stats.apres.partiel = 1;
-      } else {
-        stats.apres.non_satisfait = 1;
-      }
+      stats.apres.nombre_requis = assignment.nombre_requis || 0;
+      stats.apres.nombre_assigne = assignment.nombre_assigne || 0;
+      stats.apres.status = assignment.status;
     });
     
     return Array.from(blocStats.values());
@@ -506,26 +545,44 @@ export const DryRunOptimizationDialog = ({
                       <thead className="bg-muted/50">
                         <tr>
                           <th className="text-left p-2 font-medium">Site</th>
+                          <th className="text-center p-2 font-medium">Période</th>
                           <th className="text-center p-2 font-medium">Avant</th>
                           <th className="text-center p-2 font-medium">Après</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {siteSatisfaction.map((site, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="p-2">{site.site_nom}</td>
-                            <td className="p-2 text-center">
-                              {site.avant.satisfait > 0 && `✓${site.avant.satisfait} `}
-                              {site.avant.partiel > 0 && `~${site.avant.partiel} `}
-                              {site.avant.non_satisfait > 0 && `✗${site.avant.non_satisfait}`}
-                            </td>
-                            <td className="p-2 text-center">
-                              {site.apres.satisfait > 0 && `✓${site.apres.satisfait} `}
-                              {site.apres.partiel > 0 && `~${site.apres.partiel} `}
-                              {site.apres.non_satisfait > 0 && `✗${site.apres.non_satisfait}`}
-                            </td>
-                          </tr>
-                        ))}
+                        {siteSatisfaction.map((site, idx) => {
+                          const avantColor = site.avant.status === 'satisfait' ? 'text-green-600' :
+                                           site.avant.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
+                          const apresColor = site.apres.status === 'satisfait' ? 'text-green-600' :
+                                           site.apres.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
+                          const hasImprovement = 
+                            (site.avant.status === 'non_satisfait' && site.apres.status !== 'non_satisfait') ||
+                            (site.avant.status === 'partiel' && site.apres.status === 'satisfait');
+                          
+                          return (
+                            <tr key={idx} className={`border-t ${hasImprovement ? 'bg-green-50' : ''}`}>
+                              <td className="p-2">{site.site_nom}</td>
+                              <td className="p-2 text-center">
+                                <span className="inline-block px-2 py-0.5 rounded bg-muted text-xs">
+                                  {site.periode === 'matin' ? '🌅 Matin' : '🌆 Après-midi'}
+                                </span>
+                              </td>
+                              <td className={`p-2 text-center ${avantColor} font-medium`}>
+                                {site.avant.nombre_assigne}/{site.avant.nombre_requis}
+                                {site.avant.status === 'satisfait' && ' ✓'}
+                                {site.avant.status === 'partiel' && ' ~'}
+                                {site.avant.status === 'non_satisfait' && ' ✗'}
+                              </td>
+                              <td className={`p-2 text-center ${apresColor} font-medium`}>
+                                {site.apres.nombre_assigne}/{site.apres.nombre_requis}
+                                {site.apres.status === 'satisfait' && ' ✓'}
+                                {site.apres.status === 'partiel' && ' ~'}
+                                {site.apres.status === 'non_satisfait' && ' ✗'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -546,21 +603,33 @@ export const DryRunOptimizationDialog = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {blocSatisfaction.map((bloc, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="p-2">{bloc.site_nom}</td>
-                            <td className="p-2 text-center">
-                              {bloc.avant.satisfait > 0 && `✓${bloc.avant.satisfait} `}
-                              {bloc.avant.partiel > 0 && `~${bloc.avant.partiel} `}
-                              {bloc.avant.non_satisfait > 0 && `✗${bloc.avant.non_satisfait}`}
-                            </td>
-                            <td className="p-2 text-center">
-                              {bloc.apres.satisfait > 0 && `✓${bloc.apres.satisfait} `}
-                              {bloc.apres.partiel > 0 && `~${bloc.apres.partiel} `}
-                              {bloc.apres.non_satisfait > 0 && `✗${bloc.apres.non_satisfait}`}
-                            </td>
-                          </tr>
-                        ))}
+                        {blocSatisfaction.map((bloc, idx) => {
+                          const avantColor = bloc.avant.status === 'satisfait' ? 'text-green-600' :
+                                           bloc.avant.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
+                          const apresColor = bloc.apres.status === 'satisfait' ? 'text-green-600' :
+                                           bloc.apres.status === 'partiel' ? 'text-orange-600' : 'text-red-600';
+                          const hasImprovement = 
+                            (bloc.avant.status === 'non_satisfait' && bloc.apres.status !== 'non_satisfait') ||
+                            (bloc.avant.status === 'partiel' && bloc.apres.status === 'satisfait');
+                          
+                          return (
+                            <tr key={idx} className={`border-t ${hasImprovement ? 'bg-green-50' : ''}`}>
+                              <td className="p-2">{bloc.site_nom}</td>
+                              <td className={`p-2 text-center ${avantColor} font-medium`}>
+                                {bloc.avant.nombre_assigne}/{bloc.avant.nombre_requis}
+                                {bloc.avant.status === 'satisfait' && ' ✓'}
+                                {bloc.avant.status === 'partiel' && ' ~'}
+                                {bloc.avant.status === 'non_satisfait' && ' ✗'}
+                              </td>
+                              <td className={`p-2 text-center ${apresColor} font-medium`}>
+                                {bloc.apres.nombre_assigne}/{bloc.apres.nombre_requis}
+                                {bloc.apres.status === 'satisfait' && ' ✓'}
+                                {bloc.apres.status === 'partiel' && ' ~'}
+                                {bloc.apres.status === 'non_satisfait' && ' ✗'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
