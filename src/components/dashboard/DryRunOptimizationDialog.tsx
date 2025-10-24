@@ -206,7 +206,12 @@ export const DryRunOptimizationDialog = ({
     result.before.assignments?.forEach((assignment: any) => {
       if (assignment.type !== 'bloc_operatoire') return;
       
-      const key = `${assignment.site_nom} - ${assignment.type_intervention_nom || ''} (${assignment.besoin_operation_nom || ''})`;
+      const salle = assignment.salle_nom || 'Salle non assignée';
+      const typeIntervention = assignment.type_intervention_nom || 'Type non spécifié';
+      const besoinOp = assignment.besoin_operation_nom || 'Besoin non spécifié';
+      const periode = assignment.periode || 'Créneau non spécifié';
+      
+      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}`;
       
       if (!blocStats.has(key)) {
         blocStats.set(key, {
@@ -226,7 +231,12 @@ export const DryRunOptimizationDialog = ({
     result.after.assignments?.forEach((assignment: any) => {
       if (assignment.type !== 'bloc_operatoire') return;
       
-      const key = `${assignment.site_nom} - ${assignment.type_intervention_nom || ''} (${assignment.besoin_operation_nom || ''})`;
+      const salle = assignment.salle_nom || 'Salle non assignée';
+      const typeIntervention = assignment.type_intervention_nom || 'Type non spécifié';
+      const besoinOp = assignment.besoin_operation_nom || 'Besoin non spécifié';
+      const periode = assignment.periode || 'Créneau non spécifié';
+      
+      const key = `${besoinOp} | Salle ${salle} | ${typeIntervention} | ${periode}`;
       
       if (!blocStats.has(key)) {
         blocStats.set(key, {
