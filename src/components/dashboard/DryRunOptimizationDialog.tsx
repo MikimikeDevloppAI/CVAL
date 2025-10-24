@@ -141,14 +141,16 @@ export const DryRunOptimizationDialog = ({
     return result;
   }, [changes]);
 
-  // Calculate site satisfaction from result
+  // Calculate site satisfaction from result (exclude bloc_operatoire)
   const siteSatisfaction = useMemo<SiteSatisfaction[]>(() => {
     if (!result || !result.before || !result.after) return [];
     
     const siteStats = new Map<string, SiteSatisfaction>();
     
-    // Process before assignments
+    // Process before assignments (only 'site' type, exclude 'bloc_operatoire')
     result.before.assignments?.forEach((assignment: any) => {
+      if (assignment.type !== 'site') return; // Skip bloc_operatoire
+      
       if (!siteStats.has(assignment.site_nom)) {
         siteStats.set(assignment.site_nom, {
           site_nom: assignment.site_nom,
@@ -163,8 +165,10 @@ export const DryRunOptimizationDialog = ({
       else stats.avant.non_satisfait++;
     });
     
-    // Process after assignments
+    // Process after assignments (only 'site' type, exclude 'bloc_operatoire')
     result.after.assignments?.forEach((assignment: any) => {
+      if (assignment.type !== 'site') return; // Skip bloc_operatoire
+      
       if (!siteStats.has(assignment.site_nom)) {
         siteStats.set(assignment.site_nom, {
           site_nom: assignment.site_nom,
