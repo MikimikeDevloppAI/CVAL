@@ -564,8 +564,11 @@ export const DryRunOptimizationDialog = ({
                             <tr key={idx} className={`border-t ${hasImprovement ? 'bg-green-50' : ''}`}>
                               <td className="p-2">{site.site_nom}</td>
                               <td className="p-2 text-center">
-                                <span className="inline-block px-2 py-0.5 rounded bg-muted text-xs">
-                                  {site.periode === 'matin' ? '🌅 Matin' : '🌆 Après-midi'}
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${site.periode === 'matin' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
+                                  <span className="text-xs">
+                                    {site.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                                  </span>
                                 </span>
                               </td>
                               <td className={`p-2 text-center ${avantColor} font-medium`}>
