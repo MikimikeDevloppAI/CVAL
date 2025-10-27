@@ -1659,7 +1659,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                           const tempNeed = { 
                                             ...need, 
                                             site_id: need.site_id,
-                                            besoin_operation_id: besoin.besoin_operation_id 
+                                            besoin_operation_id: besoin.besoin_operation_id,
+                                            planning_genere_bloc_operatoire_id: besoin.planning_genere_bloc_id
                                           } as any;
                                           handleQuickAssign(tempNeed, 'matin', sug, false);
                                           setSelectedSecretaire(prev => ({ 
@@ -1757,7 +1758,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                           const tempNeed = { 
                                             ...need, 
                                             site_id: need.site_id,
-                                            besoin_operation_id: besoin.besoin_operation_id 
+                                            besoin_operation_id: besoin.besoin_operation_id,
+                                            planning_genere_bloc_operatoire_id: besoin.planning_genere_bloc_id
                                           } as any;
                                           handleQuickAssign(tempNeed, 'apres_midi', sug, false);
                                           setSelectedSecretaire(prev => ({ 
