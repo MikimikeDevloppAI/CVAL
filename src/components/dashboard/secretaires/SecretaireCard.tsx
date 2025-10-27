@@ -314,6 +314,11 @@ export function SecretaireCard({
                     +{secretaire.nombre_jours_supplementaires || 1}j
                   </Badge>
                 )}
+                {secretaire.prefered_admin && (
+                  <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 border-purple-500/20 text-xs">
+                    Admin {secretaire.nombre_demi_journees_admin && `(${secretaire.nombre_demi_journees_admin})`}
+                  </Badge>
+                )}
               </div>
             </div>
             
