@@ -1251,25 +1251,16 @@ export type Database = {
     Views: {
       besoins_non_satisfaits_summary: {
         Row: {
-          besoin_operation_id: string | null
-          besoin_operation_nom: string | null
           date: string | null
           deficit: number | null
-          medecin_id: string | null
-          medecin_nom: string | null
-          medecin_prenom: string | null
-          nombre_1r: number | null
-          nombre_2f: number | null
-          nombre_3f: number | null
-          nombre_besoins: number | null
-          nombre_capacites: number | null
-          periode: string | null
-          planning_genere_bloc_operatoire_id: string | null
+          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          nombre_assigne: number | null
+          nombre_entites: number | null
+          nombre_requis: number | null
+          site_fermeture: boolean | null
           site_id: string | null
           site_nom: string | null
           type_besoin: string | null
-          type_intervention_id: string | null
-          type_intervention_nom: string | null
         }
         Relationships: []
       }
