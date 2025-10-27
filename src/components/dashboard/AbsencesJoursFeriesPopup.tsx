@@ -48,6 +48,7 @@ interface JourFerie {
 interface AbsencesJoursFeriesPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAbsenceChange?: () => void;
 }
 
 const jourFerieSchema = z.object({
@@ -57,7 +58,7 @@ const jourFerieSchema = z.object({
 
 type JourFerieFormData = z.infer<typeof jourFerieSchema>;
 
-export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFeriesPopupProps) => {
+export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }: AbsencesJoursFeriesPopupProps) => {
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [joursFeries, setJoursFeries] = useState<JourFerie[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,6 +241,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
     setIsAbsenceDialogOpen(false);
     setSelectedAbsence(null);
     fetchAbsences();
+    onAbsenceChange?.();
   };
 
   const handleAbsenceDelete = async () => {
@@ -260,6 +262,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange }: AbsencesJoursFe
 
       setAbsenceToDelete(null);
       fetchAbsences();
+      onAbsenceChange?.();
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
       toast({

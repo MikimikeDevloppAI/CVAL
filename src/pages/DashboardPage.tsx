@@ -943,6 +943,10 @@ const DashboardPage = () => {
       <AbsencesJoursFeriesPopup
         open={absencesPopupOpen}
         onOpenChange={setAbsencesPopupOpen}
+        onAbsenceChange={() => {
+          fetchDashboardData();
+          fetchUnfilledNeedsCount();
+        }}
       />
 
       <SitesPopup 
