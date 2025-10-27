@@ -1253,10 +1253,10 @@ export type Database = {
         Row: {
           besoin_operation_id: string | null
           date: string | null
-          nombre_assignes: number | null
+          deficit: number | null
           nombre_besoins: number | null
-          nombre_manquant: number | null
-          periode: string | null
+          nombre_capacites: number | null
+          periode: Database["public"]["Enums"]["demi_journee"] | null
           planning_genere_bloc_operatoire_id: string | null
           site_id: string | null
           site_nom: string | null
