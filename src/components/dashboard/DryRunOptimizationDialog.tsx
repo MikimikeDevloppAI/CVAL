@@ -505,9 +505,18 @@ export const DryRunOptimizationDialog = ({
         `${changesToApply.length} changement${changesToApply.length > 1 ? 's' : ''} appliqué${changesToApply.length > 1 ? 's' : ''}`
       );
 
-      // If all changes are applied, call onApply callback
-      if (changes.length === changesToApply.length && onApply) {
-        onApply();
+      // If all changes are applied, refresh views and call onApply callback
+      if (changes.length === changesToApply.length) {
+        // Rafraîchir les vues matérialisées
+        const { error: refreshError } = await supabase.functions.invoke('refresh-besoins-view');
+        if (refreshError) {
+          console.error('Error refreshing views:', refreshError);
+          // Ne pas bloquer le flux même si le refresh échoue
+        }
+        
+        if (onApply) {
+          onApply();
+        }
       }
     } catch (error) {
       console.error('Error applying changes:', error);

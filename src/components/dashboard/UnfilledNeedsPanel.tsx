@@ -103,6 +103,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunDate, setDryRunDate] = useState<string | null>(null);
   const [togglingRole, setTogglingRole] = useState<string | null>(null);
+  const [applyingDryRun, setApplyingDryRun] = useState(false);
 
   const fetchSecretairesAssignees = async (date: string, siteId: string): Promise<SecretaireAssignee[]> => {
     try {
@@ -173,6 +174,26 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     } catch (error) {
       console.error('Error fetching assignees:', error);
       return [];
+    }
+  };
+
+  const handleDryRunApply = async () => {
+    setApplyingDryRun(true);
+    try {
+      // Recharger les besoins non satisfaits
+      await fetchUnfilledNeeds();
+      
+      // Recharger le dashboard
+      onRefresh?.();
+      
+      // Fermer le dialog
+      setDryRunDialogOpen(false);
+      
+      toast.success('Changements appliqués et données rafraîchies');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setApplyingDryRun(false);
     }
   };
 
@@ -1800,6 +1821,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         date={dryRunDate || ''}
         result={dryRunResult}
         isLoading={dryRunLoading}
+        onApply={handleDryRunApply}
+        isApplying={applyingDryRun}
       />
     </Card>
   );
