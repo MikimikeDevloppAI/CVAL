@@ -1333,14 +1333,36 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
-      handle_horaire_medecin_insert_logic: {
-        Args: { p_horaire: Record<string, unknown> }
-        Returns: undefined
-      }
-      handle_horaire_secretaire_insert_logic: {
-        Args: { p_horaire: Record<string, unknown> }
-        Returns: undefined
-      }
+      handle_horaire_medecin_insert_logic:
+        | {
+            Args: {
+              p_horaire: Database["public"]["Tables"]["horaires_base_medecins"]["Row"]
+            }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.handle_horaire_medecin_insert_logic(p_horaire => record), public.handle_horaire_medecin_insert_logic(p_horaire => horaires_base_medecins). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { p_horaire: Record<string, unknown> }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.handle_horaire_medecin_insert_logic(p_horaire => record), public.handle_horaire_medecin_insert_logic(p_horaire => horaires_base_medecins). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      handle_horaire_secretaire_insert_logic:
+        | {
+            Args: {
+              p_horaire: Database["public"]["Tables"]["horaires_base_secretaires"]["Row"]
+            }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.handle_horaire_secretaire_insert_logic(p_horaire => record), public.handle_horaire_secretaire_insert_logic(p_horaire => horaires_base_secretaires). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { p_horaire: Record<string, unknown> }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.handle_horaire_secretaire_insert_logic(p_horaire => record), public.handle_horaire_secretaire_insert_logic(p_horaire => horaires_base_secretaires). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
       has_planning_access: { Args: never; Returns: boolean }
       has_planning_or_admin_access: { Args: never; Returns: boolean }
       has_role: {
