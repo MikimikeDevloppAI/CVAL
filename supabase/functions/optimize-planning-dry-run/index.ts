@@ -709,6 +709,13 @@ serve(async (req) => {
       }
     }
 
+    // Clear existing dry_run data for this date (always, even if no new changes)
+    console.log(`🗑️  Suppression des anciennes propositions dry-run pour le ${date}...`);
+    await supabase
+      .from('capacite_effective_dry_run')
+      .delete()
+      .eq('date', date);
+
     // Write to dry_run table if there are changes to show
     if (dryRunRecords.length > 0) {
       if (afterUnsatisfied < beforeUnsatisfied) {
@@ -717,12 +724,6 @@ serve(async (req) => {
         console.log(`  ℹ️  Même nombre de besoins non satisfaits, mais ${dryRunRecords.length} réorganisation(s) proposée(s)`);
       }
       console.log(`✅ Écriture de ${dryRunRecords.length} changement(s) dans capacite_effective_dry_run...`);
-
-      // Clear existing dry_run data for this date
-      await supabase
-        .from('capacite_effective_dry_run')
-        .delete()
-        .eq('date', date);
 
       const { error: insertError } = await supabase
         .from('capacite_effective_dry_run')
@@ -734,7 +735,7 @@ serve(async (req) => {
       }
       console.log(`✅ ${dryRunRecords.length} changements écrits dans capacite_effective_dry_run`);
     } else {
-      console.log(`ℹ️ Aucun changement détecté, dry_run vide`);
+      console.log(`ℹ️ Aucun changement détecté, dry_run vide pour ce jour`);
     }
       
       return new Response(
