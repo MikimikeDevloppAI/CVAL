@@ -1277,7 +1277,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       <div className="ml-4 p-4 rounded-lg border space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Badge variant={periode === 'matin' ? 'default' : 'secondary'}>
+            <Badge variant={periode === 'matin' ? 'default' : 'outline'} className={periode === 'apres_midi' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' : ''}>
               {periode === 'matin' ? 'Matin' : 'Après-midi'}
             </Badge>
             <Badge variant="destructive" className="text-xs ml-auto">
