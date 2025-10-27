@@ -386,15 +386,20 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.medecins_assignes_details?.map((medecin) => (
-              <MedecinAssigneLineEdit
-                key={medecin.id}
-                assignment={medecin}
-                medecins={medecins}
-                onUpdate={onSuccess}
-                onDelete={handleDeleteMedecin}
-              />
-            ))}
+            {secretaire.medecins_assignes_details
+              ?.sort((a, b) => {
+                const priorityOrder: Record<string, number> = { '1': 1, '2': 2 };
+                return (priorityOrder[a.priorite || '1'] || 1) - (priorityOrder[b.priorite || '1'] || 1);
+              })
+              .map((medecin) => (
+                <MedecinAssigneLineEdit
+                  key={medecin.id}
+                  assignment={medecin}
+                  medecins={medecins}
+                  onUpdate={onSuccess}
+                  onDelete={handleDeleteMedecin}
+                />
+              ))}
 
             {newMedecin && (
               <MedecinAssigneLineEdit
@@ -429,15 +434,20 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.sites_assignes_details?.map((site) => (
-              <SiteAssigneLineEdit
-                key={site.id}
-                assignment={site}
-                sites={sites}
-                onUpdate={onSuccess}
-                onDelete={handleDeleteSite}
-              />
-            ))}
+            {secretaire.sites_assignes_details
+              ?.sort((a, b) => {
+                const priorityOrder: Record<string, number> = { '1': 1, '2': 2, '3': 3 };
+                return (priorityOrder[a.priorite || '1'] || 1) - (priorityOrder[b.priorite || '1'] || 1);
+              })
+              .map((site) => (
+                <SiteAssigneLineEdit
+                  key={site.id}
+                  assignment={site}
+                  sites={sites}
+                  onUpdate={onSuccess}
+                  onDelete={handleDeleteSite}
+                />
+              ))}
 
             {newSite && (
               <SiteAssigneLineEdit
@@ -472,15 +482,17 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.besoins_operations?.map((besoin) => (
-              <BesoinOperationnelLineEdit
-                key={besoin.id}
-                assignment={besoin}
-                besoins={besoins}
-                onUpdate={onSuccess}
-                onDelete={handleDeleteBesoin}
-              />
-            ))}
+            {secretaire.besoins_operations
+              ?.sort((a, b) => (a.preference || 1) - (b.preference || 1))
+              .map((besoin) => (
+                <BesoinOperationnelLineEdit
+                  key={besoin.id}
+                  assignment={besoin}
+                  besoins={besoins}
+                  onUpdate={onSuccess}
+                  onDelete={handleDeleteBesoin}
+                />
+              ))}
 
             {newBesoin && (
               <BesoinOperationnelLineEdit
