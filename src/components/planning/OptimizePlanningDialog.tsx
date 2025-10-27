@@ -506,6 +506,15 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
           description: `${data.daily_results?.length || data.results?.length || 0} jour(s) optimisé(s) avec succès.`,
         });
         
+        // Rafraîchir les vues matérialisées
+        console.log('🔄 Rafraîchissement des vues matérialisées...');
+        const { error: refreshError } = await supabase.functions.invoke('refresh-besoins-view');
+        if (refreshError) {
+          console.error('⚠️ Erreur lors du refresh des vues:', refreshError);
+        } else {
+          console.log('✅ Vues matérialisées rafraîchies');
+        }
+        
         onOpenChange(false);
         setSelectedDates([]);
         setWeekAssignments(new Map());

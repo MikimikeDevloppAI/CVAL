@@ -415,6 +415,28 @@ async function optimizeSingleWeek(
     });
   }
   
+  // Rafraîchir les vues matérialisées après optimisation
+  console.log('🔄 Refreshing materialized views...');
+  try {
+    const refreshUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/refresh-besoins-view`;
+    const refreshResponse = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      }
+    });
+
+    if (!refreshResponse.ok) {
+      const errorText = await refreshResponse.text();
+      console.error('⚠️ Failed to refresh views:', errorText);
+    } else {
+      console.log('✅ Materialized views refreshed successfully');
+    }
+  } catch (refreshError) {
+    console.error('⚠️ Exception refreshing views:', refreshError);
+  }
+  
   return { 
     success: true, 
     week_start: sortedDates[0],

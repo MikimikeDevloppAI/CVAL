@@ -534,8 +534,17 @@ export const DryRunOptimizationDialog = ({
     applyChanges(relatedChanges);
   };
 
-  const applyAllChanges = () => {
-    applyChanges(changes);
+  const applyAllChanges = async () => {
+    await applyChanges(changes);
+    
+    // Rafraîchir les vues matérialisées après l'application de tous les changements
+    console.log('🔄 Rafraîchissement des vues matérialisées après dry-run...');
+    const { error: refreshError } = await supabase.functions.invoke('refresh-besoins-view');
+    if (refreshError) {
+      console.error('⚠️ Erreur lors du refresh des vues:', refreshError);
+    } else {
+      console.log('✅ Vues matérialisées rafraîchies après dry-run');
+    }
   };
 
   return (
