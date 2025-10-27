@@ -459,6 +459,14 @@ serve(async (req) => {
     );
     
     console.log(`  ✅ Combos sélectionnés: ${selectedCombosDedup.length}`);
+    
+    // Comptage des combos ADMIN (null ou explicite)
+    const adminCombosCount = selectedCombosDedup.filter(c => 
+      (c.needMatin == null || (c.needMatin?.type === 'site' && c.needMatin.site_id === ADMIN_SITE_ID)) ||
+      (c.needAM == null || (c.needAM?.type === 'site' && c.needAM.site_id === ADMIN_SITE_ID))
+    ).length;
+    console.log(`  ℹ️ Combos avec au moins une demi-journée ADMIN: ${adminCombosCount}`);
+    
     console.log(`\n📊 Détails des combos sélectionnés:`);
     for (const combo of selectedCombosDedup) {
       const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
@@ -478,8 +486,8 @@ serve(async (req) => {
         if (need.periode === 'matin') {
           if (need.type === 'site') {
             if (need.site_id === ADMIN_SITE_ID) {
-              // Admin: match when morning is unassigned (null)
-              matches = combo.needMatin == null;
+              // Admin: match when morning is unassigned (null) OR explicitly assigned to ADMIN
+              matches = (combo.needMatin == null) || (combo.needMatin?.type === 'site' && combo.needMatin.site_id === ADMIN_SITE_ID);
             } else if (combo.needMatin && combo.needMatin.type === 'site') {
               matches = combo.needMatin.site_id === need.site_id;
             }
@@ -496,7 +504,8 @@ serve(async (req) => {
         } else if (need.periode === 'apres_midi') {
           if (need.type === 'site') {
             if (need.site_id === ADMIN_SITE_ID) {
-              matches = combo.needAM == null;
+              // Admin: match when afternoon is unassigned (null) OR explicitly assigned to ADMIN
+              matches = (combo.needAM == null) || (combo.needAM?.type === 'site' && combo.needAM.site_id === ADMIN_SITE_ID);
             } else if (combo.needAM && combo.needAM.type === 'site') {
               matches = combo.needAM.site_id === need.site_id;
             }
