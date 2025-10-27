@@ -1577,17 +1577,20 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             </div>
                           ))}
                         </div>
-                      ) : need.has_both_periods ? (
-                        renderFullDayNeed(need)
-                      ) : (
-                        <>
-                          <div className="p-3 rounded-lg bg-card border border-border/50">
-                            <span className="font-medium">{need.site_nom}</span>
-                          </div>
-                          {renderPeriod(need, 'matin')}
-                          {renderPeriod(need, 'apres_midi')}
-                        </>
-                      )}
+                      ) : need.type_besoin === 'site' ? (
+                        /* Cas SITE - avec journée entière OU périodes uniques */
+                        need.has_both_periods ? (
+                          renderFullDayNeed(need)
+                        ) : (
+                          <>
+                            <div className="p-3 rounded-lg bg-card border border-border/50">
+                              <span className="font-medium">{need.site_nom}</span>
+                            </div>
+                            {need.periods.matin && renderPeriod(need, 'matin')}
+                            {need.periods.apres_midi && renderPeriod(need, 'apres_midi')}
+                          </>
+                        )
+                      ) : null}
                     </div>
                   );
                 })}
