@@ -771,26 +771,8 @@ const DashboardPage = () => {
           </TabsList>
         </div>
 
-        {/* Color Legend */}
-        <div className="flex items-center justify-center mb-6">
-          <div className="inline-flex items-center gap-4 px-4 py-2 bg-white dark:bg-card backdrop-blur-sm border border-border/30 rounded-lg text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Matin</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span>Après-midi</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Journée</span>
-            </div>
-          </div>
-        </div>
-
         {/* Week Selector */}
-        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
+        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg mb-6">
           <Button
             variant="ghost"
             size="icon"
@@ -813,6 +795,24 @@ const DashboardPage = () => {
           >
             <ChevronRight className="h-5 w-5" />
           </Button>
+        </div>
+
+        {/* Color Legend */}
+        <div className="flex items-center justify-center mb-6">
+          <div className="inline-flex items-center gap-4 px-4 py-2 bg-white dark:bg-card backdrop-blur-sm border border-border/30 rounded-lg text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span>Matin</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <span>Après-midi</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>Journée</span>
+            </div>
+          </div>
         </div>
 
         {/* Unfilled Needs Panel */}
