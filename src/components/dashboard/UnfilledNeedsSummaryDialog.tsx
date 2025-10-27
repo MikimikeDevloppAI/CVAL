@@ -151,6 +151,7 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
                       startDate={week.weekStart}
                       endDate={week.weekEnd}
                       onRefresh={handleRefresh}
+                      isOpen={true}
                     />
                   </AccordionContent>
                 </AccordionItem>

@@ -80,13 +80,14 @@ interface UnfilledNeedsPanelProps {
   startDate: string;
   endDate: string;
   onRefresh?: () => void;
+  isOpen?: boolean;
 }
 
-export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNeedsPanelProps) => {
+export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: initialIsOpen = false }: UnfilledNeedsPanelProps) => {
   const [aggregatedNeeds, setAggregatedNeeds] = useState<AggregatedNeed[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(initialIsOpen);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
   const [expandedFullDays, setExpandedFullDays] = useState<Set<string>>(new Set());
