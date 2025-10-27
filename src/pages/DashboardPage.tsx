@@ -21,6 +21,8 @@ import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarC
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
 import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
 import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
+import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
+import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
 import { toast } from 'sonner';
 
 interface PersonnePresence {
@@ -129,6 +131,9 @@ const DashboardPage = () => {
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
   const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
+  const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
+  const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
+  const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -143,6 +148,31 @@ const DashboardPage = () => {
     if (assigne >= besoin) return 'satisfait';
     if (assigne >= Math.floor(besoin)) return 'partiel';
     return 'non_satisfait';
+  };
+
+  const fetchUnfilledNeedsCount = async () => {
+    setUnfilledNeedsLoading(true);
+    try {
+      const today = new Date();
+      const fourWeeksLater = addWeeks(today, 4);
+      
+      const { data, error } = await supabase.rpc('get_besoins_non_satisfaits_summary' as any, {
+        p_date_debut: format(today, 'yyyy-MM-dd'),
+        p_date_fin: format(fourWeeksLater, 'yyyy-MM-dd')
+      });
+      
+      if (!error && data && Array.isArray(data)) {
+        const total = data.reduce((sum: number, need: any) => sum + (need.total_manque || 0), 0);
+        setUnfilledNeedsCount(total);
+      } else {
+        setUnfilledNeedsCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching unfilled needs count:', error);
+      setUnfilledNeedsCount(0);
+    } finally {
+      setUnfilledNeedsLoading(false);
+    }
   };
 
   const fetchDashboardData = async () => {
@@ -582,6 +612,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchUnfilledNeedsCount();
   }, [currentWeek]);
 
   // Real-time updates
@@ -643,8 +674,20 @@ const DashboardPage = () => {
     setCurrentWeek(new Date());
   };
 
+  const handleRefreshAll = () => {
+    fetchDashboardData();
+    fetchUnfilledNeedsCount();
+  };
+
   return (
     <div className="w-full space-y-6">
+      {/* Unfilled Needs Badge */}
+      <UnfilledNeedsBadge
+        count={unfilledNeedsCount}
+        onClick={() => setUnfilledNeedsSummaryOpen(true)}
+        isLoading={unfilledNeedsLoading}
+      />
+
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <QuickActionButton
@@ -903,6 +946,12 @@ const DashboardPage = () => {
       <GeneratePdfDialog
         open={generatePdfDialogOpen}
         onOpenChange={setGeneratePdfDialogOpen}
+      />
+
+      <UnfilledNeedsSummaryDialog
+        open={unfilledNeedsSummaryOpen}
+        onOpenChange={setUnfilledNeedsSummaryOpen}
+        onRefresh={handleRefreshAll}
       />
     </div>
   );
