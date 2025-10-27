@@ -1565,11 +1565,11 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-medium">{besoin.medecin_nom}</span>
                                     <span className="text-sm text-muted-foreground">•</span>
-                                    <Badge variant="outline" className="bg-background">
+                                    <Badge variant="outline">
                                       {besoin.type_intervention_nom}
                                     </Badge>
                                     <span className="text-sm text-muted-foreground">•</span>
-                                    <Badge variant="secondary" className="bg-background">
+                                    <Badge variant="secondary">
                                       {besoin.besoin_operation_nom}
                                     </Badge>
                                   </div>
