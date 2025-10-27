@@ -976,6 +976,7 @@ export type Database = {
           horaire_flexible: boolean
           id: string
           name: string | null
+          nombre_demi_journees_admin: number | null
           nombre_jours_supplementaires: number | null
           phone_number: string | null
           pourcentage_temps: number | null
@@ -992,6 +993,7 @@ export type Database = {
           horaire_flexible?: boolean
           id?: string
           name?: string | null
+          nombre_demi_journees_admin?: number | null
           nombre_jours_supplementaires?: number | null
           phone_number?: string | null
           pourcentage_temps?: number | null
@@ -1008,6 +1010,7 @@ export type Database = {
           horaire_flexible?: boolean
           id?: string
           name?: string | null
+          nombre_demi_journees_admin?: number | null
           nombre_jours_supplementaires?: number | null
           phone_number?: string | null
           pourcentage_temps?: number | null

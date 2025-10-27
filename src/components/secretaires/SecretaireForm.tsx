@@ -54,6 +54,7 @@ const secretaireSchema = z.object({
   horaireFlexible: z.boolean().default(false),
   pourcentageTemps: z.number().min(0.01).max(100).optional(),
   preferedAdmin: z.boolean().default(false),
+  nombreDemiJourneesAdmin: z.number().min(1).max(10).optional(),
   besoinsOperations: z.array(z.object({
     besoinId: z.string(),
     preference: z.number().min(1).max(3).nullable(),
@@ -67,6 +68,14 @@ const secretaireSchema = z.object({
 }, {
   message: "Le pourcentage est requis pour un horaire flexible",
   path: ["pourcentageTemps"],
+}).refine((data) => {
+  if (data.preferedAdmin && !data.nombreDemiJourneesAdmin) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Le nombre de demi-journées admin est requis quand 'Préfère admin' est activé",
+  path: ["nombreDemiJourneesAdmin"],
 });
 
 type SecretaireFormData = z.infer<typeof secretaireSchema>;
@@ -137,6 +146,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
       horaireFlexible: secretaire?.horaire_flexible || false,
       pourcentageTemps: secretaire?.pourcentage_temps || undefined,
       preferedAdmin: secretaire?.prefered_admin || false,
+      nombreDemiJourneesAdmin: secretaire?.nombre_demi_journees_admin || undefined,
       besoinsOperations: [],
       horaires: secretaire?.horaires || [
         { jour: 1, jourTravaille: false, demiJournee: 'toute_journee', actif: true },
@@ -176,6 +186,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
             prefered_admin: data.preferedAdmin,
+            nombre_demi_journees_admin: data.preferedAdmin ? data.nombreDemiJourneesAdmin : null,
           })
           .eq('id', secretaire.id);
 
@@ -247,6 +258,7 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
             horaire_flexible: data.horaireFlexible,
             pourcentage_temps: data.horaireFlexible ? data.pourcentageTemps : null,
             prefered_admin: data.preferedAdmin,
+            nombre_demi_journees_admin: data.preferedAdmin ? data.nombreDemiJourneesAdmin : null,
           })
           .select()
           .single();
@@ -445,7 +457,12 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                   <FormControl>
                     <Checkbox
                       checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                        if (!checked) {
+                          form.setValue('nombreDemiJourneesAdmin', undefined);
+                        }
+                      }}
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">
@@ -454,6 +471,36 @@ export function SecretaireForm({ secretaire, onSuccess }: SecretaireFormProps) {
                 </FormItem>
               )}
             />
+
+            {form.watch('preferedAdmin') && (
+              <FormField
+                control={form.control}
+                name="nombreDemiJourneesAdmin"
+                render={({ field }) => (
+                  <FormItem className="max-w-xs ml-6">
+                    <FormLabel>Nombre de demi-journées admin souhaitées</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        type="number" 
+                        min="1"
+                        max="10"
+                        placeholder="5" 
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value ? parseInt(value) : undefined);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Entre 1 et 10 demi-journées administratives par semaine
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </div>
         </div>
         <Button type="submit" disabled={loading} className="w-full">
