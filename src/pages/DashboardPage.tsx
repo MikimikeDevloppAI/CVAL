@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { QuickActionButton } from '@/components/dashboard/QuickActionButton';
@@ -12,7 +12,6 @@ import { OperationsPopup } from '@/components/dashboard/operations/OperationsPop
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus, Building, FileText } from 'lucide-react';
-import { WeekSelector } from '@/components/shared/WeekSelector';
 import { MonthSelector } from '@/components/shared/MonthSelector';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
@@ -116,7 +115,6 @@ interface DashboardOperation {
 }
 
 const DashboardPage = () => {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
@@ -139,13 +137,9 @@ const DashboardPage = () => {
     pendingAbsences: 0
   });
 
-  // Dates for Sites view (monthly)
-  const startDateSites = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-  const endDateSites = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-
-  // Dates for other views (weekly)
-  const startDate = format(startOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
-  const endDate = format(endOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
+  // All views use monthly dates
+  const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+  const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
   const calculateStatus = (besoin: number, assigne: number): 'satisfait' | 'partiel' | 'non_satisfait' => {
     if (assigne >= besoin) return 'satisfait';
@@ -590,7 +584,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [currentWeek]);
+  }, [currentMonth]);
 
   // Real-time updates
   useEffect(() => {
@@ -637,15 +631,7 @@ const DashboardPage = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentWeek, currentMonth]);
-
-  const handlePreviousWeek = () => {
-    setCurrentWeek(subWeeks(currentWeek, 1));
-  };
-
-  const handleNextWeek = () => {
-    setCurrentWeek(addWeeks(currentWeek, 1));
-  };
+  }, [currentMonth]);
 
   const handlePreviousMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
@@ -656,7 +642,6 @@ const DashboardPage = () => {
   };
 
   const handleToday = () => {
-    setCurrentWeek(new Date());
     setCurrentMonth(new Date());
   };
 
@@ -715,33 +700,26 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Date Selector - conditional based on view mode */}
+      {/* Date Selector - Monthly for all views */}
       <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
         <Button
           variant="ghost"
           size="icon"
-          onClick={viewMode === 'site' ? handlePreviousMonth : handlePreviousWeek}
+          onClick={handlePreviousMonth}
           className="hover:bg-primary/10"
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
         
-        {viewMode === 'site' ? (
-          <MonthSelector 
-            currentDate={currentMonth} 
-            onMonthChange={setCurrentMonth} 
-          />
-        ) : (
-          <WeekSelector 
-            currentDate={currentWeek} 
-            onWeekChange={setCurrentWeek} 
-          />
-        )}
+        <MonthSelector 
+          currentDate={currentMonth} 
+          onMonthChange={setCurrentMonth} 
+        />
 
         <Button
           variant="ghost"
           size="icon"
-          onClick={viewMode === 'site' ? handleNextMonth : handleNextWeek}
+          onClick={handleNextMonth}
           className="hover:bg-primary/10"
         >
           <ChevronRight className="h-5 w-5" />
@@ -780,8 +758,8 @@ const DashboardPage = () => {
         {/* Unfilled Needs Panel */}
         {!loading && (
           <UnfilledNeedsPanel
-            startDate={viewMode === 'site' ? startDateSites : startDate}
-            endDate={viewMode === 'site' ? endDateSites : endDate}
+            startDate={startDate}
+            endDate={endDate}
             onRefresh={fetchDashboardData}
           />
         )}
@@ -795,8 +773,8 @@ const DashboardPage = () => {
           ) : (
             <SiteMonthlyView
               sites={dashboardSites}
-              startDate={startDateSites}
-              endDate={endDateSites}
+              startDate={startDate}
+              endDate={endDate}
               onRefresh={fetchDashboardData}
             />
           )}
@@ -914,7 +892,7 @@ const DashboardPage = () => {
       <AddOperationDialog
         open={addOperationDialogOpen}
         onOpenChange={setAddOperationDialogOpen}
-        currentWeekStart={currentWeek}
+        currentWeekStart={currentMonth}
         onSuccess={fetchDashboardData}
       />
 
