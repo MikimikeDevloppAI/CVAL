@@ -1325,11 +1325,26 @@ export type Database = {
       besoins_fermeture_summary: {
         Row: {
           date: string | null
-          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          nombre_secretaires_requis: number | null
-          nombre_sites_fermeture: number | null
+          deficit: number | null
+          deficit_1r: number | null
+          deficit_2f3f: number | null
+          nombre_assigne_1r: number | null
+          nombre_assigne_2f3f: number | null
+          nombre_requis_1r: number | null
+          nombre_requis_2f3f: number | null
+          secretaires_assignees: Json | null
+          site_id: string | null
+          site_nom: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       besoins_sites_summary: {
         Row: {
