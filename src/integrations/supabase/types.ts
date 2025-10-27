@@ -133,6 +133,13 @@ export type Database = {
             foreignKeyName: "besoin_effectif_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -210,6 +217,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "besoins_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
+          },
           {
             foreignKeyName: "besoins_sites_site_id_fkey"
             columns: ["site_id"]
@@ -310,6 +324,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "secretaires"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "capacite_effective_site_id_fkey"
@@ -520,6 +541,13 @@ export type Database = {
             foreignKeyName: "horaires_base_medecins_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "horaires_base_medecins_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -589,6 +617,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "secretaires"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horaires_base_secretaires_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "horaires_base_secretaires_site_id_fkey"
@@ -1111,6 +1146,13 @@ export type Database = {
             foreignKeyName: "secretaires_sites_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "secretaires_sites_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -1324,27 +1366,20 @@ export type Database = {
       }
       besoins_fermeture_summary: {
         Row: {
+          besoin_type: string | null
           date: string | null
-          deficit: number | null
           deficit_1r: number | null
           deficit_2f3f: number | null
+          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          nom_complet: string | null
           nombre_assigne_1r: number | null
           nombre_assigne_2f3f: number | null
           nombre_requis_1r: number | null
           nombre_requis_2f3f: number | null
-          secretaires_assignees: Json | null
           site_id: string | null
           site_nom: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "besoin_effectif_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       besoins_sites_summary: {
         Row: {
@@ -1358,6 +1393,13 @@ export type Database = {
           site_nom: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_fermeture_summary"
+            referencedColumns: ["site_id"]
+          },
           {
             foreignKeyName: "besoin_effectif_site_id_fkey"
             columns: ["site_id"]
