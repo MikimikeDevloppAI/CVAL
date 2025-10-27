@@ -1435,16 +1435,16 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           <>
             {Array.from(needsByDate.entries()).map(([date, needs]) => (
               <div key={date} className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-3 rounded-lg border border-primary/10">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
                   </div>
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     onClick={() => handleDryRunOptimization(date)}
                     disabled={dryRunLoading && dryRunDate === date}
-                    className="gap-2"
+                    className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/20 transition-all duration-300"
                   >
                     {dryRunLoading && dryRunDate === date ? (
                       <>
