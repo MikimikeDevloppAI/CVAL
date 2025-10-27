@@ -1280,9 +1280,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             <Badge variant={periode === 'matin' ? 'default' : 'secondary'}>
               {periode === 'matin' ? 'Matin' : 'Après-midi'}
             </Badge>
-            <span className="text-sm text-muted-foreground">
-              Manque : <span className="font-semibold text-destructive">{periodData.manque}</span>
-            </span>
+            <Badge variant="destructive" className="text-xs ml-auto">
+              {periodData.manque} manquant
+            </Badge>
           </div>
         </div>
 
