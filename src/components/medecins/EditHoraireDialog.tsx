@@ -18,6 +18,7 @@ const horaireSchema = z.object({
   alternanceSemaineModulo: z.number().int().min(0).max(3),
   dateDebut: z.string().optional(),
   dateFin: z.string().optional(),
+  blocOperatoireSiteId: z.string().optional(),
 }).refine((data) => {
   if (data.dateDebut && data.dateFin) {
     return data.dateDebut <= data.dateFin;
@@ -26,6 +27,14 @@ const horaireSchema = z.object({
 }, {
   message: "La date de début doit être avant ou égale à la date de fin",
   path: ["dateDebut"],
+}).refine((data) => {
+  if (data.siteId === data.blocOperatoireSiteId && (!data.typeInterventionId || data.typeInterventionId === '')) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Le type d'intervention est requis pour le bloc opératoire",
+  path: ["typeInterventionId"],
 });
 
 type HoraireFormData = z.infer<typeof horaireSchema>;
@@ -106,6 +115,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
       alternanceSemaineModulo: horaire?.alternance_semaine_modulo ?? 0,
       dateDebut: horaire?.date_debut || '',
       dateFin: horaire?.date_fin || '',
+      blocOperatoireSiteId: blocOperatoireSiteId,
     },
   });
 
@@ -134,6 +144,7 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
         alternanceSemaineModulo: horaire.alternance_semaine_modulo ?? 0,
         dateDebut: horaire.date_debut || '',
         dateFin: horaire.date_fin || '',
+        blocOperatoireSiteId: blocOperatoireSiteId,
       });
     } else {
       form.reset({
@@ -144,9 +155,10 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
         alternanceSemaineModulo: 0,
         dateDebut: '',
         dateFin: '',
+        blocOperatoireSiteId: blocOperatoireSiteId,
       });
     }
-  }, [horaire, form]);
+  }, [horaire, form, blocOperatoireSiteId]);
 
   const deleteManualBesoins = async (data: HoraireFormData) => {
     const dateDebut = data.dateDebut || '1900-01-01';
@@ -205,16 +217,6 @@ export function EditHoraireDialog({ open, onOpenChange, medecinId, jour, horaire
   const onSubmit = async (data: HoraireFormData) => {
     setLoading(true);
     try {
-      // Validate that typeInterventionId is provided if site is bloc operatoire
-      if (data.siteId === blocOperatoireSiteId && !data.typeInterventionId) {
-        toast({
-          title: "Erreur",
-          description: "Le type d'intervention est requis pour le bloc opératoire",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
 
       // Vérification des chevauchements dans horaires_base_medecins
       const horairesToDelete: string[] = [];
