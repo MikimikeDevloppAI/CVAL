@@ -270,12 +270,25 @@ export function calculateComboScore(
       
       console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}, Non-admin: ${keepsNonAdmin}`);
       
-      if (matchesMatin && matchesAM && keepsNonAdmin) {
-        totalScore += 30;
-        console.log(`  🎯 BONUS +30: état actuel conservé (non-admin) ✅`);
-      } else {
-        console.log(`  ❌ Pas de bonus +30 (match=${matchesMatin && matchesAM}, non-admin=${keepsNonAdmin})`);
+      // Bonus progressif: +15 par demi-journée qui conserve l'état actuel (sauf ADMIN)
+      let bonus = 0;
+      const matinKeepsNonAdmin = needMatin && needMatin.site_id !== ADMIN_SITE_ID;
+      const amKeepsNonAdmin = needAM && needAM.site_id !== ADMIN_SITE_ID;
+      
+      if (matchesMatin && matinKeepsNonAdmin) {
+        bonus += 15;
+        console.log(`  🎯 BONUS +15 matin: état actuel conservé (non-admin) ✅`);
       }
+      if (matchesAM && amKeepsNonAdmin) {
+        bonus += 15;
+        console.log(`  🎯 BONUS +15 AM: état actuel conservé (non-admin) ✅`);
+      }
+      
+      if (bonus === 0) {
+        console.log(`  ❌ Pas de bonus (match matin=${matchesMatin && matinKeepsNonAdmin}, match AM=${matchesAM && amKeepsNonAdmin})`);
+      }
+      
+      totalScore += bonus;
     } else {
       console.log(`  ℹ️ Pas d'état actuel trouvé pour cette secrétaire`);
     }

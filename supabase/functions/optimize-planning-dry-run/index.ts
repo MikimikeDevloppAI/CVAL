@@ -364,11 +364,11 @@ serve(async (req) => {
       week_data.medecins_map
     );
 
-    // Capture current state from REAL capacities (for bonus +30)
-    console.log(`\n🎯 Capture de l'état actuel pour bonus +30...`);
+    // Capture current state from REAL capacities (for bonus +15/+15)
+    console.log(`\n🎯 Capture de l'état actuel pour bonus +15 par demi-journée...`);
     const currentState = new Map<string, CurrentState>();
     
-    for (const cap of capacites) {
+    for (const cap of capacites.filter(c => c.actif)) {
       if (!cap.secretaire_id) continue;
       
       const key = cap.secretaire_id;
