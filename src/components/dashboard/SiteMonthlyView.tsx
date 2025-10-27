@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DayCell } from './DayCell';
@@ -167,6 +167,26 @@ export const SiteMonthlyView = ({ sites, startDate, endDate, onRefresh }: SiteMo
     };
   }, [startDate, endDate, onRefresh]);
 
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const isSyncingRef = useRef(false);
+
+  const onHeaderScroll = () => {
+    if (!headerRef.current || !bodyRef.current) return;
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    bodyRef.current.scrollLeft = headerRef.current.scrollLeft;
+    requestAnimationFrame(() => { isSyncingRef.current = false; });
+  };
+
+  const onBodyScroll = () => {
+    if (!headerRef.current || !bodyRef.current) return;
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    requestAnimationFrame(() => { isSyncingRef.current = false; });
+  };
+
   return (
     <div className="relative">
       {/* STICKY HEADER - Days */}
@@ -180,7 +200,7 @@ export const SiteMonthlyView = ({ sites, startDate, endDate, onRefresh }: SiteMo
           </div>
           
           {/* Day headers - scrollable */}
-          <div className="flex-1 overflow-x-auto scrollbar-thin">
+          <div className="flex-1 overflow-x-auto scrollbar-thin" ref={headerRef} onScroll={onHeaderScroll}>
             <div className="flex gap-2 p-2 min-w-max">
               {days.map((day) => {
                 return (
@@ -226,70 +246,72 @@ export const SiteMonthlyView = ({ sites, startDate, endDate, onRefresh }: SiteMo
               </div>
               
               {/* Day cells */}
-              <div className="flex gap-2 p-2">
-                {days.map((day) => {
-                  const dayData = getDayData(site, day);
-                  
-                  // Calculate needs
-                  let besoinMatin = 0;
-                  let capaciteMatin = 0;
-                  let besoinAM = 0;
-                  let capaciteAM = 0;
-                  
-                  if (dayData) {
-                    const isSaturday = day.getDay() === 6;
+              <div className="flex-1 overflow-x-auto scrollbar-thin" ref={bodyRef} onScroll={onBodyScroll}>
+                <div className="flex gap-2 p-2 min-w-max">
+                  {days.map((day) => {
+                    const dayData = getDayData(site, day);
                     
-                    if (isSaturday) {
-                      besoinMatin = dayData.medecins.filter(m => m.matin).length;
-                      besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
-                    } else {
-                      besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
-                      besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
-                    }
+                    // Calculate needs
+                    let besoinMatin = 0;
+                    let capaciteMatin = 0;
+                    let besoinAM = 0;
+                    let capaciteAM = 0;
                     
-                    capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
-                    capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
-                  }
-
-                  const hasManqueMatin = besoinMatin > capaciteMatin;
-                  const hasManqueAM = besoinAM > capaciteAM;
-
-                  return (
-                    <div key={day.toISOString()} className="w-32 shrink-0 relative">
-                      {/* Needs indicator on top of cell */}
-                      {dayData && (hasManqueMatin || hasManqueAM) && (
-                        <div className="absolute -top-1 left-1 z-10 flex flex-col gap-0.5">
-                          {hasManqueMatin && (
-                            <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
-                              M: {capaciteMatin}/{besoinMatin}
-                            </div>
-                          )}
-                          {hasManqueAM && (
-                            <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
-                              AM: {capaciteAM}/{besoinAM}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    if (dayData) {
+                      const isSaturday = day.getDay() === 6;
                       
-                      <DayCell
-                        date={day}
-                        data={dayData}
-                        onOpenDetail={(date, data) => handleOpenDetail(date, site.site_id, site.site_nom, data)}
-                        onSecretaireClick={(id, nom, prenom, periode) =>
-                          handleSecretaireClick(id, nom, prenom, periode, day, site.site_id)
-                        }
-                        onMedecinClick={(id, nom, prenom) =>
-                          handleMedecinClick(id, nom, prenom, day, site.site_id)
-                        }
-                        onAddMedecin={(date) => setAddMedecinDate({ date, siteId: site.site_id })}
-                        onAddSecretaire={(date) =>
-                          setAddSecretaireDate({ date, siteId: site.site_id, siteName: site.site_nom })
-                        }
-                      />
-                    </div>
-                  );
-                })}
+                      if (isSaturday) {
+                        besoinMatin = dayData.medecins.filter(m => m.matin).length;
+                        besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
+                      } else {
+                        besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+                        besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
+                      }
+                      
+                      capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
+                      capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
+                    }
+
+                    const hasManqueMatin = besoinMatin > capaciteMatin;
+                    const hasManqueAM = besoinAM > capaciteAM;
+
+                    return (
+                      <div key={day.toISOString()} className="w-32 shrink-0 relative">
+                        {/* Needs indicator on top of cell */}
+                        {dayData && (hasManqueMatin || hasManqueAM) && (
+                          <div className="absolute -top-1 left-1 z-10 flex flex-col gap-0.5">
+                            {hasManqueMatin && (
+                              <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
+                                M: {capaciteMatin}/{besoinMatin}
+                              </div>
+                            )}
+                            {hasManqueAM && (
+                              <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
+                                AM: {capaciteAM}/{besoinAM}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <DayCell
+                          date={day}
+                          data={dayData}
+                          onOpenDetail={(date, data) => handleOpenDetail(date, site.site_id, site.site_nom, data)}
+                          onSecretaireClick={(id, nom, prenom, periode) =>
+                            handleSecretaireClick(id, nom, prenom, periode, day, site.site_id)
+                          }
+                          onMedecinClick={(id, nom, prenom) =>
+                            handleMedecinClick(id, nom, prenom, day, site.site_id)
+                          }
+                          onAddMedecin={(date) => setAddMedecinDate({ date, siteId: site.site_id })}
+                          onAddSecretaire={(date) =>
+                            setAddSecretaireDate({ date, siteId: site.site_id, siteName: site.site_nom })
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           );
