@@ -31,6 +31,8 @@ interface PeriodSuggestions {
 interface BesoinPersonnel {
   besoin_operation_id: string;
   besoin_operation_nom: string;
+  medecin_nom: string;
+  type_intervention_nom: string;
   nombre_requis: number;
   deficit: number;
   suggestions_matin?: {
@@ -277,7 +279,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
       // 2. Traiter les besoins BLOC OPÉRATOIRE
       for (const need of blocResult.data || []) {
-        const key = `${need.date}-bloc-${need.planning_genere_bloc_id}`;
+        const key = `${need.date}-bloc-${need.type_intervention_id}-${need.medecin_id}`;
         
         if (!grouped.has(key)) {
           // Récupérer le site du bloc opératoire
@@ -291,7 +293,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             date: need.date,
             site_id: blocSite?.id || '',
             site_nom: 'Clinique La Vallée - Bloc opératoire',
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
+            planning_genere_bloc_operatoire_id: `${need.type_intervention_id}-${need.medecin_id}`,
             besoins_personnel: [],
             has_both_periods: false,
             total_manque: 0,
@@ -312,6 +314,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           besoinPersonnel = {
             besoin_operation_id: need.besoin_operation_id,
             besoin_operation_nom: need.besoin_operation_nom,
+            medecin_nom: need.medecin_nom,
+            type_intervention_nom: need.type_intervention_nom,
             nombre_requis: need.nombre_requis,
             deficit: 0
           };
@@ -1533,21 +1537,33 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             .map(besoin => (
                             <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg bg-card border border-border/50">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant="outline" className="bg-background">
-                                  {besoin.besoin_operation_nom}
-                                </Badge>
-                                <span className="text-sm text-muted-foreground">
-                                {besoin.nombre_requis} requis
-                                </span>
-                                {besoin.deficit > 0 && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    {besoin.deficit} manquant
-                                  </Badge>
-                                )}
-                              </div>
+                                <div className="flex flex-col gap-1 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{besoin.medecin_nom}</span>
+                                    <span className="text-sm text-muted-foreground">•</span>
+                                    <Badge variant="outline" className="bg-background">
+                                      {besoin.type_intervention_nom}
+                                    </Badge>
+                                    <span className="text-sm text-muted-foreground">•</span>
+                                    <Badge variant="secondary" className="bg-background">
+                                      {besoin.besoin_operation_nom}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                 <div className="flex items-center gap-2">
+                                   <span className="text-sm text-muted-foreground">
+                                     {besoin.nombre_requis} requis
+                                   </span>
+                                   {besoin.deficit > 0 && (
+                                     <Badge variant="destructive" className="text-xs">
+                                       {besoin.deficit} manquant
+                                     </Badge>
+                                   )}
+                                 </div>
+                               </div>
 
-                              {/* Suggestions matin */}
-                              {besoin.suggestions_matin && (
+                               {/* Suggestions matin */}
+                               {besoin.suggestions_matin && (
                                 <div className="space-y-2">
                                   <Badge variant="default" className="text-xs">Matin</Badge>
                                   <Select
