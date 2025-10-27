@@ -45,23 +45,23 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
         const weekStartStr = format(weekStart, 'yyyy-MM-dd');
         const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
         
-        // Compter depuis les 3 vues séparées (comme dans DashboardPage)
+        // Sommer les déficits depuis les 3 vues séparées (comme dans DashboardPage)
         const [sitesResult, blocResult, fermetureResult] = await Promise.all([
           supabase
             .from('besoins_sites_summary')
-            .select('*', { count: 'exact', head: true })
+            .select('deficit')
             .gte('date', weekStartStr)
             .lte('date', weekEndStr)
             .gt('deficit', 0),
           supabase
             .from('besoins_bloc_operatoire_summary')
-            .select('*', { count: 'exact', head: true })
+            .select('deficit')
             .gte('date', weekStartStr)
             .lte('date', weekEndStr)
             .gt('deficit', 0),
           supabase
             .from('besoins_fermeture_summary')
-            .select('*', { count: 'exact', head: true })
+            .select('deficit')
             .gte('date', weekStartStr)
             .lte('date', weekEndStr)
             .gt('deficit', 0)
@@ -71,7 +71,10 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
         if (blocResult.error) throw blocResult.error;
         if (fermetureResult.error) throw fermetureResult.error;
 
-        const totalManque = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
+        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const totalManque = sitesDeficit + blocDeficit + fermetureDeficit;
 
         weeksData.push({
           weekStart: weekStartStr,

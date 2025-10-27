@@ -201,23 +201,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
     try {
-      // Compter depuis les 3 vues séparées
+      // Sommer les déficits depuis les 3 vues séparées
       const [sitesResult, blocResult, fermetureResult] = await Promise.all([
         supabase
           .from('besoins_sites_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_bloc_operatoire_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_fermeture_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0)
@@ -227,7 +227,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       if (blocResult.error) throw blocResult.error;
       if (fermetureResult.error) throw fermetureResult.error;
       
-      const total = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
+      const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const total = sitesDeficit + blocDeficit + fermetureDeficit;
       setTotalCount(total);
     } catch (error) {
       console.error('Error fetching count:', error);
