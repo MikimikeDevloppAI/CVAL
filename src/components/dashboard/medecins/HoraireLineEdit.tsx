@@ -108,30 +108,6 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         return;
       }
 
-      // Réduire la charge côté BDD: borner la plage de dates si absente
-      const today = new Date();
-      const format = (d: Date) => d.toISOString().slice(0, 10);
-      let date_debut = formData.date_debut;
-      let date_fin = formData.date_fin;
-
-      if (!date_debut && !date_fin) {
-        // par défaut, générer sur 12 semaines pour éviter les timeouts
-        date_debut = format(today);
-        const end = new Date(today);
-        end.setDate(end.getDate() + 84); // 12 semaines
-        date_fin = format(end);
-      } else if (date_debut && !date_fin) {
-        const start = new Date(date_debut);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 84);
-        date_fin = format(end);
-      } else if (!date_debut && date_fin) {
-        const end = new Date(date_fin);
-        const start = new Date(end);
-        start.setDate(start.getDate() - 84);
-        date_debut = format(start);
-      }
-
       const saveData: any = {
         jour_semaine: formData.jour_semaine,
         demi_journee: formData.demi_journee,
@@ -139,8 +115,8 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
         type_intervention_id: formData.type_intervention_id === 'none' ? null : formData.type_intervention_id,
         alternance_type: formData.alternance_type,
         alternance_semaine_modulo: formData.alternance_semaine_modulo,
-        date_debut: date_debut || null,
-        date_fin: date_fin || null,
+        date_debut: formData.date_debut || null,
+        date_fin: formData.date_fin || null,
         actif: true
       };
 
