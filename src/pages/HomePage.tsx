@@ -8,7 +8,7 @@ const HomePage = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/planning');
+      navigate('/');
     }
   }, [user, navigate]);
 

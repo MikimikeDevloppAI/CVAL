@@ -20,7 +20,7 @@ export const PlanningProtectedRoute = ({ children }: PlanningProtectedRouteProps
   }
 
   if (!canManage) {
-    return <Navigate to="/planning" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return <>{children}</>;
