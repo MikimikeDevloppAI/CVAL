@@ -1166,29 +1166,35 @@ export type Database = {
       types_intervention: {
         Row: {
           actif: boolean | null
-          code: string
+          code: string | null
           created_at: string | null
           id: string
           nom: string
+          salle_exclusive: boolean | null
           salle_preferentielle: string | null
+          salle_prioritaire: boolean | null
           updated_at: string | null
         }
         Insert: {
           actif?: boolean | null
-          code: string
+          code?: string | null
           created_at?: string | null
           id?: string
           nom: string
+          salle_exclusive?: boolean | null
           salle_preferentielle?: string | null
+          salle_prioritaire?: boolean | null
           updated_at?: string | null
         }
         Update: {
           actif?: boolean | null
-          code?: string
+          code?: string | null
           created_at?: string | null
           id?: string
           nom?: string
+          salle_exclusive?: boolean | null
           salle_preferentielle?: string | null
+          salle_prioritaire?: boolean | null
           updated_at?: string | null
         }
         Relationships: [
