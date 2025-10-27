@@ -760,32 +760,6 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Week Selector */}
-      <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handlePreviousWeek}
-          className="hover:bg-primary/10"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        
-        <WeekSelector 
-          currentDate={currentWeek} 
-          onWeekChange={setCurrentWeek} 
-        />
-
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleNextWeek}
-          className="hover:bg-primary/10"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </Button>
-      </div>
-
       {/* View Mode Tabs */}
       <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
         <div className="flex justify-center mb-6">
@@ -823,6 +797,32 @@ const DashboardPage = () => {
             onRefresh={fetchDashboardData}
           />
         )}
+
+        {/* Week Selector */}
+        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePreviousWeek}
+            className="hover:bg-primary/10"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          
+          <WeekSelector 
+            currentDate={currentWeek} 
+            onWeekChange={setCurrentWeek} 
+          />
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleNextWeek}
+            className="hover:bg-primary/10"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+        </div>
 
         {/* Sites Calendar Grid */}
         <TabsContent value="site">
