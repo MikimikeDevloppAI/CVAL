@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { OptimizationTestDialog } from './OptimizationTestDialog';
 import { DryRunOptimizationDialog } from './DryRunOptimizationDialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface SecretaireSuggestion {
   secretaire_id: string;
@@ -58,6 +60,17 @@ interface AggregatedNeed {
     suggestions_not_working: SecretaireSuggestion[];
   };
   type_besoin?: string;
+  secretaires_assignees?: SecretaireAssignee[];
+}
+
+interface SecretaireAssignee {
+  secretaire_id: string;
+  nom_complet: string;
+  is_1r: boolean;
+  is_2f: boolean;
+  is_3f: boolean;
+  capacite_matin_id: string;
+  capacite_apres_midi_id: string;
 }
 
 interface UnfilledNeedsPanelProps {
@@ -86,6 +99,79 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunDate, setDryRunDate] = useState<string | null>(null);
+  const [togglingRole, setTogglingRole] = useState<string | null>(null);
+
+  const fetchSecretairesAssignees = async (date: string, siteId: string): Promise<SecretaireAssignee[]> => {
+    try {
+      // Récupérer les capacités du matin
+      const { data: capacitesMatin, error: errorMatin } = await supabase
+        .from('capacite_effective')
+        .select(`
+          id,
+          secretaire_id,
+          is_1r,
+          is_2f,
+          is_3f,
+          secretaires (
+            id,
+            first_name,
+            name
+          )
+        `)
+        .eq('date', date)
+        .eq('site_id', siteId)
+        .eq('demi_journee', 'matin')
+        .eq('actif', true);
+
+      if (errorMatin) throw errorMatin;
+
+      // Récupérer les capacités de l'après-midi
+      const { data: capacitesAM, error: errorAM } = await supabase
+        .from('capacite_effective')
+        .select(`
+          id,
+          secretaire_id,
+          is_1r,
+          is_2f,
+          is_3f
+        `)
+        .eq('date', date)
+        .eq('site_id', siteId)
+        .eq('demi_journee', 'apres_midi')
+        .eq('actif', true);
+
+      if (errorAM) throw errorAM;
+
+      // Créer un Map des capacités AM par secretaire_id
+      const amMap = new Map(
+        capacitesAM?.map(c => [c.secretaire_id, c]) || []
+      );
+
+      // Filtrer pour ne garder que celles présentes toute la journée
+      const assignees: SecretaireAssignee[] = [];
+      
+      for (const capMatin of capacitesMatin || []) {
+        const capAM = amMap.get(capMatin.secretaire_id);
+        if (capAM && capMatin.secretaire_id) {
+          const sec = (capMatin as any).secretaires;
+          assignees.push({
+            secretaire_id: capMatin.secretaire_id,
+            nom_complet: `${sec.first_name} ${sec.name}`.trim(),
+            is_1r: capMatin.is_1r || capAM.is_1r,
+            is_2f: capMatin.is_2f || capAM.is_2f,
+            is_3f: capMatin.is_3f || capAM.is_3f,
+            capacite_matin_id: capMatin.id,
+            capacite_apres_midi_id: capAM.id
+          });
+        }
+      }
+
+      return assignees;
+    } catch (error) {
+      console.error('Error fetching assignees:', error);
+      return [];
+    }
+  };
 
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
@@ -149,7 +235,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             has_both_periods: false,
             total_manque: 0,
             periods: {},
-            type_besoin: need.type_besoin
+            type_besoin: need.type_besoin,
+            secretaires_assignees: []
           });
         }
 
@@ -236,6 +323,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           };
         }
       });
+
+      // Pour les besoins de fermeture, charger les secrétaires assignées
+      const fermetureNeeds = Array.from(grouped.values()).filter(n => n.type_besoin === 'fermeture');
+      for (const need of fermetureNeeds) {
+        need.secretaires_assignees = await fetchSecretairesAssignees(need.date, need.site_id);
+      }
 
       setAggregatedNeeds(Array.from(grouped.values()));
     } catch (error) {
@@ -850,6 +943,46 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   };
 
+  const handleToggleRole = async (
+    need: AggregatedNeed,
+    assignee: SecretaireAssignee,
+    role: '1r' | '2f' | '3f'
+  ) => {
+    const key = `${need.date}-${assignee.secretaire_id}-${role}`;
+    setTogglingRole(key);
+
+    try {
+      const newValue = role === '1r' ? !assignee.is_1r : role === '2f' ? !assignee.is_2f : !assignee.is_3f;
+
+      // Mettre à jour les deux capacités (matin et après-midi)
+      const updates = [
+        supabase
+          .from('capacite_effective')
+          .update({ [`is_${role}`]: newValue })
+          .eq('id', assignee.capacite_matin_id),
+        supabase
+          .from('capacite_effective')
+          .update({ [`is_${role}`]: newValue })
+          .eq('id', assignee.capacite_apres_midi_id)
+      ];
+
+      const results = await Promise.all(updates);
+      
+      if (results.some(r => r.error)) {
+        throw results.find(r => r.error)?.error;
+      }
+
+      toast.success(`Rôle ${role.toUpperCase()} ${newValue ? 'assigné' : 'retiré'}`);
+      await fetchUnfilledNeeds();
+      onRefresh?.();
+    } catch (error: any) {
+      console.error('Error toggling role:', error);
+      toast.error(error.message || 'Erreur lors de la modification du rôle');
+    } finally {
+      setTogglingRole(null);
+    }
+  };
+
   const handleOptimize = () => {
     toast.info('Optimisation automatique : fonctionnalité en développement');
   };
@@ -1272,7 +1405,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                       <div key={needKey} className="space-y-3">
                         {/* Cas spécial : Rôles de fermeture manquants (1R/2F/3F) */}
                         {need.type_besoin === 'fermeture' ? (
-                          <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-3">
+                          <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-4">
                             <div className="flex items-center gap-2">
                               <AlertCircle className="h-5 w-5 text-destructive" />
                               <span className="font-semibold text-destructive">
@@ -1283,39 +1416,103 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             <div className="text-sm text-muted-foreground">
                               {need.site_nom} - Total manquant : {need.total_manque}
                             </div>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={async () => {
-                              try {
-                                setAssigningId(needKey);
-                                const { error } = await supabase.functions.invoke('assign-closing-responsibles', {
-                                  body: { date: need.date, siteId: need.site_id }
-                                });
-                                if (error) throw error;
-                                toast.success('Responsables de fermeture assignés');
-                                await fetchUnfilledNeeds();
-                                onRefresh?.();
-                              } catch (error) {
-                                console.error('Error assigning closing roles:', error);
-                                toast.error('Erreur lors de l\'assignation des responsables');
-                              } finally {
-                                setAssigningId(null);
-                              }
-                            }}
-                            disabled={!!assigningId}
-                            className="w-full gap-2"
-                          >
-                            {assigningId === needKey ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+
+                            {/* Liste des secrétaires assignées toute la journée */}
+                            {need.secretaires_assignees && need.secretaires_assignees.length > 0 ? (
+                              <div className="space-y-3">
+                                <h4 className="text-sm font-medium">
+                                  Assistants médicaux assignés toute la journée ({need.secretaires_assignees.length})
+                                </h4>
+                                <div className="space-y-2">
+                                  {need.secretaires_assignees.map(assignee => (
+                                    <div 
+                                      key={assignee.secretaire_id}
+                                      className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
+                                    >
+                                      <span className="font-medium">{assignee.nom_complet}</span>
+                                      <div className="flex items-center gap-4">
+                                        {/* Toggle 1R */}
+                                        <div className="flex items-center gap-2">
+                                          <Label htmlFor={`${assignee.secretaire_id}-1r`} className="text-xs">
+                                            1R
+                                          </Label>
+                                          <Switch
+                                            id={`${assignee.secretaire_id}-1r`}
+                                            checked={assignee.is_1r}
+                                            onCheckedChange={() => handleToggleRole(need, assignee, '1r')}
+                                            disabled={!!togglingRole}
+                                          />
+                                        </div>
+
+                                        {/* Toggle 2F */}
+                                        <div className="flex items-center gap-2">
+                                          <Label htmlFor={`${assignee.secretaire_id}-2f`} className="text-xs">
+                                            2F
+                                          </Label>
+                                          <Switch
+                                            id={`${assignee.secretaire_id}-2f`}
+                                            checked={assignee.is_2f}
+                                            onCheckedChange={() => handleToggleRole(need, assignee, '2f')}
+                                            disabled={!!togglingRole}
+                                          />
+                                        </div>
+
+                                        {/* Toggle 3F */}
+                                        <div className="flex items-center gap-2">
+                                          <Label htmlFor={`${assignee.secretaire_id}-3f`} className="text-xs">
+                                            3F
+                                          </Label>
+                                          <Switch
+                                            id={`${assignee.secretaire_id}-3f`}
+                                            checked={assignee.is_3f}
+                                            onCheckedChange={() => handleToggleRole(need, assignee, '3f')}
+                                            disabled={!!togglingRole}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             ) : (
-                              <>
-                                <UserPlus className="h-4 w-4" />
-                                Assigner automatiquement les responsables
-                              </>
+                              <div className="text-sm text-muted-foreground">
+                                Aucun assistant médical assigné toute la journée à ce site.
+                              </div>
                             )}
-                          </Button>
-                        </div>
+
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={async () => {
+                                try {
+                                  setAssigningId(needKey);
+                                  const { error } = await supabase.functions.invoke('assign-closing-responsibles', {
+                                    body: { date: need.date, siteId: need.site_id }
+                                  });
+                                  if (error) throw error;
+                                  toast.success('Responsables de fermeture assignés');
+                                  await fetchUnfilledNeeds();
+                                  onRefresh?.();
+                                } catch (error) {
+                                  console.error('Error assigning closing roles:', error);
+                                  toast.error('Erreur lors de l\'assignation des responsables');
+                                } finally {
+                                  setAssigningId(null);
+                                }
+                              }}
+                              disabled={!!assigningId}
+                              className="w-full gap-2"
+                            >
+                              {assigningId === needKey ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4" />
+                                  Assigner automatiquement les responsables
+                                </>
+                              )}
+                            </Button>
+                          </div>
                       ) : need.besoins_personnel && need.besoins_personnel.length > 0 ? (
                         /* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */
                         <div className="space-y-4">
