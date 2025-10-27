@@ -1578,9 +1578,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                   </div>
                                 </div>
                                  <div className="flex items-center gap-2">
-                                   <span className="text-sm text-muted-foreground">
-                                     {besoin.nombre_requis} requis
-                                   </span>
                                    {besoin.deficit > 0 && (
                                      <Badge variant="destructive" className="text-xs">
                                        {besoin.deficit} manquant
