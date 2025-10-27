@@ -29,6 +29,7 @@ interface PeriodSuggestions {
 }
 
 interface BesoinPersonnel {
+  planning_genere_bloc_id: string;
   besoin_operation_id: string;
   besoin_operation_nom: string;
   medecin_nom: string;
@@ -312,6 +313,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
 
         if (!besoinPersonnel) {
           besoinPersonnel = {
+            planning_genere_bloc_id: need.planning_genere_bloc_id,
             besoin_operation_id: need.besoin_operation_id,
             besoin_operation_nom: need.besoin_operation_nom,
             medecin_nom: need.medecin_nom,

@@ -274,6 +274,13 @@ export type Database = {
             foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
             columns: ["planning_genere_bloc_operatoire_id"]
             isOneToOne: false
+            referencedRelation: "besoins_bloc_operatoire_summary"
+            referencedColumns: ["planning_genere_bloc_id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
+            columns: ["planning_genere_bloc_operatoire_id"]
+            isOneToOne: false
             referencedRelation: "planning_genere_bloc_operatoire"
             referencedColumns: ["id"]
           },
@@ -1260,17 +1267,11 @@ export type Database = {
           medecin_nom: string | null
           nombre_assigne: number | null
           nombre_requis: number | null
+          planning_genere_bloc_id: string | null
           type_intervention_id: string | null
           type_intervention_nom: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "capacite_effective_besoin_operation_id_fkey"
-            columns: ["besoin_operation_id"]
-            isOneToOne: false
-            referencedRelation: "besoins_operations"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
             columns: ["medecin_id"]
@@ -1283,6 +1284,13 @@ export type Database = {
             columns: ["type_intervention_id"]
             isOneToOne: false
             referencedRelation: "types_intervention"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "types_intervention_besoins_personnel_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
             referencedColumns: ["id"]
           },
         ]
