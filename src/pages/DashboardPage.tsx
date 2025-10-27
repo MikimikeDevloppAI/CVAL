@@ -760,16 +760,12 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Section Title with Separator */}
-      <div className="relative my-8">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border/30"></div>
-        </div>
-        <div className="relative flex justify-center">
-          <span className="bg-background px-4 text-sm font-medium text-muted-foreground">
-            Planning hebdomadaire
-          </span>
-        </div>
+      {/* Section Divider */}
+      <div className="my-8">
+        <div className="w-full h-px bg-gradient-to-r from-transparent via-border to-transparent mb-6"></div>
+        <h2 className="text-xl font-semibold text-foreground mb-6">
+          Planning hebdomadaire
+        </h2>
       </div>
 
       {/* View Mode Tabs */}
