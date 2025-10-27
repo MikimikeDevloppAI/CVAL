@@ -30,7 +30,7 @@ interface BesoinPersonnel {
   besoin_operation_id: string;
   besoin_operation_nom: string;
   nombre_requis: number;
-  nombre_manquant: number;
+  deficit: number;
   suggestions_matin?: {
     suggestions_admin: SecretaireSuggestion[];
     suggestions_not_working: SecretaireSuggestion[];
@@ -97,7 +97,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         .select('*', { count: 'exact', head: true })
         .gte('date', startDate)
         .lte('date', endDate)
-        .gt('nombre_manquant', 0);
+        .gt('deficit', 0);
       
       if (error) throw error;
       setTotalCount(count || 0);
@@ -128,7 +128,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       besoin_operation_id: d.besoin_operation_id,
       besoin_operation_nom: (d.besoins_operations as any)?.nom || '',
       nombre_requis: d.nombre_requis,
-      nombre_manquant: 0
+      deficit: 0
     })) || [];
   };
 
@@ -140,7 +140,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .gt('nombre_manquant', 0)
+        .gt('deficit', 0)
         .order('date', { ascending: true })
         .order('periode', { ascending: true });
 
@@ -237,17 +237,17 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                 suggestions_not_working: []
               };
             }
-            besoin.nombre_manquant = nombreManquant;
+            besoin.deficit = nombreManquant;
           }
         } else {
           // Cas site normal
           aggregated.periods[periode] = {
-            manque: need.nombre_manquant,
+            manque: need.deficit,
             suggestions_admin: [],
             suggestions_not_working: []
           };
           // Pour les sites normaux: utiliser la valeur de la vue
-          aggregated.total_manque += need.nombre_manquant;
+          aggregated.total_manque += need.deficit;
         }
       }
 
@@ -256,7 +256,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
           // Pour les blocs opératoires: sommer tous les besoins manquants
           aggregated.total_manque = aggregated.besoins_personnel.reduce(
-            (sum, besoin) => sum + besoin.nombre_manquant, 
+            (sum, besoin) => sum + besoin.deficit, 
             0
           );
         }
@@ -1297,7 +1297,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                   .filter(need => {
                     // Pour les blocs opératoires, vérifier qu'il y a au moins un besoin manquant
                     if (need.besoins_personnel && need.besoins_personnel.length > 0) {
-                      return need.besoins_personnel.some(besoin => besoin.nombre_manquant > 0);
+                      return need.besoins_personnel.some(besoin => besoin.deficit > 0);
                     }
                     // Pour les sites normaux, vérifier qu'il y a des besoins manquants
                     return need.total_manque > 0;
@@ -1362,7 +1362,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             </div>
                           </div>
                           {need.besoins_personnel
-                            .filter(besoin => besoin.nombre_manquant > 0)
+                            .filter(besoin => besoin.deficit > 0)
                             .map(besoin => (
                             <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg bg-card border border-border/50">
                               <div className="flex items-center gap-2">
@@ -1372,9 +1372,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                 <span className="text-sm text-muted-foreground">
                                   {besoin.nombre_requis} requis
                                 </span>
-                                {besoin.nombre_manquant > 0 && (
+                                {besoin.deficit > 0 && (
                                   <Badge variant="destructive" className="text-xs">
-                                    {besoin.nombre_manquant} manquant
+                                    {besoin.deficit} manquant
                                   </Badge>
                                 )}
                               </div>
