@@ -1556,6 +1556,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                         <div className="space-y-4">
                           <div className="p-3 rounded-lg bg-card border border-border/50">
                             <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">Opération</Badge>
                               <span className="font-medium">{need.site_nom}</span>
                             </div>
                           </div>
