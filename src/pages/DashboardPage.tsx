@@ -155,18 +155,37 @@ const DashboardPage = () => {
     try {
       const today = new Date();
       const fourWeeksLater = addWeeks(today, 4);
+      const startDate = format(today, 'yyyy-MM-dd');
+      const endDate = format(fourWeeksLater, 'yyyy-MM-dd');
       
-      const { data, error } = await supabase.rpc('get_besoins_non_satisfaits_summary' as any, {
-        p_date_debut: format(today, 'yyyy-MM-dd'),
-        p_date_fin: format(fourWeeksLater, 'yyyy-MM-dd')
-      });
+      // Compter depuis les 3 vues séparées (comme dans UnfilledNeedsPanel)
+      const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+        supabase
+          .from('besoins_sites_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0),
+        supabase
+          .from('besoins_bloc_operatoire_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0),
+        supabase
+          .from('besoins_fermeture_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0)
+      ]);
       
-      if (!error && data && Array.isArray(data)) {
-        const total = data.reduce((sum: number, need: any) => sum + (need.total_manque || 0), 0);
-        setUnfilledNeedsCount(total);
-      } else {
-        setUnfilledNeedsCount(0);
-      }
+      if (sitesResult.error) throw sitesResult.error;
+      if (blocResult.error) throw blocResult.error;
+      if (fermetureResult.error) throw fermetureResult.error;
+      
+      const total = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
+      setUnfilledNeedsCount(total);
     } catch (error) {
       console.error('Error fetching unfilled needs count:', error);
       setUnfilledNeedsCount(0);
