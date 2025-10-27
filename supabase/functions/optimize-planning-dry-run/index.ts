@@ -300,6 +300,79 @@ serve(async (req) => {
     // Load data using exact same function as v2
     const week_data = await loadWeekData([date], supabase);
     
+    // Identify Paul Jacquier and Florence Bron for 3F/2F logic
+    const florenceBron = week_data.secretaires.find(s => 
+      (s.first_name?.toLowerCase() === 'florence' && s.name?.toLowerCase() === 'bron') ||
+      (s.name?.toLowerCase().includes('bron') && s.first_name?.toLowerCase().includes('florence'))
+    );
+    
+    const { data: medecins, error: medError } = await supabase
+      .from('medecins')
+      .select('id, first_name, name')
+      .eq('actif', true);
+    
+    if (medError) throw medError;
+    
+    const paulJacquier = medecins?.find(m => 
+      (m.first_name?.toLowerCase() === 'paul' && m.name?.toLowerCase() === 'jacquier') ||
+      (m.name?.toLowerCase().includes('jacquier') && m.first_name?.toLowerCase().includes('paul'))
+    );
+    
+    console.log(`🔍 Florence Bron ID: ${florenceBron?.id || 'not found'}`);
+    console.log(`🔍 Paul Jacquier ID: ${paulJacquier?.id || 'not found'}`);
+    
+    // Build week scores for closing responsibilities (1R=2pts, 2F=10pts, 3F=15pts)
+    const currentWeekScores = new Map<string, {score: number, count_1r: number, count_2f: number, count_3f: number}>();
+    
+    // Get the week start/end for this date
+    const targetDate = new Date(date);
+    const dayOfWeek = targetDate.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const weekStart = new Date(targetDate);
+    weekStart.setDate(targetDate.getDate() + diffToMonday);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const { data: weekAssignments, error: waError } = await supabase
+      .from('capacite_effective')
+      .select('secretaire_id, is_1r, is_2f, is_3f, date')
+      .gte('date', weekStartStr)
+      .lte('date', weekEndStr)
+      .not('secretaire_id', 'is', null);
+    
+    if (waError) throw waError;
+    
+    // Calculate current week scores (excluding current date being optimized)
+    for (const assignment of weekAssignments || []) {
+      if (assignment.date === date) continue; // Skip date being optimized
+      
+      const secId = assignment.secretaire_id;
+      if (!secId) continue;
+      
+      if (!currentWeekScores.has(secId)) {
+        currentWeekScores.set(secId, { score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
+      }
+      
+      const secScore = currentWeekScores.get(secId)!;
+      
+      if (assignment.is_1r) {
+        secScore.score += 2;
+        secScore.count_1r += 1;
+      }
+      if (assignment.is_2f) {
+        secScore.score += 10;
+        secScore.count_2f += 1;
+      }
+      if (assignment.is_3f) {
+        secScore.score += 15;
+        secScore.count_3f += 1;
+      }
+    }
+    
+    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries`);
+    
     // Load additional data for bloc operatoire details
     const { data: besoinsOpsData } = await supabase
       .from('besoins_operations')
@@ -523,10 +596,15 @@ serve(async (req) => {
 
         if (matches) {
           const sec = week_data.secretaires.find(s => s.id === combo.secretaire_id);
+          // Find corresponding dryRunRecord to get 1R/2F/3F flags (will be populated later)
+          // For now, we'll add flags as false, they'll be updated in the response
           assigned.push({
             id: combo.secretaire_id,
             nom: sec ? `${sec.first_name} ${sec.name}` : 'Inconnu',
-            is_backup: false
+            is_backup: false,
+            is_1r: false,
+            is_2f: false,
+            is_3f: false
           });
         }
       }
@@ -709,6 +787,284 @@ serve(async (req) => {
       }
     }
 
+    // ========== CLOSING RESPONSIBILITIES LOGIC (CONSERVATIVE) ==========
+    console.log(`\n🔒 Gestion conservatrice des responsabilités de fermeture...`);
+    
+    // Step 1: Identify sites needing closing for this date
+    const sitesNeedingClosing: Array<{site_id: string, site_nom: string}> = [];
+    
+    for (const site of week_data.sites.filter(s => s.fermeture && s.actif)) {
+      // Check if this site has doctors working both morning and afternoon
+      const siteMatin = needs.some(n => n.site_id === site.id && n.periode === 'matin');
+      const siteAM = needs.some(n => n.site_id === site.id && n.periode === 'apres_midi');
+      
+      if (siteMatin && siteAM) {
+        sitesNeedingClosing.push({ site_id: site.id, site_nom: site.nom });
+      }
+    }
+    
+    console.log(`  🏢 ${sitesNeedingClosing.length} site(s) nécessitant fermeture: ${sitesNeedingClosing.map(s => s.site_nom).join(', ')}`);
+    
+    // Map to store 1R/2F/3F assignments by secretaire_id + periode
+    const closingAssignments = new Map<string, {is_1r: boolean, is_2f: boolean, is_3f: boolean}>();
+    
+    // Step 2: For each site needing closing, apply conservative logic
+    for (const siteInfo of sitesNeedingClosing) {
+      const { site_id, site_nom } = siteInfo;
+      
+      console.log(`  📍 Analyse ${site_nom}...`);
+      
+      // Analyze BEFORE state: who has 1R/2F/3F currently?
+      const beforeMatin = beforeAssignments.find(a => a.site_id === site_id && a.periode === 'matin');
+      const beforeAM = beforeAssignments.find(a => a.site_id === site_id && a.periode === 'apres_midi');
+      
+      const beforeAllDay = beforeMatin?.secretaires.filter((s: any) =>
+        beforeAM?.secretaires.some((am: any) => am.id === s.id)
+      ) || [];
+      
+      const current1R = beforeAllDay.find((s: any) => s.is_1r)?.id || null;
+      const current2F3F = beforeAllDay.find((s: any) => s.is_2f || s.is_3f)?.id || null;
+      
+      console.log(`    AVANT: 1R=${current1R ? week_data.secretaires.find(s => s.id === current1R)?.name : 'aucun'}, 2F/3F=${current2F3F ? week_data.secretaires.find(s => s.id === current2F3F)?.name : 'aucun'}`);
+      
+      // Analyze AFTER state: who's working all day after optimization?
+      const afterAllDaySecretaires = selectedCombosDedup
+        .filter(c => {
+          const matinMatch = c.needMatin && c.needMatin.type === 'site' && c.needMatin.site_id === site_id;
+          const amMatch = c.needAM && c.needAM.type === 'site' && c.needAM.site_id === site_id;
+          return matinMatch && amMatch;
+        })
+        .map(c => c.secretaire_id);
+      
+      console.log(`    APRÈS: ${afterAllDaySecretaires.length} secrétaire(s) toute la journée: ${afterAllDaySecretaires.map(id => week_data.secretaires.find(s => s.id === id)?.name).join(', ')}`);
+      
+      if (afterAllDaySecretaires.length === 0) {
+        console.log(`    ⚠️ Aucune secrétaire toute la journée - impossible d'assigner`);
+        continue;
+      }
+      
+      // Check if we need to conserve existing roles or re-assign
+      const has1RAfter = current1R && afterAllDaySecretaires.includes(current1R);
+      const has2F3FAfter = current2F3F && afterAllDaySecretaires.includes(current2F3F);
+      
+      if (has1RAfter && has2F3FAfter) {
+        // Both roles preserved, no action needed
+        console.log(`    ✅ Conservation: 1R et 2F/3F toujours présents, aucun changement`);
+        
+        // Store the preserved assignments
+        closingAssignments.set(`${current1R}_matin`, { is_1r: true, is_2f: false, is_3f: false });
+        closingAssignments.set(`${current1R}_apres_midi`, { is_1r: true, is_2f: false, is_3f: false });
+        
+        const is3F = beforeAllDay.find((s: any) => s.id === current2F3F)?.is_3f || false;
+        closingAssignments.set(`${current2F3F}_matin`, { is_1r: false, is_2f: !is3F, is_3f: is3F });
+        closingAssignments.set(`${current2F3F}_apres_midi`, { is_1r: false, is_2f: !is3F, is_3f: is3F });
+        
+        continue;
+      }
+      
+      // Need to re-assign missing roles
+      console.log(`    🔧 Réattribution nécessaire: 1R=${!has1RAfter ? 'manquant' : 'OK'}, 2F/3F=${!has2F3FAfter ? 'manquant' : 'OK'}`);
+      
+      // Ensure all candidates have a score entry
+      for (const candidateId of afterAllDaySecretaires) {
+        if (!currentWeekScores.has(candidateId)) {
+          currentWeekScores.set(candidateId, { score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
+        }
+      }
+      
+      // Handle case with only 1 secretary all day
+      if (afterAllDaySecretaires.length === 1) {
+        const singleSecId = afterAllDaySecretaires[0];
+        const secName = week_data.secretaires.find(s => s.id === singleSecId);
+        
+        // Determine if needs 3F
+        const targetDayOfWeek = new Date(date).getDay();
+        let needsThreeF = false;
+        
+        if (paulJacquier && targetDayOfWeek === 4) { // Thursday
+          const { data: jacquierThur } = await supabase
+            .from('besoin_effectif')
+            .select('id')
+            .eq('medecin_id', paulJacquier.id)
+            .eq('site_id', site_id)
+            .eq('date', date)
+            .limit(1)
+            .maybeSingle();
+          
+          const friday = new Date(date);
+          friday.setDate(friday.getDate() + 1);
+          const fridayStr = friday.toISOString().split('T')[0];
+          
+          const { data: jacquierFri } = await supabase
+            .from('besoin_effectif')
+            .select('id')
+            .eq('medecin_id', paulJacquier.id)
+            .eq('site_id', site_id)
+            .eq('date', fridayStr)
+            .limit(1)
+            .maybeSingle();
+          
+          if (jacquierThur && jacquierFri) {
+            needsThreeF = true;
+            console.log(`      ℹ️ Paul Jacquier travaille jeudi et vendredi → 3F requis`);
+          }
+        }
+        
+        console.log(`    ⚠️ 1 seule secrétaire toute la journée → ${needsThreeF ? '3F' : '2F'} uniquement (${secName?.first_name} ${secName?.name})`);
+        
+        closingAssignments.set(`${singleSecId}_matin`, { is_1r: false, is_2f: !needsThreeF, is_3f: needsThreeF });
+        closingAssignments.set(`${singleSecId}_apres_midi`, { is_1r: false, is_2f: !needsThreeF, is_3f: needsThreeF });
+        
+        continue;
+      }
+      
+      // Assign 2F/3F if missing
+      let responsable2F3F = current2F3F && afterAllDaySecretaires.includes(current2F3F) ? current2F3F : null;
+      
+      if (!responsable2F3F) {
+        // Determine if needs 3F
+        const targetDayOfWeek = new Date(date).getDay();
+        let needsThreeF = false;
+        
+        if (paulJacquier && targetDayOfWeek === 4) {
+          const { data: jacquierThur } = await supabase
+            .from('besoin_effectif')
+            .select('id')
+            .eq('medecin_id', paulJacquier.id)
+            .eq('site_id', site_id)
+            .eq('date', date)
+            .limit(1)
+            .maybeSingle();
+          
+          const friday = new Date(date);
+          friday.setDate(friday.getDate() + 1);
+          const fridayStr = friday.toISOString().split('T')[0];
+          
+          const { data: jacquierFri } = await supabase
+            .from('besoin_effectif')
+            .select('id')
+            .eq('medecin_id', paulJacquier.id)
+            .eq('site_id', site_id)
+            .eq('date', fridayStr)
+            .limit(1)
+            .maybeSingle();
+          
+          if (jacquierThur && jacquierFri) {
+            needsThreeF = true;
+          }
+        }
+        
+        const isTuesday = new Date(date).getDay() === 2;
+        
+        // Choose secretary with lowest score
+        const candidates2F3F = afterAllDaySecretaires.map(id => {
+          const current = currentWeekScores.get(id)!;
+          return {
+            id,
+            score: current.score,
+            has2F3F: current.count_2f > 0 || current.count_3f > 0,
+            isFlorenceTuesday: isTuesday && florenceBron && id === florenceBron.id
+          };
+        }).sort((a, b) => {
+          if (a.isFlorenceTuesday !== b.isFlorenceTuesday) return a.isFlorenceTuesday ? 1 : -1;
+          if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
+          return a.score - b.score;
+        });
+        
+        responsable2F3F = candidates2F3F[0].id;
+        
+        const score2F3F = currentWeekScores.get(responsable2F3F)!;
+        score2F3F.score += needsThreeF ? 15 : 10;
+        if (needsThreeF) {
+          score2F3F.count_3f += 1;
+        } else {
+          score2F3F.count_2f += 1;
+        }
+        
+        closingAssignments.set(`${responsable2F3F}_matin`, { is_1r: false, is_2f: !needsThreeF, is_3f: needsThreeF });
+        closingAssignments.set(`${responsable2F3F}_apres_midi`, { is_1r: false, is_2f: !needsThreeF, is_3f: needsThreeF });
+        
+        const secName = week_data.secretaires.find(s => s.id === responsable2F3F);
+        console.log(`    ➕ Nouvelle ${needsThreeF ? '3F' : '2F'}: ${secName?.first_name} ${secName?.name} (score: ${score2F3F.score})`);
+      } else {
+        // Keep existing
+        const is3F = beforeAllDay.find((s: any) => s.id === responsable2F3F)?.is_3f || false;
+        closingAssignments.set(`${responsable2F3F}_matin`, { is_1r: false, is_2f: !is3F, is_3f: is3F });
+        closingAssignments.set(`${responsable2F3F}_apres_midi`, { is_1r: false, is_2f: !is3F, is_3f: is3F });
+      }
+      
+      // Assign 1R if missing
+      let responsable1R = current1R && afterAllDaySecretaires.includes(current1R) ? current1R : null;
+      
+      if (!responsable1R) {
+        const candidates1R = afterAllDaySecretaires
+          .filter(id => id !== responsable2F3F)
+          .map(id => {
+            const current = currentWeekScores.get(id)!;
+            let adjustedScore = current.score;
+            
+            if ((current.count_2f + current.count_3f) >= 2) {
+              adjustedScore += 50;
+            }
+            
+            return { id, adjustedScore };
+          })
+          .sort((a, b) => a.adjustedScore - b.adjustedScore);
+        
+        if (candidates1R.length > 0) {
+          responsable1R = candidates1R[0].id;
+          
+          const score1R = currentWeekScores.get(responsable1R)!;
+          score1R.score += 2;
+          score1R.count_1r += 1;
+          
+          closingAssignments.set(`${responsable1R}_matin`, { is_1r: true, is_2f: false, is_3f: false });
+          closingAssignments.set(`${responsable1R}_apres_midi`, { is_1r: true, is_2f: false, is_3f: false });
+          
+          const secName = week_data.secretaires.find(s => s.id === responsable1R);
+          console.log(`    ➕ Nouveau 1R: ${secName?.first_name} ${secName?.name} (score: ${score1R.score})`);
+        } else {
+          console.log(`    ⚠️ Impossible d'assigner 1R (même personne que 2F/3F)`);
+        }
+      } else {
+        // Keep existing
+        closingAssignments.set(`${responsable1R}_matin`, { is_1r: true, is_2f: false, is_3f: false });
+        closingAssignments.set(`${responsable1R}_apres_midi`, { is_1r: true, is_2f: false, is_3f: false });
+      }
+      
+      const sec1R = week_data.secretaires.find(s => s.id === responsable1R);
+      const sec2F3F = week_data.secretaires.find(s => s.id === responsable2F3F);
+      const is3FAssigned = closingAssignments.get(`${responsable2F3F}_matin`)?.is_3f || false;
+      
+      console.log(`    ✅ ${site_nom}: 1R=${sec1R?.first_name} ${sec1R?.name}, ${is3FAssigned ? '3F' : '2F'}=${sec2F3F?.first_name} ${sec2F3F?.name}`);
+    }
+    
+    // Update dryRunRecords with closing responsibilities
+    for (const record of dryRunRecords) {
+      const key = `${record.secretaire_id}_${record.demi_journee}`;
+      const assignment = closingAssignments.get(key);
+      if (assignment) {
+        record.is_1r = assignment.is_1r;
+        record.is_2f = assignment.is_2f;
+        record.is_3f = assignment.is_3f;
+      }
+    }
+    
+    // Update afterAssignments with closing responsibilities for display
+    for (const afterAssignment of afterAssignments) {
+      for (const sec of afterAssignment.secretaires) {
+        const key = `${sec.id}_${afterAssignment.periode}`;
+        const assignment = closingAssignments.get(key);
+        if (assignment) {
+          sec.is_1r = assignment.is_1r;
+          sec.is_2f = assignment.is_2f;
+          sec.is_3f = assignment.is_3f;
+        }
+      }
+    }
+    
+    console.log(`✅ Responsabilités de fermeture mises à jour`);
+    
     // Clear existing dry_run data for this date (always, even if no new changes)
     console.log(`🗑️  Suppression des anciennes propositions dry-run pour le ${date}...`);
     await supabase
