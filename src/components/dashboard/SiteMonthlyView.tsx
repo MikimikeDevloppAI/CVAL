@@ -169,134 +169,131 @@ export const SiteMonthlyView = ({ sites, startDate, endDate, onRefresh }: SiteMo
 
   return (
     <div className="relative">
-      {/* Global scrollable container */}
-      <div className="overflow-x-auto scrollbar-thin">
-        <div className="min-w-max">
-          {/* STICKY HEADER - Days */}
-          <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-md">
-            <div className="flex">
-              {/* Top-left corner - Site label */}
-              <div className="w-48 shrink-0 border-r border-border/50 bg-card/50">
-                <div className="p-4 text-sm font-semibold text-muted-foreground">
-                  Sites
+      {/* STICKY HEADER - Days */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-md">
+        <div className="flex">
+          {/* Top-left corner - Site label */}
+          <div className="w-48 shrink-0 border-r border-border/50 bg-card/50">
+            <div className="p-4 text-sm font-semibold text-muted-foreground">
+              Sites
+            </div>
+          </div>
+          
+          {/* Day headers - scrollable */}
+          <div className="flex-1 overflow-x-auto scrollbar-thin">
+            <div className="flex gap-2 p-2 min-w-max">
+              {days.map((day) => {
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className="w-32 text-center shrink-0"
+                  >
+                    <p className="text-xs font-medium text-muted-foreground uppercase">
+                      {format(day, 'EEE', { locale: fr })}
+                    </p>
+                    <p className="text-sm font-semibold text-foreground mt-1">
+                      {format(day, 'd MMM', { locale: fr })}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* BODY - Sites rows */}
+      <div className="flex flex-col">
+        {sites.map((site, siteIndex) => {
+          const hasIssues = site.days.some(
+            d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait'
+          );
+
+          return (
+            <div key={site.site_id} className="flex border-b border-border/30 hover:bg-accent/5 transition-colors">
+              {/* Sticky left column - Site name */}
+              <div className="w-48 shrink-0 border-r border-border/50 sticky left-0 z-10 bg-card/90 backdrop-blur-sm">
+                <div className="p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-1">
+                    {site.site_nom}
+                  </h3>
+                  {hasIssues && (
+                    <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                      Besoins non satisfaits
+                    </Badge>
+                  )}
                 </div>
               </div>
               
-              {/* Day headers */}
+              {/* Day cells */}
               <div className="flex gap-2 p-2">
                 {days.map((day) => {
+                  const dayData = getDayData(site, day);
+                  
+                  // Calculate needs
+                  let besoinMatin = 0;
+                  let capaciteMatin = 0;
+                  let besoinAM = 0;
+                  let capaciteAM = 0;
+                  
+                  if (dayData) {
+                    const isSaturday = day.getDay() === 6;
+                    
+                    if (isSaturday) {
+                      besoinMatin = dayData.medecins.filter(m => m.matin).length;
+                      besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
+                    } else {
+                      besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
+                      besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
+                    }
+                    
+                    capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
+                    capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
+                  }
+
+                  const hasManqueMatin = besoinMatin > capaciteMatin;
+                  const hasManqueAM = besoinAM > capaciteAM;
+
                   return (
-                    <div
-                      key={day.toISOString()}
-                      className="w-32 text-center shrink-0"
-                    >
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        {format(day, 'EEE', { locale: fr })}
-                      </p>
-                      <p className="text-sm font-semibold text-foreground mt-1">
-                        {format(day, 'd MMM', { locale: fr })}
-                      </p>
+                    <div key={day.toISOString()} className="w-32 shrink-0 relative">
+                      {/* Needs indicator on top of cell */}
+                      {dayData && (hasManqueMatin || hasManqueAM) && (
+                        <div className="absolute -top-1 left-1 z-10 flex flex-col gap-0.5">
+                          {hasManqueMatin && (
+                            <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
+                              M: {capaciteMatin}/{besoinMatin}
+                            </div>
+                          )}
+                          {hasManqueAM && (
+                            <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
+                              AM: {capaciteAM}/{besoinAM}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <DayCell
+                        date={day}
+                        data={dayData}
+                        onOpenDetail={(date, data) => handleOpenDetail(date, site.site_id, site.site_nom, data)}
+                        onSecretaireClick={(id, nom, prenom, periode) =>
+                          handleSecretaireClick(id, nom, prenom, periode, day, site.site_id)
+                        }
+                        onMedecinClick={(id, nom, prenom) =>
+                          handleMedecinClick(id, nom, prenom, day, site.site_id)
+                        }
+                        onAddMedecin={(date) => setAddMedecinDate({ date, siteId: site.site_id })}
+                        onAddSecretaire={(date) =>
+                          setAddSecretaireDate({ date, siteId: site.site_id, siteName: site.site_nom })
+                        }
+                      />
                     </div>
                   );
                 })}
               </div>
             </div>
-          </div>
-
-          {/* BODY - Sites rows */}
-          <div className="flex flex-col">
-            {sites.map((site, siteIndex) => {
-              const hasIssues = site.days.some(
-                d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait'
-              );
-
-              return (
-                <div key={site.site_id} className="flex border-b border-border/30 hover:bg-accent/5 transition-colors">
-                  {/* Sticky left column - Site name */}
-                  <div className="w-48 shrink-0 border-r border-border/50 sticky left-0 z-10 bg-card/90 backdrop-blur-sm">
-                    <div className="p-4">
-                      <h3 className="text-sm font-semibold text-foreground mb-1">
-                        {site.site_nom}
-                      </h3>
-                      {hasIssues && (
-                        <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
-                          Besoins non satisfaits
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Day cells */}
-                  <div className="flex gap-2 p-2">
-                    {days.map((day) => {
-                      const dayData = getDayData(site, day);
-                      
-                      // Calculate needs
-                      let besoinMatin = 0;
-                      let capaciteMatin = 0;
-                      let besoinAM = 0;
-                      let capaciteAM = 0;
-                      
-                      if (dayData) {
-                        const isSaturday = day.getDay() === 6;
-                        
-                        if (isSaturday) {
-                          besoinMatin = dayData.medecins.filter(m => m.matin).length;
-                          besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
-                        } else {
-                          besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
-                          besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
-                        }
-                        
-                        capaciteMatin = dayData.secretaires.filter(s => s.matin).length;
-                        capaciteAM = dayData.secretaires.filter(s => s.apres_midi).length;
-                      }
-
-                      const hasManqueMatin = besoinMatin > capaciteMatin;
-                      const hasManqueAM = besoinAM > capaciteAM;
-
-                      return (
-                        <div key={day.toISOString()} className="w-32 shrink-0 relative">
-                          {/* Needs indicator on top of cell */}
-                          {dayData && (hasManqueMatin || hasManqueAM) && (
-                            <div className="absolute -top-1 left-1 z-10 flex flex-col gap-0.5">
-                              {hasManqueMatin && (
-                                <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
-                                  M: {capaciteMatin}/{besoinMatin}
-                                </div>
-                              )}
-                              {hasManqueAM && (
-                                <div className="text-[10px] font-semibold text-destructive bg-background/90 px-1 rounded">
-                                  AM: {capaciteAM}/{besoinAM}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          
-                          <DayCell
-                            date={day}
-                            data={dayData}
-                            onOpenDetail={(date, data) => handleOpenDetail(date, site.site_id, site.site_nom, data)}
-                            onSecretaireClick={(id, nom, prenom, periode) =>
-                              handleSecretaireClick(id, nom, prenom, periode, day, site.site_id)
-                            }
-                            onMedecinClick={(id, nom, prenom) =>
-                              handleMedecinClick(id, nom, prenom, day, site.site_id)
-                            }
-                            onAddMedecin={(date) => setAddMedecinDate({ date, siteId: site.site_id })}
-                            onAddSecretaire={(date) =>
-                              setAddSecretaireDate({ date, siteId: site.site_id, siteName: site.site_nom })
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Dialogs */}
