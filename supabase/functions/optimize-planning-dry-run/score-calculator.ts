@@ -239,7 +239,7 @@ export function calculateComboScore(
   }
   
   // ============================================================
-  // 4. BONUS +30 SI COMBO CORRESPOND À L'ÉTAT ACTUEL (NON-ADMIN ONLY)
+  // 4. BONUS +15 PAR DEMI-JOURNÉE SI COMBO CORRESPOND À L'ÉTAT ACTUEL (Y COMPRIS ADMIN)
   // ============================================================
   if (currentState) {
     const state = currentState.get(secretaire_id);
@@ -247,8 +247,12 @@ export function calculateComboScore(
       console.log(`  📋 État actuel: Matin=${state.matin_site_id?.slice(0,8)} (besoin=${state.matin_besoin_op_id?.slice(0,8)}, bloc=${state.matin_bloc_op_id?.slice(0,8)}), AM=${state.am_site_id?.slice(0,8)} (besoin=${state.am_besoin_op_id?.slice(0,8)}, bloc=${state.am_bloc_op_id?.slice(0,8)})`);
       console.log(`  🔍 Combo proposé: Matin=${needMatin?.site_id?.slice(0,8)} (type=${needMatin?.type}), AM=${needAM?.site_id?.slice(0,8)} (type=${needAM?.type})`);
       
+      // Détection ADMIN: null OU explicite (site_id === ADMIN_SITE_ID)
+      const isAdminComboMatin = (needMatin === null) || (needMatin?.type === 'site' && needMatin.site_id === ADMIN_SITE_ID);
+      const isAdminComboAM = (needAM === null) || (needAM?.type === 'site' && needAM.site_id === ADMIN_SITE_ID);
+      
       const matchesMatin = (
-        (needMatin === null && state.matin_site_id === ADMIN_SITE_ID) ||
+        (isAdminComboMatin && state.matin_site_id === ADMIN_SITE_ID) ||
         (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
         (needMatin && needMatin.type === 'bloc_operatoire' && 
          needMatin.bloc_operation_id === state.matin_bloc_op_id &&
@@ -256,36 +260,42 @@ export function calculateComboScore(
       );
       
       const matchesAM = (
-        (needAM === null && state.am_site_id === ADMIN_SITE_ID) ||
+        (isAdminComboAM && state.am_site_id === ADMIN_SITE_ID) ||
         (needAM && needAM.type === 'site' && needAM.site_id === state.am_site_id) ||
         (needAM && needAM.type === 'bloc_operatoire' && 
          needAM.bloc_operation_id === state.am_bloc_op_id &&
          needAM.besoin_operation_id === state.am_besoin_op_id)
       );
       
-      // Only award +30 if at least one period is NON-ADMIN
-      const keepsNonAdmin = 
-        (needMatin && needMatin.site_id !== ADMIN_SITE_ID) ||
-        (needAM && needAM.site_id !== ADMIN_SITE_ID);
+      console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
       
-      console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}, Non-admin: ${keepsNonAdmin}`);
-      
-      // Bonus progressif: +15 par demi-journée qui conserve l'état actuel (sauf ADMIN)
+      // Bonus: +15 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
       let bonus = 0;
-      const matinKeepsNonAdmin = needMatin && needMatin.site_id !== ADMIN_SITE_ID;
-      const amKeepsNonAdmin = needAM && needAM.site_id !== ADMIN_SITE_ID;
       
-      if (matchesMatin && matinKeepsNonAdmin) {
+      if (matchesMatin) {
         bonus += 15;
-        console.log(`  🎯 BONUS +15 matin: état actuel conservé (non-admin) ✅`);
+        if (isAdminComboMatin) {
+          console.log(`  🎯 BONUS +15 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
+        } else if (needMatin?.type === 'bloc_operatoire') {
+          console.log(`  🎯 BONUS +15 matin: besoin BLOC conservé ✅`);
+        } else {
+          console.log(`  🎯 BONUS +15 matin: site conservé ✅`);
+        }
       }
-      if (matchesAM && amKeepsNonAdmin) {
+      
+      if (matchesAM) {
         bonus += 15;
-        console.log(`  🎯 BONUS +15 AM: état actuel conservé (non-admin) ✅`);
+        if (isAdminComboAM) {
+          console.log(`  🎯 BONUS +15 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
+        } else if (needAM?.type === 'bloc_operatoire') {
+          console.log(`  🎯 BONUS +15 AM: besoin BLOC conservé ✅`);
+        } else {
+          console.log(`  🎯 BONUS +15 AM: site conservé ✅`);
+        }
       }
       
       if (bonus === 0) {
-        console.log(`  ❌ Pas de bonus (match matin=${matchesMatin && matinKeepsNonAdmin}, match AM=${matchesAM && amKeepsNonAdmin})`);
+        console.log(`  ❌ Pas de bonus (aucun match avec état actuel)`);
       }
       
       totalScore += bonus;
