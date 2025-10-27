@@ -1133,9 +1133,9 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           <div className="flex items-center gap-2">
             <Badge variant="destructive">Journée entière manquante</Badge>
             <span className="font-medium">{need.site_nom}</span>
-            <span className="text-sm text-muted-foreground ml-auto">
-              Total: <span className="font-semibold text-destructive">{need.total_manque}</span>
-            </span>
+            <Badge variant="destructive" className="text-xs ml-auto">
+              {Math.ceil(need.total_manque / 2)} manquant
+            </Badge>
           </div>
         </div>
 
