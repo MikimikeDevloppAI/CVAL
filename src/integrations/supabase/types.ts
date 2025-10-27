@@ -80,6 +80,7 @@ export type Database = {
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_medecin_id: string | null
           id: string
           medecin_id: string | null
           site_id: string
@@ -92,6 +93,7 @@ export type Database = {
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_medecin_id?: string | null
           id?: string
           medecin_id?: string | null
           site_id: string
@@ -104,6 +106,7 @@ export type Database = {
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_medecin_id?: string | null
           id?: string
           medecin_id?: string | null
           site_id?: string
@@ -112,6 +115,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_horaire_base_medecin_id_fkey"
+            columns: ["horaire_base_medecin_id"]
+            isOneToOne: false
+            referencedRelation: "horaires_base_medecins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "besoin_effectif_medecin_id_fkey"
             columns: ["medecin_id"]
@@ -223,6 +233,7 @@ export type Database = {
           created_at: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_secretaire_id: string | null
           id: string
           is_1r: boolean
           is_2f: boolean
@@ -238,6 +249,7 @@ export type Database = {
           created_at?: string
           date: string
           demi_journee: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_secretaire_id?: string | null
           id?: string
           is_1r?: boolean
           is_2f?: boolean
@@ -253,6 +265,7 @@ export type Database = {
           created_at?: string
           date?: string
           demi_journee?: Database["public"]["Enums"]["demi_journee"]
+          horaire_base_secretaire_id?: string | null
           id?: string
           is_1r?: boolean
           is_2f?: boolean
@@ -268,6 +281,13 @@ export type Database = {
             columns: ["besoin_operation_id"]
             isOneToOne: false
             referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_horaire_base_secretaire_id_fkey"
+            columns: ["horaire_base_secretaire_id"]
+            isOneToOne: false
+            referencedRelation: "horaires_base_secretaires"
             referencedColumns: ["id"]
           },
           {
