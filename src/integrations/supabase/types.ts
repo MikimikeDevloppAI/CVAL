@@ -1263,7 +1263,7 @@ export type Database = {
           nombre_3f: number | null
           nombre_besoins: number | null
           nombre_capacites: number | null
-          periode: Database["public"]["Enums"]["demi_journee"] | null
+          periode: string | null
           planning_genere_bloc_operatoire_id: string | null
           site_id: string | null
           site_nom: string | null
