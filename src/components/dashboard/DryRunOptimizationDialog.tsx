@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowRight, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -25,6 +26,12 @@ interface Change {
   type_intervention_avant_nom: string | null;
   type_intervention_apres_nom: string | null;
   type: 'site' | 'bloc_operatoire';
+  is_1r_avant: boolean;
+  is_2f_avant: boolean;
+  is_3f_avant: boolean;
+  is_1r_apres: boolean;
+  is_2f_apres: boolean;
+  is_3f_apres: boolean;
 }
 
 interface GroupedChange {
@@ -34,6 +41,12 @@ interface GroupedChange {
     demi_journee: 'matin' | 'apres_midi';
     avant: string;
     apres: string;
+    is_1r_avant: boolean;
+    is_2f_avant: boolean;
+    is_3f_avant: boolean;
+    is_1r_apres: boolean;
+    is_2f_apres: boolean;
+    is_3f_apres: boolean;
   }>;
 }
 
@@ -132,7 +145,13 @@ export const DryRunOptimizationDialog = ({
       group.periods.push({
         demi_journee: change.demi_journee,
         avant,
-        apres
+        apres,
+        is_1r_avant: change.is_1r_avant,
+        is_2f_avant: change.is_2f_avant,
+        is_3f_avant: change.is_3f_avant,
+        is_1r_apres: change.is_1r_apres,
+        is_2f_apres: change.is_2f_apres,
+        is_3f_apres: change.is_3f_apres
       });
     });
     
@@ -147,7 +166,17 @@ export const DryRunOptimizationDialog = ({
           // Merge into one entry
           result.push({
             ...group,
-            periods: [{ demi_journee: 'matin', avant: matin.avant, apres: matin.apres }]
+            periods: [{ 
+              demi_journee: 'matin', 
+              avant: matin.avant, 
+              apres: matin.apres,
+              is_1r_avant: matin.is_1r_avant,
+              is_2f_avant: matin.is_2f_avant,
+              is_3f_avant: matin.is_3f_avant,
+              is_1r_apres: matin.is_1r_apres,
+              is_2f_apres: matin.is_2f_apres,
+              is_3f_apres: matin.is_3f_apres
+            }]
           });
         } else {
           result.push(group);
@@ -323,7 +352,10 @@ export const DryRunOptimizationDialog = ({
             capacite_effective!inner(
               site_id,
               besoin_operation_id,
-              planning_genere_bloc_operatoire_id
+              planning_genere_bloc_operatoire_id,
+              is_1r,
+              is_2f,
+              is_3f
             )
           `)
           .eq('date', date);
@@ -395,6 +427,12 @@ export const DryRunOptimizationDialog = ({
             type_intervention_avant_nom: typeInterventionMap.get(record.capacite_effective.planning_genere_bloc_operatoire_id) || null,
             type_intervention_apres_nom: typeInterventionMap.get(record.planning_genere_bloc_operatoire_id) || null,
             type: isBloc ? 'bloc_operatoire' : 'site',
+            is_1r_avant: record.capacite_effective.is_1r || false,
+            is_2f_avant: record.capacite_effective.is_2f || false,
+            is_3f_avant: record.capacite_effective.is_3f || false,
+            is_1r_apres: record.is_1r || false,
+            is_2f_apres: record.is_2f || false,
+            is_3f_apres: record.is_3f || false,
           };
         });
 
@@ -658,8 +696,34 @@ export const DryRunOptimizationDialog = ({
                             <tr key={idx} className="border-t">
                               <td className="p-2 font-medium">{group.secretaire_nom}</td>
                               <td className="p-2">Journée complète</td>
-                              <td className="p-2 text-muted-foreground">{group.periods[0].avant}</td>
-                              <td className="p-2">{group.periods[0].apres}</td>
+                                <td className="p-2 text-muted-foreground">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span>{group.periods[0].avant}</span>
+                                    {group.periods[0].is_1r_avant && (
+                                      <Badge variant="outline" className="text-xs">1R</Badge>
+                                    )}
+                                    {group.periods[0].is_2f_avant && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    )}
+                                    {group.periods[0].is_3f_avant && (
+                                      <Badge variant="outline" className="text-xs">3F</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span>{group.periods[0].apres}</span>
+                                    {group.periods[0].is_1r_apres && (
+                                      <Badge variant="outline" className="text-xs">1R</Badge>
+                                    )}
+                                    {group.periods[0].is_2f_apres && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    )}
+                                    {group.periods[0].is_3f_apres && (
+                                      <Badge variant="outline" className="text-xs">3F</Badge>
+                                    )}
+                                  </div>
+                                </td>
                               <td className="p-2 text-center">
                                 <Button
                                   size="sm"
@@ -687,8 +751,34 @@ export const DryRunOptimizationDialog = ({
                                 <td className="p-2">
                                   {period.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
                                 </td>
-                                <td className="p-2 text-muted-foreground">{period.avant}</td>
-                                <td className="p-2">{period.apres}</td>
+                                <td className="p-2 text-muted-foreground">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span>{period.avant}</span>
+                                    {period.is_1r_avant && (
+                                      <Badge variant="outline" className="text-xs">1R</Badge>
+                                    )}
+                                    {period.is_2f_avant && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    )}
+                                    {period.is_3f_avant && (
+                                      <Badge variant="outline" className="text-xs">3F</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span>{period.apres}</span>
+                                    {period.is_1r_apres && (
+                                      <Badge variant="outline" className="text-xs">1R</Badge>
+                                    )}
+                                    {period.is_2f_apres && (
+                                      <Badge variant="outline" className="text-xs">2F</Badge>
+                                    )}
+                                    {period.is_3f_apres && (
+                                      <Badge variant="outline" className="text-xs">3F</Badge>
+                                    )}
+                                  </div>
+                                </td>
                                 {periodIdx === 0 && (
                                   <td className="p-2 text-center" rowSpan={group.periods.length}>
                                     <Button
