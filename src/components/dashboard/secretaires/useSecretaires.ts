@@ -9,6 +9,7 @@ export interface Secretaire {
   email?: string;
   phone_number?: string;
   prefered_admin?: boolean;
+  nombre_demi_journees_admin?: number;
   sites_assignes_details?: { id: string; site_id: string; nom: string; priorite?: string }[];
   medecins_assignes_details?: { id: string; medecin_id: string; first_name: string; name: string; priorite?: string }[];
   horaires_base_secretaires?: { 
@@ -59,6 +60,7 @@ export function useSecretaires() {
           email,
           phone_number,
           prefered_admin,
+          nombre_demi_journees_admin,
           profile_id,
           flexible_jours_supplementaires,
           nombre_jours_supplementaires,
