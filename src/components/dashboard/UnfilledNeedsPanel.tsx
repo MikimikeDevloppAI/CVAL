@@ -972,7 +972,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         throw results.find(r => r.error)?.error;
       }
 
+      // Rafraîchir la vue matérialisée
+      await supabase.rpc('refresh_besoins_non_satisfaits');
+
       toast.success(`Rôle ${role.toUpperCase()} ${newValue ? 'assigné' : 'retiré'}`);
+      
+      // Recharger les besoins non satisfaits
       await fetchUnfilledNeeds();
       onRefresh?.();
     } catch (error: any) {
@@ -1405,21 +1410,19 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                       <div key={needKey} className="space-y-3">
                         {/* Cas spécial : Rôles de fermeture manquants (1R/2F/3F) */}
                         {need.type_besoin === 'fermeture' ? (
-                          <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-4">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className="h-5 w-5 text-destructive" />
-                              <span className="font-semibold text-destructive">
-                                Responsables de fermeture manquants
-                              </span>
-                              <Badge variant="destructive" className="ml-auto">Fermeture</Badge>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {need.site_nom} - Total manquant : {need.total_manque}
+                          <div className="space-y-4">
+                            <div className="p-3 rounded-lg bg-card border border-border/50">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{need.site_nom}</span>
+                                <Badge variant="outline" className="ml-auto">
+                                  {need.total_manque} responsable{need.total_manque > 1 ? 's' : ''} manquant{need.total_manque > 1 ? 's' : ''}
+                                </Badge>
+                              </div>
                             </div>
 
                             {/* Liste des secrétaires assignées toute la journée */}
                             {need.secretaires_assignees && need.secretaires_assignees.length > 0 ? (
-                              <div className="space-y-3">
+                              <div className="ml-4 p-4 rounded-lg border space-y-3">
                                 <h4 className="text-sm font-medium">
                                   Assistants médicaux assignés toute la journée ({need.secretaires_assignees.length})
                                 </h4>
@@ -1475,43 +1478,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground">
-                                Aucun assistant médical assigné toute la journée à ce site.
+                              <div className="ml-4 p-4 rounded-lg border">
+                                <div className="text-sm text-muted-foreground">
+                                  Aucun assistant médical assigné toute la journée à ce site.
+                                </div>
                               </div>
                             )}
-
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={async () => {
-                                try {
-                                  setAssigningId(needKey);
-                                  const { error } = await supabase.functions.invoke('assign-closing-responsibles', {
-                                    body: { date: need.date, siteId: need.site_id }
-                                  });
-                                  if (error) throw error;
-                                  toast.success('Responsables de fermeture assignés');
-                                  await fetchUnfilledNeeds();
-                                  onRefresh?.();
-                                } catch (error) {
-                                  console.error('Error assigning closing roles:', error);
-                                  toast.error('Erreur lors de l\'assignation des responsables');
-                                } finally {
-                                  setAssigningId(null);
-                                }
-                              }}
-                              disabled={!!assigningId}
-                              className="w-full gap-2"
-                            >
-                              {assigningId === needKey ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <UserPlus className="h-4 w-4" />
-                                  Assigner automatiquement les responsables
-                                </>
-                              )}
-                            </Button>
                           </div>
                       ) : need.besoins_personnel && need.besoins_personnel.length > 0 ? (
                         /* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */
