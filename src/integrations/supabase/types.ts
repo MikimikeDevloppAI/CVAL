@@ -1252,8 +1252,15 @@ export type Database = {
       besoins_non_satisfaits_summary: {
         Row: {
           besoin_operation_id: string | null
+          besoin_operation_nom: string | null
           date: string | null
           deficit: number | null
+          medecin_id: string | null
+          medecin_nom: string | null
+          medecin_prenom: string | null
+          nombre_1r: number | null
+          nombre_2f: number | null
+          nombre_3f: number | null
           nombre_besoins: number | null
           nombre_capacites: number | null
           periode: Database["public"]["Enums"]["demi_journee"] | null
@@ -1261,6 +1268,8 @@ export type Database = {
           site_id: string | null
           site_nom: string | null
           type_besoin: string | null
+          type_intervention_id: string | null
+          type_intervention_nom: string | null
         }
         Relationships: []
       }

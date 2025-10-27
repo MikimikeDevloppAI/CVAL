@@ -31,6 +31,9 @@ interface BesoinPersonnel {
   besoin_operation_nom: string;
   nombre_requis: number;
   deficit: number;
+  nombre_1r?: number;
+  nombre_2f?: number;
+  nombre_3f?: number;
   suggestions_matin?: {
     suggestions_admin: SecretaireSuggestion[];
     suggestions_not_working: SecretaireSuggestion[];
@@ -47,6 +50,9 @@ interface AggregatedNeed {
   site_nom: string;
   type_intervention_id?: string;
   type_intervention_nom?: string;
+  medecin_id?: string;
+  medecin_nom?: string;
+  medecin_prenom?: string;
   planning_genere_bloc_operatoire_id?: string;
   besoins_personnel?: BesoinPersonnel[];
   has_both_periods: boolean;
@@ -108,30 +114,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
     }
   };
 
-  const fetchBesoinsBlocOperatoire = async (typeInterventionId: string) => {
-    const { data, error } = await supabase
-      .from('types_intervention_besoins_personnel')
-      .select(`
-        besoin_operation_id,
-        nombre_requis,
-        besoins_operations(id, nom, code)
-      `)
-      .eq('type_intervention_id', typeInterventionId)
-      .eq('actif', true);
-    
-    if (error) {
-      console.error('Error fetching besoins bloc:', error);
-      return [];
-    }
-
-    return data?.map(d => ({
-      besoin_operation_id: d.besoin_operation_id,
-      besoin_operation_nom: (d.besoins_operations as any)?.nom || '',
-      nombre_requis: d.nombre_requis,
-      deficit: 0
-    })) || [];
-  };
-
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
     try {
@@ -158,36 +140,23 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             : `${need.date}-site-${need.site_id}`;
         
         if (!grouped.has(key)) {
-          // Si c'est un bloc opératoire, récupérer le type d'intervention
-          let typeInterventionId: string | undefined;
-          let typeInterventionNom: string | undefined;
+          // Pour les blocs opératoires, les données sont maintenant dans la vue
           let besoinsPersonnel: BesoinPersonnel[] | undefined;
 
-          if (need.planning_genere_bloc_operatoire_id) {
-            const { data: blocData } = await supabase
-              .from('planning_genere_bloc_operatoire')
-              .select(`
-                type_intervention_id,
-                types_intervention(id, nom)
-              `)
-              .eq('id', need.planning_genere_bloc_operatoire_id)
-              .single();
-
-            if (blocData) {
-              typeInterventionId = blocData.type_intervention_id;
-              typeInterventionNom = (blocData.types_intervention as any)?.nom;
-              
-              // Récupérer les besoins en personnel pour ce type d'intervention
-              besoinsPersonnel = await fetchBesoinsBlocOperatoire(typeInterventionId);
-            }
+          if (need.type_besoin === 'bloc_operatoire') {
+            // Créer un tableau avec ce besoin
+            besoinsPersonnel = [];
           }
 
           grouped.set(key, {
             date: need.date,
             site_id: need.site_id,
             site_nom: need.site_nom,
-            type_intervention_id: typeInterventionId,
-            type_intervention_nom: typeInterventionNom,
+            type_intervention_id: need.type_intervention_id,
+            type_intervention_nom: need.type_intervention_nom,
+            medecin_id: need.medecin_id,
+            medecin_nom: need.medecin_nom,
+            medecin_prenom: need.medecin_prenom,
             planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
             besoins_personnel: besoinsPersonnel,
             has_both_periods: false,
@@ -201,43 +170,44 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         const periode = need.periode as 'matin' | 'apres_midi';
         
         // Ne PAS générer les suggestions ici, juste stocker les infos de base
-        if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
-          // Compter les assignations existantes pour chaque besoin
-          const { data: assignations } = await supabase
-            .from('capacite_effective')
-            .select('besoin_operation_id')
-            .eq('planning_genere_bloc_operatoire_id', need.planning_genere_bloc_operatoire_id)
-            .eq('demi_journee', periode)
-            .eq('actif', true);
+        if (need.type_besoin === 'bloc_operatoire' && aggregated.besoins_personnel) {
+          // Les données viennent directement de la vue
+          const existingBesoin = aggregated.besoins_personnel.find(
+            b => b.besoin_operation_id === need.besoin_operation_id
+          );
 
-          // Créer un compteur par besoin_operation_id
-          const assignationsCount = new Map<string, number>();
-          assignations?.forEach(a => {
-            if (a.besoin_operation_id) {
-              assignationsCount.set(
-                a.besoin_operation_id, 
-                (assignationsCount.get(a.besoin_operation_id) || 0) + 1
-              );
-            }
-          });
-
-          for (const besoin of aggregated.besoins_personnel) {
-            const nombreAssigne = assignationsCount.get(besoin.besoin_operation_id) || 0;
-            const nombreManquant = Math.max(0, besoin.nombre_requis - nombreAssigne);
-            
-            // Initialiser avec des tableaux vides
-            if (periode === 'matin') {
-              besoin.suggestions_matin = {
+          if (!existingBesoin) {
+            // Ajouter ce nouveau besoin
+            aggregated.besoins_personnel.push({
+              besoin_operation_id: need.besoin_operation_id || '',
+              besoin_operation_nom: need.besoin_operation_nom || '',
+              nombre_requis: need.nombre_besoins || 0,
+              deficit: need.deficit || 0,
+              nombre_1r: need.nombre_1r || 0,
+              nombre_2f: need.nombre_2f || 0,
+              nombre_3f: need.nombre_3f || 0,
+              suggestions_matin: periode === 'matin' ? {
+                suggestions_admin: [],
+                suggestions_not_working: []
+              } : undefined,
+              suggestions_apres_midi: periode === 'apres_midi' ? {
+                suggestions_admin: [],
+                suggestions_not_working: []
+              } : undefined
+            });
+          } else {
+            // Mettre à jour le besoin existant pour l'autre période
+            if (periode === 'matin' && !existingBesoin.suggestions_matin) {
+              existingBesoin.suggestions_matin = {
                 suggestions_admin: [],
                 suggestions_not_working: []
               };
-            } else {
-              besoin.suggestions_apres_midi = {
+            } else if (periode === 'apres_midi' && !existingBesoin.suggestions_apres_midi) {
+              existingBesoin.suggestions_apres_midi = {
                 suggestions_admin: [],
                 suggestions_not_working: []
               };
             }
-            besoin.deficit = nombreManquant;
           }
         } else {
           // Cas site normal
@@ -1365,7 +1335,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                             .filter(besoin => besoin.deficit > 0)
                             .map(besoin => (
                             <div key={besoin.besoin_operation_id} className="ml-4 space-y-3 p-4 rounded-lg bg-card border border-border/50">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <Badge variant="outline" className="bg-background">
                                   {besoin.besoin_operation_nom}
                                 </Badge>
@@ -1375,6 +1345,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                 {besoin.deficit > 0 && (
                                   <Badge variant="destructive" className="text-xs">
                                     {besoin.deficit} manquant
+                                  </Badge>
+                                )}
+                                {besoin.nombre_1r !== undefined && besoin.nombre_1r > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                    1R ({besoin.nombre_1r})
+                                  </Badge>
+                                )}
+                                {besoin.nombre_2f !== undefined && besoin.nombre_2f > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                    2F ({besoin.nombre_2f})
+                                  </Badge>
+                                )}
+                                {besoin.nombre_3f !== undefined && besoin.nombre_3f > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                    3F ({besoin.nombre_3f})
                                   </Badge>
                                 )}
                               </div>
