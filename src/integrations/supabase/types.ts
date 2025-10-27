@@ -1366,12 +1366,10 @@ export type Database = {
       }
       besoins_fermeture_summary: {
         Row: {
-          besoin_type: string | null
           date: string | null
+          deficit: number | null
           deficit_1r: number | null
           deficit_2f3f: number | null
-          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          nom_complet: string | null
           nombre_assigne_1r: number | null
           nombre_assigne_2f3f: number | null
           nombre_requis_1r: number | null
