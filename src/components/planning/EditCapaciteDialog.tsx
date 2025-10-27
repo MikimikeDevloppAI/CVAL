@@ -78,9 +78,6 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
 
       if (error) throw error;
 
-      // Rafraîchir les vues matérialisées
-      await supabase.functions.invoke('refresh-besoins-view');
-
       setEditedCapacites(prev => prev.filter(c => c.id !== capaciteToDelete));
       toast({
         title: "Succès",
@@ -130,10 +127,7 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
 
       if (error) throw error;
 
-      // Rafraîchir les vues matérialisées
-      await supabase.functions.invoke('refresh-besoins-view');
-
-      setEditedCapacites(prev => [...prev, data].sort((a, b) => 
+      setEditedCapacites(prev => [...prev, data].sort((a, b) =>
         new Date(a.date).getTime() - new Date(b.date).getTime()
       ));
 
@@ -176,9 +170,6 @@ export function EditCapaciteDialog({ open, onOpenChange, capacites, onSuccess }:
             .eq('id', capacite.id)
         )
       );
-
-      // Rafraîchir les vues matérialisées
-      await supabase.functions.invoke('refresh-besoins-view');
 
       toast({
         title: "Succès",
