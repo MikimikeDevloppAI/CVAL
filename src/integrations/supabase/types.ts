@@ -1260,7 +1260,7 @@ export type Database = {
           nombre_assigne: number | null
           nombre_medecins: number | null
           nombre_requis: number | null
-          planning_bloc_id: string | null
+          planning_genere_bloc_id: string | null
           site_fermeture: boolean | null
           site_id: string | null
           site_nom: string | null
