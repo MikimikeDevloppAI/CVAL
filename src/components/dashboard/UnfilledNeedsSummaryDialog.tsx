@@ -42,22 +42,40 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
       for (let i = 0; i < 4; i++) {
         const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
         const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
+        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
         
-        // Fetch unfilled needs count for this week
-        const { data, error } = await supabase.rpc('get_besoins_non_satisfaits_summary' as any, {
-          p_date_debut: format(weekStart, 'yyyy-MM-dd'),
-          p_date_fin: format(weekEnd, 'yyyy-MM-dd')
-        });
+        // Compter depuis les 3 vues séparées (comme dans DashboardPage)
+        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+          supabase
+            .from('besoins_sites_summary')
+            .select('*', { count: 'exact', head: true })
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_bloc_operatoire_summary')
+            .select('*', { count: 'exact', head: true })
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_fermeture_summary')
+            .select('*', { count: 'exact', head: true })
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0)
+        ]);
 
-        if (error) throw error;
+        if (sitesResult.error) throw sitesResult.error;
+        if (blocResult.error) throw blocResult.error;
+        if (fermetureResult.error) throw fermetureResult.error;
 
-        const totalManque = Array.isArray(data) 
-          ? data.reduce((sum: number, need: any) => sum + (need.total_manque || 0), 0)
-          : 0;
+        const totalManque = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
 
         weeksData.push({
-          weekStart: format(weekStart, 'yyyy-MM-dd'),
-          weekEnd: format(weekEnd, 'yyyy-MM-dd'),
+          weekStart: weekStartStr,
+          weekEnd: weekEndStr,
           weekLabel: `Semaine du ${format(weekStart, 'dd MMM', { locale: fr })} au ${format(weekEnd, 'dd MMM', { locale: fr })}`,
           totalManque
         });
