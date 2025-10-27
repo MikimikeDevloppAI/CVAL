@@ -133,7 +133,7 @@ export function SecretaireCalendarCard({
       const isBloc = Boolean(assignment.besoin_operation_nom || assignment.type_intervention_nom);
       
       if (isBloc) {
-        // BLOC OPÉRATOIRE: Display order is Salle - Besoin - Rôle
+        // BLOC OPÉRATOIRE: Display order is Salle - Type intervention - Besoin - Rôle
         const roles = [];
         if (assignment.is_1r) roles.push('1R');
         if (assignment.is_2f) roles.push('2F');
@@ -142,12 +142,14 @@ export function SecretaireCalendarCard({
         const salleName = assignment.salle_nom 
           ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
           : '';
-        const besoinName = assignment.besoin_operation_nom || assignment.type_intervention_nom || '';
+        const typeInterventionName = assignment.type_intervention_nom || '';
+        const besoinName = assignment.besoin_operation_nom || '';
         const roleText = roles.length > 0 ? roles.join('/') : '';
         
-        // Build display text: Salle - Besoin - Rôle
+        // Build display text: Salle - Type intervention - Besoin - Rôle
         const parts = [];
         if (salleName) parts.push(salleName);
+        if (typeInterventionName) parts.push(typeInterventionName);
         if (besoinName) parts.push(besoinName);
         if (roleText) parts.push(roleText);
         
