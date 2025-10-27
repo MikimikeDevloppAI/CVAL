@@ -130,8 +130,8 @@ const TypesInterventionManagement = React.forwardRef<TypesInterventionManagement
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.nom || !formData.code) {
-      toast.error('Le nom et le code sont obligatoires');
+    if (!formData.nom) {
+      toast.error('Le nom est obligatoire');
       return;
     }
 
