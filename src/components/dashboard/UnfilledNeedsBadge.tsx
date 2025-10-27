@@ -19,8 +19,7 @@ export const UnfilledNeedsBadge = ({ count, onClick, isLoading }: UnfilledNeedsB
       disabled={isLoading}
       className={cn(
         "mb-4 h-8 gap-2 text-xs transition-all duration-300",
-        count > 0 && "border-destructive/50 bg-gradient-to-r from-orange-500/10 to-destructive/10 hover:from-orange-500/20 hover:to-destructive/20",
-        count > 5 && "animate-pulse"
+        count > 0 && "border-destructive/50 bg-gradient-to-r from-orange-500/10 to-destructive/10 hover:from-orange-500/20 hover:to-destructive/20"
       )}
     >
       <AlertCircle className="h-3.5 w-3.5 text-destructive" />
