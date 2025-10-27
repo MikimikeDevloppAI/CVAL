@@ -294,6 +294,13 @@ export type Database = {
             foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
             columns: ["planning_genere_bloc_operatoire_id"]
             isOneToOne: false
+            referencedRelation: "besoins_bloc_operatoire_summary"
+            referencedColumns: ["planning_genere_bloc_id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
+            columns: ["planning_genere_bloc_operatoire_id"]
+            isOneToOne: false
             referencedRelation: "planning_genere_bloc_operatoire"
             referencedColumns: ["id"]
           },
@@ -1277,12 +1284,43 @@ export type Database = {
     Views: {
       besoins_bloc_operatoire_summary: {
         Row: {
+          besoin_operation_id: string | null
+          besoin_operation_nom: string | null
           date: string | null
+          deficit: number | null
           demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          nombre_operations: number | null
-          nombre_secretaires_requis: number | null
+          medecin_id: string | null
+          medecin_nom: string | null
+          nom_complet: string | null
+          nombre_assigne: number | null
+          nombre_requis: number | null
+          planning_genere_bloc_id: string | null
+          type_intervention_id: string | null
+          type_intervention_nom: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_type_intervention_id_fkey"
+            columns: ["type_intervention_id"]
+            isOneToOne: false
+            referencedRelation: "types_intervention"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "types_intervention_besoins_personnel_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       besoins_fermeture_summary: {
         Row: {
