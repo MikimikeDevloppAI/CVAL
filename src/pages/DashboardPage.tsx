@@ -789,15 +789,6 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Unfilled Needs Panel */}
-        {!loading && (
-          <UnfilledNeedsPanel
-            startDate={startDate}
-            endDate={endDate}
-            onRefresh={fetchDashboardData}
-          />
-        )}
-
         {/* Week Selector */}
         <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg">
           <Button
@@ -823,6 +814,15 @@ const DashboardPage = () => {
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Unfilled Needs Panel */}
+        {!loading && (
+          <UnfilledNeedsPanel
+            startDate={startDate}
+            endDate={endDate}
+            onRefresh={fetchDashboardData}
+          />
+        )}
 
         {/* Sites Calendar Grid */}
         <TabsContent value="site">
