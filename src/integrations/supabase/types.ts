@@ -1381,31 +1381,17 @@ export type Database = {
       }
       besoins_sites_summary: {
         Row: {
+          besoins_non_couverts: number | null
           date: string | null
-          deficit: number | null
           demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          nombre_assigne: number | null
-          nombre_medecins: number | null
-          nombre_requis: number | null
+          secretaires_assignees: number | null
           site_id: string | null
           site_nom: string | null
+          specialite_id: string | null
+          specialite_nom: string | null
+          total_besoins: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "besoin_effectif_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "besoins_fermeture_summary"
-            referencedColumns: ["site_id"]
-          },
-          {
-            foreignKeyName: "besoin_effectif_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
