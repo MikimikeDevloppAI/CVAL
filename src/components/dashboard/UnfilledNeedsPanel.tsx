@@ -31,9 +31,6 @@ interface BesoinPersonnel {
   besoin_operation_nom: string;
   nombre_requis: number;
   deficit: number;
-  nombre_1r?: number;
-  nombre_2f?: number;
-  nombre_3f?: number;
   suggestions_matin?: {
     suggestions_admin: SecretaireSuggestion[];
     suggestions_not_working: SecretaireSuggestion[];
@@ -48,11 +45,6 @@ interface AggregatedNeed {
   date: string;
   site_id: string;
   site_nom: string;
-  type_intervention_id?: string;
-  type_intervention_nom?: string;
-  medecin_id?: string;
-  medecin_nom?: string;
-  medecin_prenom?: string;
   planning_genere_bloc_operatoire_id?: string;
   besoins_personnel?: BesoinPersonnel[];
   has_both_periods: boolean;
@@ -124,7 +116,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         .lte('date', endDate)
         .gt('deficit', 0)
         .order('date', { ascending: true })
-        .order('periode', { ascending: true });
+        .order('demi_journee', { ascending: true });
 
       if (error) throw error;
 
@@ -132,11 +124,11 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       const grouped = new Map<string, AggregatedNeed>();
 
       for (const need of needs || []) {
-        // Pour les rôles de fermeture, créer une clé unique
-        const key = need.type_besoin === 'fermeture_1r' || need.type_besoin === 'fermeture_2f3f'
-          ? `${need.date}-${need.type_besoin}-${need.site_id}`
-          : need.planning_genere_bloc_operatoire_id 
-            ? `${need.date}-bloc-${need.planning_genere_bloc_operatoire_id}`
+        // Pour les rôles de fermeture, créer une clé unique avec deficit_1r et deficit_2f
+        const key = need.type_besoin === 'fermeture'
+          ? `${need.date}-fermeture-${need.site_id}`
+          : need.planning_genere_bloc_id 
+            ? `${need.date}-bloc-${need.planning_genere_bloc_id}`
             : `${need.date}-site-${need.site_id}`;
         
         if (!grouped.has(key)) {
@@ -152,12 +144,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             date: need.date,
             site_id: need.site_id,
             site_nom: need.site_nom,
-            type_intervention_id: need.type_intervention_id,
-            type_intervention_nom: need.type_intervention_nom,
-            medecin_id: need.medecin_id,
-            medecin_nom: need.medecin_nom,
-            medecin_prenom: need.medecin_prenom,
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
             besoins_personnel: besoinsPersonnel,
             has_both_periods: false,
             total_manque: 0,
@@ -167,25 +154,26 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         }
 
         const aggregated = grouped.get(key)!;
-        const periode = need.periode as 'matin' | 'apres_midi';
+        const periode = need.demi_journee as 'matin' | 'apres_midi' | 'toute_journee';
         
         // Ne PAS générer les suggestions ici, juste stocker les infos de base
         if (need.type_besoin === 'bloc_operatoire' && aggregated.besoins_personnel) {
           // Les données viennent directement de la vue
+          // Le site_nom contient maintenant "Nom Prénom - Besoin Opération"
           const existingBesoin = aggregated.besoins_personnel.find(
             b => b.besoin_operation_id === need.besoin_operation_id
           );
 
           if (!existingBesoin) {
+            // Extraire le nom du besoin opération depuis site_nom
+            const besoinNom = need.site_nom.split(' - ')[1] || need.site_nom;
+            
             // Ajouter ce nouveau besoin
             aggregated.besoins_personnel.push({
               besoin_operation_id: need.besoin_operation_id || '',
-              besoin_operation_nom: need.besoin_operation_nom || '',
-              nombre_requis: need.nombre_besoins || 0,
+              besoin_operation_nom: besoinNom,
+              nombre_requis: need.nombre_requis || 0,
               deficit: need.deficit || 0,
-              nombre_1r: need.nombre_1r || 0,
-              nombre_2f: need.nombre_2f || 0,
-              nombre_3f: need.nombre_3f || 0,
               suggestions_matin: periode === 'matin' ? {
                 suggestions_admin: [],
                 suggestions_not_working: []
@@ -209,15 +197,20 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
               };
             }
           }
+        } else if (need.type_besoin === 'fermeture') {
+          // Pour la fermeture, on récupère directement le déficit total
+          aggregated.total_manque = need.deficit;
         } else {
           // Cas site normal
-          aggregated.periods[periode] = {
-            manque: need.deficit,
-            suggestions_admin: [],
-            suggestions_not_working: []
-          };
-          // Pour les sites normaux: utiliser la valeur de la vue
-          aggregated.total_manque += need.deficit;
+          if (periode === 'matin' || periode === 'apres_midi') {
+            aggregated.periods[periode] = {
+              manque: need.deficit,
+              suggestions_admin: [],
+              suggestions_not_working: []
+            };
+            // Pour les sites normaux: utiliser la valeur de la vue
+            aggregated.total_manque += need.deficit;
+          }
         }
       }
 
@@ -663,7 +656,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
           secretaire: suggestion.secretaire_nom,
           site_id: need.site_id,
           besoin_operation_id: besoinOperationId,
-          planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id,
+          planning_genere_bloc_id: need.planning_genere_bloc_operatoire_id,
         });
 
         const { error } = await supabase
@@ -1272,24 +1265,24 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                     // Pour les sites normaux, vérifier qu'il y a des besoins manquants
                     return need.total_manque > 0;
                   })
-                .map(need => {
-                  const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || need.type_besoin || 'site'}`;
-                  
-                  return (
-                    <div key={needKey} className="space-y-3">
-                      {/* Cas spécial : Rôles de fermeture manquants (1R/2F/3F) */}
-                      {(need.type_besoin === 'fermeture_1r' || need.type_besoin === 'fermeture_2f3f') ? (
-                        <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-3">
-                          <div className="flex items-center gap-2">
-                            <AlertCircle className="h-5 w-5 text-destructive" />
-                            <span className="font-semibold text-destructive">
-                              {need.type_besoin === 'fermeture_1r' ? 'Responsable 1R manquant' : 'Responsable 2F/3F manquant'}
-                            </span>
-                            <Badge variant="destructive" className="ml-auto">Fermeture</Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {need.site_nom.replace(' - Manque 1R', '').replace(' - Manque 2F/3F', '')}
-                          </div>
+                  .map(need => {
+                    const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || need.type_besoin || 'site'}`;
+                    
+                    return (
+                      <div key={needKey} className="space-y-3">
+                        {/* Cas spécial : Rôles de fermeture manquants (1R/2F/3F) */}
+                        {need.type_besoin === 'fermeture' ? (
+                          <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="h-5 w-5 text-destructive" />
+                              <span className="font-semibold text-destructive">
+                                Responsables de fermeture manquants
+                              </span>
+                              <Badge variant="destructive" className="ml-auto">Fermeture</Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {need.site_nom} - Total manquant : {need.total_manque}
+                            </div>
                           <Button
                             size="sm"
                             variant="default"
@@ -1340,26 +1333,11 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                                   {besoin.besoin_operation_nom}
                                 </Badge>
                                 <span className="text-sm text-muted-foreground">
-                                  {besoin.nombre_requis} requis
+                                {besoin.nombre_requis} requis
                                 </span>
                                 {besoin.deficit > 0 && (
                                   <Badge variant="destructive" className="text-xs">
                                     {besoin.deficit} manquant
-                                  </Badge>
-                                )}
-                                {besoin.nombre_1r !== undefined && besoin.nombre_1r > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                    1R ({besoin.nombre_1r})
-                                  </Badge>
-                                )}
-                                {besoin.nombre_2f !== undefined && besoin.nombre_2f > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                    2F ({besoin.nombre_2f})
-                                  </Badge>
-                                )}
-                                {besoin.nombre_3f !== undefined && besoin.nombre_3f > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                                    3F ({besoin.nombre_3f})
                                   </Badge>
                                 )}
                               </div>
