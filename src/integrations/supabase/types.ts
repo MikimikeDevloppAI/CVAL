@@ -1349,9 +1349,11 @@ export type Database = {
       besoins_sites_summary: {
         Row: {
           date: string | null
+          deficit: number | null
           demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          nombre_assigne: number | null
           nombre_medecins: number | null
-          nombre_secretaires_requis: number | null
+          nombre_requis: number | null
           site_id: string | null
           site_nom: string | null
         }
