@@ -760,6 +760,18 @@ const DashboardPage = () => {
         />
       </div>
 
+      {/* Section Title with Separator */}
+      <div className="relative my-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border/30"></div>
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-4 text-sm font-medium text-muted-foreground">
+            Planning hebdomadaire
+          </span>
+        </div>
+      </div>
+
       {/* View Mode Tabs */}
       <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
         <div className="flex justify-center mb-6">
