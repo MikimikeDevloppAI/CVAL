@@ -176,15 +176,34 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const fetchUnfilledNeedsCount = async () => {
     setLoading(true);
     try {
-      const { count, error } = await supabase
-        .from('besoins_non_satisfaits_summary')
-        .select('*', { count: 'exact', head: true })
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .gt('deficit', 0);
+      // Compter depuis les 3 vues séparées
+      const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+        supabase
+          .from('besoins_sites_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0),
+        supabase
+          .from('besoins_bloc_operatoire_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0),
+        supabase
+          .from('besoins_fermeture_summary')
+          .select('*', { count: 'exact', head: true })
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0)
+      ]);
       
-      if (error) throw error;
-      setTotalCount(count || 0);
+      if (sitesResult.error) throw sitesResult.error;
+      if (blocResult.error) throw blocResult.error;
+      if (fermetureResult.error) throw fermetureResult.error;
+      
+      const total = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
+      setTotalCount(total);
     } catch (error) {
       console.error('Error fetching count:', error);
     } finally {
@@ -195,140 +214,156 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
     try {
-      const { data: needs, error } = await supabase
-        .from('besoins_non_satisfaits_summary')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .gt('deficit', 0)
-        .order('date', { ascending: true })
-        .order('demi_journee', { ascending: true });
+      // Récupérer les données des 3 vues en parallèle
+      const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+        supabase
+          .from('besoins_sites_summary')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0)
+          .order('date', { ascending: true })
+          .order('demi_journee', { ascending: true }),
+        supabase
+          .from('besoins_bloc_operatoire_summary')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0)
+          .order('date', { ascending: true })
+          .order('demi_journee', { ascending: true }),
+        supabase
+          .from('besoins_fermeture_summary')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .gt('deficit', 0)
+          .order('date', { ascending: true })
+      ]);
 
-      if (error) throw error;
+      if (sitesResult.error) throw sitesResult.error;
+      if (blocResult.error) throw blocResult.error;
+      if (fermetureResult.error) throw fermetureResult.error;
 
       // Agréger les besoins par date + site + planning_bloc_id
       const grouped = new Map<string, AggregatedNeed>();
 
-      for (const need of needs || []) {
-        // Pour les rôles de fermeture, créer une clé unique avec deficit_1r et deficit_2f
-        const key = need.type_besoin === 'fermeture'
-          ? `${need.date}-fermeture-${need.site_id}`
-          : need.planning_genere_bloc_id 
-            ? `${need.date}-bloc-${need.planning_genere_bloc_id}`
-            : `${need.date}-site-${need.site_id}`;
+      // 1. Traiter les besoins SITES
+      for (const need of sitesResult.data || []) {
+        const key = `${need.date}-site-${need.site_id}`;
         
         if (!grouped.has(key)) {
-          // Pour les blocs opératoires, les données sont maintenant dans la vue
-          let besoinsPersonnel: BesoinPersonnel[] | undefined;
-
-          if (need.type_besoin === 'bloc_operatoire') {
-            // Créer un tableau avec ce besoin
-            besoinsPersonnel = [];
-          }
-
           grouped.set(key, {
             date: need.date,
             site_id: need.site_id,
             site_nom: need.site_nom,
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
-            besoins_personnel: besoinsPersonnel,
             has_both_periods: false,
             total_manque: 0,
             periods: {},
-            type_besoin: need.type_besoin,
-            secretaires_assignees: []
+            type_besoin: 'site'
           });
         }
 
         const aggregated = grouped.get(key)!;
-        const periode = need.demi_journee as 'matin' | 'apres_midi' | 'toute_journee';
+        const periode = need.demi_journee as 'matin' | 'apres_midi';
         
-        // Ne PAS générer les suggestions ici, juste stocker les infos de base
-        if (need.type_besoin === 'bloc_operatoire' && aggregated.besoins_personnel) {
-          // Les données viennent directement de la vue
-          // Le site_nom contient maintenant "Nom Prénom - Besoin Opération"
-          const existingBesoin = aggregated.besoins_personnel.find(
-            b => b.besoin_operation_id === need.besoin_operation_id
-          );
-
-          if (!existingBesoin) {
-            // Extraire le nom du besoin opération depuis site_nom
-            const besoinNom = need.site_nom.split(' - ')[1] || need.site_nom;
-            
-            // Ajouter ce nouveau besoin
-            aggregated.besoins_personnel.push({
-              besoin_operation_id: need.besoin_operation_id || '',
-              besoin_operation_nom: besoinNom,
-              nombre_requis: need.nombre_requis || 0,
-              deficit: need.deficit || 0,
-              suggestions_matin: periode === 'matin' ? {
-                suggestions_admin: [],
-                suggestions_not_working: []
-              } : undefined,
-              suggestions_apres_midi: periode === 'apres_midi' ? {
-                suggestions_admin: [],
-                suggestions_not_working: []
-              } : undefined
-            });
-          } else {
-            // Mettre à jour le besoin existant pour l'autre période
-            if (periode === 'matin' && !existingBesoin.suggestions_matin) {
-              existingBesoin.suggestions_matin = {
-                suggestions_admin: [],
-                suggestions_not_working: []
-              };
-            } else if (periode === 'apres_midi' && !existingBesoin.suggestions_apres_midi) {
-              existingBesoin.suggestions_apres_midi = {
-                suggestions_admin: [],
-                suggestions_not_working: []
-              };
-            }
-          }
-        } else if (need.type_besoin === 'fermeture') {
-          // Pour la fermeture, on récupère directement le déficit total
-          aggregated.total_manque = need.deficit;
-        } else {
-          // Cas site normal
-          if (periode === 'matin' || periode === 'apres_midi') {
-            aggregated.periods[periode] = {
-              manque: need.deficit,
-              suggestions_admin: [],
-              suggestions_not_working: []
-            };
-            // Pour les sites normaux: utiliser la valeur de la vue
-            aggregated.total_manque += need.deficit;
-          }
-        }
+        aggregated.periods[periode] = {
+          manque: need.deficit,
+          suggestions_admin: [],
+          suggestions_not_working: []
+        };
+        aggregated.total_manque += need.deficit;
       }
 
-      // Recalculer le total_manque pour les blocs opératoires après avoir traité toutes les périodes
-      grouped.forEach(aggregated => {
-        if (aggregated.besoins_personnel && aggregated.besoins_personnel.length > 0) {
-          // Pour les blocs opératoires: sommer tous les besoins manquants
-          aggregated.total_manque = aggregated.besoins_personnel.reduce(
-            (sum, besoin) => sum + besoin.deficit, 
-            0
-          );
-        }
-      });
+      // 2. Traiter les besoins BLOC OPÉRATOIRE
+      for (const need of blocResult.data || []) {
+        const key = `${need.date}-bloc-${need.planning_genere_bloc_id}`;
+        
+        if (!grouped.has(key)) {
+          // Récupérer le site du bloc opératoire
+          const { data: blocSite } = await supabase
+            .from('sites')
+            .select('id, nom')
+            .eq('nom', 'Clinique La Vallée - Bloc opératoire')
+            .single();
 
-      // Marquer les besoins avec les deux périodes
-      grouped.forEach(need => {
-        need.has_both_periods = !!need.periods.matin && !!need.periods.apres_midi;
-        // Initialiser full_day_suggestions vide
-        if (need.has_both_periods && !need.besoins_personnel) {
-          need.full_day_suggestions = {
+          grouped.set(key, {
+            date: need.date,
+            site_id: blocSite?.id || '',
+            site_nom: 'Clinique La Vallée - Bloc opératoire',
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
+            besoins_personnel: [],
+            has_both_periods: false,
+            total_manque: 0,
+            periods: {},
+            type_besoin: 'bloc_operatoire'
+          });
+        }
+
+        const aggregated = grouped.get(key)!;
+        const periode = need.demi_journee as 'matin' | 'apres_midi';
+        
+        // Trouver ou créer le besoin personnel
+        let besoinPersonnel = aggregated.besoins_personnel?.find(
+          b => b.besoin_operation_id === need.besoin_operation_id
+        );
+
+        if (!besoinPersonnel) {
+          besoinPersonnel = {
+            besoin_operation_id: need.besoin_operation_id,
+            besoin_operation_nom: need.besoin_operation_nom,
+            nombre_requis: need.nombre_requis,
+            deficit: 0
+          };
+          aggregated.besoins_personnel?.push(besoinPersonnel);
+        }
+
+        // Ajouter les suggestions vides pour cette période
+        if (periode === 'matin') {
+          besoinPersonnel.suggestions_matin = {
+            suggestions_admin: [],
+            suggestions_not_working: []
+          };
+        } else {
+          besoinPersonnel.suggestions_apres_midi = {
             suggestions_admin: [],
             suggestions_not_working: []
           };
         }
-      });
 
-      // Pour les besoins de fermeture, charger les secrétaires assignées
-      const fermetureNeeds = Array.from(grouped.values()).filter(n => n.type_besoin === 'fermeture');
-      for (const need of fermetureNeeds) {
-        need.secretaires_assignees = await fetchSecretairesAssignees(need.date, need.site_id);
+        // Cumuler le déficit
+        besoinPersonnel.deficit += need.deficit;
+        aggregated.total_manque += need.deficit;
       }
+
+      // 3. Traiter les besoins FERMETURE
+      for (const need of fermetureResult.data || []) {
+        const key = `${need.date}-fermeture-${need.site_id}`;
+        
+        grouped.set(key, {
+          date: need.date,
+          site_id: need.site_id,
+          site_nom: need.site_nom,
+          has_both_periods: true,
+          total_manque: need.deficit,
+          periods: {},
+          type_besoin: 'fermeture',
+          secretaires_assignees: await fetchSecretairesAssignees(need.date, need.site_id)
+        });
+      }
+
+      // Marquer les besoins avec les deux périodes et initialiser full_day_suggestions
+      grouped.forEach(need => {
+        if (need.type_besoin !== 'fermeture' && need.type_besoin !== 'bloc_operatoire') {
+          need.has_both_periods = !!need.periods.matin && !!need.periods.apres_midi;
+          if (need.has_both_periods) {
+            need.full_day_suggestions = {
+              suggestions_admin: [],
+              suggestions_not_working: []
+            };
+          }
+        }
+      });
 
       setAggregatedNeeds(Array.from(grouped.values()));
     } catch (error) {
@@ -972,8 +1007,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
         throw results.find(r => r.error)?.error;
       }
 
-      // Rafraîchir la vue matérialisée
-      await supabase.rpc('refresh_besoins_non_satisfaits');
+      // Rafraîchir les vues matérialisées
+      await supabase.rpc('refresh_all_besoins_summaries');
 
       toast.success(`Rôle ${role.toUpperCase()} ${newValue ? 'assigné' : 'retiré'}`);
       

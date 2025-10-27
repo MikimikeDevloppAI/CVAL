@@ -7,8 +7,8 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Refresh the materialized view
-    const { error } = await supabase.rpc('refresh_besoins_non_satisfaits');
+    // Refresh all materialized views
+    const { error } = await supabase.rpc('refresh_all_besoins_summaries');
     
     if (error) {
       console.error('Error refreshing view:', error);

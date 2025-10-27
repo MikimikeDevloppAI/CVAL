@@ -274,6 +274,13 @@ export type Database = {
             foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
             columns: ["planning_genere_bloc_operatoire_id"]
             isOneToOne: false
+            referencedRelation: "besoins_bloc_operatoire_summary"
+            referencedColumns: ["planning_genere_bloc_id"]
+          },
+          {
+            foreignKeyName: "capacite_effective_planning_genere_bloc_operatoire_id_fkey"
+            columns: ["planning_genere_bloc_operatoire_id"]
+            isOneToOne: false
             referencedRelation: "planning_genere_bloc_operatoire"
             referencedColumns: ["id"]
           },
@@ -1249,24 +1256,78 @@ export type Database = {
       }
     }
     Views: {
-      besoins_non_satisfaits_summary: {
+      besoins_bloc_operatoire_summary: {
         Row: {
           besoin_operation_id: string | null
+          besoin_operation_nom: string | null
+          date: string | null
+          deficit: number | null
+          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          medecin_id: string | null
+          medecin_nom: string | null
+          nombre_assigne: number | null
+          nombre_requis: number | null
+          planning_genere_bloc_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_genere_bloc_operatoire_medecin_id_fkey"
+            columns: ["medecin_id"]
+            isOneToOne: false
+            referencedRelation: "medecins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "types_intervention_besoins_personnel_besoin_operation_id_fkey"
+            columns: ["besoin_operation_id"]
+            isOneToOne: false
+            referencedRelation: "besoins_operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      besoins_fermeture_summary: {
+        Row: {
           date: string | null
           deficit: number | null
           deficit_1r: number | null
-          deficit_2f: number | null
-          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
-          nombre_assigne: number | null
-          nombre_medecins: number | null
-          nombre_requis: number | null
-          planning_genere_bloc_id: string | null
-          site_fermeture: boolean | null
+          deficit_2f3f: number | null
+          nombre_assigne_1r: number | null
+          nombre_assigne_2f3f: number | null
+          nombre_requis_1r: number | null
+          nombre_requis_2f3f: number | null
           site_id: string | null
           site_nom: string | null
-          type_besoin: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      besoins_sites_summary: {
+        Row: {
+          date: string | null
+          deficit: number | null
+          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          nombre_assigne: number | null
+          nombre_requis: number | null
+          site_id: string | null
+          site_nom: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "besoin_effectif_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -1340,7 +1401,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      refresh_besoins_non_satisfaits: { Args: never; Returns: undefined }
+      refresh_all_besoins_summaries: { Args: never; Returns: undefined }
       should_doctor_work:
         | {
             Args: {
