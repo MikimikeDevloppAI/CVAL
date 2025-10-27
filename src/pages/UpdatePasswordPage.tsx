@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,39 @@ export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const type = hashParams.get('type');
+
+    if (accessToken && refreshToken && (type === 'invite' || type === 'recovery')) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      }).then(({ data, error }) => {
+        if (error) {
+          setError('Lien invalide ou expiré. Veuillez demander une nouvelle invitation.');
+          setSessionReady(false);
+        } else {
+          setSessionReady(true);
+        }
+      });
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setSessionReady(true);
+        } else {
+          setError('Session manquante. Veuillez utiliser le lien envoyé par email.');
+          setSessionReady(false);
+        }
+      });
+    }
+  }, []);
 
   const validatePassword = (password: string): { valid: boolean; message?: string } => {
     if (password.length < 8) {
@@ -65,6 +96,19 @@ export default function UpdatePasswordPage() {
     }
   };
 
+  if (!sessionReady && !error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-accent/20 to-primary/5 p-4">
+        <Card className="w-full max-w-md shadow-xl border-border/50">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Vérification de votre session...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-accent/20 to-primary/5 p-4">
       <Card className="w-full max-w-md shadow-xl border-border/50">
@@ -75,7 +119,12 @@ export default function UpdatePasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <form onSubmit={handleUpdatePassword} className="space-y-4">
+          {!sessionReady ? (
+            <Alert className="border-destructive/50 bg-destructive/5">
+              <AlertDescription className="text-destructive text-sm">{error}</AlertDescription>
+            </Alert>
+          ) : (
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
             {error && (
               <Alert className="border-destructive/50 bg-destructive/5">
                 <AlertDescription className="text-destructive text-sm">{error}</AlertDescription>
@@ -112,17 +161,18 @@ export default function UpdatePasswordPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full h-11 shadow-sm font-semibold" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Mise à jour...
-                </>
-              ) : (
-                'Mettre à jour le mot de passe'
-              )}
-            </Button>
-          </form>
+              <Button type="submit" className="w-full h-11 shadow-sm font-semibold" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Mise à jour...
+                  </>
+                ) : (
+                  'Mettre à jour le mot de passe'
+                )}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
