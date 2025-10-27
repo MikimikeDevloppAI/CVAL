@@ -761,11 +761,15 @@ const DashboardPage = () => {
       </div>
 
       {/* Section Divider */}
-      <div className="my-8">
-        <div className="w-full h-px bg-gradient-to-r from-transparent via-border to-transparent mb-6"></div>
-        <h2 className="text-xl font-semibold text-foreground mb-6">
-          Planning hebdomadaire
-        </h2>
+      <div className="my-8 space-y-4">
+        <div className="relative">
+          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent shadow-lg shadow-primary/20"></div>
+        </div>
+        <div className="flex items-center justify-center">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
+            Planning hebdomadaire
+          </h2>
+        </div>
       </div>
 
       {/* View Mode Tabs */}
