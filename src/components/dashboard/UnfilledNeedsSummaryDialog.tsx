@@ -161,10 +161,6 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
         </div>
 
         <DialogFooter className="gap-2">
-          <Button onClick={handleRefresh} disabled={loading} variant="outline">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Rafraîchir
-          </Button>
           <Button onClick={() => onOpenChange(false)} variant="default">
             <X className="h-4 w-4 mr-2" />
             Fermer
