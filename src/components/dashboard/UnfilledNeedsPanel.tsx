@@ -59,6 +59,7 @@ interface AggregatedNeed {
     suggestions_admin: SecretaireSuggestion[];
     suggestions_not_working: SecretaireSuggestion[];
   };
+  type_besoin?: string;
 }
 
 interface UnfilledNeedsPanelProps {
@@ -149,11 +150,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
       const grouped = new Map<string, AggregatedNeed>();
 
       for (const need of needs || []) {
-        // Pour les blocs opératoires, on groupe par planning_genere_bloc_operatoire_id
-        // Pour les sites normaux, on groupe par site_id
-        const key = need.planning_genere_bloc_operatoire_id 
-          ? `${need.date}-bloc-${need.planning_genere_bloc_operatoire_id}`
-          : `${need.date}-site-${need.site_id}`;
+        // Pour les rôles de fermeture, créer une clé unique
+        const key = need.type_besoin === 'fermeture_1r' || need.type_besoin === 'fermeture_2f3f'
+          ? `${need.date}-${need.type_besoin}-${need.site_id}`
+          : need.planning_genere_bloc_operatoire_id 
+            ? `${need.date}-bloc-${need.planning_genere_bloc_operatoire_id}`
+            : `${need.date}-site-${need.site_id}`;
         
         if (!grouped.has(key)) {
           // Si c'est un bloc opératoire, récupérer le type d'intervention
@@ -190,7 +192,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
             besoins_personnel: besoinsPersonnel,
             has_both_periods: false,
             total_manque: 0,
-            periods: {}
+            periods: {},
+            type_besoin: need.type_besoin
           });
         }
 
@@ -1299,13 +1302,59 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh }: UnfilledNe
                     // Pour les sites normaux, vérifier qu'il y a des besoins manquants
                     return need.total_manque > 0;
                   })
-                  .map(need => {
-                  const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || 'site'}`;
+                .map(need => {
+                  const needKey = `${need.date}-${need.site_id}-${need.planning_genere_bloc_operatoire_id || need.type_besoin || 'site'}`;
                   
                   return (
                     <div key={needKey} className="space-y-3">
-                      {/* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */}
-                          {need.besoins_personnel && need.besoins_personnel.length > 0 ? (
+                      {/* Cas spécial : Rôles de fermeture manquants (1R/2F/3F) */}
+                      {(need.type_besoin === 'fermeture_1r' || need.type_besoin === 'fermeture_2f3f') ? (
+                        <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/30 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-destructive" />
+                            <span className="font-semibold text-destructive">
+                              {need.type_besoin === 'fermeture_1r' ? 'Responsable 1R manquant' : 'Responsable 2F/3F manquant'}
+                            </span>
+                            <Badge variant="destructive" className="ml-auto">Fermeture</Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {need.site_nom.replace(' - Manque 1R', '').replace(' - Manque 2F/3F', '')}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={async () => {
+                              try {
+                                setAssigningId(needKey);
+                                const { error } = await supabase.functions.invoke('assign-closing-responsibles', {
+                                  body: { date: need.date, siteId: need.site_id }
+                                });
+                                if (error) throw error;
+                                toast.success('Responsables de fermeture assignés');
+                                await fetchUnfilledNeeds();
+                                onRefresh?.();
+                              } catch (error) {
+                                console.error('Error assigning closing roles:', error);
+                                toast.error('Erreur lors de l\'assignation des responsables');
+                              } finally {
+                                setAssigningId(null);
+                              }
+                            }}
+                            disabled={!!assigningId}
+                            className="w-full gap-2"
+                          >
+                            {assigningId === needKey ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <UserPlus className="h-4 w-4" />
+                                Assigner automatiquement les responsables
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : need.besoins_personnel && need.besoins_personnel.length > 0 ? (
+                        /* Cas BLOC OPÉRATOIRE avec besoins personnel détaillés */
                         <div className="space-y-4">
                           <div className="p-3 rounded-lg bg-card border border-border/50">
                             <div className="flex items-center gap-2">
