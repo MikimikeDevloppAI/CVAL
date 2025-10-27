@@ -120,11 +120,11 @@ export function calculateComboScore(
     
     // 1d. Bonus admin progressif (MATIN)
     if (needMatin.site_id === ADMIN_SITE_ID) {
-      if (secretaire.prefered_admin) {
-        if (currentAdminCount < 2) {
+      if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
+        if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 90;
         } else {
-          totalScore += 6;
+          // +0 au-delà de l'objectif
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
@@ -197,11 +197,11 @@ export function calculateComboScore(
     
     // 2d. Bonus admin progressif (AM)
     if (needAM.site_id === ADMIN_SITE_ID) {
-      if (secretaire.prefered_admin) {
-        if (currentAdminCount < 2) {
+      if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
+        if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 90;
         } else {
-          totalScore += 6;
+          // +0 au-delà de l'objectif
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);

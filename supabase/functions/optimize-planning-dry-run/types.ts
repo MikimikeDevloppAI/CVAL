@@ -17,6 +17,7 @@ export interface Secretaire {
   first_name: string;
   actif: boolean;
   prefered_admin: boolean;
+  nombre_demi_journees_admin?: number;
   horaire_flexible: boolean;
   pourcentage_temps: number;
 }

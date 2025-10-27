@@ -141,22 +141,19 @@ export function calculateDynamicScore(
     
     const totalAdminCount = weekAdminCount + todayAdminCount;
     
-    // Bonus spécial pour les secrétaires avec prefered_admin
-    if (secretaire.prefered_admin) {
-      // Objectif : 2 demi-journées admin minimum
-      if (totalAdminCount < 2) {
-        // Bonus fixe de 90 pour les 2 premières demi-journées
+    // Vérifier si le secrétaire a un objectif de demi-journées admin défini
+    if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
+      // Tant qu'on est sous l'objectif : bonus de 90 points
+      if (totalAdminCount < secretaire.nombre_demi_journees_admin) {
         const adminBonus = 90;
         score += adminBonus;
-        console.log(`  💼💼 Admin PRÉFÉRÉ (${totalAdminCount}/2): Bonus ${adminBonus}`);
+        console.log(`  💼💼 Admin (${totalAdminCount}/${secretaire.nombre_demi_journees_admin}): Bonus ${adminBonus}`);
       } else {
-        // À partir de la 3ème demi-journée admin : bonus fixe de 6 points
-        const adminBonus = 6;
-        score += adminBonus;
-        console.log(`  💼 Admin PRÉFÉRÉ (${totalAdminCount} ≥ 2): Bonus ${adminBonus}`);
+        // Au-delà de l'objectif : aucun bonus
+        console.log(`  💼 Admin (${totalAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): Bonus 0`);
       }
     } else {
-      // Bonus dégressif standard pour les autres (10, 9, 8, 7...)
+      // Comportement standard pour les secrétaires sans objectif admin spécifique
       const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
       score += adminBonus;
       console.log(`  💼 Admin standard: ${totalAdminCount} assignations → Bonus: ${adminBonus}`);
@@ -296,13 +293,12 @@ export function calculateComboScore(
     
     // 1d. Bonus admin progressif (MATIN)
     if (needMatin.site_id === ADMIN_SITE_ID) {
-      if (secretaire.prefered_admin) {
-        if (currentAdminCount < 2) {
+      if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
+        if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 90;
-          console.log(`  💼💼 MATIN Admin PRÉFÉRÉ (${currentAdminCount}/2): +90`);
+          console.log(`  💼💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
         } else {
-          totalScore += 6;
-          console.log(`  💼 MATIN Admin PRÉFÉRÉ (${currentAdminCount} ≥ 2): +6`);
+          console.log(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
@@ -379,13 +375,12 @@ export function calculateComboScore(
     
     // 2d. Bonus admin progressif (AM)
     if (needAM.site_id === ADMIN_SITE_ID) {
-      if (secretaire.prefered_admin) {
-        if (currentAdminCount < 2) {
+      if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
+        if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 90;
-          console.log(`  💼💼 AM Admin PRÉFÉRÉ (${currentAdminCount}/2): +90`);
+          console.log(`  💼💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
         } else {
-          totalScore += 6;
-          console.log(`  💼 AM Admin PRÉFÉRÉ (${currentAdminCount} ≥ 2): +6`);
+          console.log(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
