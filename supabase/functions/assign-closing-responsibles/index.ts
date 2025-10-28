@@ -698,52 +698,49 @@ interface SwapContext {
       allDatesInWeek.push(d.toISOString().split('T')[0]);
     }
 
-    // Préparer les données pour l'optimisation
-    interface ClosingSiteData {
-      site_id: string;
-      site_nom: string;
-      date: string;
-      needs_2f: boolean;
-      needs_3f: boolean;
-      current_1r: string | null;
-      current_2f: string | null;
-      current_3f: string | null;
-      full_day_secretaries: string[];
-    }
+    // ============================================================
+    // PHASE 2: OPTIMISATION AVANCÉE PAR ÉTAPES
+    // ============================================================
 
-    const closingSites: ClosingSiteData[] = [];
+    const { assignPhase1 } = await import('./phase1-constraint-assignment.ts');
+    const { optimizePhase2 } = await import('./phase2-exchange-optimization.ts');
+
+    console.log('\n🎯 PHASE 2: Optimisation avancée des responsables de fermeture');
+
+    // Préparer les données pour la Phase 1
+    const closingSites: any[] = [];
+
+    // Récupérer tous les sites de fermeture
     const { data: closingSites_data, error: csError } = await supabase
       .from('sites')
       .select('id, nom, fermeture')
-      .eq('fermeture', true)
-      .eq('actif', true);
-    
+      .eq('actif', true)
+      .eq('fermeture', true);
+
     if (csError) throw csError;
 
     for (const date of (selected_dates || allDatesInWeek)) {
-      const { data: sitesThisDay, error: sitesError } = await supabase
+      const { data: sitesThisDay, error: stdError } = await supabase
         .from('capacite_effective')
         .select(`
           site_id,
-          sites!inner(nom),
+          sites(nom),
+          secretaire_id,
+          demi_journee,
           is_1r,
           is_2f,
-          is_3f,
-          secretaire_id,
-          demi_journee
+          is_3f
         `)
         .eq('date', date)
         .eq('actif', true)
         .not('secretaire_id', 'is', null);
-      
-      if (sitesError) throw sitesError;
-      
-      // Grouper par site pour identifier les besoins
+
+      if (stdError) throw stdError;
+
       const siteMap = new Map<string, any>();
-      
+
       for (const cap of sitesThisDay || []) {
         if (!siteMap.has(cap.site_id)) {
-          // Handle sites which might be an array or object
           let siteName = 'Unknown';
           if (cap.sites) {
             if (Array.isArray(cap.sites) && cap.sites.length > 0) {
@@ -752,7 +749,7 @@ interface SwapContext {
               siteName = (cap.sites as any).nom || 'Unknown';
             }
           }
-          
+
           siteMap.set(cap.site_id, {
             site_id: cap.site_id,
             site_nom: siteName,
@@ -760,24 +757,23 @@ interface SwapContext {
             needs_2f: false,
             needs_3f: false,
             current_1r: null,
-            current_2f: null,
-            current_3f: null,
-            total_secretaries: 0,
-            full_day_secretaries: new Set<string>()
+            current_2f3f: null,
+            full_day_secretaries: [],
+            eligible_count: 0
           });
         }
-        
+
         const siteData = siteMap.get(cap.site_id)!;
-        
-        // Track full day secretaries
-        siteData.full_day_secretaries.add(cap.secretaire_id);
-        
+
         if (cap.is_1r) siteData.current_1r = cap.secretaire_id;
-        if (cap.is_2f) siteData.current_2f = cap.secretaire_id;
-        if (cap.is_3f) siteData.current_3f = cap.secretaire_id;
+        if (cap.is_2f) siteData.current_2f3f = cap.secretaire_id;
+        if (cap.is_3f) {
+          siteData.current_2f3f = cap.secretaire_id;
+          siteData.needs_3f = true;
+        }
       }
-      
-      // Count only full day secretaries (present both morning and afternoon)
+
+      // Identifier les secrétaires présentes toute la journée
       for (const [_, siteData] of siteMap) {
         const morningIds = new Set(
           (sitesThisDay || [])
@@ -789,29 +785,27 @@ interface SwapContext {
             .filter(c => c.site_id === siteData.site_id && c.demi_journee === 'apres_midi')
             .map(c => c.secretaire_id)
         );
-        
-        // Only count secretaries present both periods
+
         const fullDay = Array.from(morningIds).filter(id => afternoonIds.has(id));
-        siteData.total_secretaries = fullDay.length;
-        
-        // Filtrer les sites de fermeture uniquement
+        siteData.full_day_secretaries = fullDay;
+        siteData.eligible_count = fullDay.length;
+
+        // Déterminer besoins 2F/3F
+        if (siteData.eligible_count >= 3) {
+          siteData.needs_2f = true;
+          siteData.needs_3f = true;
+        } else if (siteData.eligible_count >= 2) {
+          siteData.needs_2f = true;
+        }
+
         const site = closingSites_data?.find((s: any) => s.id === siteData.site_id);
-        if (site && site.fermeture && siteData.total_secretaries >= 2) {
-          // Déterminer les besoins en 2F/3F selon le nombre de secrétaires
-          if (siteData.total_secretaries >= 3) {
-            siteData.needs_2f = true;
-            siteData.needs_3f = true;
-          } else if (siteData.total_secretaries >= 2) {
-            siteData.needs_2f = true;
-          }
-          
+        if (site && site.fermeture && siteData.eligible_count >= 2) {
           closingSites.push(siteData);
         }
       }
     }
 
     console.log(`📊 Sites de fermeture à traiter: ${closingSites.length}`);
-    console.log(`👥 Secrétaires actives: ${secretaries?.length || 0}`);
 
     if (closingSites.length === 0) {
       console.log('ℹ️ Aucun site de fermeture à optimiser');
@@ -826,11 +820,7 @@ interface SwapContext {
       );
     }
 
-    // ============================================================
-    // GREEDY ALGORITHM WITH HARD CONSTRAINTS
-    // ============================================================
-    
-    // Track who has been assigned 2F/3F in this optimization round
+    // Track secrétaires avec déjà un 2F/3F cette semaine
     const has2F3FThisWeek = new Set<string>();
     for (const [secId, score] of currentWeekScores.entries()) {
       if (score.count_2f > 0 || score.count_3f > 0) {
@@ -838,9 +828,9 @@ interface SwapContext {
       }
     }
 
-    console.log(`🔒 ${has2F3FThisWeek.size} secrétaires ont déjà un 2F/3F cette semaine (contrainte dure)`);
+    console.log(`🔒 ${has2F3FThisWeek.size} secrétaires ont déjà un 2F/3F cette semaine`);
 
-    // Reset tous les flags de fermeture pour les dates concernées
+    // Reset tous les flags de fermeture
     for (const date of (selected_dates || allDatesInWeek)) {
       await supabase
         .from('capacite_effective')
@@ -850,179 +840,61 @@ interface SwapContext {
         .not('secretaire_id', 'is', null);
     }
 
-    // Sort sites by date to process chronologically
-    closingSites.sort((a, b) => a.date.localeCompare(b.date));
+    // Exécuter Phase 1
+    const phase1Count = await assignPhase1(
+      closingSites,
+      currentWeekScores,
+      has2F3FThisWeek,
+      secretaries || [],
+      supabase
+    );
 
-    let optimAssignmentsCount = 0;
+    // Exécuter Phase 2
+    await optimizePhase2(
+      closingSites,
+      currentWeekScores,
+      has2F3FThisWeek,
+      secretaries || [],
+      supabase
+    );
 
-    // Process each site
-    for (const site of closingSites) {
-      const { site_id, date, site_nom, needs_2f, needs_3f, full_day_secretaries } = site;
-      
-      if (full_day_secretaries.length < 2) {
-        console.log(`  ⚠️ ${site_nom} (${date}): pas assez de secrétaires journée complète`);
-        continue;
-      }
 
-      console.log(`\n📍 ${site_nom} (${date}): ${full_day_secretaries.length} secrétaires, besoin ${needs_3f ? '3F' : needs_2f ? '2F' : 'aucun'}`);
 
-      // ========== ASSIGN 2F/3F ==========
-      // CONTRAINTE DURE: Ne jamais assigner quelqu'un qui a déjà un 2F/3F cette semaine
-      const eligible2F3F = full_day_secretaries.filter(id => !has2F3FThisWeek.has(id));
-      
-      if (eligible2F3F.length === 0) {
-        console.log(`  ❌ Aucune secrétaire éligible pour 2F/3F (toutes ont déjà un 2F/3F cette semaine)`);
-        continue;
-      }
-
-      // Choose 2F/3F: lowest score among eligible
-      const candidates2F3F = eligible2F3F.map(id => {
-        const score = currentWeekScores.get(id);
-        return {
-          id,
-          score: score?.score || 0,
-          totalAssignments: (score?.count_1r || 0) + (score?.count_2f || 0) + (score?.count_3f || 0)
-        };
-      }).sort((a, b) => {
-        // Prioritize lowest total assignments, then lowest score
-        if (a.totalAssignments !== b.totalAssignments) return a.totalAssignments - b.totalAssignments;
-        return a.score - b.score;
-      });
-
-      const responsable2F3F = candidates2F3F[0].id;
-      const role2F3F = needs_3f ? 'is_3f' : 'is_2f';
-      const points2F3F = needs_3f ? 3 : 2;
-
-      // Mark this person as having 2F/3F
-      has2F3FThisWeek.add(responsable2F3F);
-
-      // Update score
-      if (!currentWeekScores.has(responsable2F3F)) {
-        currentWeekScores.set(responsable2F3F, { 
-          id: responsable2F3F, 
-          name: '', 
-          score: 0, 
-          count_1r: 0, 
-          count_2f: 0, 
-          count_3f: 0 
-        });
-      }
-      const score2F3F = currentWeekScores.get(responsable2F3F)!;
-      score2F3F.score += points2F3F;
-      if (needs_3f) score2F3F.count_3f += 1;
-      else score2F3F.count_2f += 1;
-
-      const sec2F3F = secretaries?.find((s: any) => s.id === responsable2F3F);
-      console.log(`  ✓ ${sec2F3F?.first_name} ${sec2F3F?.name} → ${needs_3f ? '3F' : '2F'} (score: ${candidates2F3F[0].score})`);
-
-      // ========== ASSIGN 1R ==========
-      // Choose 1R: someone different from 2F/3F, with lowest score
-      const eligible1R = full_day_secretaries.filter(id => id !== responsable2F3F);
-      
-      if (eligible1R.length === 0) {
-        console.log(`  ⚠️ Pas de secrétaire pour 1R (seule secrétaire journée complète)`);
-        // Assign only 2F/3F
-        await supabase
-          .from('capacite_effective')
-          .update({ [role2F3F]: true })
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('secretaire_id', responsable2F3F)
-          .eq('actif', true);
-        
-        optimAssignmentsCount++;
-        continue;
-      }
-
-      const candidates1R = eligible1R.map(id => {
-        const score = currentWeekScores.get(id);
-        return {
-          id,
-          score: score?.score || 0,
-          totalAssignments: (score?.count_1r || 0) + (score?.count_2f || 0) + (score?.count_3f || 0)
-        };
-      }).sort((a, b) => {
-        // Prioritize lowest total assignments, then lowest score
-        if (a.totalAssignments !== b.totalAssignments) return a.totalAssignments - b.totalAssignments;
-        return a.score - b.score;
-      });
-
-      const responsable1R = candidates1R[0].id;
-
-      // Update score
-      if (!currentWeekScores.has(responsable1R)) {
-        currentWeekScores.set(responsable1R, { 
-          id: responsable1R, 
-          name: '', 
-          score: 0, 
-          count_1r: 0, 
-          count_2f: 0, 
-          count_3f: 0 
-        });
-      }
-      const score1R = currentWeekScores.get(responsable1R)!;
-      score1R.score += 1;
-      score1R.count_1r += 1;
-
-      const sec1R = secretaries?.find((s: any) => s.id === responsable1R);
-      console.log(`  ✓ ${sec1R?.first_name} ${sec1R?.name} → 1R (score: ${candidates1R[0].score})`);
-
-      // Apply assignments to database
-      await supabase
-        .from('capacite_effective')
-        .update({ is_1r: true })
-        .eq('date', date)
-        .eq('site_id', site_id)
-        .eq('secretaire_id', responsable1R)
-        .eq('actif', true);
-
-      await supabase
-        .from('capacite_effective')
-        .update({ [role2F3F]: true })
-        .eq('date', date)
-        .eq('site_id', site_id)
-        .eq('secretaire_id', responsable2F3F)
-        .eq('actif', true);
-
-      optimAssignmentsCount += 2;
-    }
-
-    console.log(`\n✅ ${optimAssignmentsCount} assignations de responsables appliquées via algorithme glouton`);
-    
-    let currentStdDev = calculateWeekStdDev(currentWeekScores);
-    console.log(`📊 Écart-type final: ${currentStdDev.toFixed(2)}`);
-
-    // Continue with the rest (displaying final scores, etc.)
+    console.log(`\n✅ Optimisation terminée: ${phase1Count} sites assignés`);
     console.log('\n' + '='.repeat(60));
     console.log('📊 SCORES FINAUX DE LA SEMAINE');
     console.log('='.repeat(60));
-    console.log(`Écart-type final: ${currentStdDev.toFixed(2)}\n`);
+    
+    const { calculatePenalizedScore, calculateGlobalMetrics } = await import('./scoring.ts');
+    const finalMetrics = calculateGlobalMetrics(currentWeekScores);
+    
+    console.log(`🎯 Somme (score-3)² : ${finalMetrics.sum_squared_excess.toFixed(2)}`);
+    console.log(`Secrétaires > 3 : ${finalMetrics.count_over_3}`);
+    console.log(`Score max : ${finalMetrics.max_score.toFixed(2)}`);
     
     const sortedScores = Array.from(currentWeekScores.values())
-      .sort((a, b) => calculatePenalizedScore(b) - calculatePenalizedScore(a));
+      .map(s => {
+        const sec = secretaries?.find((sec: any) => sec.id === s.id);
+        return { ...s, name: sec ? `${sec.first_name} ${sec.name}` : s.id };
+      })
+      .map(s => ({ ...s, penalized: calculatePenalizedScore(s) }))
+      .sort((a, b) => b.penalized.total_score - a.penalized.total_score);
     
     for (const secScore of sortedScores) {
-      const baseScore = secScore.score;
-      const penalizedScore = calculatePenalizedScore(secScore);
-      const totalAssignments = secScore.count_1r + secScore.count_2f + secScore.count_3f;
-      const penalty = penalizedScore - baseScore;
-      
+      const p = secScore.penalized;
       console.log(
-        `${secScore.name}: ${baseScore} pts (base) → ${penalizedScore} pts (pénalisé) | ` +
-        `${totalAssignments} assignations (1R: ${secScore.count_1r}, 2F: ${secScore.count_2f}, 3F: ${secScore.count_3f})` +
-        (penalty > 0 ? ` [+${penalty} pénalité surcharge]` : '')
+        `${secScore.name}: ${p.base_score} pts → ${p.total_score} pts | ` +
+        `1R:${p.count_1r} 2F:${p.count_2f} 3F:${p.count_3f}` +
+        (p.total_score > 3 ? ` [excès²: ${p.squared_excess.toFixed(1)}]` : '')
       );
     }
 
     console.log(`\n🏁 Optimisation terminée`);
-    console.log(`📊 Écart-type final: ${currentStdDev.toFixed(2)}`);
-
-    console.log(`🎉 Assigned closing responsibles for ${assignmentCount} site/date combinations`);
 
     return new Response(JSON.stringify({
       success: true,
-      assignments_count: assignmentCount,
-      sites_processed: sitesNeedingClosing.length
+      assignments_count: phase1Count,
+      sites_processed: closingSites.length
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
