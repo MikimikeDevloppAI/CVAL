@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, CalendarIcon } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 
 interface TypeIntervention {
   id: string;
@@ -43,8 +42,8 @@ export const AddOperationDialog = ({
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [selectedMedecinId, setSelectedMedecinId] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | ''>('');
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | 'toute_journee' | ''>('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,7 +52,7 @@ export const AddOperationDialog = ({
       fetchData();
       setSelectedTypeInterventionId('');
       setSelectedMedecinId('');
-      setSelectedDate(undefined);
+      setSelectedDates([]);
       setSelectedPeriode('');
     }
   }, [open]);
@@ -98,62 +97,104 @@ export const AddOperationDialog = ({
     }
   };
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    
+    const isSelected = selectedDates.some(
+      d => format(d, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    );
+
+    if (isSelected) {
+      setSelectedDates(selectedDates.filter(
+        d => format(d, 'yyyy-MM-dd') !== format(date, 'yyyy-MM-dd')
+      ));
+    } else {
+      setSelectedDates([...selectedDates, date]);
+    }
+  };
+
+  const handleRemoveDate = (dateToRemove: Date) => {
+    setSelectedDates(selectedDates.filter(
+      d => format(d, 'yyyy-MM-dd') !== format(dateToRemove, 'yyyy-MM-dd')
+    ));
+  };
+
   const handleSubmit = async () => {
-    if (!selectedTypeInterventionId || !selectedMedecinId || !selectedDate || !selectedPeriode) {
-      toast.error('Veuillez remplir tous les champs');
+    if (!selectedTypeInterventionId || !selectedMedecinId || selectedDates.length === 0 || !selectedPeriode) {
+      toast.error('Veuillez remplir tous les champs et sélectionner au moins une date');
       return;
     }
 
     setSubmitting(true);
     try {
-      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      // Prepare all besoins to insert
+      const besoinsToInsert = [];
       
-      // Check if ANY besoin_effectif already exists for this medecin/date/period
-      const { data: existingBesoin, error: checkError } = await supabase
-        .from('besoin_effectif')
-        .select('id, type')
-        .eq('medecin_id', selectedMedecinId)
-        .eq('date', dateString)
-        .eq('demi_journee', selectedPeriode)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      // If exists, delete it first (triggers will cascade delete planning and free personnel)
-      if (existingBesoin) {
-        toast.info('Un besoin effectif existant pour ce médecin a été remplacé');
+      for (const date of selectedDates) {
+        const dateString = format(date, 'yyyy-MM-dd');
         
+        // Delete existing besoins for this medecin/date/periode
+        const periodsToDelete: ('matin' | 'apres_midi' | 'toute_journee')[] = selectedPeriode === 'toute_journee' 
+          ? ['matin', 'apres_midi', 'toute_journee']
+          : [selectedPeriode] as ('matin' | 'apres_midi')[];
+
         const { error: deleteError } = await supabase
           .from('besoin_effectif')
           .delete()
-          .eq('id', existingBesoin.id);
+          .eq('medecin_id', selectedMedecinId)
+          .eq('date', dateString)
+          .in('demi_journee', periodsToDelete);
 
         if (deleteError) throw deleteError;
+
+        // Prepare new besoins
+        if (selectedPeriode === 'toute_journee') {
+          besoinsToInsert.push(
+            {
+              date: dateString,
+              demi_journee: 'matin',
+              medecin_id: selectedMedecinId,
+              site_id: BLOC_OPERATOIRE_SITE_ID,
+              type: 'medecin' as const,
+              type_intervention_id: selectedTypeInterventionId,
+              actif: true
+            },
+            {
+              date: dateString,
+              demi_journee: 'apres_midi',
+              medecin_id: selectedMedecinId,
+              site_id: BLOC_OPERATOIRE_SITE_ID,
+              type: 'medecin' as const,
+              type_intervention_id: selectedTypeInterventionId,
+              actif: true
+            }
+          );
+        } else {
+          besoinsToInsert.push({
+            date: dateString,
+            demi_journee: selectedPeriode,
+            medecin_id: selectedMedecinId,
+            site_id: BLOC_OPERATOIRE_SITE_ID,
+            type: 'medecin' as const,
+            type_intervention_id: selectedTypeInterventionId,
+            actif: true
+          });
+        }
       }
 
-      // Create new besoin_effectif
-      const newBesoin = {
-        date: dateString,
-        demi_journee: selectedPeriode,
-        medecin_id: selectedMedecinId,
-        site_id: BLOC_OPERATOIRE_SITE_ID,
-        type: 'medecin' as const,
-        type_intervention_id: selectedTypeInterventionId,
-        actif: true
-      };
-
+      // Insert all besoins
       const { error: insertError } = await supabase
         .from('besoin_effectif')
-        .insert([newBesoin]);
+        .insert(besoinsToInsert);
 
       if (insertError) throw insertError;
 
-      toast.success('Opération ajoutée avec succès');
+      toast.success(`${selectedDates.length} opération(s) ajoutée(s) avec succès`);
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      console.error('Erreur lors de l\'ajout de l\'opération:', error);
-      toast.error('Erreur lors de l\'ajout de l\'opération: ' + error.message);
+      console.error('Erreur lors de l\'ajout des opérations:', error);
+      toast.error('Erreur lors de l\'ajout des opérations: ' + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +204,7 @@ export const AddOperationDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Ajouter une opération</DialogTitle>
+          <DialogTitle>Ajouter des opérations</DialogTitle>
         </DialogHeader>
 
         {loading ? (
@@ -205,44 +246,51 @@ export const AddOperationDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, 'PPP', { locale: fr }) : <span>Sélectionner une date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    initialFocus
-                    locale={fr}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="periode">Période</Label>
-              <Select value={selectedPeriode} onValueChange={(value) => setSelectedPeriode(value as 'matin' | 'apres_midi')}>
+              <Select value={selectedPeriode} onValueChange={(value) => setSelectedPeriode(value as 'matin' | 'apres_midi' | 'toute_journee')}>
                 <SelectTrigger id="periode">
                   <SelectValue placeholder="Sélectionner une période" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="matin">Matin</SelectItem>
                   <SelectItem value="apres_midi">Après-midi</SelectItem>
+                  <SelectItem value="toute_journee">Journée complète</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Dates</Label>
+              <Calendar
+                mode="multiple"
+                selected={selectedDates}
+                onSelect={(dates) => {
+                  if (dates) {
+                    const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+                    setSelectedDates(sortedDates);
+                  }
+                }}
+                locale={fr}
+                className="rounded-md border"
+              />
+              
+              {selectedDates.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedDates.map((date) => (
+                    <Badge
+                      key={format(date, 'yyyy-MM-dd')}
+                      variant="secondary"
+                      className="gap-1"
+                    >
+                      {format(date, 'dd/MM/yyyy', { locale: fr })}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => handleRemoveDate(date)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
