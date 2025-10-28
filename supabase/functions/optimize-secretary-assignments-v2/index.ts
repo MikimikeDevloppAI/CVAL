@@ -222,11 +222,6 @@ async function loadTodayAssignments(
   const assignments: any[] = [];
   
   for (const cap of capacites || []) {
-    // Ignorer les assignments admin non liés au bloc
-    if (cap.site_id === ADMIN_SITE_ID && !cap.planning_genere_bloc_operatoire_id) {
-      continue;
-    }
-    
     assignments.push({
       secretaire_id: cap.secretaire_id,
       site_id: cap.site_id,

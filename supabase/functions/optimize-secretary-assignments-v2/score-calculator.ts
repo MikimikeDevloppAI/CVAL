@@ -148,8 +148,10 @@ export function calculateDynamicScore(
         score += adminBonus;
         console.log(`  💼💼 Admin (${totalAdminCount}/${secretaire.nombre_demi_journees_admin}): Bonus ${adminBonus}`);
       } else {
-        // Au-delà de l'objectif : aucun bonus
-        console.log(`  💼 Admin (${totalAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): Bonus 0`);
+        // Au-delà de l'objectif : bonus minimal de 1 point
+        const adminBonus = 1;
+        score += adminBonus;
+        console.log(`  💼 Admin (${totalAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): Bonus ${adminBonus} (dépassement)`);
       }
     } else {
       // Comportement standard pour les secrétaires sans objectif admin spécifique
@@ -291,7 +293,8 @@ export function calculateComboScore(
           totalScore += 90;
           if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
         } else {
-          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
+          totalScore += 1;
+          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
@@ -381,7 +384,8 @@ export function calculateComboScore(
           totalScore += 90;
           console.log(`  💼💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
         } else {
-          console.log(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
+          totalScore += 1;
+          console.log(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
