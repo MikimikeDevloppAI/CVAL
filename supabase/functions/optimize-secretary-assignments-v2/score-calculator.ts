@@ -276,8 +276,9 @@ export function calculateComboScore(
       const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
                         SCORE_WEIGHTS.SITE_PREF_3;
-        positiveScores.push(siteScore);
-        if (isFocused) logger.info(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
+      positiveScores.push(siteScore);
+      if (isFocused) logger.info(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
+    }
     
     const matinBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
     totalScore += matinBaseScore;
