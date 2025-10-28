@@ -515,9 +515,79 @@ serve(async (req) => {
       assignmentCount++;
     }
 
-    // PHASE 2: OPTIMISATION PAR ÉCHANGES ITÉRATIFS (incluant secrétaires sans responsabilité)
+    // Helper function to apply multiple swaps and calculate new std dev
+    interface PossibleSwap {
+      type: '1R<->2F3F' | '1R<->None' | '2F3F<->None';
+      sec1: string;
+      sec2: string;
+      contextKey: string; // `${date}|${site_id}` to track is3F per site/date
+      sec1Name?: string;
+      sec2Name?: string;
+    }
+    
+    function applySwapsAndCalculateStdDev(
+      swaps: PossibleSwap[],
+      baseScores: Map<string, SecretaryScore>,
+      is3FMap: Map<string, boolean>
+    ): { stdDev: number; newScores: Map<string, SecretaryScore> } {
+      const tempScores = new Map(baseScores);
+      
+      for (const swap of swaps) {
+        const is3F = is3FMap.get(swap.contextKey) || false;
+        const points2F3F = is3F ? 15 : 10;
+        
+        // Ensure entries exist
+        if (!tempScores.has(swap.sec1)) {
+          tempScores.set(swap.sec1, { id: swap.sec1, name: '', score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
+        }
+        if (!tempScores.has(swap.sec2)) {
+          tempScores.set(swap.sec2, { id: swap.sec2, name: '', score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
+        }
+        
+        const tempScore1 = { ...tempScores.get(swap.sec1)! };
+        const tempScore2 = { ...tempScores.get(swap.sec2)! };
+        
+        if (swap.type === '1R<->2F3F') {
+          // sec1 (1R) devient 2F/3F
+          tempScore1.score = tempScore1.score - 2 + points2F3F;
+          tempScore1.count_1r -= 1;
+          if (is3F) tempScore1.count_3f += 1; else tempScore1.count_2f += 1;
+          
+          // sec2 (2F/3F) devient 1R
+          tempScore2.score = tempScore2.score - points2F3F + 2;
+          if (is3F) tempScore2.count_3f -= 1; else tempScore2.count_2f -= 1;
+          tempScore2.count_1r += 1;
+        } else if (swap.type === '1R<->None') {
+          // sec1 (1R) perd 1R
+          tempScore1.score = tempScore1.score - 2;
+          tempScore1.count_1r -= 1;
+          
+          // sec2 (None) gagne 1R
+          tempScore2.score = tempScore2.score + 2;
+          tempScore2.count_1r += 1;
+        } else if (swap.type === '2F3F<->None') {
+          // sec1 (2F/3F) perd 2F/3F
+          tempScore1.score = tempScore1.score - points2F3F;
+          if (is3F) tempScore1.count_3f -= 1; else tempScore1.count_2f -= 1;
+          
+          // sec2 (None) gagne 2F/3F
+          tempScore2.score = tempScore2.score + points2F3F;
+          if (is3F) tempScore2.count_3f += 1; else tempScore2.count_2f += 1;
+        }
+        
+        tempScores.set(swap.sec1, tempScore1);
+        tempScores.set(swap.sec2, tempScore2);
+      }
+      
+      return {
+        stdDev: calculateWeekStdDev(tempScores),
+        newScores: tempScores
+      };
+    }
+
+    // PHASE 2: OPTIMISATION PAR ÉCHANGES MULTI-SWAP
     console.log('\n' + '='.repeat(60));
-    console.log('🔄 PHASE 2: Optimisation par échanges itératifs (1R, 2F/3F, et sans responsabilité)');
+    console.log('🔄 PHASE 2: Optimisation multi-swap (simple + paires)');
     console.log('='.repeat(60));
 
     let hasImprovement = true;
@@ -566,7 +636,7 @@ serve(async (req) => {
           const afternoonIds = new Set(afternoonAssignments.map(a => a.secretaire_id).filter(Boolean));
           const fullDaySecretaries = Array.from(morningIds).filter(id => afternoonIds.has(id));
           
-          if (fullDaySecretaries.length < 2) continue; // Besoin d'au moins 2 personnes
+          if (fullDaySecretaries.length < 2) continue;
           
           // Identifier les rôles actuels
           const sec1R_data = morningAssignments.find(a => a.is_1r);
@@ -577,9 +647,12 @@ serve(async (req) => {
           const current1R = sec1R_data.secretaire_id;
           const current2F3F = sec2F3F_data.secretaire_id;
           const is3F = sec2F3F_data.is_3f || false;
-          const points2F3F = is3F ? 15 : 10;
           
-          // Identifier les secrétaires sans responsabilité (présentes toute la journée)
+          // Map pour tracker is3F par contexte
+          const contextKey = `${date}|${site_id}`;
+          const is3FMap = new Map<string, boolean>([[contextKey, is3F]]);
+          
+          // Identifier les secrétaires sans responsabilité
           const noResponsibility = fullDaySecretaries.filter(id => {
             const morning = morningAssignments.find(a => a.secretaire_id === id);
             return morning && !morning.is_1r && !morning.is_2f && !morning.is_3f;
@@ -588,22 +661,15 @@ serve(async (req) => {
           console.log(`  🔍 ${site_nom} ${date}: ${fullDaySecretaries.length} secrétaires toute la journée, ${noResponsibility.length} sans responsabilité`);
           
           // Générer tous les échanges possibles
-          interface PossibleSwap {
-            type: '1R<->2F3F' | '1R<->None' | '2F3F<->None';
-            sec1: string;
-            sec2: string;
-            sec1Name?: string;
-            sec2Name?: string;
-          }
-          
           const possibleSwaps: PossibleSwap[] = [];
           
-          // Type 1: 1R ↔ 2F/3F (déjà existant)
+          // Type 1: 1R ↔ 2F/3F
           if (current1R !== current2F3F) {
             possibleSwaps.push({
               type: '1R<->2F3F',
               sec1: current1R,
-              sec2: current2F3F
+              sec2: current2F3F,
+              contextKey
             });
           }
           
@@ -612,7 +678,8 @@ serve(async (req) => {
             possibleSwaps.push({
               type: '1R<->None',
               sec1: current1R,
-              sec2: noResp
+              sec2: noResp,
+              contextKey
             });
           }
           
@@ -621,7 +688,8 @@ serve(async (req) => {
             possibleSwaps.push({
               type: '2F3F<->None',
               sec1: current2F3F,
-              sec2: noResp
+              sec2: noResp,
+              contextKey
             });
           }
           
@@ -629,74 +697,72 @@ serve(async (req) => {
           
           // Score actuel
           const currentStdDev = calculateWeekStdDev(currentWeekScores);
-          
-          // Trouver le meilleur échange
-          let bestSwap: PossibleSwap | null = null;
-          let bestStdDev = currentStdDev;
-          let bestTempScores: Map<string, SecretaryScore> | null = null;
-          
           const THRESHOLD = 0.05;
           
+          // ÉTAPE 1 : Collecter tous les échanges possibles et calculer leur impact individuel
+          const rankedSwaps: Array<{ swap: PossibleSwap; improvement: number }> = [];
+          
           for (const swap of possibleSwaps) {
-            const tempScores = new Map(currentWeekScores);
-            
-            // S'assurer que les deux secrétaires ont une entrée dans les scores
-            if (!tempScores.has(swap.sec1)) {
-              tempScores.set(swap.sec1, { id: swap.sec1, name: '', score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
-            }
-            if (!tempScores.has(swap.sec2)) {
-              tempScores.set(swap.sec2, { id: swap.sec2, name: '', score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });
-            }
-            
-            const tempScore1 = { ...tempScores.get(swap.sec1)! };
-            const tempScore2 = { ...tempScores.get(swap.sec2)! };
-            
-            if (swap.type === '1R<->2F3F') {
-              // sec1 (1R) devient 2F/3F
-              tempScore1.score = tempScore1.score - 2 + points2F3F;
-              tempScore1.count_1r -= 1;
-              if (is3F) tempScore1.count_3f += 1; else tempScore1.count_2f += 1;
-              
-              // sec2 (2F/3F) devient 1R
-              tempScore2.score = tempScore2.score - points2F3F + 2;
-              if (is3F) tempScore2.count_3f -= 1; else tempScore2.count_2f -= 1;
-              tempScore2.count_1r += 1;
-            } else if (swap.type === '1R<->None') {
-              // sec1 (1R) perd 1R
-              tempScore1.score = tempScore1.score - 2;
-              tempScore1.count_1r -= 1;
-              
-              // sec2 (None) gagne 1R
-              tempScore2.score = tempScore2.score + 2;
-              tempScore2.count_1r += 1;
-            } else if (swap.type === '2F3F<->None') {
-              // sec1 (2F/3F) perd 2F/3F
-              tempScore1.score = tempScore1.score - points2F3F;
-              if (is3F) tempScore1.count_3f -= 1; else tempScore1.count_2f -= 1;
-              
-              // sec2 (None) gagne 2F/3F
-              tempScore2.score = tempScore2.score + points2F3F;
-              if (is3F) tempScore2.count_3f += 1; else tempScore2.count_2f += 1;
-            }
-            
-            tempScores.set(swap.sec1, tempScore1);
-            tempScores.set(swap.sec2, tempScore2);
-            
-            const newStdDev = calculateWeekStdDev(tempScores);
-            
-            if (newStdDev < bestStdDev - THRESHOLD) {
-              bestStdDev = newStdDev;
-              bestSwap = swap;
-              bestTempScores = tempScores;
+            const { stdDev } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
+            rankedSwaps.push({
+              swap,
+              improvement: currentStdDev - stdDev // positif = amélioration
+            });
+          }
+          
+          // Trier par amélioration décroissante
+          rankedSwaps.sort((a, b) => b.improvement - a.improvement);
+          
+          // ÉTAPE 2 : Tester d'abord les échanges simples
+          let bestStdDev = currentStdDev;
+          let bestSwaps: PossibleSwap[] = [];
+          let bestTempScores: Map<string, SecretaryScore> | null = null;
+          
+          for (const { swap, improvement } of rankedSwaps) {
+            if (improvement > THRESHOLD) {
+              const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
+              if (stdDev < bestStdDev - THRESHOLD) {
+                bestStdDev = stdDev;
+                bestSwaps = [swap];
+                bestTempScores = newScores;
+              }
             }
           }
           
-          // Appliquer le meilleur échange s'il existe
-          if (bestSwap && bestTempScores) {
-            const sec1Name = secretaries?.find(s => s.id === bestSwap.sec1);
-            const sec2Name = secretaries?.find(s => s.id === bestSwap.sec2);
+          // ÉTAPE 3 : Si aucun échange simple n'améliore, tester les PAIRES
+          if (bestSwaps.length === 0) {
+            console.log(`  🔍 Aucun échange simple améliorant, test des paires...`);
             
-            console.log(`  ✅ Échange rentable [${bestSwap.type}]: ${site_nom} ${date}`);
+            // Limiter aux 15 meilleurs échanges pour éviter explosion combinatoire
+            const topSwaps = rankedSwaps.slice(0, 15);
+            
+            for (let i = 0; i < topSwaps.length; i++) {
+              for (let j = i + 1; j < topSwaps.length; j++) {
+                const pairSwaps = [topSwaps[i].swap, topSwaps[j].swap];
+                
+                // Vérifier que les deux échanges sont compatibles (pas les mêmes secrétaires)
+                const allSecIds = new Set([
+                  pairSwaps[0].sec1, pairSwaps[0].sec2,
+                  pairSwaps[1].sec1, pairSwaps[1].sec2
+                ]);
+                
+                if (allSecIds.size < 4) continue; // Conflit, skip
+                
+                const { stdDev, newScores } = applySwapsAndCalculateStdDev(pairSwaps, currentWeekScores, is3FMap);
+                
+                if (stdDev < bestStdDev - THRESHOLD) {
+                  bestStdDev = stdDev;
+                  bestSwaps = pairSwaps;
+                  bestTempScores = newScores;
+                  console.log(`  ✨ Paire améliorante trouvée: ${stdDev.toFixed(2)}`);
+                }
+              }
+            }
+          }
+          
+          // ÉTAPE 4 : Appliquer tous les échanges de la meilleure solution
+          if (bestSwaps.length > 0 && bestTempScores) {
+            console.log(`  ✅ ${bestSwaps.length} échange(s) rentable(s): ${site_nom} ${date}`);
             console.log(`     Écart-type: ${currentStdDev.toFixed(2)} → ${bestStdDev.toFixed(2)}`);
             
             // Reset tous les flags pour ce site/date
@@ -707,77 +773,82 @@ serve(async (req) => {
               .eq('site_id', site_id)
               .eq('actif', true);
             
-            // Appliquer le nouvel état selon le type d'échange
-            if (bestSwap.type === '1R<->2F3F') {
-              console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → ${is3F ? '3F' : '2F'}`);
-              console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: ${is3F ? '3F' : '2F'} → 1R`);
+            // Appliquer TOUS les échanges de bestSwaps
+            for (const bestSwap of bestSwaps) {
+              const sec1Name = secretaries?.find(s => s.id === bestSwap.sec1);
+              const sec2Name = secretaries?.find(s => s.id === bestSwap.sec2);
               
-              // sec1 devient 2F/3F
-              const update1 = is3F ? { is_3f: true } : { is_2f: true };
-              await supabase
-                .from('capacite_effective')
-                .update(update1)
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', bestSwap.sec1)
-                .eq('actif', true);
-              
-              // sec2 devient 1R
-              await supabase
-                .from('capacite_effective')
-                .update({ is_1r: true })
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', bestSwap.sec2)
-                .eq('actif', true);
+              if (bestSwap.type === '1R<->2F3F') {
+                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → ${is3F ? '3F' : '2F'}`);
+                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: ${is3F ? '3F' : '2F'} → 1R`);
                 
-            } else if (bestSwap.type === '1R<->None') {
-              console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → Aucune`);
-              console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → 1R`);
-              
-              // sec1 perd 1R (déjà resetté)
-              // sec2 gagne 1R
-              await supabase
-                .from('capacite_effective')
-                .update({ is_1r: true })
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', bestSwap.sec2)
-                .eq('actif', true);
-              
-              // Remettre 2F/3F à son titulaire actuel
-              const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-              await supabase
-                .from('capacite_effective')
-                .update(update2F3F)
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', current2F3F)
-                .eq('actif', true);
+                // sec1 devient 2F/3F
+                const update1 = is3F ? { is_3f: true } : { is_2f: true };
+                await supabase
+                  .from('capacite_effective')
+                  .update(update1)
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', bestSwap.sec1)
+                  .eq('actif', true);
                 
-            } else if (bestSwap.type === '2F3F<->None') {
-              console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: ${is3F ? '3F' : '2F'} → Aucune`);
-              console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → ${is3F ? '3F' : '2F'}`);
-              
-              // sec1 perd 2F/3F (déjà resetté)
-              // sec2 gagne 2F/3F
-              const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-              await supabase
-                .from('capacite_effective')
-                .update(update2F3F)
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', bestSwap.sec2)
-                .eq('actif', true);
-              
-              // Remettre 1R à son titulaire actuel
-              await supabase
-                .from('capacite_effective')
-                .update({ is_1r: true })
-                .eq('date', date)
-                .eq('site_id', site_id)
-                .eq('secretaire_id', current1R)
-                .eq('actif', true);
+                // sec2 devient 1R
+                await supabase
+                  .from('capacite_effective')
+                  .update({ is_1r: true })
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', bestSwap.sec2)
+                  .eq('actif', true);
+                  
+              } else if (bestSwap.type === '1R<->None') {
+                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → Aucune`);
+                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → 1R`);
+                
+                // sec1 perd 1R (déjà resetté)
+                // sec2 gagne 1R
+                await supabase
+                  .from('capacite_effective')
+                  .update({ is_1r: true })
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', bestSwap.sec2)
+                  .eq('actif', true);
+                
+                // Remettre 2F/3F à son titulaire actuel
+                const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+                await supabase
+                  .from('capacite_effective')
+                  .update(update2F3F)
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', current2F3F)
+                  .eq('actif', true);
+                  
+              } else if (bestSwap.type === '2F3F<->None') {
+                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: ${is3F ? '3F' : '2F'} → Aucune`);
+                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → ${is3F ? '3F' : '2F'}`);
+                
+                // sec1 perd 2F/3F (déjà resetté)
+                // sec2 gagne 2F/3F
+                const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+                await supabase
+                  .from('capacite_effective')
+                  .update(update2F3F)
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', bestSwap.sec2)
+                  .eq('actif', true);
+                
+                // Remettre 1R à son titulaire actuel
+                await supabase
+                  .from('capacite_effective')
+                  .update({ is_1r: true })
+                  .eq('date', date)
+                  .eq('site_id', site_id)
+                  .eq('secretaire_id', current1R)
+                  .eq('actif', true);
+              }
             }
             
             // Mettre à jour les scores globaux
@@ -785,7 +856,7 @@ serve(async (req) => {
               currentWeekScores.set(secId, secScore);
             }
             
-            exchangeCount++;
+            exchangeCount += bestSwaps.length;
             hasImprovement = true;
           }
         }
