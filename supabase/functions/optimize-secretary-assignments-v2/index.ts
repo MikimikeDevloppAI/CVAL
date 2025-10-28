@@ -154,6 +154,42 @@ async function optimizeSingleWeek(
   // Load full week data
   const weekData = await loadWeekData(dates, supabase);
   
+  // ✨ Initialize accumulative counters for the week
+  const adminCounters = new Map<string, number>();
+  const p2p3Counters = new Map<string, Map<string, number>>();
+
+  // Pre-fill counters from existing capacites_effective (before optimization dates)
+  for (const cap of weekData.capacites_effective) {
+    // Skip dates that will be optimized
+    if (sortedDates.includes(cap.date)) continue;
+    
+    if (!cap.secretaire_id) continue;
+    
+    // Count admin
+    if (cap.site_id === ADMIN_SITE_ID) {
+      const current = adminCounters.get(cap.secretaire_id) || 0;
+      adminCounters.set(cap.secretaire_id, current + 1);
+    }
+    
+    // Count P2/P3
+    const sitePref = weekData.secretaires_sites.find(
+      ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === cap.site_id
+    );
+    
+    if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+      if (!p2p3Counters.has(cap.secretaire_id)) {
+        p2p3Counters.set(cap.secretaire_id, new Map());
+      }
+      const secMap = p2p3Counters.get(cap.secretaire_id)!;
+      const siteCount = secMap.get(cap.site_id) || 0;
+      secMap.set(cap.site_id, siteCount + 1);
+    }
+  }
+
+  console.log(`\n📊 Compteurs initialisés:`);
+  console.log(`  Admin: ${adminCounters.size} secrétaires`);
+  console.log(`  P2/P3: ${p2p3Counters.size} secrétaires`);
+  
   const dailyResults: any[] = [];
   
   for (const date of sortedDates) {
@@ -177,6 +213,14 @@ async function optimizeSingleWeek(
       weekData,
       sortedDates.filter(d => d < date)
     );
+
+    // ✨ Build context with counters
+    const context = {
+      week_assignments,
+      today_assignments: new Map(),
+      admin_counters: adminCounters,
+      p2p3_counters: p2p3Counters
+    };
     
     // RESET: Clear all capacities for this date before optimization
     if (DEBUG_VERBOSE) {
@@ -207,7 +251,7 @@ async function optimizeSingleWeek(
       needs,
       weekData.capacites_effective,
       weekData,
-      week_assignments
+      context
     );
     
     if (DEBUG_VERBOSE) {
@@ -367,13 +411,122 @@ async function optimizeSingleWeek(
     }
     
     // Write results
-    await writeAssignments(
+    const writeCount = await writeAssignments(
       solution,
       date,
       needs,
       weekData.capacites_effective.filter(c => c.date === date),
       supabase
     );
+
+    console.log(`✅ ${writeCount} assignations écrites`);
+
+    // ✨ Update counters in memory
+    for (const [varName, value] of Object.entries(solution)) {
+      if (Number(value) < 0.5) continue; // Variable not assigned
+      
+      // Parse combo variable: "combo_<secId>_<needMatinId>_<needAMId>"
+      if (!varName.startsWith('combo_')) continue;
+      
+      const parts = varName.split('_');
+      if (parts.length < 4) continue;
+      
+      const secId = parts[1]; // secretaire_id is second part
+      
+      // Find the combo to get the needs
+      const needMatinIdPart = parts.slice(2, parts.length - 1).join('_');
+      const needAMIdPart = parts[parts.length - 1];
+      
+      // Process morning assignment
+      if (needMatinIdPart !== 'null') {
+        const matinNeed = needs.find(n => {
+          const needId = n.type === 'bloc_operatoire' && n.bloc_operation_id && n.besoin_operation_id
+            ? `${n.site_id}_${date}_1_${n.bloc_operation_id}_${n.besoin_operation_id}`
+            : `${n.site_id}_${date}_1`;
+          return needId === needMatinIdPart;
+        });
+        
+        if (matinNeed) {
+          // Update admin counter
+          if (matinNeed.site_id === ADMIN_SITE_ID) {
+            const current = adminCounters.get(secId) || 0;
+            adminCounters.set(secId, current + 1);
+          }
+          
+          // Update P2/P3 counter
+          const sitePref = weekData.secretaires_sites.find(
+            ss => ss.secretaire_id === secId && ss.site_id === matinNeed.site_id
+          );
+          
+          if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+            if (!p2p3Counters.has(secId)) {
+              p2p3Counters.set(secId, new Map());
+            }
+            const secMap = p2p3Counters.get(secId)!;
+            const siteCount = secMap.get(matinNeed.site_id) || 0;
+            secMap.set(matinNeed.site_id, siteCount + 1);
+          }
+        }
+      }
+      
+      // Process afternoon assignment
+      if (needAMIdPart !== 'null') {
+        const amNeed = needs.find(n => {
+          const needId = n.type === 'bloc_operatoire' && n.bloc_operation_id && n.besoin_operation_id
+            ? `${n.site_id}_${date}_2_${n.bloc_operation_id}_${n.besoin_operation_id}`
+            : `${n.site_id}_${date}_2`;
+          return needId === needAMIdPart;
+        });
+        
+        if (amNeed) {
+          // Update admin counter
+          if (amNeed.site_id === ADMIN_SITE_ID) {
+            const current = adminCounters.get(secId) || 0;
+            adminCounters.set(secId, current + 1);
+          }
+          
+          // Update P2/P3 counter
+          const sitePref = weekData.secretaires_sites.find(
+            ss => ss.secretaire_id === secId && ss.site_id === amNeed.site_id
+          );
+          
+          if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+            if (!p2p3Counters.has(secId)) {
+              p2p3Counters.set(secId, new Map());
+            }
+            const secMap = p2p3Counters.get(secId)!;
+            const siteCount = secMap.get(amNeed.site_id) || 0;
+            secMap.set(amNeed.site_id, siteCount + 1);
+          }
+        }
+      }
+    }
+
+    // ✨ Diagnostic logs
+    console.log(`\n📊 État des compteurs après ${date}:`);
+    
+    // Top 5 secretaries with most admin
+    const topAdmin = Array.from(adminCounters.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    console.log(`  💼 Top Admin:`);
+    topAdmin.forEach(([secId, count]) => {
+      const sec = weekData.secretaires.find(s => s.id === secId);
+      console.log(`    ${sec?.name || secId.slice(0,8)}: ${count} demi-journées`);
+    });
+
+    // Secretaries with P2/P3 assignments
+    const p2p3Secs = Array.from(p2p3Counters.entries())
+      .filter(([, siteMap]) => siteMap.size > 0);
+    console.log(`  ⚠️ Assignations P2/P3:`);
+    p2p3Secs.slice(0, 5).forEach(([secId, siteMap]) => {
+      const sec = weekData.secretaires.find(s => s.id === secId);
+      console.log(`    ${sec?.name || secId.slice(0,8)}:`);
+      Array.from(siteMap.entries()).forEach(([siteId, count]) => {
+        const site = weekData.sites.find(s => s.id === siteId);
+        console.log(`      - ${site?.nom || siteId.slice(0,8)}: ${count} demi-journées`);
+      });
+    });
     
     // Appeler assign-closing-responsibles pour cette journée
     console.log(`\n🔐 Assignation des responsables de fermeture pour ${date}...`);

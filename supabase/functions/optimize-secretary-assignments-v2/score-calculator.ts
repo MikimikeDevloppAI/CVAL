@@ -128,10 +128,8 @@ export function calculateDynamicScore(
   const isAdminSite = need.site_id === ADMIN_SITE_ID;
   
   if (isAdminSite) {
-    // Count admin assignments already made (week + today)
-    const weekAdminCount = context.week_assignments.filter(
-      a => a.secretaire_id === secretaire_id && a.is_admin
-    ).length;
+    // ✨ Read from in-memory counter
+    const weekAdminCount = context.admin_counters.get(secretaire_id) || 0;
     
     const todayAdminCount = countTodayAdminAssignments(
       secretaire_id, 
@@ -170,12 +168,8 @@ export function calculateDynamicScore(
   // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3 (DYNAMIQUE)
   // ============================================================
   if (siteMatch && (siteMatch.priorite === '2' || siteMatch.priorite === '3')) {
-    // Count assignments to this site (week + today)
-    const weekSiteCount = context.week_assignments.filter(
-      a => a.secretaire_id === secretaire_id && 
-           a.site_id === need.site_id &&
-           (a.site_priorite === 2 || a.site_priorite === 3)
-    ).length;
+    // ✨ Read from in-memory counter
+    const weekSiteCount = context.p2p3_counters.get(secretaire_id)?.get(need.site_id) || 0;
     
     const todaySiteCount = countTodaySiteAssignments(
       secretaire_id,
@@ -186,12 +180,14 @@ export function calculateDynamicScore(
     
     const totalSiteCount = weekSiteCount + todaySiteCount;
     
-    // Penalty: -10 per half-day beyond 2
-    if (totalSiteCount >= 2) {
-      const overload = totalSiteCount - 2;
+    // ✨ CORRECTION off-by-one: apply penalty from the 3rd half-day
+    const prospectiveCount = totalSiteCount + 1; // Count the current half-day
+    
+    if (prospectiveCount > 2) {
+      const overload = prospectiveCount - 2;
       const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
       score += penalty;
-      console.log(`  ⚠️ Site pref 2/3 sur-assigné (${totalSiteCount} > 2): ${penalty}`);
+      console.log(`  ⚠️ Site pref 2/3 sur-assigné (${prospectiveCount} > 2): ${penalty}`);
     }
   }
   
@@ -213,7 +209,7 @@ export function calculateComboScore(
   secretaire_id: string,
   needMatin: SiteNeed | null,
   needAM: SiteNeed | null,
-  week_assignments: AssignmentSummary[],
+  context: DynamicContext,
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
@@ -225,18 +221,14 @@ export function calculateComboScore(
   
   let totalScore = 0;
   
-  // Compteurs pour bonus/pénalités progressifs
-  let currentAdminCount = week_assignments.filter(
-    a => a.secretaire_id === secretaire_id && a.is_admin
-  ).length;
+  // ✨ Read counters from context
+  let currentAdminCount = context.admin_counters.get(secretaire_id) || 0;
   
   const sitesCount = new Map<string, number>();
-  for (const assignment of week_assignments) {
-    if (assignment.secretaire_id === secretaire_id && 
-        assignment.site_priorite && 
-        (assignment.site_priorite === 2 || assignment.site_priorite === 3)) {
-      const count = sitesCount.get(assignment.site_id) || 0;
-      sitesCount.set(assignment.site_id, count + 1);
+  const secP2P3Sites = context.p2p3_counters.get(secretaire_id);
+  if (secP2P3Sites) {
+    for (const [siteId, count] of secP2P3Sites.entries()) {
+      sitesCount.set(siteId, count);
     }
   }
   
@@ -311,11 +303,15 @@ export function calculateComboScore(
     // 1e. Pénalité sur-assignation site P2/P3 (MATIN)
     if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3')) {
       const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
-      if (currentSiteCount >= 2) {
-        const overload = currentSiteCount - 2;
+      
+      // ✨ CORRECTION off-by-one: apply penalty from 3rd half-day
+      const prospectiveCount = currentSiteCount + 1;
+      
+      if (prospectiveCount > 2) {
+        const overload = prospectiveCount - 2;
         const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
         totalScore += penalty;
-        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} sur-assigné (${currentSiteCount} > 2): ${penalty}`);
+        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} sur-assigné (${prospectiveCount} > 2): ${penalty}`);
       }
       // Incrémenter pour l'après-midi
       sitesCount.set(needMatin.site_id, currentSiteCount + 1);
@@ -392,11 +388,15 @@ export function calculateComboScore(
     // 2e. Pénalité sur-assignation site P2/P3 (AM)
     if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3')) {
       const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
-      if (currentSiteCount >= 2) {
-        const overload = currentSiteCount - 2;
+      
+      // ✨ CORRECTION off-by-one: apply penalty from 3rd half-day
+      const prospectiveCount = currentSiteCount + 1;
+      
+      if (prospectiveCount > 2) {
+        const overload = prospectiveCount - 2;
         const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
         totalScore += penalty;
-        console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} sur-assigné (${currentSiteCount} > 2): ${penalty}`);
+        console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} sur-assigné (${prospectiveCount} > 2): ${penalty}`);
       }
     }
   }

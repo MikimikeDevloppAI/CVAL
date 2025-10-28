@@ -2,7 +2,7 @@ import type {
   SiteNeed,
   CapaciteEffective,
   WeekData,
-  AssignmentSummary
+  DynamicContext
 } from './types.ts';
 import { ADMIN_SITE_ID, FORBIDDEN_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID } from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
@@ -22,7 +22,7 @@ export function buildMILPModelSoft(
   needs: SiteNeed[],
   capacites: CapaciteEffective[],
   week_data: WeekData,
-  week_assignments: AssignmentSummary[]
+  context: DynamicContext
 ) {
   console.log(`\n🔧 Construction du modèle COMBO-BASED MILP pour ${date}...`);
   
@@ -215,7 +215,7 @@ export function buildMILPModelSoft(
           secretaire_id,
           needM,
           needA,
-          week_assignments,
+          context,
           {
             besoins: week_data.secretaires_besoins,
             medecins: week_data.secretaires_medecins,

@@ -123,6 +123,8 @@ export interface TodayAssignment {
 export interface DynamicContext {
   week_assignments: AssignmentSummary[];
   today_assignments: Map<string, TodayAssignment>;
+  admin_counters: Map<string, number>; // secretaire_id -> nombre demi-journées admin
+  p2p3_counters: Map<string, Map<string, number>>; // secretaire_id -> (site_id -> count)
 }
 
 export interface PreferencesData {
