@@ -126,7 +126,7 @@ async function assignSiteWithChoice(
   let bestCombo: { 
     responsable_1r: string; 
     responsable_2f3f: string; 
-    sum_squared_excess: number;
+    sum_squared_scores: number;
   } | null = null;
   
   for (const candidate_2f3f of eligible_2f3f) {
@@ -138,11 +138,11 @@ async function assignSiteWithChoice(
       
       const metrics = calculateGlobalMetrics(tempScores);
       
-      if (!bestCombo || metrics.sum_squared_excess < bestCombo.sum_squared_excess) {
+      if (!bestCombo || metrics.sum_squared_scores < bestCombo.sum_squared_scores) {
         bestCombo = {
           responsable_1r: candidate_1r,
           responsable_2f3f: candidate_2f3f,
-          sum_squared_excess: metrics.sum_squared_excess
+          sum_squared_scores: metrics.sum_squared_scores
         };
       }
     }
@@ -162,7 +162,7 @@ function simulateAssignment(
   responsable_2f3f: string,
   scores: Map<string, SecretaryScore>
 ) {
-  const points2F3F = site.needs_3f ? 4 : 3;
+  const points2F3F = site.needs_3f ? 3 : 2;
   
   if (!scores.has(responsable_1r)) {
     scores.set(responsable_1r, { id: responsable_1r, name: '', score: 0, count_1r: 0, count_2f: 0, count_3f: 0 });

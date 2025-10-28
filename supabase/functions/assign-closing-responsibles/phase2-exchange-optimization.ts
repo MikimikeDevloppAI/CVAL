@@ -36,7 +36,7 @@ export async function optimizePhase2(
   let currentMetrics = calculateGlobalMetrics(currentWeekScores);
   
   console.log(`📊 Métriques initiales:`);
-  console.log(`   🎯 Somme (score-3)² : ${currentMetrics.sum_squared_excess.toFixed(2)}`);
+  console.log(`   🎯 Somme score² : ${currentMetrics.sum_squared_scores.toFixed(2)}`);
   console.log(`   Secrétaires > 3 : ${currentMetrics.count_over_3}`);
   console.log(`   Score max : ${currentMetrics.max_score.toFixed(2)}`);
   
@@ -82,8 +82,8 @@ export async function optimizePhase2(
     }
     
     console.log(`   ✅ ${bestExchange.exchange.description}`);
-    console.log(`      Avant: Σ(score-3)² = ${currentMetrics.sum_squared_excess.toFixed(2)}`);
-    console.log(`      Après: Σ(score-3)² = ${bestExchange.newMetrics.sum_squared_excess.toFixed(2)}`);
+    console.log(`      Avant: Σscore² = ${currentMetrics.sum_squared_scores.toFixed(2)}`);
+    console.log(`      Après: Σscore² = ${bestExchange.newMetrics.sum_squared_scores.toFixed(2)}`);
     
     await applyExchangeToDatabase(bestExchange.exchange, supabase, assignedSites);
     
@@ -94,7 +94,7 @@ export async function optimizePhase2(
   
   console.log('\n✅ Phase 2 terminée');
   console.log(`📊 Métriques finales:`);
-  console.log(`   🎯 Somme (score-3)² : ${currentMetrics.sum_squared_excess.toFixed(2)}`);
+  console.log(`   🎯 Somme score² : ${currentMetrics.sum_squared_scores.toFixed(2)}`);
   console.log(`   Secrétaires > 3 : ${currentMetrics.count_over_3}`);
 }
 
@@ -191,7 +191,7 @@ function applyExchangeToScores(
 ) {
   if (exchange.type === '1R<->2F3F') {
     const { current_1r, current_2f3f, is_3f } = exchange.site1;
-    const points2F3F = is_3f ? 4 : 3;
+    const points2F3F = is_3f ? 3 : 2;
     
     const score1R = scores.get(current_1r)!;
     const score2F3F = scores.get(current_2f3f)!;
@@ -211,8 +211,8 @@ function applyExchangeToScores(
     const s1 = exchange.site1;
     const s2 = exchange.site2;
     
-    const points2F3F_s1 = s1.is_3f ? 4 : 3;
-    const points2F3F_s2 = s2.is_3f ? 4 : 3;
+    const points2F3F_s1 = s1.is_3f ? 3 : 2;
+    const points2F3F_s2 = s2.is_3f ? 3 : 2;
     
     const score_1r_s1 = scores.get(s1.current_1r)!;
     const score_1r_s2 = scores.get(s2.current_1r)!;

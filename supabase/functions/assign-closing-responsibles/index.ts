@@ -820,16 +820,6 @@ interface SwapContext {
       );
     }
 
-    // Track secrétaires avec déjà un 2F/3F cette semaine
-    const has2F3FThisWeek = new Set<string>();
-    for (const [secId, score] of currentWeekScores.entries()) {
-      if (score.count_2f > 0 || score.count_3f > 0) {
-        has2F3FThisWeek.add(secId);
-      }
-    }
-
-    console.log(`🔒 ${has2F3FThisWeek.size} secrétaires ont déjà un 2F/3F cette semaine`);
-
     // Reset tous les flags de fermeture
     for (const date of (selected_dates || allDatesInWeek)) {
       await supabase
@@ -839,6 +829,11 @@ interface SwapContext {
         .eq('actif', true)
         .not('secretaire_id', 'is', null);
     }
+
+    // Track secrétaires avec déjà un 2F/3F cette semaine (après le reset, donc vide pour commencer)
+    const has2F3FThisWeek = new Set<string>();
+
+    console.log(`🔒 ${has2F3FThisWeek.size} secrétaires ont déjà un 2F/3F cette semaine (après reset)`);
 
     // Exécuter Phase 1
     const phase1Count = await assignPhase1(
@@ -868,7 +863,7 @@ interface SwapContext {
     const { calculatePenalizedScore, calculateGlobalMetrics } = await import('./scoring.ts');
     const finalMetrics = calculateGlobalMetrics(currentWeekScores);
     
-    console.log(`🎯 Somme (score-3)² : ${finalMetrics.sum_squared_excess.toFixed(2)}`);
+    console.log(`🎯 Somme score² : ${finalMetrics.sum_squared_scores.toFixed(2)}`);
     console.log(`Secrétaires > 3 : ${finalMetrics.count_over_3}`);
     console.log(`Score max : ${finalMetrics.max_score.toFixed(2)}`);
     
@@ -884,8 +879,7 @@ interface SwapContext {
       const p = secScore.penalized;
       console.log(
         `${secScore.name}: ${p.base_score} pts → ${p.total_score} pts | ` +
-        `1R:${p.count_1r} 2F:${p.count_2f} 3F:${p.count_3f}` +
-        (p.total_score > 3 ? ` [excès²: ${p.squared_excess.toFixed(1)}]` : '')
+        `1R:${p.count_1r} 2F:${p.count_2f} 3F:${p.count_3f} [score²: ${p.squared_score.toFixed(1)}]`
       );
     }
 
