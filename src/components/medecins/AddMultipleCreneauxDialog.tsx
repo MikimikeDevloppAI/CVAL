@@ -124,17 +124,22 @@ export function AddMultipleCreneauxDialog({
     setLoading(true);
 
     try {
-      // Check for overlaps before inserting
+      // Delete existing créneaux for the selected dates and periods
       for (const date of selectedDates) {
         const dateStr = format(date, 'yyyy-MM-dd');
         const periodes: ('matin' | 'apres_midi')[] =
           values.demi_journee === 'toute_journee' ? ['matin', 'apres_midi'] : [values.demi_journee];
 
-        const overlapResult = await checkMedecinOverlap(medecinId, dateStr, periodes);
-        if (overlapResult.hasOverlap) {
-          toast.error(getOverlapErrorMessage(overlapResult, 'medecin'));
-          setLoading(false);
-          return;
+        // Delete existing besoin_effectif for this medecin, date, and periods
+        const { error: deleteError } = await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('medecin_id', medecinId)
+          .eq('date', dateStr)
+          .in('demi_journee', periodes);
+
+        if (deleteError) {
+          console.error('Error deleting existing créneaux:', deleteError);
         }
       }
 
