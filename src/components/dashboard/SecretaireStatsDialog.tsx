@@ -73,22 +73,28 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
     };
   });
 
-  // Trier par nom et préparer les données pour les graphiques
-  const sortedStats = stats.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet));
+  // Filtrer seulement les secrétaires avec des données et trier par nom
+  const sortedStats = stats
+    .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0 || stat.jours_esplanade > 0)
+    .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet));
 
-  // Données pour le graphique des responsabilités
+  // Données pour le graphique des responsabilités (diviser 1R et 2F par 2 pour compter en journées)
   const responsibilitiesData = sortedStats.map(stat => ({
     nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''), // Initiales
-    '1R': stat.count_1r,
-    '2F': stat.count_2f,
-    '3F': stat.count_3f,
+    fullName: stat.nom_complet,
+    '1R': stat.count_1r / 2,
+    '2F': stat.count_2f / 2,
+    '3F': stat.count_3f / 2,
   }));
 
   // Données pour le graphique Esplanade
-  const esplanadeData = sortedStats.map(stat => ({
-    nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''),
-    'Jours': stat.jours_esplanade,
-  }));
+  const esplanadeData = sortedStats
+    .filter(stat => stat.jours_esplanade > 0)
+    .map(stat => ({
+      nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''),
+      fullName: stat.nom_complet,
+      'Jours': stat.jours_esplanade,
+    }));
 
   return (
     <Dialog>
@@ -106,63 +112,118 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
         <div className="space-y-8 py-4">
           {/* Graphique des responsabilités (1R, 2F, 3F) */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Répartition des responsabilités de fermeture</h3>
-            <div className="h-[400px] w-full">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Répartition des responsabilités de fermeture
+              </h3>
+              <span className="text-xs text-muted-foreground italic">
+                Comptabilisé en journées entières
+              </span>
+            </div>
+            <div className="h-[450px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={responsibilitiesData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <BarChart data={responsibilitiesData} margin={{ top: 20, right: 40, left: 20, bottom: 100 }}>
+                  <defs>
+                    <linearGradient id="gradient1R" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.6}/>
+                    </linearGradient>
+                    <linearGradient id="gradient2F" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0.6}/>
+                    </linearGradient>
+                    <linearGradient id="gradient3F" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#a855f7" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#a855f7" stopOpacity={0.6}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
                   <XAxis 
                     dataKey="nom" 
                     angle={-45}
                     textAnchor="end"
-                    height={80}
-                    className="text-xs"
+                    height={100}
+                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                    stroke="hsl(var(--border))"
                   />
-                  <YAxis />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                    stroke="hsl(var(--border))"
+                  />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
+                      backgroundColor: 'hsl(var(--popover))',
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                    labelFormatter={(value, payload) => {
+                      const item = payload?.[0]?.payload;
+                      return item?.fullName || value;
                     }}
                   />
-                  <Legend />
-                  <Bar dataKey="1R" fill="#3b82f6" name="Responsable 1R" />
-                  <Bar dataKey="2F" fill="#22c55e" name="Responsable 2F" />
-                  <Bar dataKey="3F" fill="#a855f7" name="Responsable 3F" />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="circle"
+                  />
+                  <Bar dataKey="1R" fill="url(#gradient1R)" name="Responsable 1R" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="2F" fill="url(#gradient2F)" name="Responsable 2F" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="3F" fill="url(#gradient3F)" name="Responsable 3F" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Graphique Centre Esplanade */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Nombre de jours au Centre Esplanade</h3>
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={esplanadeData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="nom" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                    className="text-xs"
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Jours" fill="#f97316" name="Jours au Centre Esplanade" />
-                </BarChart>
-              </ResponsiveContainer>
+          {esplanadeData.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">
+                Nombre de jours au Centre Esplanade
+              </h3>
+              <div className="h-[450px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={esplanadeData} margin={{ top: 20, right: 40, left: 20, bottom: 100 }}>
+                    <defs>
+                      <linearGradient id="gradientEsplanade" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#f97316" stopOpacity={0.6}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis 
+                      dataKey="nom" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                      stroke="hsl(var(--border))"
+                    />
+                    <YAxis 
+                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                      stroke="hsl(var(--border))"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return item?.fullName || value;
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="circle"
+                    />
+                    <Bar dataKey="Jours" fill="url(#gradientEsplanade)" name="Jours au Centre Esplanade" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
