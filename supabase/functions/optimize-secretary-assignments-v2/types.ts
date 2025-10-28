@@ -124,7 +124,7 @@ export interface DynamicContext {
   week_assignments: AssignmentSummary[];
   today_assignments: Map<string, TodayAssignment>;
   admin_counters: Map<string, number>; // secretaire_id -> nombre demi-journées admin
-  p2p3_counters: Map<string, Map<string, number>>; // secretaire_id -> (site_id -> count)
+  p2p3_counters: Map<string, Map<string, Set<string>>>; // secretaire_id -> (site_id -> Set<date>)
 }
 
 export interface PreferencesData {
@@ -183,6 +183,9 @@ export const FORBIDDEN_SITES = [
 // Exception pour Gastroentérologie
 export const GASTRO_TYPE_INTERVENTION_ID = '32da56a9-d58c-4e3f-94bb-2aa30e7f861c';
 export const VIEILLE_VILLE_SITE_ID = '7723c334-d06c-413d-96f0-be281d76520d';
+
+// Site spécifique pour pénalité P2/P3 par jour
+export const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
 
 // Bonus pour même site matin + après-midi
 export const SAME_SITE_BONUS = 20;

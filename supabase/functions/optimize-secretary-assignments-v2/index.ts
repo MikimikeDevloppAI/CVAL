@@ -156,7 +156,7 @@ async function optimizeSingleWeek(
   
   // ✨ Initialize accumulative counters for the week
   const adminCounters = new Map<string, number>();
-  const p2p3Counters = new Map<string, Map<string, number>>();
+  const p2p3Counters = new Map<string, Map<string, Set<string>>>();
 
   // Pre-fill counters from existing capacites_effective (before optimization dates)
   for (const cap of weekData.capacites_effective) {
@@ -171,18 +171,27 @@ async function optimizeSingleWeek(
       adminCounters.set(cap.secretaire_id, current + 1);
     }
     
-    // Count P2/P3
+    // Count P2/P3 - uniquement pour Esplanade Ophtalmologie
+    const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
     const sitePref = weekData.secretaires_sites.find(
       ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === cap.site_id
     );
     
-    if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+    if (sitePref && 
+        (sitePref.priorite === '2' || sitePref.priorite === '3') &&
+        cap.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+      
       if (!p2p3Counters.has(cap.secretaire_id)) {
         p2p3Counters.set(cap.secretaire_id, new Map());
       }
       const secMap = p2p3Counters.get(cap.secretaire_id)!;
-      const siteCount = secMap.get(cap.site_id) || 0;
-      secMap.set(cap.site_id, siteCount + 1);
+      
+      if (!secMap.has(cap.site_id)) {
+        secMap.set(cap.site_id, new Set());
+      }
+      
+      // Ajouter la date au Set (comptage de jours uniques)
+      secMap.get(cap.site_id)!.add(cap.date);
     }
   }
 
@@ -453,18 +462,27 @@ async function optimizeSingleWeek(
             adminCounters.set(secId, current + 1);
           }
           
-          // Update P2/P3 counter
+          // Update P2/P3 counter - uniquement pour Esplanade Ophtalmologie
+          const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
           const sitePref = weekData.secretaires_sites.find(
             ss => ss.secretaire_id === secId && ss.site_id === matinNeed.site_id
           );
           
-          if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+          if (sitePref && 
+              (sitePref.priorite === '2' || sitePref.priorite === '3') &&
+              matinNeed.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+            
             if (!p2p3Counters.has(secId)) {
               p2p3Counters.set(secId, new Map());
             }
             const secMap = p2p3Counters.get(secId)!;
-            const siteCount = secMap.get(matinNeed.site_id) || 0;
-            secMap.set(matinNeed.site_id, siteCount + 1);
+            
+            if (!secMap.has(matinNeed.site_id)) {
+              secMap.set(matinNeed.site_id, new Set());
+            }
+            
+            // Ajouter la date au Set
+            secMap.get(matinNeed.site_id)!.add(date);
           }
         }
       }
@@ -485,18 +503,27 @@ async function optimizeSingleWeek(
             adminCounters.set(secId, current + 1);
           }
           
-          // Update P2/P3 counter
+          // Update P2/P3 counter - uniquement pour Esplanade Ophtalmologie
+          const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
           const sitePref = weekData.secretaires_sites.find(
             ss => ss.secretaire_id === secId && ss.site_id === amNeed.site_id
           );
           
-          if (sitePref && (sitePref.priorite === '2' || sitePref.priorite === '3')) {
+          if (sitePref && 
+              (sitePref.priorite === '2' || sitePref.priorite === '3') &&
+              amNeed.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+            
             if (!p2p3Counters.has(secId)) {
               p2p3Counters.set(secId, new Map());
             }
             const secMap = p2p3Counters.get(secId)!;
-            const siteCount = secMap.get(amNeed.site_id) || 0;
-            secMap.set(amNeed.site_id, siteCount + 1);
+            
+            if (!secMap.has(amNeed.site_id)) {
+              secMap.set(amNeed.site_id, new Set());
+            }
+            
+            // Ajouter la date au Set
+            secMap.get(amNeed.site_id)!.add(date);
           }
         }
       }
@@ -518,13 +545,13 @@ async function optimizeSingleWeek(
     // Secretaries with P2/P3 assignments
     const p2p3Secs = Array.from(p2p3Counters.entries())
       .filter(([, siteMap]) => siteMap.size > 0);
-    console.log(`  ⚠️ Assignations P2/P3:`);
+    console.log(`  ⚠️ Assignations P2/P3 (Esplanade Ophtalmologie):`);
     p2p3Secs.slice(0, 5).forEach(([secId, siteMap]) => {
       const sec = weekData.secretaires.find(s => s.id === secId);
       console.log(`    ${sec?.name || secId.slice(0,8)}:`);
-      Array.from(siteMap.entries()).forEach(([siteId, count]) => {
+      Array.from(siteMap.entries()).forEach(([siteId, dateSet]) => {
         const site = weekData.sites.find(s => s.id === siteId);
-        console.log(`      - ${site?.nom || siteId.slice(0,8)}: ${count} demi-journées`);
+        console.log(`      - ${site?.nom || siteId.slice(0,8)}: ${dateSet.size} jours`);
       });
     });
     

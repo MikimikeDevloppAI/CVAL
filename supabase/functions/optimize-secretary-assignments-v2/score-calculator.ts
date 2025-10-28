@@ -6,7 +6,7 @@ import type {
   TodayAssignment,
   AssignmentSummary
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS } from './types.ts';
+import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS, ESPLANADE_OPHTALMOLOGIE_SITE_ID } from './types.ts';
 
 function countTodayAdminAssignments(
   secretaire_id: string,
@@ -167,27 +167,30 @@ export function calculateDynamicScore(
   // ============================================================
   // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3 (DYNAMIQUE)
   // ============================================================
-  if (siteMatch && (siteMatch.priorite === '2' || siteMatch.priorite === '3')) {
-    // ✨ Read from in-memory counter
-    const weekSiteCount = context.p2p3_counters.get(secretaire_id)?.get(need.site_id) || 0;
+  // ✨ Compter les JOURS uniques, uniquement pour Esplanade Ophtalmologie
+  if (siteMatch && 
+      (siteMatch.priorite === '2' || siteMatch.priorite === '3') &&
+      need.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
     
-    const todaySiteCount = countTodaySiteAssignments(
-      secretaire_id,
-      need.site_id,
-      need.periode,
-      context.today_assignments
-    );
+    // Nombre de jours uniques déjà assignés cette semaine
+    const weekDaysSet = context.p2p3_counters.get(secretaire_id)?.get(need.site_id);
+    const weekDaysCount = weekDaysSet ? weekDaysSet.size : 0;
     
-    const totalSiteCount = weekSiteCount + todaySiteCount;
+    // Vérifier si déjà assigné aujourd'hui (matin ou après-midi)
+    const todayAssignment = context.today_assignments.get(secretaire_id);
+    const alreadyAssignedToday = 
+      (todayAssignment?.matin?.site_id === need.site_id) ||
+      (todayAssignment?.apres_midi?.site_id === need.site_id);
     
-    // ✨ CORRECTION off-by-one: apply penalty from the 3rd half-day
-    const prospectiveCount = totalSiteCount + 1; // Count the current half-day
+    // Calcul du nombre de jours total (inclus aujourd'hui si pas encore compté)
+    const totalDays = alreadyAssignedToday ? weekDaysCount : weekDaysCount + 1;
     
-    if (prospectiveCount > 2) {
-      const overload = prospectiveCount - 2;
-      const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+    // Pénalité dès le 2ème jour
+    if (totalDays >= 2) {
+      const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD; // -150 par jour excédentaire
       score += penalty;
-      console.log(`  ⚠️ Site pref 2/3 sur-assigné (${prospectiveCount} > 2): ${penalty}`);
+      
+      console.log(`    ⚠️ Sur-assignation P2/P3 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours (pénalité: ${penalty})`);
     }
   }
   
@@ -224,11 +227,12 @@ export function calculateComboScore(
   // ✨ Read counters from context
   let currentAdminCount = context.admin_counters.get(secretaire_id) || 0;
   
-  const sitesCount = new Map<string, number>();
+  // Map pour tracker les sites P2/P3 avec comptage par JOURS
+  const siteDaysCount = new Map<string, number>(); // site_id -> nombre de jours
   const secP2P3Sites = context.p2p3_counters.get(secretaire_id);
   if (secP2P3Sites) {
-    for (const [siteId, count] of secP2P3Sites.entries()) {
-      sitesCount.set(siteId, count);
+    for (const [siteId, dateSet] of secP2P3Sites.entries()) {
+      siteDaysCount.set(siteId, dateSet.size);
     }
   }
   
@@ -300,21 +304,24 @@ export function calculateComboScore(
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
     
-    // 1e. Pénalité sur-assignation site P2/P3 (MATIN)
-    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3')) {
-      const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
+    // 1e. Pénalité sur-assignation site P2/P3 (MATIN) - uniquement Esplanade Ophtalmologie
+    if (siteMatchMatin && 
+        (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3') &&
+        needMatin.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
       
-      // ✨ CORRECTION off-by-one: apply penalty from 3rd half-day
-      const prospectiveCount = currentSiteCount + 1;
+      const currentSiteCount = siteDaysCount.get(needMatin.site_id) || 0;
       
-      if (prospectiveCount > 2) {
-        const overload = prospectiveCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+      // Compter aujourd'hui comme un nouveau jour
+      const totalDays = currentSiteCount + 1;
+      
+      if (totalDays >= 2) {
+        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD;
         totalScore += penalty;
-        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} sur-assigné (${prospectiveCount} > 2): ${penalty}`);
+        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
       }
-      // Incrémenter pour l'après-midi
-      sitesCount.set(needMatin.site_id, currentSiteCount + 1);
+      
+      // Marquer que ce site a été visité aujourd'hui (pour calcul AM+PM)
+      siteDaysCount.set(needMatin.site_id, totalDays);
     }
   }
   
@@ -385,18 +392,26 @@ export function calculateComboScore(
       }
     }
     
-    // 2e. Pénalité sur-assignation site P2/P3 (AM)
-    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3')) {
-      const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
+    // 2e. Pénalité sur-assignation site P2/P3 (AM) - uniquement Esplanade Ophtalmologie
+    if (siteMatchAM && 
+        (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3') &&
+        needAM.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
       
-      // ✨ CORRECTION off-by-one: apply penalty from 3rd half-day
-      const prospectiveCount = currentSiteCount + 1;
+      const currentSiteCount = siteDaysCount.get(needAM.site_id) || 0;
       
-      if (prospectiveCount > 2) {
-        const overload = prospectiveCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
-        totalScore += penalty;
-        console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} sur-assigné (${prospectiveCount} > 2): ${penalty}`);
+      // Si déjà assigné ce matin au même site, on ne recompte pas le jour
+      const alreadyCountedToday = siteDaysCount.has(needAM.site_id) && 
+                                   needMatin?.site_id === needAM.site_id;
+      
+      const totalDays = alreadyCountedToday ? currentSiteCount : currentSiteCount + 1;
+      
+      if (totalDays >= 2) {
+        // Si déjà pénalisé ce matin pour le même site, ne pas re-pénaliser
+        if (!alreadyCountedToday) {
+          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD;
+          totalScore += penalty;
+          console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
+        }
       }
     }
   }
