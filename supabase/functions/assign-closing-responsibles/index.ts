@@ -196,19 +196,14 @@ serve(async (req) => {
       }
     }
 
-    console.log(`🔒 Found ${sitesNeedingClosing.length} site/date combinations needing closing responsibles (before filter)`);
-    
     // Filtrer selon selected_dates si fourni
     let sitesNeedingClosingFiltered = sitesNeedingClosing;
     if (selected_dates && selected_dates.length > 0) {
       const sel = new Set(selected_dates);
       sitesNeedingClosingFiltered = sitesNeedingClosing.filter(s => sel.has(s.date));
-      console.log(`🎯 Mode sélection actif: ${sitesNeedingClosingFiltered.length} sites après filtre selected_dates`);
-    }
-    
-    // Log détaillé de chaque site/date nécessitant des responsables
-    for (const siteDay of sitesNeedingClosingFiltered) {
-      console.log(`  📍 ${siteDay.site_nom} - ${siteDay.date}: nécessite 1R et 2F/3F`);
+      console.log(`🎯 ${sitesNeedingClosingFiltered.length} sites/dates à traiter (mode sélection)`);
+    } else {
+      console.log(`🔒 ${sitesNeedingClosingFiltered.length} sites/dates à traiter`);
     }
 
     // Sort by date to ensure day-by-day processing in chronological order
@@ -290,8 +285,6 @@ serve(async (req) => {
       const afternoonIds = new Set(assignedAfternoon?.map(a => a.secretaire_id).filter(Boolean) || []);
       
       const bothPeriods = Array.from(morningIds).filter(id => afternoonIds.has(id));
-
-      console.log(`  🔍 ${date} ${siteDay.site_nom}: ${morningIds.size} secrétaires matin, ${afternoonIds.size} après-midi, ${bothPeriods.length} présentes toute la journée`);
       
       if (bothPeriods.length === 0) {
         console.log(`  ⚠️ Aucune secrétaire ne travaille toute la journée - impossible d'assigner 1R/2F/3F`);
@@ -341,12 +334,6 @@ serve(async (req) => {
         continue;
       }
       
-      // Log des secrétaires candidates
-      const candidatesNames = bothPeriods.map(id => {
-        const sec = secretaries?.find(s => s.id === id);
-        return sec ? `${sec.first_name} ${sec.name}` : id;
-      }).join(', ');
-      console.log(`  👥 Candidates pour responsabilités: ${candidatesNames}`);
 
       const isTuesday = dayOfWeek === 2;
       
@@ -448,11 +435,6 @@ serve(async (req) => {
       score1R.score += 2;
       score1R.count_1r += 1;
       
-      const secName1R = secretaries?.find(s => s.id === responsable1R);
-      const secName2F3F = secretaries?.find(s => s.id === responsable2F3F);
-      
-      console.log(`✅ ${date} ${siteDay.site_nom}: 1R=${secName1R?.first_name} ${secName1R?.name} (score: ${score1R.score}, 1R:${score1R.count_1r}, 2F:${score1R.count_2f}, 3F:${score1R.count_3f}), ${needsThreeF ? '3F' : '2F'}=${secName2F3F?.first_name} ${secName2F3F?.name} (score: ${score2F3F.score}, 1R:${score2F3F.count_1r}, 2F:${score2F3F.count_2f}, 3F:${score2F3F.count_3f})`);
-
       // First, reset all responsable flags for this site/date
       const { error: resetError } = await supabase
         .from('capacite_effective')
@@ -514,6 +496,8 @@ serve(async (req) => {
 
       assignmentCount++;
     }
+
+    console.log(`✅ Phase 1: ${assignmentCount} assignations initiales créées\n`);
 
     // Helper function to apply multiple swaps and calculate new std dev
     interface PossibleSwap {
@@ -658,8 +642,6 @@ serve(async (req) => {
             return morning && !morning.is_1r && !morning.is_2f && !morning.is_3f;
           });
           
-          console.log(`  🔍 ${site_nom} ${date}: ${fullDaySecretaries.length} secrétaires toute la journée, ${noResponsibility.length} sans responsabilité`);
-          
           // Générer tous les échanges possibles
           const possibleSwaps: PossibleSwap[] = [];
           
@@ -731,8 +713,6 @@ serve(async (req) => {
           
           // ÉTAPE 3 : Si aucun échange simple n'améliore, tester les PAIRES
           if (bestSwaps.length === 0) {
-            console.log(`  🔍 Aucun échange simple améliorant, test des paires...`);
-            
             // Limiter aux 15 meilleurs échanges pour éviter explosion combinatoire
             const topSwaps = rankedSwaps.slice(0, 15);
             
@@ -754,7 +734,6 @@ serve(async (req) => {
                   bestStdDev = stdDev;
                   bestSwaps = pairSwaps;
                   bestTempScores = newScores;
-                  console.log(`  ✨ Paire améliorante trouvée: ${stdDev.toFixed(2)}`);
                 }
               }
             }
@@ -762,9 +741,6 @@ serve(async (req) => {
           
           // ÉTAPE 4 : Appliquer tous les échanges de la meilleure solution
           if (bestSwaps.length > 0 && bestTempScores) {
-            console.log(`  ✅ ${bestSwaps.length} échange(s) rentable(s): ${site_nom} ${date}`);
-            console.log(`     Écart-type: ${currentStdDev.toFixed(2)} → ${bestStdDev.toFixed(2)}`);
-            
             // Reset tous les flags pour ce site/date
             await supabase
               .from('capacite_effective')
@@ -776,12 +752,8 @@ serve(async (req) => {
             // Appliquer TOUS les échanges de bestSwaps
             for (const bestSwap of bestSwaps) {
               const sec1Name = secretaries?.find(s => s.id === bestSwap.sec1);
-              const sec2Name = secretaries?.find(s => s.id === bestSwap.sec2);
               
               if (bestSwap.type === '1R<->2F3F') {
-                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → ${is3F ? '3F' : '2F'}`);
-                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: ${is3F ? '3F' : '2F'} → 1R`);
-                
                 // sec1 devient 2F/3F
                 const update1 = is3F ? { is_3f: true } : { is_2f: true };
                 await supabase
@@ -802,9 +774,6 @@ serve(async (req) => {
                   .eq('actif', true);
                   
               } else if (bestSwap.type === '1R<->None') {
-                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: 1R → Aucune`);
-                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → 1R`);
-                
                 // sec1 perd 1R (déjà resetté)
                 // sec2 gagne 1R
                 await supabase
@@ -826,9 +795,6 @@ serve(async (req) => {
                   .eq('actif', true);
                   
               } else if (bestSwap.type === '2F3F<->None') {
-                console.log(`     ${sec1Name?.first_name} ${sec1Name?.name}: ${is3F ? '3F' : '2F'} → Aucune`);
-                console.log(`     ${sec2Name?.first_name} ${sec2Name?.name}: Aucune → ${is3F ? '3F' : '2F'}`);
-                
                 // sec1 perd 2F/3F (déjà resetté)
                 // sec2 gagne 2F/3F
                 const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
