@@ -121,26 +121,6 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
       };
 
       if (isNew) {
-        // First, deactivate any existing base schedules for the same day/period
-        const periodesConflictuelles: ('matin' | 'apres_midi' | 'toute_journee')[] =
-          formData.demi_journee === 'toute_journee' 
-            ? ['matin', 'apres_midi', 'toute_journee'] 
-            : formData.demi_journee === 'matin'
-              ? ['matin', 'toute_journee']
-              : ['apres_midi', 'toute_journee'];
-        
-        const { error: deactivateError } = await supabase
-          .from('horaires_base_medecins')
-          .update({ actif: false })
-          .eq('medecin_id', horaire.medecin_id)
-          .eq('jour_semaine', formData.jour_semaine)
-          .in('demi_journee', periodesConflictuelles)
-          .eq('actif', true);
-
-        if (deactivateError) {
-          console.error('Error deactivating conflicting schedules:', deactivateError);
-        }
-
         // Insert new horaire
         const { error } = await supabase
           .from('horaires_base_medecins')
@@ -150,7 +130,7 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
 
         toast({
           title: "Succès",
-          description: "Horaire ajouté (anciens horaires conflictuels désactivés)",
+          description: "Horaire ajouté",
         });
       } else {
         // Update existing horaire
