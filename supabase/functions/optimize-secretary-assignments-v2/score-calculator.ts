@@ -7,6 +7,7 @@ import type {
   AssignmentSummary
 } from './types.ts';
 import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS, ESPLANADE_OPHTALMOLOGIE_SITE_ID, SALLE_GASTRO_ID } from './types.ts';
+import { logger } from './index.ts';
 
 function countTodayAdminAssignments(
   secretaire_id: string,
@@ -216,11 +217,14 @@ export function calculateComboScore(
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
-  console.log(`\n🎯 Calcul du score COMBO pour:`, {
-    secretaire_id: secretaire_id.slice(0, 8),
-    matin: needMatin ? `${needMatin.site_id.slice(0, 8)}...` : 'null',
-    am: needAM ? `${needAM.site_id.slice(0, 8)}...` : 'null'
-  });
+  const isFocused = logger.isFocused(secretaire_id, needMatin?.date || needAM?.date);
+  
+  if (isFocused) {
+    logger.info(`\n🎯 Calcul score COMBO pour ${secretaire.name}:`, {
+      matin: needMatin?.site_id || 'ADMIN',
+      am: needAM?.site_id || 'ADMIN'
+    });
+  }
   
   let totalScore = 0;
   
@@ -272,28 +276,26 @@ export function calculateComboScore(
       const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
                         SCORE_WEIGHTS.SITE_PREF_3;
-      positiveScores.push(siteScore);
-      console.log(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
-    }
+        positiveScores.push(siteScore);
+        if (isFocused) logger.info(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
     
-    // Prendre le MAX
     const matinBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
     totalScore += matinBaseScore;
-    console.log(`  🌅 Score MATIN BASE: ${matinBaseScore}`);
+    if (isFocused) logger.info(`  🌅 Score MATIN BASE: ${matinBaseScore}`);
     
     // 1d. Bonus admin progressif (MATIN)
     if (needMatin.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 90;
-          console.log(`  💼💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
+          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +90`);
         } else {
-          console.log(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
+          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +0`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
         totalScore += adminBonus;
-        console.log(`  💼 MATIN Admin standard (${currentAdminCount}): +${adminBonus}`);
+        if (isFocused) logger.info(`  💼 MATIN Admin standard (${currentAdminCount}): +${adminBonus}`);
       }
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
@@ -313,7 +315,7 @@ export function calculateComboScore(
       if (totalDays >= 2) {
         const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD;
         totalScore += penalty;
-        console.log(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
+        if (isFocused) logger.info(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
       }
       
       // ✅ Marquer que ce site a été visité AUJOURD'HUI (pour éviter double comptage avec AM)
@@ -367,10 +369,9 @@ export function calculateComboScore(
       console.log(`  ✅ AM SITE_PREF_${siteMatchAM.priorite}: ${siteScore}`);
     }
     
-    // Prendre le MAX
     const amBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
     totalScore += amBaseScore;
-    console.log(`  🌇 Score AM BASE: ${amBaseScore}`);
+    if (isFocused) logger.info(`  🌇 Score AM BASE: ${amBaseScore}`);
     
     // 2d. Bonus admin progressif (AM)
     if (needAM.site_id === ADMIN_SITE_ID) {
@@ -421,10 +422,9 @@ export function calculateComboScore(
   // 3. BONUS MÊME SITE + PÉNALITÉ CHANGEMENT DE SITE
   // ============================================================
   if (needMatin && needAM) {
-    // BONUS: Même site matin + après-midi (hors ADMIN)
     if (needMatin.site_id === needAM.site_id && needMatin.site_id !== ADMIN_SITE_ID) {
       totalScore += SAME_SITE_BONUS;
-      console.log(`  🎁 Bonus même site: +${SAME_SITE_BONUS}`);
+      if (isFocused) logger.info(`  🎁 Bonus même site: +${SAME_SITE_BONUS}`);
     }
     
     // PÉNALITÉ: Changement de site

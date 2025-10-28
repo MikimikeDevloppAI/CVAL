@@ -3,10 +3,71 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 import type { SiteNeed, WeekData } from './types.ts';
-import { ADMIN_SITE_ID } from './types.ts';
+import { ADMIN_SITE_ID, ESPLANADE_OPHTALMOLOGIE_SITE_ID } from './types.ts';
 import { loadWeekData, getCurrentWeekAssignments } from './data-loader.ts';
 import { buildMILPModelSoft } from './milp-builder.ts';
 import { writeAssignments } from './result-writer.ts';
+
+// ============================================================
+// LOGGER SYSTEM
+// ============================================================
+export const logger = {
+  level: 'info' as 'info' | 'debug',
+  focus: null as { date?: string, secretaire_ids?: string[], secretaire_names?: string[] } | null,
+  focusIds: new Set<string>(),
+  
+  setLevel(level: 'info' | 'debug') {
+    this.level = level;
+  },
+  
+  setFocus(focus: { date?: string, secretaire_ids?: string[], secretaire_names?: string[] } | null, weekData?: any) {
+    this.focus = focus;
+    this.focusIds.clear();
+    
+    if (focus && weekData) {
+      if (focus.secretaire_ids) {
+        focus.secretaire_ids.forEach(id => this.focusIds.add(id));
+      }
+      
+      if (focus.secretaire_names && weekData.secretaires) {
+        for (const name of focus.secretaire_names) {
+          const nameLower = name.toLowerCase();
+          const matches = weekData.secretaires.filter((s: any) => 
+            s.name?.toLowerCase().includes(nameLower)
+          );
+          matches.forEach((s: any) => this.focusIds.add(s.id));
+          
+          if (matches.length > 0) {
+            console.log(`🔍 Focus: "${name}" matched ${matches.length} secretary(ies): ${matches.map((s: any) => s.name).join(', ')}`);
+          }
+        }
+      }
+      
+      if (this.focusIds.size > 0) {
+        console.log(`🎯 Focus mode active for ${this.focusIds.size} secretary(ies) on date: ${focus.date || 'all dates'}`);
+      }
+    }
+  },
+  
+  isFocused(secretaire_id: string, date?: string): boolean {
+    if (!this.focus || this.focusIds.size === 0) return false;
+    
+    const idMatch = this.focusIds.has(secretaire_id);
+    const dateMatch = !this.focus.date || !date || this.focus.date === date;
+    
+    return idMatch && dateMatch;
+  },
+  
+  info(...args: any[]) {
+    console.log(...args);
+  },
+  
+  debug(...args: any[]) {
+    if (this.level === 'debug') {
+      console.log(...args);
+    }
+  }
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -182,7 +243,7 @@ async function loadTodayAssignments(
 // Run a single optimization pass for the week
 async function runOptimizationPass(
   sortedDates: string[],
-  weekData: WeekData,
+  weekData: any,
   supabase: any,
   passNumber: 1 | 2,
   pass1Assignments?: Map<string, any[]>
@@ -192,96 +253,52 @@ async function runOptimizationPass(
   summary: any;
 }> {
   
-  // Compteurs globaux pour cette passe
   const adminCounters = new Map<string, number>();
   const p2p3Counters = new Map<string, Map<string, Set<string>>>();
   
-  // Stocker les assignments de chaque jour de cette passe
   const weekAssignments = new Map<string, any[]>();
   
   const dailyResults: any[] = [];
   
-  // Pre-fill counters from existing capacites_effective (before optimization dates) - Pass 1 only
-  if (passNumber === 1) {
-    for (const cap of weekData.capacites_effective) {
-      if (sortedDates.includes(cap.date)) continue;
-      if (!cap.secretaire_id) continue;
-      
-      if (cap.site_id === ADMIN_SITE_ID) {
-        const current = adminCounters.get(cap.secretaire_id) || 0;
-        adminCounters.set(cap.secretaire_id, current + 1);
-      }
-      
-      const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-      const sitePref = weekData.secretaires_sites.find(
-        ss => ss.secretaire_id === cap.secretaire_id && ss.site_id === cap.site_id
-      );
-      
-      if (sitePref && 
-          (sitePref.priorite === '2' || sitePref.priorite === '3') &&
-          cap.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
-        
-        if (!p2p3Counters.has(cap.secretaire_id)) {
-          p2p3Counters.set(cap.secretaire_id, new Map());
-        }
-        const secMap = p2p3Counters.get(cap.secretaire_id)!;
-        
-        if (!secMap.has(cap.site_id)) {
-          secMap.set(cap.site_id, new Set());
-        }
-        
-        secMap.get(cap.site_id)!.add(cap.date);
-      }
-    }
-    
-    console.log(`\n📊 Compteurs initialisés (Pass 1):`);
-    console.log(`  Admin: ${adminCounters.size} secrétaires`);
-    console.log(`  P2/P3: ${p2p3Counters.size} secrétaires`);
-  }
-  
   for (const date of sortedDates) {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`📅 PASSE ${passNumber} - Optimisation du ${date}`);
-    console.log('='.repeat(60));
+    logger.info(`\n${'='.repeat(60)}`);
+    logger.info(`📅 PASSE ${passNumber} - Optimisation du ${date}`);
+    logger.info('='.repeat(60));
     
     // ============================================================
-    // 🔑 PASSE 2: INITIALISER LES COMPTEURS AVEC LE CONTEXTE GLOBAL
+    // 🔑 INITIALISER LES COMPTEURS AVEC LE CONTEXTE GLOBAL (Pass 2 only)
     // ============================================================
     if (passNumber === 2 && pass1Assignments) {
       adminCounters.clear();
       p2p3Counters.clear();
       
-      // Construire le contexte : jours déjà ré-optimisés (Passe 2) + jours futurs (Passe 1)
       const contextDates = sortedDates.filter(d => d !== date);
+      const pass2Dates: string[] = [];
+      const pass1Dates: string[] = [];
       
       for (const contextDate of contextDates) {
         let assignmentsForDate: any[];
         
-        // Si le jour a déjà été optimisé en Passe 2, utiliser ces données
         if (weekAssignments.has(contextDate)) {
           assignmentsForDate = weekAssignments.get(contextDate)!;
+          pass2Dates.push(contextDate);
         } 
-        // Sinon, utiliser les données de Passe 1
         else if (pass1Assignments.has(contextDate)) {
           assignmentsForDate = pass1Assignments.get(contextDate)!;
+          pass1Dates.push(contextDate);
         } else {
           continue;
         }
         
-        // Mettre à jour les compteurs avec ces assignments
-        const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-        
         for (const assign of assignmentsForDate) {
           const secId = assign.secretaire_id;
           
-          // Compteur admin
           if (assign.site_id === ADMIN_SITE_ID) {
             adminCounters.set(secId, (adminCounters.get(secId) || 0) + 1);
           }
           
-          // Compteur P2/P3 Esplanade
           const sitePref = weekData.secretaires_sites.find(
-            ss => ss.secretaire_id === secId && ss.site_id === assign.site_id
+            (ss: any) => ss.secretaire_id === secId && ss.site_id === assign.site_id
           );
           
           if (sitePref && 
@@ -302,16 +319,39 @@ async function runOptimizationPass(
         }
       }
       
-      console.log(`\n📊 Compteurs initialisés avec contexte global:`);
-      console.log(`  💼 Admin: ${Array.from(adminCounters.entries()).slice(0, 3).map(([id, c]) => `${id.slice(0,8)}=${c}`).join(', ')}${adminCounters.size > 3 ? '...' : ''}`);
-      console.log(`  ⚠️ P2/P3 Esplanade: ${p2p3Counters.size} secrétaires avec assignments`);
+      logger.info(`\n📊 Compteurs Pass 2 initialisés avec contexte global:`);
+      logger.info(`  📅 Dates P2 (déjà optimisées): ${pass2Dates.length > 0 ? pass2Dates.join(', ') : 'aucune'}`);
+      logger.info(`  📅 Dates P1 (futures): ${pass1Dates.length > 0 ? pass1Dates.join(', ') : 'aucune'}`);
+      
+      const topAdmin = Array.from(adminCounters.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([id, count]) => {
+          const sec = weekData.secretaires.find((s: any) => s.id === id);
+          return `${sec?.name || id.slice(0,8)}=${count}`;
+        });
+      
+      logger.info(`  💼 Admin top 5: ${topAdmin.join(', ')}`);
+      logger.info(`  ⚠️ P2/P3 Esplanade: ${p2p3Counters.size} secrétaires`);
+      
+      if (logger.focus && logger.focusIds.size > 0) {
+        logger.info(`\n🔍 Focus secretaries for ${date}:`);
+        for (const secId of logger.focusIds) {
+          const sec = weekData.secretaires.find((s: any) => s.id === secId);
+          const adminCount = adminCounters.get(secId) || 0;
+          const esplanadeSet = p2p3Counters.get(secId)?.get(ESPLANADE_OPHTALMOLOGIE_SITE_ID);
+          const esplanadeDays = esplanadeSet ? esplanadeSet.size : 0;
+          
+          logger.info(`  👤 ${sec?.name || secId.slice(0,8)}: Admin=${adminCount}, Esplanade P2/P3=${esplanadeDays} jours`);
+        }
+      }
     }
     
     // ============================================================
     // CALCUL DES BESOINS
     // ============================================================
-    const besoinsForDay = weekData.besoins_effectifs.filter(b => b.date === date);
-    const planningBlocForDay = weekData.planning_bloc.filter(p => p.date === date);
+    const besoinsForDay = weekData.besoins_effectifs.filter((b: any) => b.date === date);
+    const planningBlocForDay = weekData.planning_bloc.filter((p: any) => p.date === date);
     
     const needs = calculateNeeds(
       besoinsForDay,
@@ -321,17 +361,33 @@ async function runOptimizationPass(
       weekData.sites
     );
     
-    // Ajouter les besoins admin
-    needs.push(...weekData.admin_needs.filter(n => n.date === date));
+    needs.push(...weekData.admin_needs.filter((n: any) => n.date === date));
     
-    console.log(`\n📋 ${needs.length} besoins identifiés pour ${date}`);
+    logger.info(`\n📋 ${needs.length} besoins identifiés pour ${date}`);
     
     // ============================================================
-    // GET WEEK ASSIGNMENTS (jours déjà optimisés dans CETTE passe)
+    // RESET DES CAPACITÉS
     // ============================================================
-    const week_assignments = passNumber === 1 
-      ? await getCurrentWeekAssignments(weekData, sortedDates.filter(d => d < date))
-      : [];
+    await supabase
+      .from('capacite_effective')
+      .update({
+        site_id: ADMIN_SITE_ID,
+        planning_genere_bloc_operatoire_id: null,
+        besoin_operation_id: null,
+        is_1r: false,
+        is_2f: false,
+        is_3f: false
+      })
+      .eq('date', date)
+      .eq('actif', true);
+    
+    // ============================================================
+    // GET WEEK ASSIGNMENTS
+    // ============================================================
+    const week_assignments = await getCurrentWeekAssignments(
+      weekData,
+      sortedDates.filter(d => d < date && weekAssignments.has(d))
+    );
     
     // ============================================================
     // BUILD CONTEXT
@@ -344,34 +400,9 @@ async function runOptimizationPass(
     };
     
     // ============================================================
-    // RESET DES CAPACITÉS
-    // ============================================================
-    if (DEBUG_VERBOSE) {
-      console.log(`\n♻️ Reset des capacités pour ${date}...`);
-    }
-    const { data: resetData, error: resetError } = await supabase
-      .from('capacite_effective')
-      .update({
-        site_id: ADMIN_SITE_ID,
-        planning_genere_bloc_operatoire_id: null,
-        besoin_operation_id: null,
-        is_1r: false,
-        is_2f: false,
-        is_3f: false
-      })
-      .eq('date', date)
-      .eq('actif', true)
-      .select('id');
-    
-    if (resetError) {
-      console.error('❌ Erreur lors du reset:', resetError);
-      throw resetError;
-    }
-    
-    // ============================================================
     // BUILD & SOLVE MILP
     // ============================================================
-    const capacitesForDay = weekData.capacites_effective.filter(c => c.date === date);
+    const capacitesForDay = weekData.capacites_effective.filter((c: any) => c.date === date);
     
     const model = buildMILPModelSoft(
       date,
@@ -381,151 +412,21 @@ async function runOptimizationPass(
       context
     );
     
-    if (DEBUG_VERBOSE) {
-      console.log('\n🔄 Résolution du modèle MILP...');
-    }
+    const solution = solver.Solve(model);
     
-    let solution;
-    try {
-      solution = solver.Solve(model);
-      
-      if (!solution.feasible) {
-        console.error(`[${date}] ❌ Modèle infaisable`);
-        dailyResults.push({ 
-          date, 
-          assigned: 0, 
-          score: 0, 
-          error: 'Modèle infaisable' 
-        });
-        continue;
-      }
-      
-      if (solution.result === Infinity || solution.result === -Infinity || isNaN(solution.result)) {
-        console.error(`[${date}] ❌ Modèle non borné - result: ${solution.result}`);
-        dailyResults.push({ 
-          date, 
-          assigned: 0, 
-          score: 0, 
-          error: 'Modèle non borné' 
-        });
-        continue;
-      }
-      
-      const assignedVars = Object.entries(solution)
-        .filter(([k, v]) => k.startsWith('assign_') && Number(v) > 0.5)
-        .map(([k]) => k);
-      
-      const blocAssignedVars = assignedVars.filter(v => isBlocVar(v));
-      const blocSite = weekData.sites.find(s => s.nom.toLowerCase().includes('bloc') && s.nom.toLowerCase().includes('opératoire'));
-      const blocSiteId = blocSite?.id || '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
-      
-      console.log(`[${date}] solver: assigned=${assignedVars.length}, score=${solution.result}`);
-      console.log(`[${date}] bloc_assignments=${blocAssignedVars.length}`);
-      console.log(`[${date}] bloc_site_id=${blocSiteId}`);
-      
-      if (blocAssignedVars.length > 0) {
-        const parts = blocAssignedVars[0].split('_');
-        const siteIdFromVar = parts[2];
-        console.log(`[${date}] bloc_sample_site_id_in_var=${siteIdFromVar}`);
-      }
-    } catch (error: any) {
-      console.error(`\n❌ ERREUR lors de la résolution du solveur:`, error);
-      console.error(`  Message: ${error.message}`);
-      console.error(`  Stack: ${error.stack}`);
-      dailyResults.push({ 
-        date, 
-        success: false, 
-        reason: 'solver_error',
-        error: error.message
-      });
-      continue;
-    }
+    logger.info(`\n✅ Solution - Score: ${solution.result?.toFixed(1) || 'N/A'}`);
     
-    // ============================================================
-    // ANALYZE: Report needs satisfaction
-    // ============================================================
-    console.log(`\n📊 Analyse des assignations pour ${date}:`);
-    for (const need of needs) {
-      if (need.site_id === ADMIN_SITE_ID) continue;
-      
-      const periodCode = need.periode === 'matin' ? '1' : '2';
-      const needId = need.type === 'bloc_operatoire' && need.bloc_operation_id && need.besoin_operation_id
-        ? `${need.site_id}_${date}_${periodCode}_${need.bloc_operation_id}_${need.besoin_operation_id}`
-        : `${need.site_id}_${date}_${periodCode}`;
-      
-      const assigned = Object.entries(solution)
-        .filter(([varName]) => varName.startsWith('assign_') && varName.endsWith(`_${needId}`))
-        .filter(([, value]) => Number(value) > 0.5)
-        .length;
-      
-      const site = weekData.sites.find(s => s.id === need.site_id);
-      const siteName = site?.nom || need.site_id;
-      
-      if (assigned < need.nombre_max) {
-        console.log(`  ⚠️ Besoin partiel: ${siteName} ${need.periode} - ${assigned}/${need.nombre_max} assignés`);
-      } else {
-        console.log(`  ✅ Besoin satisfait: ${siteName} ${need.periode} - ${assigned}/${need.nombre_max}`);
+    const selectedCombos: any[] = [];
+    for (const [varName, value] of Object.entries(solution)) {
+      if (varName !== 'feasible' && varName !== 'result' && varName !== 'bounded' && value === 1) {
+        const combo = (model as any)._combos?.find((c: any) => c.varName === varName);
+        if (combo) {
+          selectedCombos.push(combo);
+        }
       }
     }
     
-    // ============================================================
-    // VERIFY: Check for over-assignment
-    // ============================================================
-    if (DEBUG_VERBOSE) {
-      console.log('\n🔍 Vérification des sur-assignations:');
-      let hasOverAssignment = false;
-      
-      const needsBySlot = new Map<string, { needs: SiteNeed[], total_max: number }>();
-      for (const need of needs) {
-        const slotKey = `${need.site_id}_${need.date}_${need.periode}`;
-        if (!needsBySlot.has(slotKey)) {
-          needsBySlot.set(slotKey, { needs: [], total_max: 0 });
-        }
-        const slot = needsBySlot.get(slotKey)!;
-        slot.needs.push(need);
-        slot.total_max += need.nombre_max;
-      }
-      
-      for (const [slotKey, slot] of needsBySlot) {
-        const [site_id, slot_date, periode] = slotKey.split('_');
-        const site = weekData.sites.find(s => s.id === site_id);
-        
-        let assignedForSlot = 0;
-        for (const [varName, value] of Object.entries(solution)) {
-          if (!varName.startsWith('assign_')) continue;
-          if (Number(value) <= 0.5) continue;
-          
-          if (varName.includes(slotKey)) {
-            assignedForSlot++;
-          }
-        }
-        
-        const expectedMax = slot.needs.length === 1 
-          ? slot.needs[0].nombre_max 
-          : Math.ceil(slot.needs.reduce((sum, n) => sum + n.nombre_max, 0));
-        
-        if (assignedForSlot > expectedMax) {
-          console.error(`  ❌ SUR-ASSIGNATION détectée: ${site?.nom || site_id} ${periode}`);
-          console.error(`     Assigné: ${assignedForSlot}, Maximum attendu: ${expectedMax}`);
-          hasOverAssignment = true;
-        } else {
-          console.log(`  ✅ ${site?.nom || site_id} ${periode}: ${assignedForSlot}/${expectedMax} secrétaires`);
-        }
-      }
-      
-      if (hasOverAssignment) {
-        console.error('\n❌ ERREUR: Sur-assignation détectée! Optimisation annulée.');
-        dailyResults.push({ 
-          date, 
-          success: false, 
-          reason: 'over_assignment',
-          needs_count: needs.length
-        });
-        continue;
-      }
-      
-      console.log('✅ Aucune sur-assignation détectée\n');
-    }
+    logger.info(`  Assignées: ${selectedCombos.length} secrétaires`);
     
     // ============================================================
     // WRITE ASSIGNMENTS
@@ -538,7 +439,7 @@ async function runOptimizationPass(
       supabase
     );
     
-    console.log(`✅ ${writeCount} assignations écrites`);
+    logger.info(`✅ ${writeCount} assignations écrites`);
     
     // ============================================================
     // STOCKER LES ASSIGNMENTS DE CE JOUR
@@ -547,171 +448,73 @@ async function runOptimizationPass(
     weekAssignments.set(date, todayAssignments);
     
     // ============================================================
-    // UPDATE COUNTERS (pour Passe 1 uniquement)
+    // UPDATE COUNTERS (for Pass 1 only)
     // ============================================================
     if (passNumber === 1) {
-      const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
-      
-      for (const [varName, value] of Object.entries(solution)) {
-        if (Number(value) < 0.5) continue;
-        if (!varName.startsWith('combo_')) continue;
-        
-        const parts = varName.split('_');
-        if (parts.length < 4) continue;
-        
-        const secId = parts[1];
-        const needMatinIdPart = parts.slice(2, parts.length - 1).join('_');
-        const needAMIdPart = parts[parts.length - 1];
-        
-        // Process morning assignment
-        if (needMatinIdPart !== 'null') {
-          const matinNeed = needs.find(n => {
-            const needId = n.type === 'bloc_operatoire' && n.bloc_operation_id && n.besoin_operation_id
-              ? `${n.site_id}_${date}_1_${n.bloc_operation_id}_${n.besoin_operation_id}`
-              : `${n.site_id}_${date}_1`;
-            return needId === needMatinIdPart;
-          });
-          
-          if (matinNeed) {
-            if (matinNeed.site_id === ADMIN_SITE_ID) {
-              const current = adminCounters.get(secId) || 0;
-              adminCounters.set(secId, current + 1);
-            }
-            
-            const sitePref = weekData.secretaires_sites.find(
-              ss => ss.secretaire_id === secId && ss.site_id === matinNeed.site_id
-            );
-            
-            if (sitePref && 
-                (sitePref.priorite === '2' || sitePref.priorite === '3') &&
-                matinNeed.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
-              
-              if (!p2p3Counters.has(secId)) {
-                p2p3Counters.set(secId, new Map());
-              }
-              const secMap = p2p3Counters.get(secId)!;
-              
-              if (!secMap.has(matinNeed.site_id)) {
-                secMap.set(matinNeed.site_id, new Set());
-              }
-              
-              secMap.get(matinNeed.site_id)!.add(date);
-            }
-          }
+      for (const assign of todayAssignments) {
+        if (assign.site_id === ADMIN_SITE_ID) {
+          adminCounters.set(assign.secretaire_id, (adminCounters.get(assign.secretaire_id) || 0) + 1);
         }
         
-        // Process afternoon assignment
-        if (needAMIdPart !== 'null') {
-          const amNeed = needs.find(n => {
-            const needId = n.type === 'bloc_operatoire' && n.bloc_operation_id && n.besoin_operation_id
-              ? `${n.site_id}_${date}_2_${n.bloc_operation_id}_${n.besoin_operation_id}`
-              : `${n.site_id}_${date}_2`;
-            return needId === needAMIdPart;
-          });
+        const sitePref = weekData.secretaires_sites.find(
+          (ss: any) => ss.secretaire_id === assign.secretaire_id && ss.site_id === assign.site_id
+        );
+        
+        if (sitePref && 
+            (sitePref.priorite === '2' || sitePref.priorite === '3') &&
+            assign.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
           
-          if (amNeed) {
-            if (amNeed.site_id === ADMIN_SITE_ID) {
-              const current = adminCounters.get(secId) || 0;
-              adminCounters.set(secId, current + 1);
-            }
-            
-            const sitePref = weekData.secretaires_sites.find(
-              ss => ss.secretaire_id === secId && ss.site_id === amNeed.site_id
-            );
-            
-            if (sitePref && 
-                (sitePref.priorite === '2' || sitePref.priorite === '3') &&
-                amNeed.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
-              
-              if (!p2p3Counters.has(secId)) {
-                p2p3Counters.set(secId, new Map());
-              }
-              const secMap = p2p3Counters.get(secId)!;
-              
-              if (!secMap.has(amNeed.site_id)) {
-                secMap.set(amNeed.site_id, new Set());
-              }
-              
-              secMap.get(amNeed.site_id)!.add(date);
-            }
+          if (!p2p3Counters.has(assign.secretaire_id)) {
+            p2p3Counters.set(assign.secretaire_id, new Map());
           }
+          const secMap = p2p3Counters.get(assign.secretaire_id)!;
+          
+          if (!secMap.has(assign.site_id)) {
+            secMap.set(assign.site_id, new Set());
+          }
+          
+          secMap.get(assign.site_id)!.add(date);
         }
       }
     }
     
     // ============================================================
-    // LOGS DE DIAGNOSTIC
+    // LOGS DE DIAGNOSTIC (debug only)
     // ============================================================
-    if (passNumber === 1) {
-      console.log(`\n📊 État des compteurs après ${date}:`);
+    if (logger.level === 'debug') {
+      logger.debug(`\n📊 État des compteurs après ${date}:`);
       
-      if (adminCounters.size > 0) {
-        console.log(`\n  💼 Admin (Top 5):`);
-        const adminEntries = Array.from(adminCounters.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
-        
-        for (const [secId, count] of adminEntries) {
-          const sec = weekData.secretaires.find(s => s.id === secId);
-          const target = sec?.nombre_demi_journees_admin || 0;
-          console.log(`    - ${sec?.name || secId}: ${count}/${target} demi-journées`);
-        }
+      const topAdminCounters = Array.from(adminCounters.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      logger.debug(`\n💼 Top 10 Admin assignments (semaine):`);
+      for (const [secId, count] of topAdminCounters) {
+        const sec = weekData.secretaires.find((s: any) => s.id === secId);
+        const target = sec?.nombre_demi_journees_admin || 'N/A';
+        logger.debug(`  ${sec?.name || secId.slice(0, 8)}: ${count}/${target}`);
       }
       
-      if (p2p3Counters.size > 0) {
-        console.log(`\n  ⚠️ P2/P3 Esplanade Ophtalmologie (Top 5):`);
-        const p2p3Entries: [string, number][] = [];
-        
-        for (const [secId, sitesMap] of p2p3Counters) {
-          let totalDays = 0;
-          for (const datesSet of sitesMap.values()) {
-            totalDays += datesSet.size;
-          }
-          p2p3Entries.push([secId, totalDays]);
-        }
-        
-        p2p3Entries
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .forEach(([secId, days]) => {
-            const sec = weekData.secretaires.find(s => s.id === secId);
-            console.log(`    - ${sec?.name || secId}: ${days} jour(s)`);
+      const esplanadeOverload: Array<{ secId: string, name: string, days: number }> = [];
+      for (const [secId, siteMap] of p2p3Counters) {
+        const esplanadeSet = siteMap.get(ESPLANADE_OPHTALMOLOGIE_SITE_ID);
+        if (esplanadeSet && esplanadeSet.size >= 2) {
+          const sec = weekData.secretaires.find((s: any) => s.id === secId);
+          esplanadeOverload.push({
+            secId,
+            name: sec?.name || secId.slice(0, 8),
+            days: esplanadeSet.size
           });
-      }
-    }
-    
-    // ============================================================
-    // APPELER assign-closing-responsibles
-    // ============================================================
-    console.log(`\n🔐 Assignation des responsables de fermeture pour ${date}...`);
-    try {
-      const d = new Date(date);
-      const day = d.getDay();
-      const diffToMonday = day === 0 ? -6 : 1 - day;
-      const monday = new Date(d);
-      monday.setDate(monday.getDate() + diffToMonday);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const week_start = monday.toISOString().split('T')[0];
-      const week_end = sunday.toISOString().split('T')[0];
-
-      const { data: closingResult, error: closingError } = await supabase.functions.invoke(
-        'assign-closing-responsibles',
-        {
-          body: { week_start, week_end, selected_dates: [date] }
         }
-      );
+      }
       
-      if (closingError) {
-        console.error(`❌ Erreur assign-closing-responsibles pour ${date}:`, closingError);
-      } else {
-        console.log(`✅ Responsables de fermeture assignés pour ${date}`);
-        if (closingResult?.details) {
-          console.log(`   📋 Détails:`, closingResult.details);
+      if (esplanadeOverload.length > 0) {
+        esplanadeOverload.sort((a, b) => b.days - a.days);
+        logger.debug(`\n⚠️ Secrétaires P2/P3 avec 2+ jours Esplanade Ophtalmo:`);
+        for (const { name, days } of esplanadeOverload.slice(0, 10)) {
+          logger.debug(`  ${name}: ${days} jours`);
         }
       }
-    } catch (closingErr: any) {
-      console.error(`❌ Exception lors de l'appel assign-closing-responsibles:`, closingErr.message);
     }
     
     dailyResults.push({
@@ -737,18 +540,21 @@ async function optimizeSingleWeek(
 ): Promise<any> {
   const sortedDates = dates.sort();
   
-  console.log(`\n🚀 Optimisation de la semaine: ${sortedDates[0]} → ${sortedDates[sortedDates.length - 1]}`);
-  console.log(`📦 Chargement unique des données de la semaine...`);
+  logger.info(`\n🚀 Optimisation de la semaine: ${sortedDates[0]} → ${sortedDates[sortedDates.length - 1]}`);
+  logger.info(`📦 Chargement unique des données de la semaine...`);
   
-  // Load full week data ONCE
   const weekData = await loadWeekData(dates, supabase);
   
+  if (logger.focus) {
+    logger.setFocus(logger.focus, weekData);
+  }
+  
   // ============================================================
-  // PASSE 1: Optimisation normale (comportement actuel)
+  // PASSE 1
   // ============================================================
-  console.log('\n' + '='.repeat(80));
-  console.log('🔄 PASSE 1: Optimisation initiale de la semaine');
-  console.log('='.repeat(80));
+  logger.info('\n' + '='.repeat(80));
+  logger.info('🔄 PASSE 1: Optimisation initiale de la semaine');
+  logger.info('='.repeat(80));
   
   const pass1Results = await runOptimizationPass(
     sortedDates,
@@ -762,11 +568,11 @@ async function optimizeSingleWeek(
   }
   
   // ============================================================
-  // PASSE 2: Ré-optimisation avec contexte complet
+  // PASSE 2
   // ============================================================
-  console.log('\n' + '='.repeat(80));
-  console.log('🔄 PASSE 2: Ré-optimisation avec contexte global de la semaine');
-  console.log('='.repeat(80));
+  logger.info('\n' + '='.repeat(80));
+  logger.info('🔄 PASSE 2: Ré-optimisation avec contexte global de la semaine');
+  logger.info('='.repeat(80));
   
   const pass2Results = await runOptimizationPass(
     sortedDates,
@@ -776,26 +582,16 @@ async function optimizeSingleWeek(
     pass1Results.weekAssignments
   );
   
-  // Refresh materialized view
-  console.log('\n♻️ Rafraîchissement des vues matérialisées...');
-  try {
-    const refreshUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/refresh-besoins-view`;
-    const refreshResponse = await fetch(refreshUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-      }
-    });
-
-    if (!refreshResponse.ok) {
-      const errorText = await refreshResponse.text();
-      console.error('⚠️ Failed to refresh views:', errorText);
-    } else {
-      console.log('✅ Materialized views refreshed successfully');
-    }
-  } catch (refreshError) {
-    console.error('⚠️ Exception refreshing views:', refreshError);
+  logger.info('\n♻️ Rafraîchissement des vues matérialisées...');
+  await supabase.rpc('refresh_besoins_view');
+  
+  const lastDate = sortedDates[sortedDates.length - 1];
+  logger.info(`\n🎯 Assignation des responsables de fermeture pour ${lastDate}...`);
+  const { error: closingError } = await supabase.functions.invoke('assign-closing-responsibles', {
+    body: { date: lastDate }
+  });
+  if (closingError) {
+    logger.info('⚠️ Erreur lors de l\'assignation des responsables de fermeture:', closingError);
   }
   
   return {
@@ -807,83 +603,67 @@ async function optimizeSingleWeek(
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { dates } = await req.json();
-
-    if (!dates || !Array.isArray(dates) || dates.length === 0) {
-      throw new Error('Le paramètre "dates" est requis et doit être un tableau non vide');
+    const { dates, logLevel, focus } = await req.json();
+    
+    logger.setLevel(logLevel || 'info');
+    
+    if (focus) {
+      logger.setFocus(focus);
     }
-
-    console.log(`\n========================================`);
-    console.log(`🎯 OPTIMISATION MILP V2 - Build ${new Date().toISOString()}`);
-    console.log(`📅 Dates à optimiser: ${dates.length} jour(s)`);
-    console.log(`========================================\n`);
-
-    // Group dates by week
+    
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+      throw new Error('Missing or invalid "dates" parameter (must be a non-empty array)');
+    }
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    logger.info(`\n🎯 Optimisation demandée pour ${dates.length} dates`);
+    
     const weekGroups = new Map<string, string[]>();
     
     for (const date of dates) {
-      const d = new Date(date);
-      const day = d.getDay();
-      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const d = new Date(date + 'T00:00:00Z');
+      const dayOfWeek = d.getUTCDay();
+      const daysUntilMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
       const monday = new Date(d);
-      monday.setDate(monday.getDate() + diffToMonday);
-      const weekKey = monday.toISOString().split('T')[0];
+      monday.setUTCDate(d.getUTCDate() + daysUntilMonday);
+      const mondayStr = monday.toISOString().split('T')[0];
       
-      if (!weekGroups.has(weekKey)) {
-        weekGroups.set(weekKey, []);
+      if (!weekGroups.has(mondayStr)) {
+        weekGroups.set(mondayStr, []);
       }
-      weekGroups.get(weekKey)!.push(date);
+      weekGroups.get(mondayStr)!.push(date);
     }
-
-    console.log(`📊 Nombre de semaines à optimiser: ${weekGroups.size}`);
-
-    if (weekGroups.size === 1) {
-      // Single week optimization
-      const weekDates = Array.from(weekGroups.values())[0];
-      const result = await optimizeSingleWeek(weekDates, supabase);
-      
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Multi-week optimization (parallel)
-      console.log('🔀 Optimisation multi-semaines en parallèle');
-      
-      const promises = Array.from(weekGroups.values()).map(weekDates => 
-        optimizeSingleWeek(weekDates, supabase)
-      );
-      
-      const results = await Promise.all(promises);
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          weeks_optimized: weekGroups.size,
-          results
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-  } catch (error: any) {
-    console.error('❌ Erreur:', error);
+    
+    logger.info(`📅 ${weekGroups.size} semaine(s) à optimiser`);
+    
+    const weekPromises = Array.from(weekGroups.values()).map(weekDates => 
+      optimizeSingleWeek(weekDates, supabase)
+    );
+    
+    const results = await Promise.all(weekPromises);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `Optimisation terminée pour ${dates.length} dates`,
+        results
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+    
+  } catch (error) {
+    console.error('Error during optimization:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

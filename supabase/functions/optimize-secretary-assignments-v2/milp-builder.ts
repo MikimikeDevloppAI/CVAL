@@ -17,6 +17,7 @@ import {
   SALLES_STANDARD
 } from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
+import { logger } from './index.ts';
 
 const DEBUG_VERBOSE = false;
 
@@ -35,26 +36,22 @@ export function buildMILPModelSoft(
   week_data: WeekData,
   context: DynamicContext
 ) {
-  console.log(`\n🔧 Construction du modèle COMBO-BASED MILP pour ${date}...`);
+  logger.info(`\n🔧 Construction du modèle MILP pour ${date}`);
   
-  // Merge ADMIN needs with regular needs
   const adminNeedsForDate = week_data.admin_needs.filter((n: SiteNeed) => n.date === date);
   const allNeeds = [...needs, ...adminNeedsForDate];
   
-  console.log(`  📊 Besoins sites/bloc: ${needs.length}, Besoins ADMIN: ${adminNeedsForDate.length}`);
+  logger.debug(`  📊 Besoins sites/bloc: ${needs.length}, Besoins ADMIN: ${adminNeedsForDate.length}`);
   
   const todayCapacites = capacites.filter(c => c.date === date);
   const activeSecretaires = new Set(
     todayCapacites.filter(c => c.secretaire_id).map(c => c.secretaire_id!)
   );
   
-  console.log(`  👥 Secrétaires actifs: ${activeSecretaires.size}`);
+  logger.info(`  👥 Secrétaires: ${activeSecretaires.size}, Besoins: ${allNeeds.length}`);
   
-  // Separate needs by period
   const needsMatin = allNeeds.filter(n => n.periode === 'matin');
   const needsAM = allNeeds.filter(n => n.periode === 'apres_midi');
-  
-  console.log(`  🌅 Besoins matin: ${needsMatin.length}, 🌇 Besoins AM: ${needsAM.length}`);
   
   const model: any = {
     optimize: 'score_total',
@@ -71,7 +68,6 @@ export function buildMILPModelSoft(
   // ============================================================
   // GENERATE ALL COMBOS
   // ============================================================
-  console.log(`\n📦 Génération des combos...`);
   
   for (const secretaire_id of activeSecretaires) {
     const secretaire = week_data.secretaires.find(s => s.id === secretaire_id);
@@ -149,12 +145,11 @@ export function buildMILPModelSoft(
     }
     // else: no capacity at all → eligibleAM stays []
     
-    // Log for Lucie Vanni or debug mode
-    if (DEBUG_VERBOSE || secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b') {
+    if (logger.isFocused(secretaire_id, date)) {
       const status = hasMatinCap && hasAMCap ? 'FULL' : 
                      hasMatinCap ? 'MATIN_ONLY' : 
                      hasAMCap ? 'AM_ONLY' : 'NONE';
-      console.log(`  👤 ${secretaire.name} [${status}]: ${eligibleMatin.length} matin × ${eligibleAM.length} AM = ${eligibleMatin.length * eligibleAM.length} combos`);
+      logger.info(`  👤 ${secretaire.name} [${status}]: ${eligibleMatin.length} matin × ${eligibleAM.length} AM combos`);
     }
     
     // Generate all combos (matin × AM)
@@ -285,28 +280,27 @@ export function buildMILPModelSoft(
         model.binaries[varName] = 1;
         comboCount++;
         
-        // Log top combos for Lucie Vanni
-        if (secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && score > 50) {
-          const mName = needM ? week_data.sites.find(s => s.id === needM.site_id)?.nom : 'null';
-          const aName = needA ? week_data.sites.find(s => s.id === needA.site_id)?.nom : 'null';
-          console.log(`    💎 Combo Lucie: ${mName} + ${aName} = ${score.toFixed(1)}`);
+        // Log combos for focused secretaries
+        if (logger.isFocused(secretaire_id, date)) {
+          const mName = needM ? week_data.sites.find(s => s.id === needM.site_id)?.nom : 'ADMIN';
+          const aName = needA ? week_data.sites.find(s => s.id === needA.site_id)?.nom : 'ADMIN';
+          logger.info(`    💎 Combo ${secretaire.name}: ${mName} + ${aName} = ${score.toFixed(1)}`);
         }
       }
     }
   }
   
-  console.log(`  ✅ Combos générés: ${comboCount} (exclus: ${excludedComboCount})`);
+  logger.info(`  ✅ Combos: ${comboCount} (exclus: ${excludedComboCount})`);
   
   // ============================================================
   // CONSTRAINT: One combo per secretary per day
   // ============================================================
-  console.log(`\n📋 Ajout des contraintes...`);
   
   for (const secretaire_id of activeSecretaires) {
     const secretaireCombos = combos.filter(c => c.secretaire_id === secretaire_id);
     
     if (secretaireCombos.length === 0) {
-      console.warn(`  ⚠️ Aucun combo valide pour ${secretaire_id.slice(0, 8)}`);
+      logger.debug(`  ⚠️ Aucun combo valide pour ${secretaire_id.slice(0, 8)}`);
       continue;
     }
     
@@ -316,16 +310,11 @@ export function buildMILPModelSoft(
     for (const combo of secretaireCombos) {
       model.variables[combo.varName][constraintName] = 1;
     }
-    
-    if (DEBUG_VERBOSE) {
-      console.log(`  ✅ ${secretaire_id.slice(0, 8)}: 1 combo parmi ${secretaireCombos.length}`);
-    }
   }
   
   // ============================================================
   // CONSTRAINT: Maximum capacity per SITE and HALF-DAY (aggregated for sites, specific for bloc)
   // ============================================================
-  console.log(`\n🎯 Ajout des contraintes de capacité...`);
   
   // Separate site needs from bloc needs
   const needsMatinSite = needsMatin.filter(n => n.type !== 'bloc_operatoire');
@@ -362,16 +351,7 @@ export function buildMILPModelSoft(
     
     const site = week_data.sites.find(s => s.id === site_id);
     const siteName = site?.nom || site_id.slice(0, 8);
-    console.log(`  🌅 ${siteName} matin: max ${total_max} (${coveringCount} combos)`);
-    
-    if (siteName.includes('Angiologie')) {
-      const lucieCount = combos.filter(c => 
-        c.secretaire_id === '96d2c491-903b-40f8-8119-70c1c4a8193b' && 
-        c.needMatin?.site_id === site_id && 
-        c.needMatin?.type !== 'bloc_operatoire'
-      ).length;
-      console.log(`    💎 Lucie Vanni: ${lucieCount} combos couvrant Angiologie matin`);
-    }
+    logger.debug(`  🌅 ${siteName} matin: max ${total_max} (${coveringCount} combos)`);
   }
   
   // Create constraints for afternoon site totals (aggregated by site)
@@ -389,7 +369,7 @@ export function buildMILPModelSoft(
     
     const site = week_data.sites.find(s => s.id === site_id);
     const siteName = site?.nom || site_id.slice(0, 8);
-    console.log(`  🌇 ${siteName} AM: max ${total_max} (${coveringCount} combos)`);
+    logger.debug(`  🌇 ${siteName} AM: max ${total_max} (${coveringCount} combos)`);
   }
   
   // Create specific constraints for BLOC needs (by besoin_operation_id)
@@ -409,7 +389,7 @@ export function buildMILPModelSoft(
     }
     
     const besoinOp = week_data.besoins_operations.find(b => b.id === need.besoin_operation_id);
-    console.log(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} matin: max ${need.nombre_max} (${coveringCount} combos)`);
+    logger.debug(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} matin: max ${need.nombre_max} (${coveringCount} combos)`);
   }
   
   for (const need of needsAMBloc) {
@@ -428,7 +408,7 @@ export function buildMILPModelSoft(
     }
     
     const besoinOp = week_data.besoins_operations.find(b => b.id === need.besoin_operation_id);
-    console.log(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} AM: max ${need.nombre_max} (${coveringCount} combos)`);
+    logger.debug(`  🏥 Bloc ${besoinOp?.nom || 'unknown'} AM: max ${need.nombre_max} (${coveringCount} combos)`);
   }
   
   // ============================================================
