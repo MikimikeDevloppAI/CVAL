@@ -478,7 +478,7 @@ export function SecretaireCard({
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <Briefcase className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              Besoins opérationnels
+              Compétences opération
             </p>
           </div>
           <div className="space-y-1">
@@ -512,7 +512,7 @@ export function SecretaireCard({
                 className="w-full border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 mt-1"
               >
                 <Plus className="h-3 w-3 mr-2" />
-                Ajouter un besoin
+                Ajouter une compétence
               </Button>
             )}
           </div>
