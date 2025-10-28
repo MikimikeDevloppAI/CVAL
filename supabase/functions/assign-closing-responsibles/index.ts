@@ -9,7 +9,7 @@ const corsHeaders = {
 interface SecretaryScore {
   id: string;
   name: string;
-  score: number; // 1R = 2 points, 2F = 10 points, 3F = 15 points
+  score: number; // 1R = 1 point, 2F = 2 points, 3F = 3 points
   count_1r: number;
   count_2f: number;
   count_3f: number;
@@ -66,7 +66,7 @@ serve(async (req) => {
       console.log(`📅 Assigning closing responsibles for: ${week_start} to ${week_end}`);
     }
 
-    // Track scores for current week with new point system (1R=2pts, 2F=10pts, 3F=15pts)
+    // Track scores for current week (1R=1pt, 2F=2pts, 3F=3pts)
     const currentWeekScores = new Map<string, SecretaryScore>();
     
     // Get current week assignments to count scores (excluding selected dates being re-optimized)
@@ -103,20 +103,20 @@ serve(async (req) => {
       const secScore = currentWeekScores.get(secId)!;
       
       if (assignment.is_1r) {
-        secScore.score += 2;
+        secScore.score += 1;
         secScore.count_1r += 1;
       }
       if (assignment.is_2f) {
-        secScore.score += 10;
+        secScore.score += 2;
         secScore.count_2f += 1;
       }
       if (assignment.is_3f) {
-        secScore.score += 15;
+        secScore.score += 3;
         secScore.count_3f += 1;
       }
     }
     
-    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries (1R=2pts, 2F=10pts, 3F=15pts)`);
+    console.log(`📊 Current week scores calculated for ${currentWeekScores.size} secretaries (1R=1pt, 2F=2pts, 3F=3pts)`);
 
     // Step 3: Get all secretaries info
     const { data: secretaries, error: secError } = await supabase
@@ -398,7 +398,7 @@ serve(async (req) => {
       
       // Update score for 2F/3F
       const score2F3F = currentWeekScores.get(responsable2F3F)!;
-      const pointsFor2F3F = needsThreeF ? 15 : 10;
+      const pointsFor2F3F = needsThreeF ? 3 : 2;
       score2F3F.score += pointsFor2F3F;
       if (needsThreeF) {
         score2F3F.count_3f += 1;
@@ -432,7 +432,7 @@ serve(async (req) => {
       
       // Update score for 1R
       const score1R = currentWeekScores.get(responsable1R)!;
-      score1R.score += 2;
+      score1R.score += 1;
       score1R.count_1r += 1;
       
       // First, reset all responsable flags for this site/date
@@ -518,7 +518,7 @@ serve(async (req) => {
       
       for (const swap of swaps) {
         const is3F = is3FMap.get(swap.contextKey) || false;
-        const points2F3F = is3F ? 15 : 10;
+        const points2F3F = is3F ? 3 : 2;
         
         // Ensure entries exist
         if (!tempScores.has(swap.sec1)) {
@@ -533,21 +533,21 @@ serve(async (req) => {
         
         if (swap.type === '1R<->2F3F') {
           // sec1 (1R) devient 2F/3F
-          tempScore1.score = tempScore1.score - 2 + points2F3F;
+          tempScore1.score = tempScore1.score - 1 + points2F3F;
           tempScore1.count_1r -= 1;
           if (is3F) tempScore1.count_3f += 1; else tempScore1.count_2f += 1;
           
           // sec2 (2F/3F) devient 1R
-          tempScore2.score = tempScore2.score - points2F3F + 2;
+          tempScore2.score = tempScore2.score - points2F3F + 1;
           if (is3F) tempScore2.count_3f -= 1; else tempScore2.count_2f -= 1;
           tempScore2.count_1r += 1;
         } else if (swap.type === '1R<->None') {
           // sec1 (1R) perd 1R
-          tempScore1.score = tempScore1.score - 2;
+          tempScore1.score = tempScore1.score - 1;
           tempScore1.count_1r -= 1;
           
           // sec2 (None) gagne 1R
-          tempScore2.score = tempScore2.score + 2;
+          tempScore2.score = tempScore2.score + 1;
           tempScore2.count_1r += 1;
         } else if (swap.type === '2F3F<->None') {
           // sec1 (2F/3F) perd 2F/3F
