@@ -120,9 +120,9 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                 Comptabilisé en journées entières
               </span>
             </div>
-            <div className="h-[450px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
+            <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={responsibilitiesData} margin={{ top: 10, right: 40, left: 20, bottom: 80 }}>
+                <BarChart data={responsibilitiesData} margin={{ top: 10, right: 40, left: 20, bottom: 60 }}>
                   <defs>
                     <linearGradient id="gradient1R" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9}/>
@@ -142,7 +142,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                     dataKey="nom" 
                     angle={-45}
                     textAnchor="end"
-                    height={80}
+                    height={60}
                     tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                     stroke="hsl(var(--border))"
                   />
@@ -163,7 +163,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                     }}
                   />
                   <Legend 
-                    wrapperStyle={{ paddingTop: '8px' }}
+                    wrapperStyle={{ paddingTop: '4px' }}
                     iconType="circle"
                   />
                   <Bar dataKey="1R" fill="url(#gradient1R)" name="Responsable 1R" radius={[8, 8, 0, 0]} />
@@ -180,9 +180,9 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
               <h3 className="text-lg font-semibold bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">
                 Nombre de jours au Centre Esplanade
               </h3>
-              <div className="h-[450px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
+              <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={esplanadeData} margin={{ top: 10, right: 40, left: 20, bottom: 80 }}>
+                  <BarChart data={esplanadeData} margin={{ top: 10, right: 40, left: 20, bottom: 60 }}>
                     <defs>
                       <linearGradient id="gradientEsplanade" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#f97316" stopOpacity={0.9}/>
@@ -194,7 +194,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                       dataKey="nom" 
                       angle={-45}
                       textAnchor="end"
-                      height={80}
+                      height={60}
                       tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                       stroke="hsl(var(--border))"
                     />
@@ -215,7 +215,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                       }}
                     />
                     <Legend 
-                      wrapperStyle={{ paddingTop: '8px' }}
+                      wrapperStyle={{ paddingTop: '4px' }}
                       iconType="circle"
                     />
                     <Bar dataKey="Jours" fill="url(#gradientEsplanade)" name="Jours au Centre Esplanade" radius={[8, 8, 0, 0]} />
