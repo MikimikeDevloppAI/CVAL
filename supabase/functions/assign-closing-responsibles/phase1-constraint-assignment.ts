@@ -5,6 +5,7 @@ export interface ClosingSiteForOptim {
   site_id: string;
   site_nom: string;
   date: string;
+  dayOfWeek: number; // 0=Sunday, 1=Monday, 2=Tuesday, ..., 4=Thursday
   full_day_secretaries: string[];
   needs_2f: boolean;
   needs_3f: boolean;
@@ -18,7 +19,8 @@ export async function assignPhase1(
   currentWeekScores: Map<string, SecretaryScore>,
   has2F3FThisWeek: Set<string>,
   secretaries: any[],
-  supabase: any
+  supabase: any,
+  florenceBron?: any
 ): Promise<number> {
   console.log('\n🏗️ PHASE 1: Assignation initiale par contraintes');
   
@@ -34,7 +36,7 @@ export async function assignPhase1(
   
   for (const site of sites2) {
     const assigned = await assignSite2Secretaries(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
     );
     if (assigned) assignmentsCount++;
   }
@@ -44,7 +46,7 @@ export async function assignPhase1(
   
   for (const site of sites3) {
     const assigned = await assignSiteWithChoice(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
     );
     if (assigned) assignmentsCount++;
   }
@@ -54,7 +56,7 @@ export async function assignPhase1(
   
   for (const site of sites4plus) {
     const assigned = await assignSiteWithChoice(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
     );
     if (assigned) assignmentsCount++;
   }
@@ -68,7 +70,8 @@ async function assignSite2Secretaries(
   scores: Map<string, SecretaryScore>,
   has2F3F: Set<string>,
   secretaries: any[],
-  supabase: any
+  supabase: any,
+  florenceBron?: any
 ): Promise<boolean> {
   const [sec1_id, sec2_id] = site.full_day_secretaries;
   
@@ -95,12 +98,42 @@ async function assignSite2Secretaries(
     const penalized1 = calculatePenalizedScore(score1 || { ...defaultScore, id: sec1_id });
     const penalized2 = calculatePenalizedScore(score2 || { ...defaultScore, id: sec2_id });
     
-    if (penalized1.total_score <= penalized2.total_score) {
-      responsable_2f3f = sec1_id;
-      responsable_1r = sec2_id;
+    // Florence Bron cannot have 2F on Tuesday (only applies to 2F, not 3F)
+    const isTuesday = site.dayOfWeek === 2;
+    const isFlorenceSec1 = florenceBron && sec1_id === florenceBron.id;
+    const isFlorenceSec2 = florenceBron && sec2_id === florenceBron.id;
+    
+    if (!site.needs_3f && isTuesday) {
+      // On Tuesday with 2F needed: avoid assigning Florence as 2F
+      if (isFlorenceSec1 && !isFlorenceSec2) {
+        // Force sec2 as 2F, sec1 as 1R
+        responsable_2f3f = sec2_id;
+        responsable_1r = sec1_id;
+        console.log(`  🚫 Florence Bron évitée pour 2F le mardi ${site.date}`);
+      } else if (isFlorenceSec2 && !isFlorenceSec1) {
+        // Force sec1 as 2F, sec2 as 1R
+        responsable_2f3f = sec1_id;
+        responsable_1r = sec2_id;
+        console.log(`  🚫 Florence Bron évitée pour 2F le mardi ${site.date}`);
+      } else {
+        // Both or neither are Florence, use normal scoring
+        if (penalized1.total_score <= penalized2.total_score) {
+          responsable_2f3f = sec1_id;
+          responsable_1r = sec2_id;
+        } else {
+          responsable_2f3f = sec2_id;
+          responsable_1r = sec1_id;
+        }
+      }
     } else {
-      responsable_2f3f = sec2_id;
-      responsable_1r = sec1_id;
+      // Normal case: 3F or not Tuesday
+      if (penalized1.total_score <= penalized2.total_score) {
+        responsable_2f3f = sec1_id;
+        responsable_1r = sec2_id;
+      } else {
+        responsable_2f3f = sec2_id;
+        responsable_1r = sec1_id;
+      }
     }
   }
   
@@ -114,9 +147,20 @@ async function assignSiteWithChoice(
   scores: Map<string, SecretaryScore>,
   has2F3F: Set<string>,
   secretaries: any[],
-  supabase: any
+  supabase: any,
+  florenceBron?: any
 ): Promise<boolean> {
-  const eligible_2f3f = site.full_day_secretaries.filter(id => !has2F3F.has(id));
+  let eligible_2f3f = site.full_day_secretaries.filter(id => !has2F3F.has(id));
+  
+  // Florence Bron cannot have 2F on Tuesday (only applies to 2F, not 3F)
+  const isTuesday = site.dayOfWeek === 2;
+  if (!site.needs_3f && isTuesday && florenceBron) {
+    const florenceFiltered = eligible_2f3f.filter(id => id !== florenceBron.id);
+    if (florenceFiltered.length > 0) {
+      eligible_2f3f = florenceFiltered;
+      console.log(`  🚫 Florence Bron exclue des candidats 2F pour ${site.site_nom} (${site.date}, mardi)`);
+    }
+  }
   
   if (eligible_2f3f.length === 0) {
     console.log(`  ❌ ${site.site_nom} (${site.date}): toutes ont déjà 2F/3F`);

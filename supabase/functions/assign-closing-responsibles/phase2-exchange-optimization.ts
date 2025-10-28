@@ -28,7 +28,8 @@ export async function optimizePhase2(
   currentWeekScores: Map<string, SecretaryScore>,
   has2F3FThisWeek: Set<string>,
   secretaries: any[],
-  supabase: any
+  supabase: any,
+  florenceBron?: any
 ): Promise<void> {
   console.log('\n🔄 PHASE 2: Optimisation par échanges');
   
@@ -44,7 +45,7 @@ export async function optimizePhase2(
     console.log(`\n🔁 Itération ${iteration}...`);
     
     const allExchanges = generateAllExchanges(
-      assignedSites, currentWeekScores, has2F3FThisWeek, secretaries
+      assignedSites, currentWeekScores, has2F3FThisWeek, secretaries, florenceBron
     );
     
     console.log(`   ${allExchanges.length} échanges possibles`);
@@ -102,7 +103,8 @@ function generateAllExchanges(
   sites: ClosingSiteForOptim[],
   scores: Map<string, SecretaryScore>,
   has2F3F: Set<string>,
-  secretaries: any[]
+  secretaries: any[],
+  florenceBron?: any
 ): Exchange[] {
   const exchanges: Exchange[] = [];
   
@@ -113,6 +115,13 @@ function generateAllExchanges(
     if (!current_1r || !current_2f3f) continue;
     
     if (has2F3F.has(current_1r)) continue;
+    
+    // Florence Bron cannot have 2F on Tuesday (only applies to 2F, not 3F)
+    const isTuesday = site.dayOfWeek === 2;
+    if (!site.needs_3f && isTuesday && florenceBron && current_1r === florenceBron.id) {
+      // This exchange would give Florence a 2F on Tuesday, skip it
+      continue;
+    }
     
     const sec1 = secretaries.find(s => s.id === current_1r);
     const sec2 = secretaries.find(s => s.id === current_2f3f);
@@ -157,6 +166,21 @@ function generateAllExchanges(
       const total_2f3f_s2 = (score_2f3f_s2?.count_2f || 0) + (score_2f3f_s2?.count_3f || 0);
       
       if (total_2f3f_s1 > 1 || total_2f3f_s2 > 1) continue;
+      
+      // Florence Bron cannot have 2F on Tuesday
+      // After swap: site1 gets current_2f3f_s2, site2 gets current_2f3f_s1
+      const isTuesdaySite1 = site1.dayOfWeek === 2;
+      const isTuesdaySite2 = site2.dayOfWeek === 2;
+      
+      if (florenceBron) {
+        // Check if swap would give Florence a 2F on Tuesday
+        if (!site1.needs_3f && isTuesdaySite1 && current_2f3f_s2 === florenceBron.id) {
+          continue; // Skip: would give Florence 2F on Tuesday at site1
+        }
+        if (!site2.needs_3f && isTuesdaySite2 && current_2f3f_s1 === florenceBron.id) {
+          continue; // Skip: would give Florence 2F on Tuesday at site2
+        }
+      }
       
       exchanges.push({
         type: 'full_swap',

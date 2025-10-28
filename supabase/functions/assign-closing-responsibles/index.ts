@@ -750,10 +750,12 @@ interface SwapContext {
             }
           }
 
+          const dayOfWeek = new Date(date).getDay();
           siteMap.set(cap.site_id, {
             site_id: cap.site_id,
             site_nom: siteName,
             date,
+            dayOfWeek,
             needs_2f: false,
             needs_3f: false,
             current_1r: null,
@@ -790,16 +792,51 @@ interface SwapContext {
         siteData.full_day_secretaries = fullDay;
         siteData.eligible_count = fullDay.length;
 
-        // Déterminer besoins 2F/3F
-        if (siteData.eligible_count >= 3) {
-          siteData.needs_2f = true;
-          siteData.needs_3f = true;
-        } else if (siteData.eligible_count >= 2) {
-          siteData.needs_2f = true;
+        // Déterminer besoins 3F selon règle Paul Jacquier
+        siteData.needs_2f = siteData.eligible_count >= 2;
+        siteData.needs_3f = false; // Par défaut, pas de 3F
+        
+        // 3F uniquement si: jeudi + Paul Jacquier jeudi ET vendredi sur CE site
+        if (siteData.dayOfWeek === 4 && paulJacquier) { // Thursday = 4
+          // Cette vérification sera faite plus tard avec les données de besoin_effectif
+          // Pour l'instant, on marque comme potentiel 3F
+          siteData.needs_3f = true; // Sera affiné ci-dessous
         }
 
         const site = closingSites_data?.find((s: any) => s.id === siteData.site_id);
         if (site && site.fermeture && siteData.eligible_count >= 2) {
+          // Si c'est un jeudi potentiel 3F, vérifier Paul Jacquier
+          if (siteData.needs_3f && siteData.dayOfWeek === 4 && paulJacquier) {
+            // Vérifier Paul Jacquier jeudi et vendredi sur ce site
+            const { data: jacquierThursday } = await supabase
+              .from('besoin_effectif')
+              .select('id')
+              .eq('medecin_id', paulJacquier.id)
+              .eq('site_id', siteData.site_id)
+              .eq('date', date)
+              .limit(1)
+              .maybeSingle();
+
+            const friday = new Date(date);
+            friday.setDate(friday.getDate() + 1);
+            const fridayStr = friday.toISOString().split('T')[0];
+
+            const { data: jacquierFriday } = await supabase
+              .from('besoin_effectif')
+              .select('id')
+              .eq('medecin_id', paulJacquier.id)
+              .eq('site_id', siteData.site_id)
+              .eq('date', fridayStr)
+              .limit(1)
+              .maybeSingle();
+
+            if (jacquierThursday && jacquierFriday) {
+              siteData.needs_3f = true;
+              console.log(`⚠️ 3F confirmé: Paul Jacquier jeudi ${date} + vendredi ${fridayStr} sur ${siteData.site_nom}`);
+            } else {
+              siteData.needs_3f = false; // Pas de 3F, sera 2F
+            }
+          }
           closingSites.push(siteData);
         }
       }
@@ -841,7 +878,8 @@ interface SwapContext {
       currentWeekScores,
       has2F3FThisWeek,
       secretaries || [],
-      supabase
+      supabase,
+      florenceBron
     );
 
     // Exécuter Phase 2
@@ -850,7 +888,8 @@ interface SwapContext {
       currentWeekScores,
       has2F3FThisWeek,
       secretaries || [],
-      supabase
+      supabase,
+      florenceBron
     );
 
 
