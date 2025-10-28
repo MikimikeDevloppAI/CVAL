@@ -513,15 +513,28 @@ serve(async (req) => {
 
     console.log(`✅ Phase 1: ${assignmentCount} assignations initiales créées\n`);
 
-    // Helper function to apply multiple swaps and calculate new std dev
-    interface PossibleSwap {
-      type: '1R<->2F3F' | '1R<->None' | '2F3F<->None';
-      sec1: string;
-      sec2: string;
-      contextKey: string; // `${date}|${site_id}` to track is3F per site/date
-      sec1Name?: string;
-      sec2Name?: string;
-    }
+interface PossibleSwap {
+  type: '1R<->2F3F' | '1R<->None' | '2F3F<->None';
+  sec1: string;
+  sec2: string;
+  contextKey: string; // `${date}|${site_id}` to track is3F per site/date
+  sec1Name?: string;
+  sec2Name?: string;
+}
+
+interface SwapContext {
+  swap: PossibleSwap;
+  stdDev: number;
+  newScores: Map<string, SecretaryScore>;
+  date: string;
+  site_id: string;
+  site_nom: string;
+  current1R: string;
+  current2F3F: string;
+  is3F: boolean;
+}
+
+// Helper function to apply multiple swaps and calculate new std dev
     
     function applySwapsAndCalculateStdDev(
       swaps: PossibleSwap[],
@@ -583,15 +596,100 @@ serve(async (req) => {
       };
     }
 
-    // PHASE 2: OPTIMISATION GLOUTON AVEC EXPLORATION
+    // Helper to describe a swap for logging
+    function getSwapDescription(swapContext: SwapContext): string {
+      const sec1 = secretaries?.find(s => s.id === swapContext.swap.sec1);
+      const sec2 = secretaries?.find(s => s.id === swapContext.swap.sec2);
+      const sec1Name = sec1 ? `${sec1.first_name} ${sec1.name}` : '?';
+      const sec2Name = sec2 ? `${sec2.first_name} ${sec2.name}` : '?';
+      return `${sec1Name} ↔ ${sec2Name} (${swapContext.swap.type}) sur ${swapContext.site_nom} (${swapContext.date})`;
+    }
+
+    // Helper to apply a swap to the database
+    async function applySwapToDatabase(swapContext: SwapContext) {
+      const { swap, date, site_id, current1R, current2F3F, is3F } = swapContext;
+      
+      // Reset tous les flags pour ce site/date
+      await supabase
+        .from('capacite_effective')
+        .update({ is_1r: false, is_2f: false, is_3f: false })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('actif', true);
+      
+      // Appliquer l'échange
+      if (swap.type === '1R<->2F3F') {
+        // sec1 (ancien 1R) devient 2F/3F
+        const update1 = is3F ? { is_3f: true } : { is_2f: true };
+        await supabase
+          .from('capacite_effective')
+          .update(update1)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', swap.sec1)
+          .eq('actif', true);
+        
+        // sec2 (ancien 2F/3F) devient 1R
+        await supabase
+          .from('capacite_effective')
+          .update({ is_1r: true })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', swap.sec2)
+          .eq('actif', true);
+          
+      } else if (swap.type === '1R<->None') {
+        // sec1 perd 1R (déjà resetté)
+        // sec2 (sans responsabilité) gagne 1R
+        await supabase
+          .from('capacite_effective')
+          .update({ is_1r: true })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', swap.sec2)
+          .eq('actif', true);
+        
+        // Remettre 2F/3F à son titulaire actuel
+        const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+        await supabase
+          .from('capacite_effective')
+          .update(update2F3F)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', current2F3F)
+          .eq('actif', true);
+          
+      } else if (swap.type === '2F3F<->None') {
+        // sec1 perd 2F/3F (déjà resetté)
+        // sec2 (sans responsabilité) gagne 2F/3F
+        const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+        await supabase
+          .from('capacite_effective')
+          .update(update2F3F)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', swap.sec2)
+          .eq('actif', true);
+        
+        // Remettre 1R à son titulaire actuel
+        await supabase
+          .from('capacite_effective')
+          .update({ is_1r: true })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', current1R)
+          .eq('actif', true);
+      }
+    }
+
+    // PHASE 2: OPTIMISATION PAR ÉCHANGES MULTI-ÉTAPES AVEC LOOK-AHEAD
     console.log('\n' + '='.repeat(60));
-    console.log('🔄 PHASE 2: Optimisation glouton avec exploration aléatoire');
+    console.log('🔄 PHASE 2: Optimisation par échanges multi-étapes avec look-ahead');
     console.log('='.repeat(60));
 
-    const MAX_ITERATIONS = 20;
-    const EXPLORATION_PROBABILITY = 0.3; // 30% de chance d'exploration
-    const EXPLORATION_TOP_N = 10; // Top N échanges pour l'exploration
+    const MAX_ITERATIONS = 30;
     const THRESHOLD = 0.05;
+    const MAX_PAIRS_TO_TEST = 100; // Limite performance
     
     let currentStdDev = calculateWeekStdDev(currentWeekScores);
     console.log(`📊 Écart-type initial: ${currentStdDev.toFixed(2)}\n`);
@@ -713,119 +811,123 @@ serve(async (req) => {
       // Trier par stdDev croissant (meilleur en premier)
       allSwapsWithContext.sort((a, b) => a.stdDev - b.stdDev);
       
-      // SÉLECTION : GREEDY ou EXPLORATION
-      let chosenSwapContext: typeof allSwapsWithContext[0] | null = null;
+      // ========== NOUVELLE LOGIQUE MULTI-ÉTAPES ==========
       
-      // GREEDY : Prendre le meilleur échange qui améliore significativement
-      const bestSwapContext = allSwapsWithContext[0];
-      if (bestSwapContext.stdDev < currentStdDev - THRESHOLD) {
-        chosenSwapContext = bestSwapContext;
-        const sec1 = secretaries?.find(s => s.id === bestSwapContext.swap.sec1);
-        const sec2 = secretaries?.find(s => s.id === bestSwapContext.swap.sec2);
-        const sec1Name = sec1 ? `${sec1.first_name} ${sec1.name}` : '?';
-        const sec2Name = sec2 ? `${sec2.first_name} ${sec2.name}` : '?';
-        console.log(`✅ Amélioration: ${currentStdDev.toFixed(2)} → ${bestSwapContext.stdDev.toFixed(2)}`);
-        console.log(`   Échange: ${sec1Name} ↔ ${sec2Name} (${bestSwapContext.swap.type}) sur ${bestSwapContext.site_nom}`);
-      }
-      // EXPLORATION : Si aucun échange n'améliore, tenter un échange aléatoire
-      else if (Math.random() < EXPLORATION_PROBABILITY) {
-        const topN = allSwapsWithContext.slice(0, Math.min(EXPLORATION_TOP_N, allSwapsWithContext.length));
-        chosenSwapContext = topN[Math.floor(Math.random() * topN.length)];
-        const sec1 = secretaries?.find(s => s.id === chosenSwapContext!.swap.sec1);
-        const sec2 = secretaries?.find(s => s.id === chosenSwapContext!.swap.sec2);
-        const sec1Name = sec1 ? `${sec1.first_name} ${sec1.name}` : '?';
-        const sec2Name = sec2 ? `${sec2.first_name} ${sec2.name}` : '?';
-        const change = chosenSwapContext!.stdDev - currentStdDev;
-        console.log(`🎲 Exploration: ${currentStdDev.toFixed(2)} → ${chosenSwapContext!.stdDev.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
-        console.log(`   Échange: ${sec1Name} ↔ ${sec2Name} (${chosenSwapContext!.swap.type}) sur ${chosenSwapContext!.site_nom}`);
-      }
+      // ÉTAPE 1: Chercher un échange simple qui améliore
+      const bestSingleSwap = allSwapsWithContext[0];
       
-      // APPLIQUER L'ÉCHANGE CHOISI
-      if (chosenSwapContext) {
-        const { swap, date, site_id, current1R, current2F3F, is3F, newScores } = chosenSwapContext;
+      if (bestSingleSwap.stdDev < currentStdDev - THRESHOLD) {
+        // ✅ Échange simple trouvé qui améliore
+        console.log(`✅ Échange simple améliore: ${currentStdDev.toFixed(2)} → ${bestSingleSwap.stdDev.toFixed(2)}`);
+        console.log(`   ${getSwapDescription(bestSingleSwap)}`);
         
-        // Reset tous les flags pour ce site/date
-        await supabase
-          .from('capacite_effective')
-          .update({ is_1r: false, is_2f: false, is_3f: false })
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('actif', true);
-        
-        // Appliquer l'échange
-        if (swap.type === '1R<->2F3F') {
-          // sec1 (ancien 1R) devient 2F/3F
-          const update1 = is3F ? { is_3f: true } : { is_2f: true };
-          await supabase
-            .from('capacite_effective')
-            .update(update1)
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', swap.sec1)
-            .eq('actif', true);
-          
-          // sec2 (ancien 2F/3F) devient 1R
-          await supabase
-            .from('capacite_effective')
-            .update({ is_1r: true })
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', swap.sec2)
-            .eq('actif', true);
-            
-        } else if (swap.type === '1R<->None') {
-          // sec1 perd 1R (déjà resetté)
-          // sec2 (sans responsabilité) gagne 1R
-          await supabase
-            .from('capacite_effective')
-            .update({ is_1r: true })
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', swap.sec2)
-            .eq('actif', true);
-          
-          // Remettre 2F/3F à son titulaire actuel
-          const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-          await supabase
-            .from('capacite_effective')
-            .update(update2F3F)
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', current2F3F)
-            .eq('actif', true);
-            
-        } else if (swap.type === '2F3F<->None') {
-          // sec1 perd 2F/3F (déjà resetté)
-          // sec2 (sans responsabilité) gagne 2F/3F
-          const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-          await supabase
-            .from('capacite_effective')
-            .update(update2F3F)
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', swap.sec2)
-            .eq('actif', true);
-          
-          // Remettre 1R à son titulaire actuel
-          await supabase
-            .from('capacite_effective')
-            .update({ is_1r: true })
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('secretaire_id', current1R)
-            .eq('actif', true);
-        }
+        await applySwapToDatabase(bestSingleSwap);
         
         // Mettre à jour les scores globaux
-        for (const [secId, secScore] of newScores.entries()) {
+        for (const [secId, secScore] of bestSingleSwap.newScores.entries()) {
           currentWeekScores.set(secId, secScore);
         }
         
-        currentStdDev = chosenSwapContext.stdDev;
+        currentStdDev = bestSingleSwap.stdDev;
+        continue; // Passer à l'itération suivante
+      }
+      
+      // ÉTAPE 2: Aucun échange simple n'améliore → Look-ahead sur 2 échanges
+      console.log(`🔍 Aucun échange simple améliorant, recherche de paires d'échanges...`);
+      
+      let bestPair: {
+        swap1: typeof allSwapsWithContext[0];
+        swap2: typeof allSwapsWithContext[0];
+        finalStdDev: number;
+        finalScores: Map<string, SecretaryScore>;
+      } | null = null;
+      
+      let pairsTested = 0;
+      
+      // Tester toutes les paires (E1, E2) où E2 implique une personne de E1
+      for (const swap1 of allSwapsWithContext) {
+        if (pairsTested >= MAX_PAIRS_TO_TEST) break;
+        
+        // Appliquer temporairement E1
+        const scoresAfterE1 = swap1.newScores;
+        const contextKey1 = swap1.swap.contextKey;
+        const is3FMap1 = new Map<string, boolean>([[contextKey1, swap1.is3F]]);
+        
+        // Chercher E2 impliquant sec1 ou sec2 de E1
+        const candidatesE2 = allSwapsWithContext.filter(swap2 => 
+          swap2.swap.sec1 === swap1.swap.sec1 ||
+          swap2.swap.sec1 === swap1.swap.sec2 ||
+          swap2.swap.sec2 === swap1.swap.sec1 ||
+          swap2.swap.sec2 === swap1.swap.sec2
+        );
+        
+        for (const swap2 of candidatesE2) {
+          pairsTested++;
+          if (pairsTested >= MAX_PAIRS_TO_TEST) break;
+          
+          // Créer la map is3F combinée pour E2
+          const contextKey2 = swap2.swap.contextKey;
+          const is3FMapCombined = new Map<string, boolean>([
+            [contextKey1, swap1.is3F],
+            [contextKey2, swap2.is3F]
+          ]);
+          
+          // Appliquer E2 après E1
+          const { stdDev: finalStdDev, newScores: finalScores } = 
+            applySwapsAndCalculateStdDev([swap2.swap], scoresAfterE1, is3FMapCombined);
+          
+          // Si la paire améliore globalement
+          if (finalStdDev < currentStdDev - THRESHOLD) {
+            if (!bestPair || finalStdDev < bestPair.finalStdDev) {
+              bestPair = { swap1, swap2, finalStdDev, finalScores };
+            }
+          }
+        }
+      }
+      
+      console.log(`   ${pairsTested} paires testées`);
+      
+      // Appliquer la meilleure paire si trouvée
+      if (bestPair) {
+        console.log(`✅ Paire d'échanges trouvée: ${currentStdDev.toFixed(2)} → ${bestPair.finalStdDev.toFixed(2)}`);
+        console.log(`   E1: ${getSwapDescription(bestPair.swap1)}`);
+        console.log(`   E2: ${getSwapDescription(bestPair.swap2)}`);
+        
+        await applySwapToDatabase(bestPair.swap1);
+        await applySwapToDatabase(bestPair.swap2);
+        
+        // Mettre à jour les scores globaux
+        for (const [secId, secScore] of bestPair.finalScores.entries()) {
+          currentWeekScores.set(secId, secScore);
+        }
+        
+        currentStdDev = bestPair.finalStdDev;
       } else {
-        console.log('🏁 Convergence atteinte (aucun échange améliorant, pas d\'exploration)');
+        console.log(`🏁 Convergence: aucune paire d'échanges améliorante`);
         break;
       }
+    }
+
+    // Continue with the rest (displaying final scores, etc.)
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 SCORES FINAUX DE LA SEMAINE');
+    console.log('='.repeat(60));
+    console.log(`Écart-type final: ${currentStdDev.toFixed(2)}\n`);
+    
+    const sortedScores = Array.from(currentWeekScores.values())
+      .sort((a, b) => calculatePenalizedScore(b) - calculatePenalizedScore(a));
+    
+    for (const secScore of sortedScores) {
+      const baseScore = secScore.score;
+      const penalizedScore = calculatePenalizedScore(secScore);
+      const totalAssignments = secScore.count_1r + secScore.count_2f + secScore.count_3f;
+      const penalty = penalizedScore - baseScore;
+      
+      console.log(
+        `${secScore.name}: ${baseScore} pts (base) → ${penalizedScore} pts (pénalisé) | ` +
+        `${totalAssignments} assignations (1R: ${secScore.count_1r}, 2F: ${secScore.count_2f}, 3F: ${secScore.count_3f})` +
+        (penalty > 0 ? ` [+${penalty} pénalité surcharge]` : '')
+      );
     }
 
     console.log(`\n🏁 Optimisation terminée`);
