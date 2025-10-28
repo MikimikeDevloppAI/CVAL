@@ -683,17 +683,12 @@ interface SwapContext {
     }
 
     // ============================================================
-    // PHASE 2: MILP OPTIMIZATION FOR CLOSING RESPONSIBLES
+    // PHASE 2: GREEDY OPTIMIZATION WITH HARD CONSTRAINTS
     // ============================================================
 
     console.log('\n' + '='.repeat(60));
-    console.log('🎯 PHASE 2: Optimisation MILP des responsables de fermeture');
+    console.log('🎯 PHASE 2: Optimisation glouton avec contraintes dures');
     console.log('='.repeat(60));
-    
-    // Import du builder MILP et du solver
-    const { buildClosingMILPModel } = await import('./milp-builder.ts');
-    // @ts-ignore
-    const solver = await import('https://cdn.skypack.dev/javascript-lp-solver@0.4.24');
 
     // Get all dates we're working with
     const allDatesInWeek: string[] = [];
@@ -703,8 +698,20 @@ interface SwapContext {
       allDatesInWeek.push(d.toISOString().split('T')[0]);
     }
 
-    // Préparer les données pour le MILP
-    const closingSites: any[] = [];
+    // Préparer les données pour l'optimisation
+    interface ClosingSiteData {
+      site_id: string;
+      site_nom: string;
+      date: string;
+      needs_2f: boolean;
+      needs_3f: boolean;
+      current_1r: string | null;
+      current_2f: string | null;
+      current_3f: string | null;
+      full_day_secretaries: string[];
+    }
+
+    const closingSites: ClosingSiteData[] = [];
     const { data: closingSites_data, error: csError } = await supabase
       .from('sites')
       .select('id, nom, fermeture')
@@ -819,41 +826,19 @@ interface SwapContext {
       );
     }
 
-    // Construire le modèle MILP
-    const { model } = buildClosingMILPModel(
-      closingSites,
-      (secretaries || []).map((s: any) => ({
-        id: s.id,
-        name: `${s.first_name} ${s.name}`,
-        current_week_assignments: {
-          count_1r: currentWeekScores.get(s.id)?.count_1r || 0,
-          count_2f: currentWeekScores.get(s.id)?.count_2f || 0,
-          count_3f: currentWeekScores.get(s.id)?.count_3f || 0
-        }
-      })),
-      currentWeekScores
-    );
-
-    console.log(`🔧 Modèle MILP construit:`);
-    console.log(`   Variables: ${Object.keys(model.variables).length}`);
-    console.log(`   Contraintes: ${Object.keys(model.constraints).length}`);
-
-    // Résoudre le modèle MILP
-    console.log('🚀 Résolution MILP...');
-    const solution = solver.Solve(model);
-
-    if (!solution || !solution.feasible) {
-      console.error('❌ Aucune solution trouvée par le MILP');
-      throw new Error('MILP optimization failed: no feasible solution');
+    // ============================================================
+    // GREEDY ALGORITHM WITH HARD CONSTRAINTS
+    // ============================================================
+    
+    // Track who has been assigned 2F/3F in this optimization round
+    const has2F3FThisWeek = new Set<string>();
+    for (const [secId, score] of currentWeekScores.entries()) {
+      if (score.count_2f > 0 || score.count_3f > 0) {
+        has2F3FThisWeek.add(secId);
+      }
     }
 
-    console.log(`✅ Solution trouvée! Score objectif: ${solution.result?.toFixed(2) || 'N/A'}`);
-
-    // ============================================================
-    // APPLY MILP SOLUTION TO DATABASE
-    // ============================================================
-
-    console.log('\n💾 Application de la solution MILP...');
+    console.log(`🔒 ${has2F3FThisWeek.size} secrétaires ont déjà un 2F/3F cette semaine (contrainte dure)`);
 
     // Reset tous les flags de fermeture pour les dates concernées
     for (const date of (selected_dates || allDatesInWeek)) {
@@ -865,70 +850,144 @@ interface SwapContext {
         .not('secretaire_id', 'is', null);
     }
 
-    // Appliquer les assignations de la solution
-    let milpAssignmentsCount = 0;
+    // Sort sites by date to process chronologically
+    closingSites.sort((a, b) => a.date.localeCompare(b.date));
 
-    for (const [varName, value] of Object.entries(solution)) {
-      if (value === 1 && varName.startsWith('x_')) {
-        // Parse variable name: x_secId_date_siteId_role
-        const parts = varName.split('_');
-        if (parts.length < 5) continue;
-        
-        const secId = parts[1];
-        const date = parts[2];
-        const siteId = parts[3];
-        const role = parts[4]; // '1R', '2F', ou '3F'
-        
-        const roleField = role === '1R' ? 'is_1r' :
-                          role === '2F' ? 'is_2f' :
-                          'is_3f';
-        
-        // Update both morning and afternoon
-        const { error: updateError } = await supabase
+    let optimAssignmentsCount = 0;
+
+    // Process each site
+    for (const site of closingSites) {
+      const { site_id, date, site_nom, needs_2f, needs_3f, full_day_secretaries } = site;
+      
+      if (full_day_secretaries.length < 2) {
+        console.log(`  ⚠️ ${site_nom} (${date}): pas assez de secrétaires journée complète`);
+        continue;
+      }
+
+      console.log(`\n📍 ${site_nom} (${date}): ${full_day_secretaries.length} secrétaires, besoin ${needs_3f ? '3F' : needs_2f ? '2F' : 'aucun'}`);
+
+      // ========== ASSIGN 2F/3F ==========
+      // CONTRAINTE DURE: Ne jamais assigner quelqu'un qui a déjà un 2F/3F cette semaine
+      const eligible2F3F = full_day_secretaries.filter(id => !has2F3FThisWeek.has(id));
+      
+      if (eligible2F3F.length === 0) {
+        console.log(`  ❌ Aucune secrétaire éligible pour 2F/3F (toutes ont déjà un 2F/3F cette semaine)`);
+        continue;
+      }
+
+      // Choose 2F/3F: lowest score among eligible
+      const candidates2F3F = eligible2F3F.map(id => {
+        const score = currentWeekScores.get(id);
+        return {
+          id,
+          score: score?.score || 0,
+          totalAssignments: (score?.count_1r || 0) + (score?.count_2f || 0) + (score?.count_3f || 0)
+        };
+      }).sort((a, b) => {
+        // Prioritize lowest total assignments, then lowest score
+        if (a.totalAssignments !== b.totalAssignments) return a.totalAssignments - b.totalAssignments;
+        return a.score - b.score;
+      });
+
+      const responsable2F3F = candidates2F3F[0].id;
+      const role2F3F = needs_3f ? 'is_3f' : 'is_2f';
+      const points2F3F = needs_3f ? 3 : 2;
+
+      // Mark this person as having 2F/3F
+      has2F3FThisWeek.add(responsable2F3F);
+
+      // Update score
+      if (!currentWeekScores.has(responsable2F3F)) {
+        currentWeekScores.set(responsable2F3F, { 
+          id: responsable2F3F, 
+          name: '', 
+          score: 0, 
+          count_1r: 0, 
+          count_2f: 0, 
+          count_3f: 0 
+        });
+      }
+      const score2F3F = currentWeekScores.get(responsable2F3F)!;
+      score2F3F.score += points2F3F;
+      if (needs_3f) score2F3F.count_3f += 1;
+      else score2F3F.count_2f += 1;
+
+      const sec2F3F = secretaries?.find((s: any) => s.id === responsable2F3F);
+      console.log(`  ✓ ${sec2F3F?.first_name} ${sec2F3F?.name} → ${needs_3f ? '3F' : '2F'} (score: ${candidates2F3F[0].score})`);
+
+      // ========== ASSIGN 1R ==========
+      // Choose 1R: someone different from 2F/3F, with lowest score
+      const eligible1R = full_day_secretaries.filter(id => id !== responsable2F3F);
+      
+      if (eligible1R.length === 0) {
+        console.log(`  ⚠️ Pas de secrétaire pour 1R (seule secrétaire journée complète)`);
+        // Assign only 2F/3F
+        await supabase
           .from('capacite_effective')
-          .update({ [roleField]: true })
+          .update({ [role2F3F]: true })
           .eq('date', date)
-          .eq('site_id', siteId)
-          .eq('secretaire_id', secId)
+          .eq('site_id', site_id)
+          .eq('secretaire_id', responsable2F3F)
           .eq('actif', true);
         
-        if (updateError) {
-          console.error(`❌ Erreur lors de l'assignation:`, updateError);
-          continue;
-        }
-        
-        milpAssignmentsCount++;
-        
-        const sec = secretaries?.find((s: any) => s.id === secId);
-        const site = closingSites.find((s: any) => s.site_id === siteId && s.date === date);
-        console.log(`   ✓ ${sec?.first_name} ${sec?.name} → ${role} sur ${site?.site_nom} le ${date}`);
-        
-        // Update week scores for final display
-        if (!currentWeekScores.has(secId)) {
-          currentWeekScores.set(secId, { 
-            id: secId, 
-            name: `${sec?.first_name} ${sec?.name}`, 
-            score: 0, 
-            count_1r: 0, 
-            count_2f: 0, 
-            count_3f: 0 
-          });
-        }
-        const secScore = currentWeekScores.get(secId)!;
-        if (role === '1R') {
-          secScore.score += 1;
-          secScore.count_1r += 1;
-        } else if (role === '2F') {
-          secScore.score += 2;
-          secScore.count_2f += 1;
-        } else if (role === '3F') {
-          secScore.score += 3;
-          secScore.count_3f += 1;
-        }
+        optimAssignmentsCount++;
+        continue;
       }
+
+      const candidates1R = eligible1R.map(id => {
+        const score = currentWeekScores.get(id);
+        return {
+          id,
+          score: score?.score || 0,
+          totalAssignments: (score?.count_1r || 0) + (score?.count_2f || 0) + (score?.count_3f || 0)
+        };
+      }).sort((a, b) => {
+        // Prioritize lowest total assignments, then lowest score
+        if (a.totalAssignments !== b.totalAssignments) return a.totalAssignments - b.totalAssignments;
+        return a.score - b.score;
+      });
+
+      const responsable1R = candidates1R[0].id;
+
+      // Update score
+      if (!currentWeekScores.has(responsable1R)) {
+        currentWeekScores.set(responsable1R, { 
+          id: responsable1R, 
+          name: '', 
+          score: 0, 
+          count_1r: 0, 
+          count_2f: 0, 
+          count_3f: 0 
+        });
+      }
+      const score1R = currentWeekScores.get(responsable1R)!;
+      score1R.score += 1;
+      score1R.count_1r += 1;
+
+      const sec1R = secretaries?.find((s: any) => s.id === responsable1R);
+      console.log(`  ✓ ${sec1R?.first_name} ${sec1R?.name} → 1R (score: ${candidates1R[0].score})`);
+
+      // Apply assignments to database
+      await supabase
+        .from('capacite_effective')
+        .update({ is_1r: true })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('secretaire_id', responsable1R)
+        .eq('actif', true);
+
+      await supabase
+        .from('capacite_effective')
+        .update({ [role2F3F]: true })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('secretaire_id', responsable2F3F)
+        .eq('actif', true);
+
+      optimAssignmentsCount += 2;
     }
 
-    console.log(`✅ ${milpAssignmentsCount} assignations de responsables de fermeture appliquées via MILP`);
+    console.log(`\n✅ ${optimAssignmentsCount} assignations de responsables appliquées via algorithme glouton`);
     
     let currentStdDev = calculateWeekStdDev(currentWeekScores);
     console.log(`📊 Écart-type final: ${currentStdDev.toFixed(2)}`);
