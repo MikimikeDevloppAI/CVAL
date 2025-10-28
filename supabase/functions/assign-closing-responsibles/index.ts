@@ -15,6 +15,14 @@ interface SecretaryScore {
   count_3f: number;
 }
 
+function calculateWeekStdDev(scores: Map<string, SecretaryScore>): number {
+  const values = Array.from(scores.values()).map(s => s.score);
+  if (values.length === 0) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -506,6 +514,151 @@ serve(async (req) => {
 
       assignmentCount++;
     }
+
+    // PHASE 2: OPTIMISATION PAR ÉCHANGES ITÉRATIFS
+    console.log('\n' + '='.repeat(60));
+    console.log('🔄 PHASE 2: Optimisation par échanges itératifs de 1R et 2F/3F');
+    console.log('='.repeat(60));
+
+    let hasImprovement = true;
+    let iteration = 0;
+    const MAX_ITERATIONS = 10;
+
+    while (hasImprovement && iteration < MAX_ITERATIONS) {
+      hasImprovement = false;
+      iteration++;
+      
+      console.log(`\n🔄 Itération ${iteration}...`);
+      
+      let exchangeCount = 0;
+      
+      // Grouper par date (ordre chronologique)
+      const dateGroups = new Map<string, Array<{date: string, site_id: string, site_nom: string}>>();
+      for (const sd of sitesNeedingClosingFiltered) {
+        if (!dateGroups.has(sd.date)) dateGroups.set(sd.date, []);
+        dateGroups.get(sd.date)!.push(sd);
+      }
+      
+      const sortedDateKeys = Array.from(dateGroups.keys()).sort();
+      
+      for (const date of sortedDateKeys) {
+        const sitesForDate = dateGroups.get(date)!;
+        
+        for (const siteDay of sitesForDate) {
+          const { site_id, site_nom } = siteDay;
+          
+          // Récupérer les assignments actuels
+          const { data: currentAssignments, error: caError } = await supabase
+            .from('capacite_effective')
+            .select('secretaire_id, is_1r, is_2f, is_3f, demi_journee')
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('actif', true)
+            .not('secretaire_id', 'is', null);
+          
+          if (caError) throw caError;
+          
+          const morningAssignments = currentAssignments?.filter(a => a.demi_journee === 'matin') || [];
+          const afternoonAssignments = currentAssignments?.filter(a => a.demi_journee === 'apres_midi') || [];
+          
+          const sec1R_data = morningAssignments.find(a => a.is_1r);
+          const sec2F_data = morningAssignments.find(a => a.is_2f || a.is_3f);
+          
+          if (!sec1R_data || !sec2F_data) continue;
+          
+          const sec1R = sec1R_data.secretaire_id;
+          const sec2F = sec2F_data.secretaire_id;
+          const is3F = sec2F_data.is_3f || false;
+          
+          if (sec1R === sec2F) continue;
+          
+          // Vérifier que les deux travaillent toute la journée
+          const sec1RAfternoon = afternoonAssignments.find(a => a.secretaire_id === sec1R);
+          const sec2FAfternoon = afternoonAssignments.find(a => a.secretaire_id === sec2F);
+          
+          if (!sec1RAfternoon || !sec2FAfternoon) continue;
+          
+          // Score actuel
+          const currentStdDev = calculateWeekStdDev(currentWeekScores);
+          
+          // Simuler échange
+          const tempScores = new Map(currentWeekScores);
+          const tempScore1R = { ...tempScores.get(sec1R)! };
+          const tempScore2F = { ...tempScores.get(sec2F)! };
+          
+          const points2F3F = is3F ? 15 : 10;
+          
+          // Inversion
+          tempScore1R.score = tempScore1R.score - 2 + points2F3F;
+          tempScore1R.count_1r -= 1;
+          if (is3F) tempScore1R.count_3f += 1; else tempScore1R.count_2f += 1;
+          
+          tempScore2F.score = tempScore2F.score - points2F3F + 2;
+          if (is3F) tempScore2F.count_3f -= 1; else tempScore2F.count_2f -= 1;
+          tempScore2F.count_1r += 1;
+          
+          tempScores.set(sec1R, tempScore1R);
+          tempScores.set(sec2F, tempScore2F);
+          
+          const newStdDev = calculateWeekStdDev(tempScores);
+          
+          const THRESHOLD = 0.05; // Seuil minimal d'amélioration
+          
+          if (newStdDev < currentStdDev - THRESHOLD) {
+            const sec1RName = secretaries?.find(s => s.id === sec1R);
+            const sec2FName = secretaries?.find(s => s.id === sec2F);
+            
+            console.log(`  ✅ Échange rentable: ${site_nom} ${date}`);
+            console.log(`     ${sec1RName?.first_name} ${sec1RName?.name}: 1R → ${is3F ? '3F' : '2F'}`);
+            console.log(`     ${sec2FName?.first_name} ${sec2FName?.name}: ${is3F ? '3F' : '2F'} → 1R`);
+            console.log(`     Écart-type: ${currentStdDev.toFixed(2)} → ${newStdDev.toFixed(2)}`);
+            
+            // Appliquer l'échange
+            await supabase
+              .from('capacite_effective')
+              .update({ is_1r: false, is_2f: false, is_3f: false })
+              .eq('date', date)
+              .eq('site_id', site_id)
+              .eq('actif', true);
+            
+            // sec1R devient 2F/3F
+            const update1R = is3F ? { is_3f: true } : { is_2f: true };
+            await supabase
+              .from('capacite_effective')
+              .update(update1R)
+              .eq('date', date)
+              .eq('site_id', site_id)
+              .eq('secretaire_id', sec1R)
+              .eq('actif', true);
+            
+            // sec2F devient 1R
+            await supabase
+              .from('capacite_effective')
+              .update({ is_1r: true })
+              .eq('date', date)
+              .eq('site_id', site_id)
+              .eq('secretaire_id', sec2F)
+              .eq('actif', true);
+            
+            // Mettre à jour les scores
+            currentWeekScores.set(sec1R, tempScore1R);
+            currentWeekScores.set(sec2F, tempScore2F);
+            
+            exchangeCount++;
+            hasImprovement = true;
+          }
+        }
+      }
+      
+      if (exchangeCount > 0) {
+        console.log(`✅ Itération ${iteration}: ${exchangeCount} échange(s) effectué(s)`);
+      } else {
+        console.log(`✅ Itération ${iteration}: aucun échange améliorant trouvé`);
+      }
+    }
+
+    console.log(`\n🏁 Optimisation par échanges terminée après ${iteration} itération(s)`);
+    console.log(`📊 Écart-type final: ${calculateWeekStdDev(currentWeekScores).toFixed(2)}`);
 
     console.log(`🎉 Assigned closing responsibles for ${assignmentCount} site/date combinations`);
 

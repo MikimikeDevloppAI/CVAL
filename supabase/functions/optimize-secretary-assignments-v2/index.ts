@@ -587,9 +587,9 @@ async function optimizeSingleWeek(
   
   const lastDate = sortedDates[sortedDates.length - 1];
   logger.info(`\n🎯 Assignation des responsables de fermeture pour ${lastDate}...`);
-  const { error: closingError } = await supabase.functions.invoke('assign-closing-responsibles', {
-    body: { date: lastDate }
-  });
+    const { error: closingError } = await supabase.functions.invoke('assign-closing-responsibles', {
+      body: { dates: sortedDates }
+    });
   if (closingError) {
     logger.info('⚠️ Erreur lors de l\'assignation des responsables de fermeture:', closingError);
   }
