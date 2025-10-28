@@ -682,13 +682,20 @@ serve(async (req) => {
           const THRESHOLD = 0.05;
           
           // ÉTAPE 1 : Collecter tous les échanges possibles et calculer leur impact individuel
-          const rankedSwaps: Array<{ swap: PossibleSwap; improvement: number }> = [];
+          const rankedSwaps: Array<{ 
+            swap: PossibleSwap; 
+            improvement: number;
+            stdDev: number;
+            newScores: Map<string, SecretaryScore>;
+          }> = [];
           
           for (const swap of possibleSwaps) {
-            const { stdDev } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
+            const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
             rankedSwaps.push({
               swap,
-              improvement: currentStdDev - stdDev // positif = amélioration
+              improvement: currentStdDev - stdDev, // positif = amélioration
+              stdDev,
+              newScores
             });
           }
           
@@ -700,14 +707,12 @@ serve(async (req) => {
           let bestSwaps: PossibleSwap[] = [];
           let bestTempScores: Map<string, SecretaryScore> | null = null;
           
-          for (const { swap, improvement } of rankedSwaps) {
-            if (improvement > THRESHOLD) {
-              const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
-              if (stdDev < bestStdDev - THRESHOLD) {
-                bestStdDev = stdDev;
-                bestSwaps = [swap];
-                bestTempScores = newScores;
-              }
+          // Tester TOUS les swaps simples (pas de filtre sur improvement)
+          for (const { swap, stdDev, newScores } of rankedSwaps) {
+            if (stdDev < bestStdDev - THRESHOLD) {
+              bestStdDev = stdDev;
+              bestSwaps = [swap];
+              bestTempScores = newScores;
             }
           }
           
