@@ -162,10 +162,6 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                       return item?.fullName || value;
                     }}
                   />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '4px' }}
-                    iconType="circle"
-                  />
                   <Bar dataKey="1R" fill="url(#gradient1R)" name="Responsable 1R" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="2F" fill="url(#gradient2F)" name="Responsable 2F" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="3F" fill="url(#gradient3F)" name="Responsable 3F" radius={[8, 8, 0, 0]} />
@@ -213,10 +209,6 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                         const item = payload?.[0]?.payload;
                         return item?.fullName || value;
                       }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ paddingTop: '4px' }}
-                      iconType="circle"
                     />
                     <Bar dataKey="Jours" fill="url(#gradientEsplanade)" name="Jours au Centre Esplanade" radius={[8, 8, 0, 0]} />
                   </BarChart>
