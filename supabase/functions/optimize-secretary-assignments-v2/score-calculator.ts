@@ -429,9 +429,12 @@ export function calculateComboScore(
     
     // PÉNALITÉ: Changement de site
     if (needMatin.site_id !== needAM.site_id) {
-      // Exclure les changements impliquant ADMIN
+      // Exclure les changements impliquant ADMIN (déjà OK, pas de pénalité)
       if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
-        // Check Gastro exception
+        
+        // ============================================================
+        // RÈGLES GASTRO-ENTÉROLOGIE
+        // ============================================================
         const isGastroMatin = needMatin.type === 'bloc_operatoire' && 
           needMatin.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
         const isGastroAM = needAM.type === 'bloc_operatoire' && 
@@ -440,12 +443,19 @@ export function calculateComboScore(
         const isVieilleVilleMatin = needMatin.site_id === VIEILLE_VILLE_SITE_ID;
         const isVieilleVilleAM = needAM.site_id === VIEILLE_VILLE_SITE_ID;
         
-        // Exception: Gastro ↔ Vieille Ville = pas de pénalité
+        // ✅ CAS 1: Gastro Matin + Gastro Après-midi = Pas de pénalité
+        const isBothGastro = isGastroMatin && isGastroAM;
+        
+        // ✅ CAS 2: Gastro ↔ Vieille Ville Gastro = Pas de pénalité
         const isGastroVieilleVilleChange = 
           (isGastroMatin && isVieilleVilleAM) || 
           (isVieilleVilleMatin && isGastroAM);
         
-        if (!isGastroVieilleVilleChange) {
+        // Vérifier si on doit appliquer une pénalité
+        const noGastroPenalty = isBothGastro || isGastroVieilleVilleChange;
+        
+        if (!noGastroPenalty) {
+          // Pénalité normale de changement de site
           const isHighPenalty = 
             HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
             HIGH_PENALTY_SITES.includes(needAM.site_id);
@@ -457,7 +467,12 @@ export function calculateComboScore(
           totalScore += changePenalty;
           console.log(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
         } else {
-          console.log(`  ✅ Exception Gastro ↔ Vieille Ville: pas de pénalité`);
+          // Log pour debug
+          if (isBothGastro) {
+            console.log(`  ✅ Exception Gastro Matin + Gastro AM: pas de pénalité`);
+          } else {
+            console.log(`  ✅ Exception Gastro ↔ Vieille Ville: pas de pénalité`);
+          }
         }
       }
     }
