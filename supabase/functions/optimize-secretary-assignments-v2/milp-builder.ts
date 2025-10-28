@@ -4,7 +4,7 @@ import type {
   WeekData,
   AssignmentSummary
 } from './types.ts';
-import { ADMIN_SITE_ID, FORBIDDEN_SITES } from './types.ts';
+import { ADMIN_SITE_ID, FORBIDDEN_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID } from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
 
 const DEBUG_VERBOSE = false;
@@ -149,13 +149,48 @@ export function buildMILPModelSoft(
     // Generate all combos (matin × AM)
     for (const needM of eligibleMatin) {
       for (const needA of eligibleAM) {
-        // EXCLUSION: Bloc + Forbidden site (and vice versa)
+        // EXCLUSION: Bloc + Forbidden site (and vice versa) SAUF Gastro
         const isBlocMatin = needM?.type === 'bloc_operatoire';
         const isBlocAM = needA?.type === 'bloc_operatoire';
         const isForbiddenMatin = needM && FORBIDDEN_SITES.includes(needM.site_id);
         const isForbiddenAM = needA && FORBIDDEN_SITES.includes(needA.site_id);
         
-        if ((isBlocMatin && isForbiddenAM) || (isForbiddenMatin && isBlocAM)) {
+        // Check if Gastro exception applies
+        const isGastroMatin = needM?.type === 'bloc_operatoire' && 
+          needM.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        const isGastroAM = needA?.type === 'bloc_operatoire' && 
+          needA.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        
+        const isVieilleVilleMatin = needM?.site_id === VIEILLE_VILLE_SITE_ID;
+        const isVieilleVilleAM = needA?.site_id === VIEILLE_VILLE_SITE_ID;
+        
+        // Allow Gastro ↔ Vieille Ville
+        const isGastroVieilleVilleCombo = 
+          (isGastroMatin && isVieilleVilleAM) || 
+          (isVieilleVilleMatin && isGastroAM);
+        
+        // Exclude other forbidden combinations
+        if (!isGastroVieilleVilleCombo && ((isBlocMatin && isForbiddenAM) || (isForbiddenMatin && isBlocAM))) {
+          excludedComboCount++;
+          continue;
+        }
+        
+        // NOUVELLE RÈGLE: Interdire Gastro + autre type d'intervention
+        if (isGastroMatin && needA?.type === 'bloc_operatoire' && !isGastroAM) {
+          excludedComboCount++;
+          continue;
+        }
+        if (isGastroAM && needM?.type === 'bloc_operatoire' && !isGastroMatin) {
+          excludedComboCount++;
+          continue;
+        }
+        
+        // NOUVELLE RÈGLE: Gastro ne peut pas être avec un autre site (sauf Vieille Ville)
+        if (isGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && needA.site_id !== VIEILLE_VILLE_SITE_ID) {
+          excludedComboCount++;
+          continue;
+        }
+        if (isGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && needM.site_id !== VIEILLE_VILLE_SITE_ID) {
           excludedComboCount++;
           continue;
         }

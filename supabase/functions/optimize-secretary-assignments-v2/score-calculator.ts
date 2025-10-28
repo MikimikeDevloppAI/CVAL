@@ -6,7 +6,7 @@ import type {
   TodayAssignment,
   AssignmentSummary
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES } from './types.ts';
+import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS } from './types.ts';
 
 function countTodayAdminAssignments(
   secretaire_id: string,
@@ -402,21 +402,48 @@ export function calculateComboScore(
   }
   
   // ============================================================
-  // 3. PÉNALITÉ CHANGEMENT DE SITE
+  // 3. BONUS MÊME SITE + PÉNALITÉ CHANGEMENT DE SITE
   // ============================================================
-  if (needMatin && needAM && needMatin.site_id !== needAM.site_id) {
-    // Exclure les changements impliquant ADMIN
-    if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
-      const isHighPenalty = 
-        HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
-        HIGH_PENALTY_SITES.includes(needAM.site_id);
-      
-      const changePenalty = isHighPenalty ? 
-        PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
-        PENALTIES.CHANGEMENT_SITE;
-      
-      totalScore += changePenalty;
-      console.log(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
+  if (needMatin && needAM) {
+    // BONUS: Même site matin + après-midi (hors ADMIN)
+    if (needMatin.site_id === needAM.site_id && needMatin.site_id !== ADMIN_SITE_ID) {
+      totalScore += SAME_SITE_BONUS;
+      console.log(`  🎁 Bonus même site: +${SAME_SITE_BONUS}`);
+    }
+    
+    // PÉNALITÉ: Changement de site
+    if (needMatin.site_id !== needAM.site_id) {
+      // Exclure les changements impliquant ADMIN
+      if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
+        // Check Gastro exception
+        const isGastroMatin = needMatin.type === 'bloc_operatoire' && 
+          needMatin.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        const isGastroAM = needAM.type === 'bloc_operatoire' && 
+          needAM.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        
+        const isVieilleVilleMatin = needMatin.site_id === VIEILLE_VILLE_SITE_ID;
+        const isVieilleVilleAM = needAM.site_id === VIEILLE_VILLE_SITE_ID;
+        
+        // Exception: Gastro ↔ Vieille Ville = pas de pénalité
+        const isGastroVieilleVilleChange = 
+          (isGastroMatin && isVieilleVilleAM) || 
+          (isVieilleVilleMatin && isGastroAM);
+        
+        if (!isGastroVieilleVilleChange) {
+          const isHighPenalty = 
+            HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
+            HIGH_PENALTY_SITES.includes(needAM.site_id);
+          
+          const changePenalty = isHighPenalty ? 
+            PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
+            PENALTIES.CHANGEMENT_SITE;
+          
+          totalScore += changePenalty;
+          console.log(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
+        } else {
+          console.log(`  ✅ Exception Gastro ↔ Vieille Ville: pas de pénalité`);
+        }
+      }
     }
   }
   

@@ -132,7 +132,8 @@ function calculateNeeds(
         medecins_ids: bloc.medecin_id ? [bloc.medecin_id] : [],
         type: 'bloc_operatoire' as const,
         bloc_operation_id: bloc.id,
-        besoin_operation_id: besoinPersonnel.besoin_operation_id
+        besoin_operation_id: besoinPersonnel.besoin_operation_id,
+        type_intervention_id: bloc.type_intervention_id // Pour exceptions (Gastro)
       };
       
       needs.push(need);

@@ -8,6 +8,7 @@ export interface SiteNeed {
   type: 'site' | 'bloc_operatoire';
   bloc_operation_id?: string;
   besoin_operation_id?: string;
+  type_intervention_id?: string; // Pour exceptions (Gastro)
 }
 
 export interface Secretaire {
@@ -176,3 +177,10 @@ export const FORBIDDEN_SITES = [
   '7723c334-d06c-413d-96f0-be281d76520d',
   '043899a1-a232-4c4b-9d7d-0eb44dad00ad'
 ];
+
+// Exception pour Gastroentérologie
+export const GASTRO_TYPE_INTERVENTION_ID = '32da56a9-d58c-4e3f-94bb-2aa30e7f861c';
+export const VIEILLE_VILLE_SITE_ID = '7723c334-d06c-413d-96f0-be281d76520d';
+
+// Bonus pour même site matin + après-midi
+export const SAME_SITE_BONUS = 20;
