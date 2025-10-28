@@ -569,279 +569,253 @@ serve(async (req) => {
       };
     }
 
-    // PHASE 2: OPTIMISATION PAR ÉCHANGES MULTI-SWAP
+    // PHASE 2: OPTIMISATION GLOUTON AVEC EXPLORATION
     console.log('\n' + '='.repeat(60));
-    console.log('🔄 PHASE 2: Optimisation multi-swap (simple + paires)');
+    console.log('🔄 PHASE 2: Optimisation glouton avec exploration aléatoire');
     console.log('='.repeat(60));
 
-    let hasImprovement = true;
-    let iteration = 0;
-    const MAX_ITERATIONS = 10;
+    const MAX_ITERATIONS = 20;
+    const EXPLORATION_PROBABILITY = 0.3; // 30% de chance d'exploration
+    const EXPLORATION_TOP_N = 10; // Top N échanges pour l'exploration
+    const THRESHOLD = 0.05;
+    
+    let currentStdDev = calculateWeekStdDev(currentWeekScores);
+    console.log(`📊 Écart-type initial: ${currentStdDev.toFixed(2)}\n`);
 
-    while (hasImprovement && iteration < MAX_ITERATIONS) {
-      hasImprovement = false;
-      iteration++;
+    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+      console.log(`🔄 Itération ${iteration}...`);
       
-      console.log(`\n🔄 Itération ${iteration}...`);
+      // COLLECTER TOUS LES ÉCHANGES POSSIBLES DE TOUTES LES DATES/SITES
+      const allSwapsWithContext: Array<{
+        swap: PossibleSwap;
+        stdDev: number;
+        newScores: Map<string, SecretaryScore>;
+        date: string;
+        site_id: string;
+        site_nom: string;
+        current1R: string;
+        current2F3F: string;
+        is3F: boolean;
+      }> = [];
       
-      let exchangeCount = 0;
-      
-      // Grouper par date (ordre chronologique)
-      const dateGroups = new Map<string, Array<{date: string, site_id: string, site_nom: string}>>();
-      for (const sd of sitesNeedingClosingFiltered) {
-        if (!dateGroups.has(sd.date)) dateGroups.set(sd.date, []);
-        dateGroups.get(sd.date)!.push(sd);
-      }
-      
-      const sortedDateKeys = Array.from(dateGroups.keys()).sort();
-      
-      for (const date of sortedDateKeys) {
-        const sitesForDate = dateGroups.get(date)!;
+      for (const siteDay of sitesNeedingClosingFiltered) {
+        const { date, site_id, site_nom } = siteDay;
         
-        for (const siteDay of sitesForDate) {
-          const { site_id, site_nom } = siteDay;
-          
-          // Récupérer les assignments actuels
-          const { data: currentAssignments, error: caError } = await supabase
-            .from('capacite_effective')
-            .select('secretaire_id, is_1r, is_2f, is_3f, demi_journee')
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('actif', true)
-            .not('secretaire_id', 'is', null);
-          
-          if (caError) throw caError;
-          
-          const morningAssignments = currentAssignments?.filter(a => a.demi_journee === 'matin') || [];
-          const afternoonAssignments = currentAssignments?.filter(a => a.demi_journee === 'apres_midi') || [];
-          
-          // Identifier TOUTES les secrétaires présentes toute la journée
-          const morningIds = new Set(morningAssignments.map(a => a.secretaire_id).filter(Boolean));
-          const afternoonIds = new Set(afternoonAssignments.map(a => a.secretaire_id).filter(Boolean));
-          const fullDaySecretaries = Array.from(morningIds).filter(id => afternoonIds.has(id));
-          
-          if (fullDaySecretaries.length < 2) continue;
-          
-          // Identifier les rôles actuels
-          const sec1R_data = morningAssignments.find(a => a.is_1r);
-          const sec2F3F_data = morningAssignments.find(a => a.is_2f || a.is_3f);
-          
-          if (!sec1R_data || !sec2F3F_data) continue;
-          
-          const current1R = sec1R_data.secretaire_id;
-          const current2F3F = sec2F3F_data.secretaire_id;
-          const is3F = sec2F3F_data.is_3f || false;
-          
-          // Map pour tracker is3F par contexte
-          const contextKey = `${date}|${site_id}`;
-          const is3FMap = new Map<string, boolean>([[contextKey, is3F]]);
-          
-          // Identifier les secrétaires sans responsabilité
-          const noResponsibility = fullDaySecretaries.filter(id => {
-            const morning = morningAssignments.find(a => a.secretaire_id === id);
-            return morning && !morning.is_1r && !morning.is_2f && !morning.is_3f;
+        // Récupérer les assignments actuels
+        const { data: currentAssignments, error: caError } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id, is_1r, is_2f, is_3f, demi_journee')
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('actif', true)
+          .not('secretaire_id', 'is', null);
+        
+        if (caError) throw caError;
+        
+        const morningAssignments = currentAssignments?.filter(a => a.demi_journee === 'matin') || [];
+        const afternoonAssignments = currentAssignments?.filter(a => a.demi_journee === 'apres_midi') || [];
+        
+        // Identifier secrétaires présentes toute la journée
+        const morningIds = new Set(morningAssignments.map(a => a.secretaire_id).filter(Boolean));
+        const afternoonIds = new Set(afternoonAssignments.map(a => a.secretaire_id).filter(Boolean));
+        const fullDaySecretaries = Array.from(morningIds).filter(id => afternoonIds.has(id));
+        
+        if (fullDaySecretaries.length < 2) continue;
+        
+        // Identifier les rôles actuels
+        const sec1R_data = morningAssignments.find(a => a.is_1r);
+        const sec2F3F_data = morningAssignments.find(a => a.is_2f || a.is_3f);
+        
+        if (!sec1R_data || !sec2F3F_data) continue;
+        
+        const current1R = sec1R_data.secretaire_id;
+        const current2F3F = sec2F3F_data.secretaire_id;
+        const is3F = sec2F3F_data.is_3f || false;
+        
+        const contextKey = `${date}|${site_id}`;
+        const is3FMap = new Map<string, boolean>([[contextKey, is3F]]);
+        
+        // Identifier les secrétaires sans responsabilité
+        const noResponsibility = fullDaySecretaries.filter(id => {
+          const morning = morningAssignments.find(a => a.secretaire_id === id);
+          return morning && !morning.is_1r && !morning.is_2f && !morning.is_3f;
+        });
+        
+        // Générer tous les échanges possibles pour ce site/date
+        const possibleSwaps: PossibleSwap[] = [];
+        
+        // Type 1: 1R ↔ 2F/3F
+        if (current1R !== current2F3F) {
+          possibleSwaps.push({
+            type: '1R<->2F3F',
+            sec1: current1R,
+            sec2: current2F3F,
+            contextKey
           });
-          
-          // Générer tous les échanges possibles
-          const possibleSwaps: PossibleSwap[] = [];
-          
-          // Type 1: 1R ↔ 2F/3F
-          if (current1R !== current2F3F) {
-            possibleSwaps.push({
-              type: '1R<->2F3F',
-              sec1: current1R,
-              sec2: current2F3F,
-              contextKey
-            });
-          }
-          
-          // Type 2: 1R ↔ Sans responsabilité
-          for (const noResp of noResponsibility) {
-            possibleSwaps.push({
-              type: '1R<->None',
-              sec1: current1R,
-              sec2: noResp,
-              contextKey
-            });
-          }
-          
-          // Type 3: 2F/3F ↔ Sans responsabilité
-          for (const noResp of noResponsibility) {
-            possibleSwaps.push({
-              type: '2F3F<->None',
-              sec1: current2F3F,
-              sec2: noResp,
-              contextKey
-            });
-          }
-          
-          if (possibleSwaps.length === 0) continue;
-          
-          // Score actuel
-          const currentStdDev = calculateWeekStdDev(currentWeekScores);
-          const THRESHOLD = 0.05;
-          
-          // ÉTAPE 1 : Collecter tous les échanges possibles et calculer leur impact individuel
-          const rankedSwaps: Array<{ 
-            swap: PossibleSwap; 
-            improvement: number;
-            stdDev: number;
-            newScores: Map<string, SecretaryScore>;
-          }> = [];
-          
-          for (const swap of possibleSwaps) {
-            const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
-            rankedSwaps.push({
-              swap,
-              improvement: currentStdDev - stdDev, // positif = amélioration
-              stdDev,
-              newScores
-            });
-          }
-          
-          // Trier par amélioration décroissante
-          rankedSwaps.sort((a, b) => b.improvement - a.improvement);
-          
-          // ÉTAPE 2 : Tester d'abord les échanges simples
-          let bestStdDev = currentStdDev;
-          let bestSwaps: PossibleSwap[] = [];
-          let bestTempScores: Map<string, SecretaryScore> | null = null;
-          
-          // Tester TOUS les swaps simples (pas de filtre sur improvement)
-          for (const { swap, stdDev, newScores } of rankedSwaps) {
-            if (stdDev < bestStdDev - THRESHOLD) {
-              bestStdDev = stdDev;
-              bestSwaps = [swap];
-              bestTempScores = newScores;
-            }
-          }
-          
-          // ÉTAPE 3 : Si aucun échange simple n'améliore, tester les PAIRES
-          if (bestSwaps.length === 0) {
-            // Limiter aux 15 meilleurs échanges pour éviter explosion combinatoire
-            const topSwaps = rankedSwaps.slice(0, 15);
-            
-            for (let i = 0; i < topSwaps.length; i++) {
-              for (let j = i + 1; j < topSwaps.length; j++) {
-                const pairSwaps = [topSwaps[i].swap, topSwaps[j].swap];
-                
-                // Vérifier que les deux échanges sont compatibles (pas les mêmes secrétaires)
-                const allSecIds = new Set([
-                  pairSwaps[0].sec1, pairSwaps[0].sec2,
-                  pairSwaps[1].sec1, pairSwaps[1].sec2
-                ]);
-                
-                if (allSecIds.size < 4) continue; // Conflit, skip
-                
-                const { stdDev, newScores } = applySwapsAndCalculateStdDev(pairSwaps, currentWeekScores, is3FMap);
-                
-                if (stdDev < bestStdDev - THRESHOLD) {
-                  bestStdDev = stdDev;
-                  bestSwaps = pairSwaps;
-                  bestTempScores = newScores;
-                }
-              }
-            }
-          }
-          
-          // ÉTAPE 4 : Appliquer tous les échanges de la meilleure solution
-          if (bestSwaps.length > 0 && bestTempScores) {
-            // Reset tous les flags pour ce site/date
-            await supabase
-              .from('capacite_effective')
-              .update({ is_1r: false, is_2f: false, is_3f: false })
-              .eq('date', date)
-              .eq('site_id', site_id)
-              .eq('actif', true);
-            
-            // Appliquer TOUS les échanges de bestSwaps
-            for (const bestSwap of bestSwaps) {
-              const sec1Name = secretaries?.find(s => s.id === bestSwap.sec1);
-              
-              if (bestSwap.type === '1R<->2F3F') {
-                // sec1 devient 2F/3F
-                const update1 = is3F ? { is_3f: true } : { is_2f: true };
-                await supabase
-                  .from('capacite_effective')
-                  .update(update1)
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', bestSwap.sec1)
-                  .eq('actif', true);
-                
-                // sec2 devient 1R
-                await supabase
-                  .from('capacite_effective')
-                  .update({ is_1r: true })
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', bestSwap.sec2)
-                  .eq('actif', true);
-                  
-              } else if (bestSwap.type === '1R<->None') {
-                // sec1 perd 1R (déjà resetté)
-                // sec2 gagne 1R
-                await supabase
-                  .from('capacite_effective')
-                  .update({ is_1r: true })
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', bestSwap.sec2)
-                  .eq('actif', true);
-                
-                // Remettre 2F/3F à son titulaire actuel
-                const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-                await supabase
-                  .from('capacite_effective')
-                  .update(update2F3F)
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', current2F3F)
-                  .eq('actif', true);
-                  
-              } else if (bestSwap.type === '2F3F<->None') {
-                // sec1 perd 2F/3F (déjà resetté)
-                // sec2 gagne 2F/3F
-                const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
-                await supabase
-                  .from('capacite_effective')
-                  .update(update2F3F)
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', bestSwap.sec2)
-                  .eq('actif', true);
-                
-                // Remettre 1R à son titulaire actuel
-                await supabase
-                  .from('capacite_effective')
-                  .update({ is_1r: true })
-                  .eq('date', date)
-                  .eq('site_id', site_id)
-                  .eq('secretaire_id', current1R)
-                  .eq('actif', true);
-              }
-            }
-            
-            // Mettre à jour les scores globaux
-            for (const [secId, secScore] of bestTempScores.entries()) {
-              currentWeekScores.set(secId, secScore);
-            }
-            
-            exchangeCount += bestSwaps.length;
-            hasImprovement = true;
-          }
+        }
+        
+        // Type 2: 1R ↔ Sans responsabilité
+        for (const noResp of noResponsibility) {
+          possibleSwaps.push({
+            type: '1R<->None',
+            sec1: current1R,
+            sec2: noResp,
+            contextKey
+          });
+        }
+        
+        // Type 3: 2F/3F ↔ Sans responsabilité
+        for (const noResp of noResponsibility) {
+          possibleSwaps.push({
+            type: '2F3F<->None',
+            sec1: current2F3F,
+            sec2: noResp,
+            contextKey
+          });
+        }
+        
+        // Évaluer chaque échange et ajouter au pool global
+        for (const swap of possibleSwaps) {
+          const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
+          allSwapsWithContext.push({
+            swap,
+            stdDev,
+            newScores,
+            date,
+            site_id,
+            site_nom,
+            current1R,
+            current2F3F,
+            is3F
+          });
         }
       }
       
-      if (exchangeCount > 0) {
-        console.log(`✅ Itération ${iteration}: ${exchangeCount} échange(s) effectué(s)`);
+      if (allSwapsWithContext.length === 0) {
+        console.log('🏁 Aucun échange possible trouvé');
+        break;
+      }
+      
+      // Trier par stdDev croissant (meilleur en premier)
+      allSwapsWithContext.sort((a, b) => a.stdDev - b.stdDev);
+      
+      // SÉLECTION : GREEDY ou EXPLORATION
+      let chosenSwapContext: typeof allSwapsWithContext[0] | null = null;
+      
+      // GREEDY : Prendre le meilleur échange qui améliore significativement
+      const bestSwapContext = allSwapsWithContext[0];
+      if (bestSwapContext.stdDev < currentStdDev - THRESHOLD) {
+        chosenSwapContext = bestSwapContext;
+        const sec1 = secretaries?.find(s => s.id === bestSwapContext.swap.sec1);
+        const sec2 = secretaries?.find(s => s.id === bestSwapContext.swap.sec2);
+        const sec1Name = sec1 ? `${sec1.first_name} ${sec1.name}` : '?';
+        const sec2Name = sec2 ? `${sec2.first_name} ${sec2.name}` : '?';
+        console.log(`✅ Amélioration: ${currentStdDev.toFixed(2)} → ${bestSwapContext.stdDev.toFixed(2)}`);
+        console.log(`   Échange: ${sec1Name} ↔ ${sec2Name} (${bestSwapContext.swap.type}) sur ${bestSwapContext.site_nom}`);
+      }
+      // EXPLORATION : Si aucun échange n'améliore, tenter un échange aléatoire
+      else if (Math.random() < EXPLORATION_PROBABILITY) {
+        const topN = allSwapsWithContext.slice(0, Math.min(EXPLORATION_TOP_N, allSwapsWithContext.length));
+        chosenSwapContext = topN[Math.floor(Math.random() * topN.length)];
+        const sec1 = secretaries?.find(s => s.id === chosenSwapContext!.swap.sec1);
+        const sec2 = secretaries?.find(s => s.id === chosenSwapContext!.swap.sec2);
+        const sec1Name = sec1 ? `${sec1.first_name} ${sec1.name}` : '?';
+        const sec2Name = sec2 ? `${sec2.first_name} ${sec2.name}` : '?';
+        const change = chosenSwapContext!.stdDev - currentStdDev;
+        console.log(`🎲 Exploration: ${currentStdDev.toFixed(2)} → ${chosenSwapContext!.stdDev.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
+        console.log(`   Échange: ${sec1Name} ↔ ${sec2Name} (${chosenSwapContext!.swap.type}) sur ${chosenSwapContext!.site_nom}`);
+      }
+      
+      // APPLIQUER L'ÉCHANGE CHOISI
+      if (chosenSwapContext) {
+        const { swap, date, site_id, current1R, current2F3F, is3F, newScores } = chosenSwapContext;
+        
+        // Reset tous les flags pour ce site/date
+        await supabase
+          .from('capacite_effective')
+          .update({ is_1r: false, is_2f: false, is_3f: false })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('actif', true);
+        
+        // Appliquer l'échange
+        if (swap.type === '1R<->2F3F') {
+          // sec1 (ancien 1R) devient 2F/3F
+          const update1 = is3F ? { is_3f: true } : { is_2f: true };
+          await supabase
+            .from('capacite_effective')
+            .update(update1)
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', swap.sec1)
+            .eq('actif', true);
+          
+          // sec2 (ancien 2F/3F) devient 1R
+          await supabase
+            .from('capacite_effective')
+            .update({ is_1r: true })
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', swap.sec2)
+            .eq('actif', true);
+            
+        } else if (swap.type === '1R<->None') {
+          // sec1 perd 1R (déjà resetté)
+          // sec2 (sans responsabilité) gagne 1R
+          await supabase
+            .from('capacite_effective')
+            .update({ is_1r: true })
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', swap.sec2)
+            .eq('actif', true);
+          
+          // Remettre 2F/3F à son titulaire actuel
+          const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+          await supabase
+            .from('capacite_effective')
+            .update(update2F3F)
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', current2F3F)
+            .eq('actif', true);
+            
+        } else if (swap.type === '2F3F<->None') {
+          // sec1 perd 2F/3F (déjà resetté)
+          // sec2 (sans responsabilité) gagne 2F/3F
+          const update2F3F = is3F ? { is_3f: true } : { is_2f: true };
+          await supabase
+            .from('capacite_effective')
+            .update(update2F3F)
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', swap.sec2)
+            .eq('actif', true);
+          
+          // Remettre 1R à son titulaire actuel
+          await supabase
+            .from('capacite_effective')
+            .update({ is_1r: true })
+            .eq('date', date)
+            .eq('site_id', site_id)
+            .eq('secretaire_id', current1R)
+            .eq('actif', true);
+        }
+        
+        // Mettre à jour les scores globaux
+        for (const [secId, secScore] of newScores.entries()) {
+          currentWeekScores.set(secId, secScore);
+        }
+        
+        currentStdDev = chosenSwapContext.stdDev;
       } else {
-        console.log(`✅ Itération ${iteration}: aucun échange améliorant trouvé`);
+        console.log('🏁 Convergence atteinte (aucun échange améliorant, pas d\'exploration)');
+        break;
       }
     }
 
-    console.log(`\n🏁 Optimisation par échanges terminée après ${iteration} itération(s)`);
-    console.log(`📊 Écart-type final: ${calculateWeekStdDev(currentWeekScores).toFixed(2)}`);
+    console.log(`\n🏁 Optimisation terminée`);
+    console.log(`📊 Écart-type final: ${currentStdDev.toFixed(2)}`);
 
     console.log(`🎉 Assigned closing responsibles for ${assignmentCount} site/date combinations`);
 
