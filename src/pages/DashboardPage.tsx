@@ -16,7 +16,7 @@ import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
-import { SecretaireWeekStats } from '@/components/dashboard/SecretaireWeekStats';
+import { SecretaireStatsDialog } from '@/components/dashboard/SecretaireStatsDialog';
 import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
 import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
@@ -866,33 +866,23 @@ const DashboardPage = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Tabs defaultValue="planning" className="w-full">
-              <div className="flex justify-center mb-6">
-                <TabsList>
-                  <TabsTrigger value="planning">Planning</TabsTrigger>
-                  <TabsTrigger value="stats">Statistiques</TabsTrigger>
-                </TabsList>
+            <>
+              <div className="flex justify-end mb-4">
+                <SecretaireStatsDialog secretaires={dashboardSecretaires} />
               </div>
-
-              <TabsContent value="planning">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {dashboardSecretaires.map((secretaire, index) => (
-                    <SecretaireCalendarCard
-                      key={secretaire.id}
-                      secretaire={secretaire}
-                      days={secretaire.days}
-                      startDate={startDate}
-                      index={index}
-                      onDayClick={() => fetchDashboardData()}
-                    />
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="stats">
-                <SecretaireWeekStats secretaires={dashboardSecretaires} />
-              </TabsContent>
-            </Tabs>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {dashboardSecretaires.map((secretaire, index) => (
+                  <SecretaireCalendarCard
+                    key={secretaire.id}
+                    secretaire={secretaire}
+                    days={secretaire.days}
+                    startDate={startDate}
+                    index={index}
+                    onDayClick={() => fetchDashboardData()}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </TabsContent>
 
