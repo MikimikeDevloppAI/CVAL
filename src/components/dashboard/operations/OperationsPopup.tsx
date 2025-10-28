@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
+import { BesoinsOperationsManagement } from '@/components/blocOperatoire/BesoinsOperationsManagement';
 import { AddBesoinOperationTypeDialog } from '@/components/operations/AddBesoinOperationTypeDialog';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 
@@ -13,7 +14,7 @@ interface OperationsPopupProps {
 }
 
 export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
-  const [activeView, setActiveView] = useState<'types' | 'flux'>('types');
+  const [activeView, setActiveView] = useState<'types' | 'flux' | 'competences'>('types');
   const [showBesoinTypeDialog, setShowBesoinTypeDialog] = useState(false);
   const typesManagementRef = useRef<TypesInterventionManagementRef>(null);
   const { canManage } = useCanManagePlanning();
@@ -36,7 +37,7 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
           <div className="space-y-6">
-            {/* Toggle between Types and Flux */}
+            {/* Toggle between Types, Flux and Competences */}
             <div className="flex flex-col items-center gap-4">
               <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
                 <button
@@ -58,6 +59,16 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
                   }`}
                 >
                   Double / Triple Flux
+                </button>
+                <button
+                  onClick={() => setActiveView('competences')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeView === 'competences'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Compétences opération
                 </button>
               </div>
 
@@ -86,8 +97,10 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
             <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-6 shadow-lg">
               {activeView === 'types' ? (
                 <TypesInterventionManagement ref={typesManagementRef} />
-              ) : (
+              ) : activeView === 'flux' ? (
                 <ConfigurationsMultiFluxManagement />
+              ) : (
+                <BesoinsOperationsManagement />
               )}
             </div>
           </div>
