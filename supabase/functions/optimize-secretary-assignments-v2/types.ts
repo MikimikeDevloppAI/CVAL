@@ -9,6 +9,7 @@ export interface SiteNeed {
   bloc_operation_id?: string;
   besoin_operation_id?: string;
   type_intervention_id?: string; // Pour exceptions (Gastro)
+  salle_assignee?: string; // 🆕 Salle d'opération assignée
 }
 
 export interface Secretaire {
@@ -186,6 +187,14 @@ export const VIEILLE_VILLE_SITE_ID = '7723c334-d06c-413d-96f0-be281d76520d';
 
 // Site spécifique pour pénalité P2/P3 par jour
 export const ESPLANADE_OPHTALMOLOGIE_SITE_ID = '043899a1-a232-4c4b-9d7d-0eb44dad00ad';
+
+// Salles d'opération
+export const SALLE_ROUGE_ID = 'ae6dc538-e24c-4f53-b6f5-689a97ac4292';
+export const SALLE_VERTE_ID = 'b8279252-aa3a-436d-b184-54da0de62f49';
+export const SALLE_JAUNE_ID = '8965e942-0c6b-4261-a976-2bdf6cd13a00';
+export const SALLE_GASTRO_ID = 'f3b11ee0-4463-4273-afcd-30148424077c';
+
+export const SALLES_STANDARD = [SALLE_ROUGE_ID, SALLE_VERTE_ID, SALLE_JAUNE_ID];
 
 // Bonus pour même site matin + après-midi
 export const SAME_SITE_BONUS = 20;

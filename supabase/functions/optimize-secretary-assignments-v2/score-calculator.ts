@@ -6,7 +6,7 @@ import type {
   TodayAssignment,
   AssignmentSummary
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS, ESPLANADE_OPHTALMOLOGIE_SITE_ID } from './types.ts';
+import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS, ESPLANADE_OPHTALMOLOGIE_SITE_ID, SALLE_GASTRO_ID } from './types.ts';
 
 function countTodayAdminAssignments(
   secretaire_id: string,
@@ -433,23 +433,21 @@ export function calculateComboScore(
       if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
         
         // ============================================================
-        // RÈGLES GASTRO-ENTÉROLOGIE
+        // RÈGLES GASTRO-ENTÉROLOGIE (basées sur salle_assignee)
         // ============================================================
-        const isGastroMatin = needMatin.type === 'bloc_operatoire' && 
-          needMatin.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
-        const isGastroAM = needAM.type === 'bloc_operatoire' && 
-          needAM.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        const isSalleGastroMatin = needMatin.salle_assignee === SALLE_GASTRO_ID;
+        const isSalleGastroAM = needAM.salle_assignee === SALLE_GASTRO_ID;
         
         const isVieilleVilleMatin = needMatin.site_id === VIEILLE_VILLE_SITE_ID;
         const isVieilleVilleAM = needAM.site_id === VIEILLE_VILLE_SITE_ID;
         
         // ✅ CAS 1: Gastro Matin + Gastro Après-midi = Pas de pénalité
-        const isBothGastro = isGastroMatin && isGastroAM;
+        const isBothGastro = isSalleGastroMatin && isSalleGastroAM;
         
         // ✅ CAS 2: Gastro ↔ Vieille Ville Gastro = Pas de pénalité
         const isGastroVieilleVilleChange = 
-          (isGastroMatin && isVieilleVilleAM) || 
-          (isVieilleVilleMatin && isGastroAM);
+          (isSalleGastroMatin && isVieilleVilleAM) || 
+          (isVieilleVilleMatin && isSalleGastroAM);
         
         // Vérifier si on doit appliquer une pénalité
         const noGastroPenalty = isBothGastro || isGastroVieilleVilleChange;
@@ -469,7 +467,7 @@ export function calculateComboScore(
         } else {
           // Log pour debug
           if (isBothGastro) {
-            console.log(`  ✅ Exception Gastro Matin + Gastro AM: pas de pénalité`);
+            console.log(`  ✅ Exception Gastro Matin + Gastro AM: pas de pénalité (salles Gastro)`);
           } else {
             console.log(`  ✅ Exception Gastro ↔ Vieille Ville: pas de pénalité`);
           }

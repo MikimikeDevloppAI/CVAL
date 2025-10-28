@@ -133,7 +133,8 @@ function calculateNeeds(
         type: 'bloc_operatoire' as const,
         bloc_operation_id: bloc.id,
         besoin_operation_id: besoinPersonnel.besoin_operation_id,
-        type_intervention_id: bloc.type_intervention_id // Pour exceptions (Gastro)
+        type_intervention_id: bloc.type_intervention_id, // Pour exceptions (Gastro)
+        salle_assignee: bloc.salle_assignee // 🆕 Salle d'opération assignée
       };
       
       needs.push(need);

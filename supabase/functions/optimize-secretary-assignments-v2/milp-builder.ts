@@ -4,7 +4,18 @@ import type {
   WeekData,
   DynamicContext
 } from './types.ts';
-import { ADMIN_SITE_ID, FORBIDDEN_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID } from './types.ts';
+import { 
+  ADMIN_SITE_ID, 
+  FORBIDDEN_SITES, 
+  GASTRO_TYPE_INTERVENTION_ID, 
+  VIEILLE_VILLE_SITE_ID,
+  ESPLANADE_OPHTALMOLOGIE_SITE_ID,
+  SALLE_ROUGE_ID,
+  SALLE_VERTE_ID,
+  SALLE_JAUNE_ID,
+  SALLE_GASTRO_ID,
+  SALLES_STANDARD
+} from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
 
 const DEBUG_VERBOSE = false;
@@ -149,48 +160,81 @@ export function buildMILPModelSoft(
     // Generate all combos (matin × AM)
     for (const needM of eligibleMatin) {
       for (const needA of eligibleAM) {
-        // EXCLUSION: Bloc + Forbidden site (and vice versa) SAUF Gastro
+        // ============================================================
+        // EXCLUSION: Règles basées sur les SALLES
+        // ============================================================
         const isBlocMatin = needM?.type === 'bloc_operatoire';
         const isBlocAM = needA?.type === 'bloc_operatoire';
         const isForbiddenMatin = needM && FORBIDDEN_SITES.includes(needM.site_id);
         const isForbiddenAM = needA && FORBIDDEN_SITES.includes(needA.site_id);
         
-        // Check if Gastro exception applies
-        const isGastroMatin = needM?.type === 'bloc_operatoire' && 
-          needM.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
-        const isGastroAM = needA?.type === 'bloc_operatoire' && 
-          needA.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID;
+        // Déterminer le type de salle
+        const salleMatin = needM?.salle_assignee;
+        const salleAM = needA?.salle_assignee;
         
+        const isSalleStandardMatin = salleMatin && SALLES_STANDARD.includes(salleMatin);
+        const isSalleStandardAM = salleAM && SALLES_STANDARD.includes(salleAM);
+        const isSalleGastroMatin = salleMatin === SALLE_GASTRO_ID;
+        const isSalleGastroAM = salleAM === SALLE_GASTRO_ID;
+        
+        // ============================================================
+        // RÈGLE 1: Salles standard (Rouge, Verte, Jaune)
+        // → Exclusion avec Centre Esplanade ET Vieille Ville
+        // ============================================================
+        if (isSalleStandardMatin && isForbiddenAM) {
+          excludedComboCount++;
+          continue;
+        }
+        if (isForbiddenMatin && isSalleStandardAM) {
+          excludedComboCount++;
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 2: Salle Gastro
+        // → Exclusion UNIQUEMENT avec Centre Esplanade
+        // → Autorisé avec Vieille Ville, Admin, et autre Gastro
+        // ============================================================
+        const isEsplanadeMatin = needM?.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID;
+        const isEsplanadeAM = needA?.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID;
+        
+        if (isSalleGastroMatin && isEsplanadeAM) {
+          excludedComboCount++;
+          continue;
+        }
+        if (isEsplanadeMatin && isSalleGastroAM) {
+          excludedComboCount++;
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 3: Gastro + Gastro = toujours autorisé
+        // ============================================================
+        // (Pas besoin d'exclusion, déjà géré par les règles ci-dessus)
+        
+        // ============================================================
+        // RÈGLE 4: Gastro + autre type d'opération (autre salle) = interdit
+        // ============================================================
+        if (isSalleGastroMatin && needA?.type === 'bloc_operatoire' && !isSalleGastroAM) {
+          excludedComboCount++;
+          continue;
+        }
+        if (isSalleGastroAM && needM?.type === 'bloc_operatoire' && !isSalleGastroMatin) {
+          excludedComboCount++;
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 5: Gastro + autre site (hors Admin et Vieille Ville) = interdit
+        // ============================================================
         const isVieilleVilleMatin = needM?.site_id === VIEILLE_VILLE_SITE_ID;
         const isVieilleVilleAM = needA?.site_id === VIEILLE_VILLE_SITE_ID;
         
-        // Allow Gastro ↔ Vieille Ville
-        const isGastroVieilleVilleCombo = 
-          (isGastroMatin && isVieilleVilleAM) || 
-          (isVieilleVilleMatin && isGastroAM);
-        
-        // Exclude other forbidden combinations
-        if (!isGastroVieilleVilleCombo && ((isBlocMatin && isForbiddenAM) || (isForbiddenMatin && isBlocAM))) {
+        if (isSalleGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && !isVieilleVilleAM) {
           excludedComboCount++;
           continue;
         }
-        
-        // NOUVELLE RÈGLE: Interdire Gastro + autre type d'intervention
-        if (isGastroMatin && needA?.type === 'bloc_operatoire' && !isGastroAM) {
-          excludedComboCount++;
-          continue;
-        }
-        if (isGastroAM && needM?.type === 'bloc_operatoire' && !isGastroMatin) {
-          excludedComboCount++;
-          continue;
-        }
-        
-        // NOUVELLE RÈGLE: Gastro ne peut pas être avec un autre site (sauf Vieille Ville)
-        if (isGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && needA.site_id !== VIEILLE_VILLE_SITE_ID) {
-          excludedComboCount++;
-          continue;
-        }
-        if (isGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && needM.site_id !== VIEILLE_VILLE_SITE_ID) {
+        if (isSalleGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && !isVieilleVilleMatin) {
           excludedComboCount++;
           continue;
         }
