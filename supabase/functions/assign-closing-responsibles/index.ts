@@ -15,8 +15,22 @@ interface SecretaryScore {
   count_3f: number;
 }
 
+function calculatePenalizedScore(secScore: SecretaryScore): number {
+  const baseScore = secScore.score; // 1R=1pt, 2F=2pts, 3F=3pts
+  const totalAssignments = secScore.count_1r + secScore.count_2f + secScore.count_3f;
+  
+  // Forte pénalité si ≥3 assignations dans la semaine
+  if (totalAssignments >= 3) {
+    const overload = totalAssignments - 2;
+    const penalty = overload * 10; // 10 points par assignation supplémentaire
+    return baseScore + penalty;
+  }
+  
+  return baseScore;
+}
+
 function calculateWeekStdDev(scores: Map<string, SecretaryScore>): number {
-  const values = Array.from(scores.values()).map(s => s.score);
+  const values = Array.from(scores.values()).map(s => calculatePenalizedScore(s));
   if (values.length === 0) return 0;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
