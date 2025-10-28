@@ -174,8 +174,9 @@ export function buildMILPModelSoft(
         
         const isSalleStandardMatin = salleMatin && SALLES_STANDARD.includes(salleMatin);
         const isSalleStandardAM = salleAM && SALLES_STANDARD.includes(salleAM);
-        const isSalleGastroMatin = salleMatin === SALLE_GASTRO_ID;
-        const isSalleGastroAM = salleAM === SALLE_GASTRO_ID;
+        // Détection robuste avec fallback sur type_intervention_id si salle non assignée
+        const isSalleGastroMatin = salleMatin ? (salleMatin === SALLE_GASTRO_ID) : (needM?.type === 'bloc_operatoire' && needM?.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID);
+        const isSalleGastroAM = salleAM ? (salleAM === SALLE_GASTRO_ID) : (needA?.type === 'bloc_operatoire' && needA?.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID);
         
         // ============================================================
         // RÈGLE 1: Salles standard (Rouge, Verte, Jaune)
@@ -230,11 +231,14 @@ export function buildMILPModelSoft(
         const isVieilleVilleMatin = needM?.site_id === VIEILLE_VILLE_SITE_ID;
         const isVieilleVilleAM = needA?.site_id === VIEILLE_VILLE_SITE_ID;
         
-        if (isSalleGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && !isVieilleVilleAM) {
+        // Ne pas exclure Gastro + Gastro (même si sites différents)
+        if (isSalleGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && !isVieilleVilleAM && !isSalleGastroAM) {
+          console.log(`[RÈGLE 5] Exclusion: Gastro matin + autre site PM pour ${secretaire.id}, site AM: ${needA.site_id}, salle AM: ${salleAM || 'non assignée'}`);
           excludedComboCount++;
           continue;
         }
-        if (isSalleGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && !isVieilleVilleMatin) {
+        if (isSalleGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && !isVieilleVilleMatin && !isSalleGastroMatin) {
+          console.log(`[RÈGLE 5] Exclusion: Gastro après-midi + autre site matin pour ${secretaire.id}, site matin: ${needM.site_id}, salle matin: ${salleMatin || 'non assignée'}`);
           excludedComboCount++;
           continue;
         }
