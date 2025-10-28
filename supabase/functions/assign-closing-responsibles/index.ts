@@ -682,231 +682,256 @@ interface SwapContext {
       }
     }
 
-    // PHASE 2: OPTIMISATION PAR ÉCHANGES MULTI-ÉTAPES AVEC LOOK-AHEAD
+    // ============================================================
+    // PHASE 2: MILP OPTIMIZATION FOR CLOSING RESPONSIBLES
+    // ============================================================
+
     console.log('\n' + '='.repeat(60));
-    console.log('🔄 PHASE 2: Optimisation par échanges multi-étapes avec look-ahead');
+    console.log('🎯 PHASE 2: Optimisation MILP des responsables de fermeture');
     console.log('='.repeat(60));
-
-    const MAX_ITERATIONS = 30;
-    const THRESHOLD = 0.05;
-    const MAX_PAIRS_TO_TEST = 100; // Limite performance
     
-    let currentStdDev = calculateWeekStdDev(currentWeekScores);
-    console.log(`📊 Écart-type initial: ${currentStdDev.toFixed(2)}\n`);
+    // Import du builder MILP et du solver
+    const { buildClosingMILPModel } = await import('./milp-builder.ts');
+    // @ts-ignore
+    const solver = await import('https://cdn.skypack.dev/javascript-lp-solver@0.4.24');
 
-    for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-      console.log(`🔄 Itération ${iteration}...`);
+    // Get all dates we're working with
+    const allDatesInWeek: string[] = [];
+    const startDate = new Date(week_start);
+    const endDate = new Date(week_end);
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      allDatesInWeek.push(d.toISOString().split('T')[0]);
+    }
+
+    // Préparer les données pour le MILP
+    const closingSites: any[] = [];
+    const { data: closingSites_data, error: csError } = await supabase
+      .from('sites')
+      .select('id, nom, fermeture')
+      .eq('fermeture', true)
+      .eq('actif', true);
+    
+    if (csError) throw csError;
+
+    for (const date of (selected_dates || allDatesInWeek)) {
+      const { data: sitesThisDay, error: sitesError } = await supabase
+        .from('capacite_effective')
+        .select(`
+          site_id,
+          sites!inner(nom),
+          is_1r,
+          is_2f,
+          is_3f,
+          secretaire_id,
+          demi_journee
+        `)
+        .eq('date', date)
+        .eq('actif', true)
+        .not('secretaire_id', 'is', null);
       
-      // COLLECTER TOUS LES ÉCHANGES POSSIBLES DE TOUTES LES DATES/SITES
-      const allSwapsWithContext: Array<{
-        swap: PossibleSwap;
-        stdDev: number;
-        newScores: Map<string, SecretaryScore>;
-        date: string;
-        site_id: string;
-        site_nom: string;
-        current1R: string;
-        current2F3F: string;
-        is3F: boolean;
-      }> = [];
+      if (sitesError) throw sitesError;
       
-      for (const siteDay of sitesNeedingClosingFiltered) {
-        const { date, site_id, site_nom } = siteDay;
-        
-        // Récupérer les assignments actuels
-        const { data: currentAssignments, error: caError } = await supabase
-          .from('capacite_effective')
-          .select('secretaire_id, is_1r, is_2f, is_3f, demi_journee')
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('actif', true)
-          .not('secretaire_id', 'is', null);
-        
-        if (caError) throw caError;
-        
-        const morningAssignments = currentAssignments?.filter(a => a.demi_journee === 'matin') || [];
-        const afternoonAssignments = currentAssignments?.filter(a => a.demi_journee === 'apres_midi') || [];
-        
-        // Identifier secrétaires présentes toute la journée
-        const morningIds = new Set(morningAssignments.map(a => a.secretaire_id).filter(Boolean));
-        const afternoonIds = new Set(afternoonAssignments.map(a => a.secretaire_id).filter(Boolean));
-        const fullDaySecretaries = Array.from(morningIds).filter(id => afternoonIds.has(id));
-        
-        if (fullDaySecretaries.length < 2) continue;
-        
-        // Identifier les rôles actuels
-        const sec1R_data = morningAssignments.find(a => a.is_1r);
-        const sec2F3F_data = morningAssignments.find(a => a.is_2f || a.is_3f);
-        
-        if (!sec1R_data || !sec2F3F_data) continue;
-        
-        const current1R = sec1R_data.secretaire_id;
-        const current2F3F = sec2F3F_data.secretaire_id;
-        const is3F = sec2F3F_data.is_3f || false;
-        
-        const contextKey = `${date}|${site_id}`;
-        const is3FMap = new Map<string, boolean>([[contextKey, is3F]]);
-        
-        // Identifier les secrétaires sans responsabilité
-        const noResponsibility = fullDaySecretaries.filter(id => {
-          const morning = morningAssignments.find(a => a.secretaire_id === id);
-          return morning && !morning.is_1r && !morning.is_2f && !morning.is_3f;
-        });
-        
-        // Générer tous les échanges possibles pour ce site/date
-        const possibleSwaps: PossibleSwap[] = [];
-        
-        // Type 1: 1R ↔ 2F/3F
-        if (current1R !== current2F3F) {
-          possibleSwaps.push({
-            type: '1R<->2F3F',
-            sec1: current1R,
-            sec2: current2F3F,
-            contextKey
-          });
-        }
-        
-        // Type 2: 1R ↔ Sans responsabilité
-        for (const noResp of noResponsibility) {
-          possibleSwaps.push({
-            type: '1R<->None',
-            sec1: current1R,
-            sec2: noResp,
-            contextKey
-          });
-        }
-        
-        // Type 3: 2F/3F ↔ Sans responsabilité
-        for (const noResp of noResponsibility) {
-          possibleSwaps.push({
-            type: '2F3F<->None',
-            sec1: current2F3F,
-            sec2: noResp,
-            contextKey
-          });
-        }
-        
-        // Évaluer chaque échange et ajouter au pool global
-        for (const swap of possibleSwaps) {
-          const { stdDev, newScores } = applySwapsAndCalculateStdDev([swap], currentWeekScores, is3FMap);
-          allSwapsWithContext.push({
-            swap,
-            stdDev,
-            newScores,
-            date,
-            site_id,
-            site_nom,
-            current1R,
-            current2F3F,
-            is3F
-          });
-        }
-      }
+      // Grouper par site pour identifier les besoins
+      const siteMap = new Map<string, any>();
       
-      if (allSwapsWithContext.length === 0) {
-        console.log('🏁 Aucun échange possible trouvé');
-        break;
-      }
-      
-      // Trier par stdDev croissant (meilleur en premier)
-      allSwapsWithContext.sort((a, b) => a.stdDev - b.stdDev);
-      
-      // ========== NOUVELLE LOGIQUE MULTI-ÉTAPES ==========
-      
-      // ÉTAPE 1: Chercher un échange simple qui améliore
-      const bestSingleSwap = allSwapsWithContext[0];
-      
-      if (bestSingleSwap.stdDev < currentStdDev - THRESHOLD) {
-        // ✅ Échange simple trouvé qui améliore
-        console.log(`✅ Échange simple améliore: ${currentStdDev.toFixed(2)} → ${bestSingleSwap.stdDev.toFixed(2)}`);
-        console.log(`   ${getSwapDescription(bestSingleSwap)}`);
-        
-        await applySwapToDatabase(bestSingleSwap);
-        
-        // Mettre à jour les scores globaux
-        for (const [secId, secScore] of bestSingleSwap.newScores.entries()) {
-          currentWeekScores.set(secId, secScore);
-        }
-        
-        currentStdDev = bestSingleSwap.stdDev;
-        continue; // Passer à l'itération suivante
-      }
-      
-      // ÉTAPE 2: Aucun échange simple n'améliore → Look-ahead sur 2 échanges
-      console.log(`🔍 Aucun échange simple améliorant, recherche de paires d'échanges...`);
-      
-      let bestPair: {
-        swap1: typeof allSwapsWithContext[0];
-        swap2: typeof allSwapsWithContext[0];
-        finalStdDev: number;
-        finalScores: Map<string, SecretaryScore>;
-      } | null = null;
-      
-      let pairsTested = 0;
-      
-      // Tester toutes les paires (E1, E2) où E2 implique une personne de E1
-      for (const swap1 of allSwapsWithContext) {
-        if (pairsTested >= MAX_PAIRS_TO_TEST) break;
-        
-        // Appliquer temporairement E1
-        const scoresAfterE1 = swap1.newScores;
-        const contextKey1 = swap1.swap.contextKey;
-        const is3FMap1 = new Map<string, boolean>([[contextKey1, swap1.is3F]]);
-        
-        // Chercher E2 impliquant sec1 ou sec2 de E1
-        const candidatesE2 = allSwapsWithContext.filter(swap2 => 
-          swap2.swap.sec1 === swap1.swap.sec1 ||
-          swap2.swap.sec1 === swap1.swap.sec2 ||
-          swap2.swap.sec2 === swap1.swap.sec1 ||
-          swap2.swap.sec2 === swap1.swap.sec2
-        );
-        
-        for (const swap2 of candidatesE2) {
-          pairsTested++;
-          if (pairsTested >= MAX_PAIRS_TO_TEST) break;
-          
-          // Créer la map is3F combinée pour E2
-          const contextKey2 = swap2.swap.contextKey;
-          const is3FMapCombined = new Map<string, boolean>([
-            [contextKey1, swap1.is3F],
-            [contextKey2, swap2.is3F]
-          ]);
-          
-          // Appliquer E2 après E1
-          const { stdDev: finalStdDev, newScores: finalScores } = 
-            applySwapsAndCalculateStdDev([swap2.swap], scoresAfterE1, is3FMapCombined);
-          
-          // Si la paire améliore globalement
-          if (finalStdDev < currentStdDev - THRESHOLD) {
-            if (!bestPair || finalStdDev < bestPair.finalStdDev) {
-              bestPair = { swap1, swap2, finalStdDev, finalScores };
+      for (const cap of sitesThisDay || []) {
+        if (!siteMap.has(cap.site_id)) {
+          // Handle sites which might be an array or object
+          let siteName = 'Unknown';
+          if (cap.sites) {
+            if (Array.isArray(cap.sites) && cap.sites.length > 0) {
+              siteName = cap.sites[0]?.nom || 'Unknown';
+            } else if (typeof cap.sites === 'object' && 'nom' in cap.sites) {
+              siteName = (cap.sites as any).nom || 'Unknown';
             }
           }
+          
+          siteMap.set(cap.site_id, {
+            site_id: cap.site_id,
+            site_nom: siteName,
+            date,
+            needs_2f: false,
+            needs_3f: false,
+            current_1r: null,
+            current_2f: null,
+            current_3f: null,
+            total_secretaries: 0,
+            full_day_secretaries: new Set<string>()
+          });
         }
+        
+        const siteData = siteMap.get(cap.site_id)!;
+        
+        // Track full day secretaries
+        siteData.full_day_secretaries.add(cap.secretaire_id);
+        
+        if (cap.is_1r) siteData.current_1r = cap.secretaire_id;
+        if (cap.is_2f) siteData.current_2f = cap.secretaire_id;
+        if (cap.is_3f) siteData.current_3f = cap.secretaire_id;
       }
       
-      console.log(`   ${pairsTested} paires testées`);
-      
-      // Appliquer la meilleure paire si trouvée
-      if (bestPair) {
-        console.log(`✅ Paire d'échanges trouvée: ${currentStdDev.toFixed(2)} → ${bestPair.finalStdDev.toFixed(2)}`);
-        console.log(`   E1: ${getSwapDescription(bestPair.swap1)}`);
-        console.log(`   E2: ${getSwapDescription(bestPair.swap2)}`);
+      // Count only full day secretaries (present both morning and afternoon)
+      for (const [_, siteData] of siteMap) {
+        const morningIds = new Set(
+          (sitesThisDay || [])
+            .filter(c => c.site_id === siteData.site_id && c.demi_journee === 'matin')
+            .map(c => c.secretaire_id)
+        );
+        const afternoonIds = new Set(
+          (sitesThisDay || [])
+            .filter(c => c.site_id === siteData.site_id && c.demi_journee === 'apres_midi')
+            .map(c => c.secretaire_id)
+        );
         
-        await applySwapToDatabase(bestPair.swap1);
-        await applySwapToDatabase(bestPair.swap2);
+        // Only count secretaries present both periods
+        const fullDay = Array.from(morningIds).filter(id => afternoonIds.has(id));
+        siteData.total_secretaries = fullDay.length;
         
-        // Mettre à jour les scores globaux
-        for (const [secId, secScore] of bestPair.finalScores.entries()) {
-          currentWeekScores.set(secId, secScore);
+        // Filtrer les sites de fermeture uniquement
+        const site = closingSites_data?.find((s: any) => s.id === siteData.site_id);
+        if (site && site.fermeture && siteData.total_secretaries >= 2) {
+          // Déterminer les besoins en 2F/3F selon le nombre de secrétaires
+          if (siteData.total_secretaries >= 3) {
+            siteData.needs_2f = true;
+            siteData.needs_3f = true;
+          } else if (siteData.total_secretaries >= 2) {
+            siteData.needs_2f = true;
+          }
+          
+          closingSites.push(siteData);
         }
-        
-        currentStdDev = bestPair.finalStdDev;
-      } else {
-        console.log(`🏁 Convergence: aucune paire d'échanges améliorante`);
-        break;
       }
     }
+
+    console.log(`📊 Sites de fermeture à traiter: ${closingSites.length}`);
+    console.log(`👥 Secrétaires actives: ${secretaries?.length || 0}`);
+
+    if (closingSites.length === 0) {
+      console.log('ℹ️ Aucun site de fermeture à optimiser');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'No closing sites to assign',
+          assignments_count: assignmentCount
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Construire le modèle MILP
+    const { model } = buildClosingMILPModel(
+      closingSites,
+      (secretaries || []).map((s: any) => ({
+        id: s.id,
+        name: `${s.first_name} ${s.name}`,
+        current_week_assignments: {
+          count_1r: currentWeekScores.get(s.id)?.count_1r || 0,
+          count_2f: currentWeekScores.get(s.id)?.count_2f || 0,
+          count_3f: currentWeekScores.get(s.id)?.count_3f || 0
+        }
+      })),
+      currentWeekScores
+    );
+
+    console.log(`🔧 Modèle MILP construit:`);
+    console.log(`   Variables: ${Object.keys(model.variables).length}`);
+    console.log(`   Contraintes: ${Object.keys(model.constraints).length}`);
+
+    // Résoudre le modèle MILP
+    console.log('🚀 Résolution MILP...');
+    const solution = solver.Solve(model);
+
+    if (!solution || !solution.feasible) {
+      console.error('❌ Aucune solution trouvée par le MILP');
+      throw new Error('MILP optimization failed: no feasible solution');
+    }
+
+    console.log(`✅ Solution trouvée! Score objectif: ${solution.result?.toFixed(2) || 'N/A'}`);
+
+    // ============================================================
+    // APPLY MILP SOLUTION TO DATABASE
+    // ============================================================
+
+    console.log('\n💾 Application de la solution MILP...');
+
+    // Reset tous les flags de fermeture pour les dates concernées
+    for (const date of (selected_dates || allDatesInWeek)) {
+      await supabase
+        .from('capacite_effective')
+        .update({ is_1r: false, is_2f: false, is_3f: false })
+        .eq('date', date)
+        .eq('actif', true)
+        .not('secretaire_id', 'is', null);
+    }
+
+    // Appliquer les assignations de la solution
+    let milpAssignmentsCount = 0;
+
+    for (const [varName, value] of Object.entries(solution)) {
+      if (value === 1 && varName.startsWith('x_')) {
+        // Parse variable name: x_secId_date_siteId_role
+        const parts = varName.split('_');
+        if (parts.length < 5) continue;
+        
+        const secId = parts[1];
+        const date = parts[2];
+        const siteId = parts[3];
+        const role = parts[4]; // '1R', '2F', ou '3F'
+        
+        const roleField = role === '1R' ? 'is_1r' :
+                          role === '2F' ? 'is_2f' :
+                          'is_3f';
+        
+        // Update both morning and afternoon
+        const { error: updateError } = await supabase
+          .from('capacite_effective')
+          .update({ [roleField]: true })
+          .eq('date', date)
+          .eq('site_id', siteId)
+          .eq('secretaire_id', secId)
+          .eq('actif', true);
+        
+        if (updateError) {
+          console.error(`❌ Erreur lors de l'assignation:`, updateError);
+          continue;
+        }
+        
+        milpAssignmentsCount++;
+        
+        const sec = secretaries?.find((s: any) => s.id === secId);
+        const site = closingSites.find((s: any) => s.site_id === siteId && s.date === date);
+        console.log(`   ✓ ${sec?.first_name} ${sec?.name} → ${role} sur ${site?.site_nom} le ${date}`);
+        
+        // Update week scores for final display
+        if (!currentWeekScores.has(secId)) {
+          currentWeekScores.set(secId, { 
+            id: secId, 
+            name: `${sec?.first_name} ${sec?.name}`, 
+            score: 0, 
+            count_1r: 0, 
+            count_2f: 0, 
+            count_3f: 0 
+          });
+        }
+        const secScore = currentWeekScores.get(secId)!;
+        if (role === '1R') {
+          secScore.score += 1;
+          secScore.count_1r += 1;
+        } else if (role === '2F') {
+          secScore.score += 2;
+          secScore.count_2f += 1;
+        } else if (role === '3F') {
+          secScore.score += 3;
+          secScore.count_3f += 1;
+        }
+      }
+    }
+
+    console.log(`✅ ${milpAssignmentsCount} assignations de responsables de fermeture appliquées via MILP`);
+    
+    let currentStdDev = calculateWeekStdDev(currentWeekScores);
+    console.log(`📊 Écart-type final: ${currentStdDev.toFixed(2)}`);
 
     // Continue with the rest (displaying final scores, etc.)
     console.log('\n' + '='.repeat(60));
