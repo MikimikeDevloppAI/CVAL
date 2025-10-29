@@ -247,7 +247,7 @@ export function calculateComboScore(
     const state = currentState.get(secretaire_id);
     if (state) {
       console.log(`  📋 État actuel: Matin=${state.matin_site_id?.slice(0,8)} (besoin=${state.matin_besoin_op_id?.slice(0,8)}, bloc=${state.matin_bloc_op_id?.slice(0,8)}), AM=${state.am_site_id?.slice(0,8)} (besoin=${state.am_besoin_op_id?.slice(0,8)}, bloc=${state.am_bloc_op_id?.slice(0,8)})`);
-      console.log(`  🔍 Combo proposé: Matin=${needMatin?.site_id?.slice(0,8)} (type=${needMatin?.type}), AM=${needAM?.site_id?.slice(0,8)} (type=${needAM?.type})`);
+      console.log(`  🔍 Combo proposé: Matin=${needMatin?.site_id?.slice(0,8)} (type=${needMatin?.type}${needMatin?.type === 'bloc_operatoire' ? `, bloc=${needMatin.bloc_operation_id?.slice(0,8)}, besoin=${needMatin.besoin_operation_id?.slice(0,8)}` : ''}), AM=${needAM?.site_id?.slice(0,8)} (type=${needAM?.type}${needAM?.type === 'bloc_operatoire' ? `, bloc=${needAM.bloc_operation_id?.slice(0,8)}, besoin=${needAM.besoin_operation_id?.slice(0,8)}` : ''})`);
       
       // Détection ADMIN: null OU explicite (site_id === ADMIN_SITE_ID)
       const isAdminComboMatin = (needMatin === null) || (needMatin?.type === 'site' && needMatin.site_id === ADMIN_SITE_ID);
@@ -257,14 +257,16 @@ export function calculateComboScore(
         (isAdminComboMatin && state.matin_site_id === ADMIN_SITE_ID) ||
         (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
         (needMatin && needMatin.type === 'bloc_operatoire' && 
-         needMatin.bloc_operation_id === state.matin_bloc_op_id)
+         needMatin.bloc_operation_id === state.matin_bloc_op_id &&
+         needMatin.besoin_operation_id === state.matin_besoin_op_id)
       );
       
       const matchesAM = (
         (isAdminComboAM && state.am_site_id === ADMIN_SITE_ID) ||
         (needAM && needAM.type === 'site' && needAM.site_id === state.am_site_id) ||
         (needAM && needAM.type === 'bloc_operatoire' && 
-         needAM.bloc_operation_id === state.am_bloc_op_id)
+         needAM.bloc_operation_id === state.am_bloc_op_id &&
+         needAM.besoin_operation_id === state.am_besoin_op_id)
       );
       
       console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
@@ -277,7 +279,7 @@ export function calculateComboScore(
         if (isAdminComboMatin) {
           console.log(`  🎯 BONUS +100 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
         } else if (needMatin?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 matin: session BLOC conservée ✅`);
+          console.log(`  🎯 BONUS +100 matin: session BLOC + besoin conservés ✅`);
         } else {
           console.log(`  🎯 BONUS +100 matin: site conservé ✅`);
         }
@@ -288,7 +290,7 @@ export function calculateComboScore(
         if (isAdminComboAM) {
           console.log(`  🎯 BONUS +100 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
         } else if (needAM?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 AM: session BLOC conservée ✅`);
+          console.log(`  🎯 BONUS +100 AM: session BLOC + besoin conservés ✅`);
         } else {
           console.log(`  🎯 BONUS +100 AM: site conservé ✅`);
         }
