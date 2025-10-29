@@ -208,10 +208,10 @@ export const SALLES_STANDARD = [SALLE_ROUGE_ID, SALLE_VERTE_ID, SALLE_JAUNE_ID];
 // Bonus pour même site matin + après-midi
 export const SAME_SITE_BONUS = 20;
 
-// Pénalités pour fermetures
+// Pénalités pour fermetures (calibrées pour favoriser rotation)
 export const CLOSING_PENALTIES = {
-  TWO_2F3F_TIMES: -80, // Pénalité si 2 fois 2F ou 3F dans la semaine
-  THREE_CLOSING_ROLES: -80, // Pénalité si 3 rôles de fermeture (1R + 2F + 3F) dans la semaine
+  TWO_2F3F_TIMES: -100, // Pénalité si 2 fois 2F ou 3F dans la semaine (augmenté)
+  THREE_CLOSING_ROLES: -100, // Pénalité si 3 rôles de fermeture au total dans la semaine (augmenté)
   FOUR_OR_MORE_CLOSING: -200, // Pénalité supplémentaire si 4+ rôles de fermeture
   FLORENCE_BRON_TUESDAY_2F: -500, // Très forte pénalité pour Florence Bron 2F le mardi
 };

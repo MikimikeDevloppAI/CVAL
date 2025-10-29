@@ -183,6 +183,9 @@ export async function writeAssignments(
   }
   
   // PHASE 2: Parse role variables for 1R/2F/3F
+  // Structure simplifiée: roleUpdates stocke par secretaire_id seulement
+  const roleUpdatesBySecretary = new Map<string, { is_1r?: boolean, is_2f?: boolean, is_3f?: boolean, siteId: string }>();
+  
   for (const [varName, value] of Object.entries(solution)) {
     if (Number(value) <= 0.5) continue;
     
@@ -199,14 +202,11 @@ export async function writeAssignments(
         roleSiteKeys.add(key);
       }
       
-      // Update both morning and afternoon capacites
-      for (const periode of ['matin', 'apres_midi']) {
-        const capKey = `${secId}_${siteId}_${date}_${periode}`;
-        if (!roleUpdates.has(capKey)) {
-          roleUpdates.set(capKey, {});
-        }
-        roleUpdates.get(capKey)!.is_1r = true;
+      // Stocker le rôle au niveau de la secrétaire
+      if (!roleUpdatesBySecretary.has(secId)) {
+        roleUpdatesBySecretary.set(secId, { siteId });
       }
+      roleUpdatesBySecretary.get(secId)!.is_1r = true;
       
       console.log(`  🔒 1R assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
     }
@@ -228,17 +228,14 @@ export async function writeAssignments(
       const need = needs.find(n => n.site_id === siteId && n.date === date);
       const is3F = need?.needs_3f || false;
       
-      // Update both morning and afternoon capacites
-      for (const periode of ['matin', 'apres_midi']) {
-        const capKey = `${secId}_${siteId}_${date}_${periode}`;
-        if (!roleUpdates.has(capKey)) {
-          roleUpdates.set(capKey, {});
-        }
-        if (is3F) {
-          roleUpdates.get(capKey)!.is_3f = true;
-        } else {
-          roleUpdates.get(capKey)!.is_2f = true;
-        }
+      // Stocker le rôle au niveau de la secrétaire
+      if (!roleUpdatesBySecretary.has(secId)) {
+        roleUpdatesBySecretary.set(secId, { siteId });
+      }
+      if (is3F) {
+        roleUpdatesBySecretary.get(secId)!.is_3f = true;
+      } else {
+        roleUpdatesBySecretary.get(secId)!.is_2f = true;
       }
       
       console.log(`  🔒 ${is3F ? '3F' : '2F'} assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
@@ -246,7 +243,7 @@ export async function writeAssignments(
   }
   
   console.log(`  📊 Assignations: ${updates.length} total (${blocCount} bloc, ${siteCount} sites)`);
-  console.log(`  📊 Rôles: ${roleUpdates.size} (1R/2F/3F)`);
+  console.log(`  📊 Rôles: ${roleUpdatesBySecretary.size} secrétaires avec rôles (1R/2F/3F)`);
   
   if (updates.length === 0) {
     console.warn(`  ⚠️ Aucune assignation à écrire!`);
@@ -295,76 +292,150 @@ export async function writeAssignments(
     }
   }
   
-  // PHASE 4: Update roles (1R/2F/3F) by ID
-  for (const [capKey, roles] of roleUpdates.entries()) {
-    const [secId, siteId, keyDate, periode] = capKey.split('_');
+  // PHASE 4: Update roles (1R/2F/3F) on BOTH periods with fallback strategy
+  console.log('\n📋 PHASE 4: Écriture des rôles 1R/2F/3F sur MATIN + APRÈS-MIDI...');
+  
+  for (const [secId, roleData] of roleUpdatesBySecretary.entries()) {
+    const updates: any = {
+      is_1r: roleData.is_1r || false,
+      is_2f: roleData.is_2f || false,
+      is_3f: roleData.is_3f || false,
+    };
     
-    const mapKey = `${secId}|${keyDate}|${periode}`;
-    const capId = capIdMap.get(mapKey);
-    
-    if (!capId) {
-      console.warn(`  ⚠️ ID capacite introuvable pour rôle: ${capKey}`);
-      continue;
-    }
-    
-    const { error } = await supabase
-      .from('capacite_effective')
-      .update(roles)
-      .eq('id', capId);
-    
-    if (error) {
-      console.error(`  ❌ Erreur update rôle ${capKey}:`, error);
+    const roleStr = [
+      roleData.is_1r ? '1R' : null,
+      roleData.is_2f ? '2F' : null,
+      roleData.is_3f ? '3F' : null,
+    ].filter(Boolean).join('+');
+
+    // Process BOTH periods: matin AND apres_midi
+    for (const periode of ['matin', 'apres_midi'] as const) {
+      const key = `${secId}|${date}|${periode}`;
+      const capId = capIdMap.get(key);
+      
+      if (capId) {
+        // Strategy 1: Update by ID (most efficient)
+        const { error: errById } = await supabase
+          .from('capacite_effective')
+          .update(updates)
+          .eq('id', capId)
+          .eq('actif', true);
+        
+        if (errById) {
+          console.error(`❌ Erreur update rôle by ID pour ${key}:`, errById.message);
+        } else {
+          console.log(`✅ Rôle ${roleStr} écrit by ID pour ${secId.slice(0,8)}... ${periode}`);
+        }
+      } else {
+        // Strategy 2: Fallback by direct filters (secretaire_id)
+        console.warn(`⚠️  Pas d'ID pour ${key}, fallback par secretaire_id...`);
+        
+        const { data: checkData, error: errFallback } = await supabase
+          .from('capacite_effective')
+          .update(updates)
+          .eq('date', date)
+          .eq('actif', true)
+          .eq('demi_journee', periode)
+          .eq('secretaire_id', secId)
+          .select();
+        
+        if (errFallback) {
+          console.error(`❌ Erreur fallback update pour ${key}:`, errFallback.message);
+        } else if (checkData && checkData.length > 0) {
+          console.log(`✅ Rôle ${roleStr} écrit par fallback pour ${secId.slice(0,8)}... ${periode} (${checkData.length} lignes)`);
+        } else {
+          console.error(`❌ Fallback trouvé 0 lignes pour ${key} - rôle NON écrit!`);
+        }
+      }
     }
   }
   
   console.log(`  ✅ ${updates.length} assignations écrites avec succès`);
-  console.log(`  ✅ ${roleUpdates.size} rôles écrits avec succès`);
+  console.log(`  ✅ ${roleUpdatesBySecretary.size} secrétaires avec rôles traités`);
   
-  // DIAGNOSTIC: Vérifier que les rôles sont bien écrits sur matin ET après-midi
-  if (roleUpdates.size > 0) {
-    const { data: checkData } = await supabase
-      .from('capacite_effective')
-      .select('secretaire_id, date, demi_journee, is_1r, is_2f, is_3f')
-      .eq('date', date)
-      .eq('actif', true)
-      .or('is_1r.eq.true,is_2f.eq.true,is_3f.eq.true');
-    
-    if (checkData) {
-      const bySecretaire = new Map<string, Array<{ periode: string, is_1r: boolean, is_2f: boolean, is_3f: boolean }>>();
+  // ============================================================================
+  // POST-WRITE DIAGNOSTIC: Verify roles are written on BOTH periods with autocorrection
+  // ============================================================================
+  console.log('\n🔍 POST-WRITE DIAGNOSTIC: Vérification rôles dans la base...');
+  
+  if (roleUpdatesBySecretary.size > 0) {
+    for (const [secId, roleData] of roleUpdatesBySecretary.entries()) {
+      const roleStr = [
+        roleData.is_1r ? '1R' : null,
+        roleData.is_2f ? '2F' : null,
+        roleData.is_3f ? '3F' : null,
+      ].filter(Boolean).join('+');
       
-      for (const row of checkData) {
-        if (!bySecretaire.has(row.secretaire_id)) {
-          bySecretaire.set(row.secretaire_id, []);
-        }
-        bySecretaire.get(row.secretaire_id)!.push({
-          periode: row.demi_journee,
-          is_1r: row.is_1r,
-          is_2f: row.is_2f,
-          is_3f: row.is_3f
-        });
+      // Check both periods in database
+      const { data: dbCheck, error: errCheck } = await supabase
+        .from('capacite_effective')
+        .select('id, demi_journee, is_1r, is_2f, is_3f')
+        .eq('date', date)
+        .eq('actif', true)
+        .eq('secretaire_id', secId)
+        .in('demi_journee', ['matin', 'apres_midi']);
+      
+      if (errCheck) {
+        console.error(`❌ Erreur vérification pour ${secId.slice(0,8)}...:`, errCheck.message);
+        continue;
       }
       
-      for (const [secId, periodes] of bySecretaire) {
-        const matinRole = periodes.find(p => p.periode === 'matin');
-        const amRole = periodes.find(p => p.periode === 'apres_midi');
+      const matinRow = dbCheck?.find(r => r.demi_journee === 'matin');
+      const pmRow = dbCheck?.find(r => r.demi_journee === 'apres_midi');
+      
+      // Check if flags are correctly set on each period
+      const matinOk = matinRow && (
+        (roleData.is_1r ? matinRow.is_1r : !matinRow.is_1r) &&
+        (roleData.is_2f ? matinRow.is_2f : !matinRow.is_2f) &&
+        (roleData.is_3f ? matinRow.is_3f : !matinRow.is_3f)
+      );
+      const pmOk = pmRow && (
+        (roleData.is_1r ? pmRow.is_1r : !pmRow.is_1r) &&
+        (roleData.is_2f ? pmRow.is_2f : !pmRow.is_2f) &&
+        (roleData.is_3f ? pmRow.is_3f : !pmRow.is_3f)
+      );
+      
+      if (!matinOk && matinRow) {
+        console.error(`❌ MATIN flags incorrects pour ${secId.slice(0,8)}... avec rôle ${roleStr} - AUTOCORRECTION...`);
         
-        if (matinRole && amRole) {
-          const matinHasRole = matinRole.is_1r || matinRole.is_2f || matinRole.is_3f;
-          const amHasRole = amRole.is_1r || amRole.is_2f || amRole.is_3f;
+        await supabase
+          .from('capacite_effective')
+          .update({
+            is_1r: roleData.is_1r || false,
+            is_2f: roleData.is_2f || false,
+            is_3f: roleData.is_3f || false,
+          })
+          .eq('id', matinRow.id);
           
-          if (matinHasRole && !amHasRole) {
-            console.warn(`  ⚠️ Rôle manquant sur AM pour ${secId.slice(0,8)}... (matin: 1R=${matinRole.is_1r} 2F=${matinRole.is_2f} 3F=${matinRole.is_3f})`);
-          } else if (!matinHasRole && amHasRole) {
-            console.warn(`  ⚠️ Rôle manquant sur matin pour ${secId.slice(0,8)}... (AM: 1R=${amRole.is_1r} 2F=${amRole.is_2f} 3F=${amRole.is_3f})`);
-          }
-        } else if (matinRole && !amRole) {
-          console.warn(`  ⚠️ Rôle écrit seulement sur matin pour ${secId.slice(0,8)}...`);
-        } else if (!matinRole && amRole) {
-          console.warn(`  ⚠️ Rôle écrit seulement sur AM pour ${secId.slice(0,8)}...`);
-        }
+        console.log(`✅ Autocorrection MATIN effectuée`);
+      }
+      
+      if (!pmOk && pmRow) {
+        console.error(`❌ APRÈS-MIDI flags incorrects pour ${secId.slice(0,8)}... avec rôle ${roleStr} - AUTOCORRECTION...`);
+        
+        await supabase
+          .from('capacite_effective')
+          .update({
+            is_1r: roleData.is_1r || false,
+            is_2f: roleData.is_2f || false,
+            is_3f: roleData.is_3f || false,
+          })
+          .eq('id', pmRow.id);
+          
+        console.log(`✅ Autocorrection APRÈS-MIDI effectuée`);
+      }
+      
+      if (matinOk && pmOk) {
+        console.log(`✅ Rôle ${roleStr} correctement écrit sur LES DEUX périodes pour ${secId.slice(0,8)}...`);
+      } else if (!matinRow) {
+        console.error(`❌ Aucune ligne MATIN trouvée pour ${secId.slice(0,8)}...`);
+      } else if (!pmRow) {
+        console.error(`❌ Aucune ligne APRÈS-MIDI trouvée pour ${secId.slice(0,8)}...`);
       }
     }
   }
+  
+  console.log('✅ Vérification et autocorrection des rôles terminée\n');
   
   return updates.length;
 }

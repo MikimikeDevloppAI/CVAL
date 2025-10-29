@@ -548,11 +548,16 @@ async function runOptimizationPass(
         
         // Update closing counters - uniquement sur la période MATIN pour éviter double comptage
         if (assign.periode === 'matin') {
+          const oldCount1R = closing1RCounters.get(assign.secretaire_id) || 0;
+          const oldCount2F3F = closing2F3FCounters.get(assign.secretaire_id) || 0;
+          
           if (assign.is_1r) {
-            closing1RCounters.set(assign.secretaire_id, (closing1RCounters.get(assign.secretaire_id) || 0) + 1);
+            closing1RCounters.set(assign.secretaire_id, oldCount1R + 1);
+            logger.debug(`  → 1R: ${assign.secretaire_id.slice(0, 8)}... compteur ${oldCount1R} → ${oldCount1R + 1}`);
           }
           if (assign.is_2f || assign.is_3f) {
-            closing2F3FCounters.set(assign.secretaire_id, (closing2F3FCounters.get(assign.secretaire_id) || 0) + 1);
+            closing2F3FCounters.set(assign.secretaire_id, oldCount2F3F + 1);
+            logger.debug(`  → 2F/3F: ${assign.secretaire_id.slice(0, 8)}... compteur ${oldCount2F3F} → ${oldCount2F3F + 1}`);
           }
         }
       }
@@ -600,17 +605,26 @@ async function runOptimizationPass(
       const christineRibeaud = weekData.secretaires.find((s: any) => 
         s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
       );
+      const mirlanda = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('hasani') && s.first_name?.toLowerCase().includes('mirlanda')
+      );
       const lois = weekData.secretaires.find((s: any) => 
         s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
       );
       
-      if (christineRibeaud || lois) {
+      if (christineRibeaud || mirlanda || lois) {
         logger.debug(`\n🔍 Compteurs rôles fermeture après ${date}:`);
         
         if (christineRibeaud) {
           const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
           const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
           logger.debug(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
+        }
+        
+        if (mirlanda) {
+          const count1R = closing1RCounters.get(mirlanda.id) || 0;
+          const count2F3F = closing2F3FCounters.get(mirlanda.id) || 0;
+          logger.debug(`  👤 Mirlanda Hasani: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
         }
         
         if (lois) {
@@ -621,22 +635,31 @@ async function runOptimizationPass(
       }
     }
     
-    // Logs ciblés Christine & Loïs (toujours affichés si focus ou debug)
+    // Logs ciblés Christine, Mirlanda & Loïs (toujours affichés si focus ou debug)
     if (logger.level === 'debug' || (logger.focus && logger.focusIds.size > 0)) {
       const christineRibeaud = weekData.secretaires.find((s: any) => 
         s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
+      );
+      const mirlanda = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('hasani') && s.first_name?.toLowerCase().includes('mirlanda')
       );
       const lois = weekData.secretaires.find((s: any) => 
         s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
       );
       
-      if (christineRibeaud || lois) {
+      if (christineRibeaud || mirlanda || lois) {
         logger.info(`\n🎯 Rôles fermeture après ${date}:`);
         
         if (christineRibeaud) {
           const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
           const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
           logger.info(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
+        }
+        
+        if (mirlanda) {
+          const count1R = closing1RCounters.get(mirlanda.id) || 0;
+          const count2F3F = closing2F3FCounters.get(mirlanda.id) || 0;
+          logger.info(`  👤 Mirlanda Hasani: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
         }
         
         if (lois) {
