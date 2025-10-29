@@ -25,6 +25,8 @@ interface Change {
   besoin_operation_apres_nom: string | null;
   type_intervention_avant_nom: string | null;
   type_intervention_apres_nom: string | null;
+  type_avant: 'site' | 'bloc_operatoire';
+  type_apres: 'site' | 'bloc_operatoire';
   type: 'site' | 'bloc_operatoire';
   is_1r_avant: boolean;
   is_2f_avant: boolean;
@@ -128,16 +130,21 @@ export const DryRunOptimizationDialog = ({
       
       // Format avant
       let avant: string;
-      if (change.type === 'bloc_operatoire' && (change.type_intervention_avant_nom || change.besoin_operation_avant_nom)) {
-        avant = `${change.site_avant_nom || 'Non assigné'} - ${change.type_intervention_avant_nom || ''} (${change.besoin_operation_avant_nom || ''})`;
+      const changeWithType = change as any;
+      if (changeWithType.type_avant === 'bloc_operatoire' && (change.type_intervention_avant_nom || change.besoin_operation_avant_nom)) {
+        const intervention = change.type_intervention_avant_nom || 'Intervention';
+        const besoin = change.besoin_operation_avant_nom || 'Besoin';
+        avant = `${change.site_avant_nom || 'Bloc'} - ${intervention} (${besoin})`;
       } else {
         avant = change.site_avant_nom || 'Non assigné';
       }
       
       // Format apres
       let apres: string;
-      if (change.type === 'bloc_operatoire' && (change.type_intervention_apres_nom || change.besoin_operation_apres_nom)) {
-        apres = `${change.site_apres_nom || 'Non assigné'} - ${change.type_intervention_apres_nom || ''} (${change.besoin_operation_apres_nom || ''})`;
+      if (changeWithType.type_apres === 'bloc_operatoire' && (change.type_intervention_apres_nom || change.besoin_operation_apres_nom)) {
+        const intervention = change.type_intervention_apres_nom || 'Intervention';
+        const besoin = change.besoin_operation_apres_nom || 'Besoin';
+        apres = `${change.site_apres_nom || 'Bloc'} - ${intervention} (${besoin})`;
       } else {
         apres = change.site_apres_nom || 'Non assigné';
       }
@@ -409,7 +416,8 @@ export const DryRunOptimizationDialog = ({
         );
 
         const changesList: Change[] = (dryRunData || []).map((record: any) => {
-          const isBloc = record.planning_genere_bloc_operatoire_id !== null;
+          const isBlocAvant = record.capacite_effective.planning_genere_bloc_operatoire_id !== null;
+          const isBlocApres = record.planning_genere_bloc_operatoire_id !== null;
           
           return {
             secretaire_id: record.secretaire_id,
@@ -426,7 +434,9 @@ export const DryRunOptimizationDialog = ({
             besoin_operation_apres_nom: besoinsMap.get(record.besoin_operation_id) || null,
             type_intervention_avant_nom: typeInterventionMap.get(record.capacite_effective.planning_genere_bloc_operatoire_id) || null,
             type_intervention_apres_nom: typeInterventionMap.get(record.planning_genere_bloc_operatoire_id) || null,
-            type: isBloc ? 'bloc_operatoire' : 'site',
+            type_avant: isBlocAvant ? 'bloc_operatoire' : 'site',
+            type_apres: isBlocApres ? 'bloc_operatoire' : 'site',
+            type: isBlocApres ? 'bloc_operatoire' : 'site', // Keep for backward compatibility
             is_1r_avant: record.capacite_effective.is_1r || false,
             is_2f_avant: record.capacite_effective.is_2f || false,
             is_3f_avant: record.capacite_effective.is_3f || false,

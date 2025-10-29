@@ -441,8 +441,20 @@ serve(async (req) => {
     console.log(`\n🎯 Capture de l'état actuel pour bonus +100 par demi-journée...`);
     const currentState = new Map<string, CurrentState>();
     
+    // Count capacities with missing bloc IDs
+    let blocWithoutIds = 0;
+    const BLOC_SITE_ID = '7b332cac-32d1-4811-b408-510a20de2d01';
+    
     for (const cap of capacites.filter(c => c.actif)) {
       if (!cap.secretaire_id) continue;
+      
+      // Diagnostic: Check if bloc site without IDs
+      if (cap.site_id === BLOC_SITE_ID && 
+          (!cap.besoin_operation_id || !cap.planning_genere_bloc_operatoire_id)) {
+        blocWithoutIds++;
+        const secInfo = week_data.secretaires.find((s: any) => s.id === cap.secretaire_id);
+        console.log(`  ⚠️ Capacité BLOC sans IDs complets: ${secInfo?.first_name} ${secInfo?.name} (${cap.demi_journee}) - besoin=${cap.besoin_operation_id?.slice(0,8) || 'null'}, bloc_op=${cap.planning_genere_bloc_operatoire_id?.slice(0,8) || 'null'}`);
+      }
       
       const key = cap.secretaire_id;
       if (!currentState.has(key)) {
@@ -469,6 +481,9 @@ serve(async (req) => {
       }
     }
     
+    if (blocWithoutIds > 0) {
+      console.log(`  ⚠️ ATTENTION: ${blocWithoutIds} demi-journées 'bloc' sans IDs complets détectées`);
+    }
     console.log(`  ✅ État actuel capturé pour ${currentState.size} secrétaires`);
 
     // Calculate week assignments for scoring context (no changes here)
