@@ -159,23 +159,23 @@ const DashboardPage = () => {
       const startDate = format(today, 'yyyy-MM-dd');
       const endDate = format(fourWeeksLater, 'yyyy-MM-dd');
       
-      // Compter depuis les 3 vues séparées (comme dans UnfilledNeedsPanel)
+      // Récupérer les données des 3 vues et les agréger comme dans UnfilledNeedsPanel
       const [sitesResult, blocResult, fermetureResult] = await Promise.all([
         supabase
           .from('besoins_sites_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('date, site_id, demi_journee')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_bloc_operatoire_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('date, type_intervention_id, medecin_id')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_fermeture_summary')
-          .select('*', { count: 'exact', head: true })
+          .select('date, site_id')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0)
@@ -185,7 +185,25 @@ const DashboardPage = () => {
       if (blocResult.error) throw blocResult.error;
       if (fermetureResult.error) throw fermetureResult.error;
       
-      const total = (sitesResult.count || 0) + (blocResult.count || 0) + (fermetureResult.count || 0);
+      // Agréger les besoins sites (grouper par date + site)
+      const sitesAggregated = new Set<string>();
+      (sitesResult.data || []).forEach(need => {
+        sitesAggregated.add(`${need.date}-site-${need.site_id}`);
+      });
+      
+      // Agréger les besoins bloc opératoire (grouper par date + type_intervention + medecin)
+      const blocAggregated = new Set<string>();
+      (blocResult.data || []).forEach(need => {
+        blocAggregated.add(`${need.date}-bloc-${need.type_intervention_id}-${need.medecin_id}`);
+      });
+      
+      // Agréger les besoins fermeture (grouper par date + site)
+      const fermetureAggregated = new Set<string>();
+      (fermetureResult.data || []).forEach(need => {
+        fermetureAggregated.add(`${need.date}-fermeture-${need.site_id}`);
+      });
+      
+      const total = sitesAggregated.size + blocAggregated.size + fermetureAggregated.size;
       setUnfilledNeedsCount(total);
     } catch (error) {
       console.error('Error fetching unfilled needs count:', error);
