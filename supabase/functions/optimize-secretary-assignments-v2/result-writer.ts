@@ -70,6 +70,8 @@ export async function writeAssignments(
   
   const updates: any[] = [];
   const roleUpdates: Map<string, { is_1r?: boolean, is_2f?: boolean, is_3f?: boolean }> = new Map();
+  const roleSiteEnforcements: Array<{ secId: string; siteId: string }> = [];
+  const roleSiteKeys = new Set<string>();
   let blocCount = 0;
   let siteCount = 0;
   
@@ -179,6 +181,13 @@ export async function writeAssignments(
       const parts = varName.split('_');
       const secId = parts[2];
       const siteId = parts[3];
+
+      // Enforce site for both periods when a closing role is assigned
+      const key = `${secId}|${siteId}`;
+      if (!roleSiteKeys.has(key)) {
+        roleSiteEnforcements.push({ secId, siteId });
+        roleSiteKeys.add(key);
+      }
       
       // Update both morning and afternoon capacites
       for (const periode of ['matin', 'apres_midi']) {
@@ -197,6 +206,13 @@ export async function writeAssignments(
       const parts = varName.split('_');
       const secId = parts[2];
       const siteId = parts[3];
+
+      // Enforce site for both periods when a closing role is assigned
+      const key = `${secId}|${siteId}`;
+      if (!roleSiteKeys.has(key)) {
+        roleSiteEnforcements.push({ secId, siteId });
+        roleSiteKeys.add(key);
+      }
       
       // Determine if it's 2F or 3F based on need
       const need = needs.find(n => n.site_id === siteId && n.date === date);
@@ -224,7 +240,6 @@ export async function writeAssignments(
   
   if (updates.length === 0) {
     console.warn(`  ⚠️ Aucune assignation à écrire!`);
-    return 0;
   }
   
   // PHASE 3: Batch update for site assignments
@@ -240,6 +255,27 @@ export async function writeAssignments(
     
     if (error) {
       console.error(`  ❌ Erreur update capacite ${update.id.slice(0,8)}...:`, error);
+    }
+  }
+  
+  // PHASE 3.5: Enforce site for roles on both periods
+  for (const pair of roleSiteEnforcements) {
+    const { secId, siteId } = pair;
+    for (const periode of ['matin', 'apres_midi']) {
+      const { error } = await supabase
+        .from('capacite_effective')
+        .update({
+          site_id: siteId,
+          planning_genere_bloc_operatoire_id: null,
+          besoin_operation_id: null
+        })
+        .eq('secretaire_id', secId)
+        .eq('date', date)
+        .eq('demi_journee', periode)
+        .eq('actif', true);
+      if (error) {
+        console.error(`  ❌ Erreur enforcement site pour ${secId.slice(0,8)} ${periode}:`, error);
+      }
     }
   }
   
