@@ -260,7 +260,10 @@ export const DryRunOptimizationDialog = ({
       stats.apres.status = assignment.status;
     });
     
-    return Array.from(siteStats.values());
+    // Filtrer uniquement les sites avec un manque (non satisfait) dans le avant OU le après
+    return Array.from(siteStats.values()).filter(stat => 
+      stat.avant.status !== 'satisfait' || stat.apres.status !== 'satisfait'
+    );
   }, [result]);
 
   // Calculate bloc operatoire satisfaction - COUNT EACH BESOIN ONLY ONCE
@@ -339,7 +342,10 @@ export const DryRunOptimizationDialog = ({
       stats.apres.status = assignment.status;
     });
     
-    return Array.from(blocStats.values());
+    // Filtrer uniquement les besoins avec un manque (non satisfait) dans le avant OU le après
+    return Array.from(blocStats.values()).filter(stat => 
+      stat.avant.status !== 'satisfait' || stat.apres.status !== 'satisfait'
+    );
   }, [result]);
 
   useEffect(() => {
