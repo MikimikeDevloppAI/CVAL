@@ -271,28 +271,28 @@ export function calculateComboScore(
       
       console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
       
-      // Bonus: +100 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
+      // Bonus: +200 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
       let bonus = 0;
       
       if (matchesMatin) {
-        bonus += 100;
+        bonus += 200;
         if (isAdminComboMatin) {
-          console.log(`  🎯 BONUS +100 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
+          console.log(`  🎯 BONUS +200 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
         } else if (needMatin?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 matin: session BLOC + besoin conservés ✅`);
+          console.log(`  🎯 BONUS +200 matin: session BLOC + besoin conservés ✅`);
         } else {
-          console.log(`  🎯 BONUS +100 matin: site conservé ✅`);
+          console.log(`  🎯 BONUS +200 matin: site conservé ✅`);
         }
       }
       
       if (matchesAM) {
-        bonus += 100;
+        bonus += 200;
         if (isAdminComboAM) {
-          console.log(`  🎯 BONUS +100 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
+          console.log(`  🎯 BONUS +200 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
         } else if (needAM?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 AM: session BLOC + besoin conservés ✅`);
+          console.log(`  🎯 BONUS +200 AM: session BLOC + besoin conservés ✅`);
         } else {
-          console.log(`  🎯 BONUS +100 AM: site conservé ✅`);
+          console.log(`  🎯 BONUS +200 AM: site conservé ✅`);
         }
       }
       
