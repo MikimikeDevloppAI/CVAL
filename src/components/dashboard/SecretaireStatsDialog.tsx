@@ -107,13 +107,15 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
     .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet));
 
   // Données pour le graphique des responsabilités (diviser 1R et 2F par 2 pour compter en journées)
-  const responsibilitiesData = sortedStats.map(stat => ({
-    nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''), // Initiales
-    fullName: stat.nom_complet,
-    '1R': stat.count_1r / 2,
-    '2F': stat.count_2f / 2,
-    '3F': stat.count_3f / 2,
-  }));
+  const responsibilitiesData = sortedStats
+    .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0)
+    .map(stat => ({
+      nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''), // Initiales
+      fullName: stat.nom_complet,
+      '1R': stat.count_1r / 2,
+      '2F': stat.count_2f / 2,
+      '3F': stat.count_3f / 2,
+    }));
 
   // Données pour le graphique Esplanade
   const esplanadeData = sortedStats
