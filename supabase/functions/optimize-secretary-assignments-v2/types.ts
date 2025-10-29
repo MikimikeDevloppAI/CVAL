@@ -210,9 +210,9 @@ export const SAME_SITE_BONUS = 20;
 
 // Pénalités pour fermetures (calibrées pour favoriser rotation)
 export const CLOSING_PENALTIES = {
-  TWO_2F3F_TIMES: -100, // Pénalité si 2 fois 2F ou 3F dans la semaine (augmenté)
-  THREE_CLOSING_ROLES: -100, // Pénalité si 3 rôles de fermeture au total dans la semaine (augmenté)
-  FOUR_OR_MORE_CLOSING: -200, // Pénalité supplémentaire si 4+ rôles de fermeture
+  TWO_2F3F_TIMES: -100, // Pénalité dès la 2e fois 2F/3F dans la semaine (count2F3F >= 1)
+  THREE_CLOSING_ROLES: -100, // Pénalité dès le 3e rôle de fermeture total (totalClosing >= 2)
+  FOUR_OR_MORE_CLOSING: -200, // Pénalité supplémentaire cumulée si 4+ et 5+ rôles
   FLORENCE_BRON_TUESDAY_2F: -500, // Très forte pénalité pour Florence Bron 2F le mardi
 };
 

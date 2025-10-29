@@ -467,25 +467,27 @@ export function buildMILPModelSoft(
             let penalty1R = 0;
             let penalty2F3F = 0;
             
-            // Pénalité si 1R et déjà 3+ rôles de fermeture cette semaine
-            if (totalClosing >= 3) {
-              penalty1R -= 100; // Augmenté à -100
-            }
-            if (totalClosing >= 4) {
-              penalty1R -= 200; // Pénalité supplémentaire
+            // Pénalité 2F/3F: dès la 2e fois dans la semaine
+            if (count2F3F >= 1) {
+              penalty2F3F -= 100;
             }
             
-            // Pénalités 2F/3F
-            // -100 si déjà >1 (donc à partir du 2ème) 2F/3F cette semaine
-            if (count2F3F >= 2) {
+            // Pénalité totale: dès le 3e rôle de fermeture (1R+2F/3F)
+            if (totalClosing >= 2) {
+              penalty1R -= 100;
               penalty2F3F -= 100;
             }
-            // -100 si plus de deux rôles de fermeture au total (1R+2F/3F) cette semaine
+            
+            // Escalade: pénalité supplémentaire à partir du 4e rôle
             if (totalClosing >= 3) {
+              penalty1R -= 100;
               penalty2F3F -= 100;
             }
+            
+            // Escalade: pénalité encore plus forte à partir du 5e rôle
             if (totalClosing >= 4) {
-              penalty2F3F -= 200; // Pénalité supplémentaire
+              penalty1R -= 100;
+              penalty2F3F -= 100;
             }
             
             // Règle Florence Bron mardi
@@ -494,6 +496,14 @@ export function buildMILPModelSoft(
             const FLORENCE_BRON_ID = '1e5339aa-5e82-4295-b918-e15a580b3396';
             if (isTuesday && combo.secretaire_id === FLORENCE_BRON_ID) {
               penalty2F3F -= 500; // Très forte pénalité
+            }
+            
+            // Debug logs pour secrétaires ciblées
+            const sec = week_data.secretaires.find((s: any) => s.id === combo.secretaire_id);
+            const secName = sec?.name || combo.secretaire_id.substring(0, 8);
+            const focusNames = ['Christine Ribeaud', 'Mirlanda Hasani', 'Loïs'];
+            if (focusNames.some(fn => secName.includes(fn.split(' ')[0]))) {
+              logger.info(`  🎯 ${secName} | Site: ${site.nom} | 1R=${count1R} | 2F/3F=${count2F3F} | Total=${totalClosing} | Penalty1R=${penalty1R} | Penalty2F3F=${penalty2F3F} | ComboScore=${combo.score}`);
             }
             
             model.variables[var1R] = { score_total: penalty1R };
