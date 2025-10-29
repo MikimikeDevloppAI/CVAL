@@ -45,6 +45,23 @@ interface SecretaireStats {
   changements_site: number;
 }
 
+// Custom label qui ne s'affiche que si la valeur > 0
+const renderCustomLabel = (props: any) => {
+  const { x, y, width, value } = props;
+  if (!value || value === 0) return null;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 5}
+      fill="hsl(var(--foreground))"
+      textAnchor="middle"
+      fontSize={12}
+    >
+      {value}
+    </text>
+  );
+};
+
 export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProps) => {
   // Calculer les statistiques pour chaque secrétaire
   const stats: SecretaireStats[] = secretaires.map(secretaire => {
@@ -206,9 +223,9 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                       return item?.fullName || value;
                     }}
                   />
-                  <Bar dataKey="1R" fill="url(#gradient1R)" name="Responsable 1R" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
-                  <Bar dataKey="2F" fill="url(#gradient2F)" name="Responsable 2F" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
-                  <Bar dataKey="3F" fill="url(#gradient3F)" name="Responsable 3F" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                  <Bar dataKey="1R" fill="url(#gradient1R)" name="Responsable 1R" radius={[8, 8, 0, 0]} label={renderCustomLabel} />
+                  <Bar dataKey="2F" fill="url(#gradient2F)" name="Responsable 2F" radius={[8, 8, 0, 0]} label={renderCustomLabel} />
+                  <Bar dataKey="3F" fill="url(#gradient3F)" name="Responsable 3F" radius={[8, 8, 0, 0]} label={renderCustomLabel} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
