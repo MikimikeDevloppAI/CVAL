@@ -621,12 +621,89 @@ async function runOptimizationPass(
       }
     }
     
+    // Logs ciblés Christine & Loïs (toujours affichés si focus ou debug)
+    if (logger.level === 'debug' || (logger.focus && logger.focusIds.size > 0)) {
+      const christineRibeaud = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
+      );
+      const lois = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
+      );
+      
+      if (christineRibeaud || lois) {
+        logger.info(`\n🎯 Rôles fermeture après ${date}:`);
+        
+        if (christineRibeaud) {
+          const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
+          const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
+          logger.info(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
+        }
+        
+        if (lois) {
+          const count1R = closing1RCounters.get(lois.id) || 0;
+          const count2F3F = closing2F3FCounters.get(lois.id) || 0;
+          logger.info(`  👤 Loïs: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
+        }
+      }
+    }
+    
     dailyResults.push({
       date,
       assigned: writeCount,
       score: solution.result
     });
   }
+  
+  // ============================================================
+  // SYNTHÈSE FIN DE PASSE
+  // ============================================================
+  logger.info(`\n${'='.repeat(60)}`);
+  logger.info(`📊 SYNTHÈSE PASSE ${passNumber} - Rôles de fermeture hebdo`);
+  logger.info(`${'='.repeat(60)}`);
+  
+  const exceeding2F3F: Array<{ name: string, count: number }> = [];
+  const exceeding3Total: Array<{ name: string, count1R: number, count2F3F: number, total: number }> = [];
+  
+  for (const sec of weekData.secretaires) {
+    const count1R = closing1RCounters.get(sec.id) || 0;
+    const count2F3F = closing2F3FCounters.get(sec.id) || 0;
+    const total = count1R + count2F3F;
+    
+    if (count2F3F > 2) {
+      exceeding2F3F.push({ name: `${sec.first_name} ${sec.name}`, count: count2F3F });
+    }
+    
+    if (total > 3) {
+      exceeding3Total.push({ 
+        name: `${sec.first_name} ${sec.name}`, 
+        count1R, 
+        count2F3F, 
+        total 
+      });
+    }
+  }
+  
+  if (exceeding2F3F.length > 0) {
+    exceeding2F3F.sort((a, b) => b.count - a.count);
+    logger.info(`\n⚠️ Secrétaires avec >2 rôles 2F/3F cette semaine:`);
+    for (const { name, count } of exceeding2F3F) {
+      logger.info(`  ${name}: ${count} fois 2F/3F`);
+    }
+  } else {
+    logger.info(`\n✅ Aucun secrétaire ne dépasse 2 rôles 2F/3F cette semaine`);
+  }
+  
+  if (exceeding3Total.length > 0) {
+    exceeding3Total.sort((a, b) => b.total - a.total);
+    logger.info(`\n⚠️ Secrétaires avec >3 rôles de fermeture total (1R+2F+3F) cette semaine:`);
+    for (const { name, count1R, count2F3F, total } of exceeding3Total) {
+      logger.info(`  ${name}: 1R=${count1R}, 2F/3F=${count2F3F} → Total=${total}`);
+    }
+  } else {
+    logger.info(`\n✅ Aucun secrétaire ne dépasse 3 rôles de fermeture total cette semaine`);
+  }
+  
+  logger.info(`${'='.repeat(60)}\n`);
   
   return {
     success: true,

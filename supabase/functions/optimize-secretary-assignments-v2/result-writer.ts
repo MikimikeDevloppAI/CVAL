@@ -68,6 +68,16 @@ export async function writeAssignments(
   
   const BLOC_SITE_ID = blocSiteData?.id || '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
   
+  // Build capIdMap: secretaire_id|date|periode -> capacite_effective.id
+  const capIdMap = new Map<string, string>();
+  for (const cap of capacites) {
+    if (cap.actif && cap.secretaire_id) {
+      const key = `${cap.secretaire_id}|${cap.date}|${cap.demi_journee}`;
+      capIdMap.set(key, cap.id);
+    }
+  }
+  console.log(`  🗺️ capIdMap construit: ${capIdMap.size} entrées actives`);
+  
   const updates: any[] = [];
   const roleUpdates: Map<string, { is_1r?: boolean, is_2f?: boolean, is_3f?: boolean }> = new Map();
   const roleSiteEnforcements: Array<{ secId: string; siteId: string }> = [];
@@ -258,10 +268,18 @@ export async function writeAssignments(
     }
   }
   
-  // PHASE 3.5: Enforce site for roles on both periods
+  // PHASE 3.5: Enforce site for roles on both periods (by ID)
   for (const pair of roleSiteEnforcements) {
     const { secId, siteId } = pair;
     for (const periode of ['matin', 'apres_midi']) {
+      const capKey = `${secId}|${date}|${periode}`;
+      const capId = capIdMap.get(capKey);
+      
+      if (!capId) {
+        console.warn(`  ⚠️ ID capacite introuvable pour enforcement: ${secId.slice(0,8)} ${periode}`);
+        continue;
+      }
+      
       const { error } = await supabase
         .from('capacite_effective')
         .update({
@@ -269,28 +287,30 @@ export async function writeAssignments(
           planning_genere_bloc_operatoire_id: null,
           besoin_operation_id: null
         })
-        .eq('secretaire_id', secId)
-        .eq('date', date)
-        .eq('demi_journee', periode)
-        .eq('actif', true);
+        .eq('id', capId);
+        
       if (error) {
         console.error(`  ❌ Erreur enforcement site pour ${secId.slice(0,8)} ${periode}:`, error);
       }
     }
   }
   
-  // PHASE 4: Update roles (1R/2F/3F)
+  // PHASE 4: Update roles (1R/2F/3F) by ID
   for (const [capKey, roles] of roleUpdates.entries()) {
     const [secId, siteId, keyDate, periode] = capKey.split('_');
+    
+    const mapKey = `${secId}|${keyDate}|${periode}`;
+    const capId = capIdMap.get(mapKey);
+    
+    if (!capId) {
+      console.warn(`  ⚠️ ID capacite introuvable pour rôle: ${capKey}`);
+      continue;
+    }
     
     const { error } = await supabase
       .from('capacite_effective')
       .update(roles)
-      .eq('secretaire_id', secId)
-      .eq('site_id', siteId)
-      .eq('date', keyDate)
-      .eq('demi_journee', periode)
-      .eq('actif', true);
+      .eq('id', capId);
     
     if (error) {
       console.error(`  ❌ Erreur update rôle ${capKey}:`, error);
@@ -299,6 +319,52 @@ export async function writeAssignments(
   
   console.log(`  ✅ ${updates.length} assignations écrites avec succès`);
   console.log(`  ✅ ${roleUpdates.size} rôles écrits avec succès`);
+  
+  // DIAGNOSTIC: Vérifier que les rôles sont bien écrits sur matin ET après-midi
+  if (roleUpdates.size > 0) {
+    const { data: checkData } = await supabase
+      .from('capacite_effective')
+      .select('secretaire_id, date, demi_journee, is_1r, is_2f, is_3f')
+      .eq('date', date)
+      .eq('actif', true)
+      .or('is_1r.eq.true,is_2f.eq.true,is_3f.eq.true');
+    
+    if (checkData) {
+      const bySecretaire = new Map<string, Array<{ periode: string, is_1r: boolean, is_2f: boolean, is_3f: boolean }>>();
+      
+      for (const row of checkData) {
+        if (!bySecretaire.has(row.secretaire_id)) {
+          bySecretaire.set(row.secretaire_id, []);
+        }
+        bySecretaire.get(row.secretaire_id)!.push({
+          periode: row.demi_journee,
+          is_1r: row.is_1r,
+          is_2f: row.is_2f,
+          is_3f: row.is_3f
+        });
+      }
+      
+      for (const [secId, periodes] of bySecretaire) {
+        const matinRole = periodes.find(p => p.periode === 'matin');
+        const amRole = periodes.find(p => p.periode === 'apres_midi');
+        
+        if (matinRole && amRole) {
+          const matinHasRole = matinRole.is_1r || matinRole.is_2f || matinRole.is_3f;
+          const amHasRole = amRole.is_1r || amRole.is_2f || amRole.is_3f;
+          
+          if (matinHasRole && !amHasRole) {
+            console.warn(`  ⚠️ Rôle manquant sur AM pour ${secId.slice(0,8)}... (matin: 1R=${matinRole.is_1r} 2F=${matinRole.is_2f} 3F=${matinRole.is_3f})`);
+          } else if (!matinHasRole && amHasRole) {
+            console.warn(`  ⚠️ Rôle manquant sur matin pour ${secId.slice(0,8)}... (AM: 1R=${amRole.is_1r} 2F=${amRole.is_2f} 3F=${amRole.is_3f})`);
+          }
+        } else if (matinRole && !amRole) {
+          console.warn(`  ⚠️ Rôle écrit seulement sur matin pour ${secId.slice(0,8)}...`);
+        } else if (!matinRole && amRole) {
+          console.warn(`  ⚠️ Rôle écrit seulement sur AM pour ${secId.slice(0,8)}...`);
+        }
+      }
+    }
+  }
   
   return updates.length;
 }
