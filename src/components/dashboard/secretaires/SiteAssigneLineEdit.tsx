@@ -33,7 +33,8 @@ export function SiteAssigneLineEdit({ assignment, sites, onUpdate, onDelete, isN
   const prioriteColors = {
     '1': 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20',
     '2': 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
-    '3': 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
+    '3': 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20',
+    '4': 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20'
   };
 
   const handleSave = async () => {
@@ -137,6 +138,7 @@ export function SiteAssigneLineEdit({ assignment, sites, onUpdate, onDelete, isN
               <SelectItem value="1">P1</SelectItem>
               <SelectItem value="2">P2</SelectItem>
               <SelectItem value="3">P3</SelectItem>
+              <SelectItem value="4">P4</SelectItem>
             </SelectContent>
           </Select>
 

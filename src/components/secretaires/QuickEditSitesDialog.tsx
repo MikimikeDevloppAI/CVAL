@@ -31,6 +31,7 @@ export function QuickEditSitesDialog({
   const [selectedSitesPrio1, setSelectedSitesPrio1] = useState<string[]>([]);
   const [selectedSitesPrio2, setSelectedSitesPrio2] = useState<string[]>([]);
   const [selectedSitesPrio3, setSelectedSitesPrio3] = useState<string[]>([]);
+  const [selectedSitesPrio4, setSelectedSitesPrio4] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -67,10 +68,14 @@ export function QuickEditSitesDialog({
         const prio3 = secretairesSitesData
           .filter(ss => ss.priorite === '3')
           .map(ss => ss.site_id);
+        const prio4 = secretairesSitesData
+          .filter(ss => ss.priorite === '4')
+          .map(ss => ss.site_id);
         
         setSelectedSitesPrio1(prio1);
         setSelectedSitesPrio2(prio2);
         setSelectedSitesPrio3(prio3);
+        setSelectedSitesPrio4(prio4);
       }
     };
 
@@ -93,17 +98,22 @@ export function QuickEditSitesDialog({
         ...selectedSitesPrio1.map(siteId => ({
           secretaire_id: secretaireId,
           site_id: siteId,
-          priorite: '1' as '1' | '2' | '3'
+          priorite: '1' as '1' | '2' | '3' | '4'
         })),
         ...selectedSitesPrio2.map(siteId => ({
           secretaire_id: secretaireId,
           site_id: siteId,
-          priorite: '2' as '1' | '2' | '3'
+          priorite: '2' as '1' | '2' | '3' | '4'
         })),
         ...selectedSitesPrio3.map(siteId => ({
           secretaire_id: secretaireId,
           site_id: siteId,
-          priorite: '3' as '1' | '2' | '3'
+          priorite: '3' as '1' | '2' | '3' | '4'
+        })),
+        ...selectedSitesPrio4.map(siteId => ({
+          secretaire_id: secretaireId,
+          site_id: siteId,
+          priorite: '4' as '1' | '2' | '3' | '4'
         }))
       ];
 
@@ -140,9 +150,10 @@ export function QuickEditSitesDialog({
         ? prev.filter(id => id !== siteId)
         : [...prev, siteId]
     );
-    // Remove from prio2 and prio3 if present
+    // Remove from other priorities if present
     setSelectedSitesPrio2(prev => prev.filter(id => id !== siteId));
     setSelectedSitesPrio3(prev => prev.filter(id => id !== siteId));
+    setSelectedSitesPrio4(prev => prev.filter(id => id !== siteId));
   };
 
   const toggleSitePrio2 = (siteId: string) => {
@@ -151,9 +162,10 @@ export function QuickEditSitesDialog({
         ? prev.filter(id => id !== siteId)
         : [...prev, siteId]
     );
-    // Remove from prio1 and prio3 if present
+    // Remove from other priorities if present
     setSelectedSitesPrio1(prev => prev.filter(id => id !== siteId));
     setSelectedSitesPrio3(prev => prev.filter(id => id !== siteId));
+    setSelectedSitesPrio4(prev => prev.filter(id => id !== siteId));
   };
 
   const toggleSitePrio3 = (siteId: string) => {
@@ -162,15 +174,29 @@ export function QuickEditSitesDialog({
         ? prev.filter(id => id !== siteId)
         : [...prev, siteId]
     );
-    // Remove from prio1 and prio2 if present
+    // Remove from other priorities if present
     setSelectedSitesPrio1(prev => prev.filter(id => id !== siteId));
     setSelectedSitesPrio2(prev => prev.filter(id => id !== siteId));
+    setSelectedSitesPrio4(prev => prev.filter(id => id !== siteId));
   };
 
-  const allSelectedSites = [...selectedSitesPrio1, ...selectedSitesPrio2, ...selectedSitesPrio3];
+  const toggleSitePrio4 = (siteId: string) => {
+    setSelectedSitesPrio4(prev => 
+      prev.includes(siteId)
+        ? prev.filter(id => id !== siteId)
+        : [...prev, siteId]
+    );
+    // Remove from other priorities if present
+    setSelectedSitesPrio1(prev => prev.filter(id => id !== siteId));
+    setSelectedSitesPrio2(prev => prev.filter(id => id !== siteId));
+    setSelectedSitesPrio3(prev => prev.filter(id => id !== siteId));
+  };
+
+  const allSelectedSites = [...selectedSitesPrio1, ...selectedSitesPrio2, ...selectedSitesPrio3, ...selectedSitesPrio4];
   const selectedSitesDetailsPrio1 = sites.filter(site => selectedSitesPrio1.includes(site.id));
   const selectedSitesDetailsPrio2 = sites.filter(site => selectedSitesPrio2.includes(site.id));
   const selectedSitesDetailsPrio3 = sites.filter(site => selectedSitesPrio3.includes(site.id));
+  const selectedSitesDetailsPrio4 = sites.filter(site => selectedSitesPrio4.includes(site.id));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -359,6 +385,64 @@ export function QuickEditSitesDialog({
               <div className="flex flex-wrap gap-2 p-3 bg-teal-500/5 border border-teal-200/20 dark:border-teal-800/20 rounded-lg mt-2">
                 {selectedSitesDetailsPrio3.map((site) => (
                   <Badge key={site.id} variant="outline" className="text-xs bg-teal-50/50 dark:bg-teal-950/10 border-teal-200/50 dark:border-teal-900/50 opacity-70">
+                    {site.nom}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sites Priorité 4 */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Sites priorité 4 ({selectedSitesPrio4.length})
+            </label>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between"
+                >
+                  {selectedSitesPrio4.length > 0
+                    ? `${selectedSitesPrio4.length} site(s) quaternaire(s)`
+                    : "Sélectionner des sites quaternaires"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Rechercher un site..." />
+                  <CommandList className="max-h-64">
+                    <CommandEmpty>Aucun site trouvé.</CommandEmpty>
+                    <CommandGroup>
+                      {sites.map((site) => (
+                        <CommandItem
+                          key={site.id}
+                          onSelect={() => toggleSitePrio4(site.id)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedSitesPrio4.includes(site.id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {site.nom}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {selectedSitesDetailsPrio4.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-3 bg-teal-500/5 border border-teal-200/20 dark:border-teal-800/20 rounded-lg mt-2">
+                {selectedSitesDetailsPrio4.map((site) => (
+                  <Badge key={site.id} variant="outline" className="text-xs bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/50 opacity-60">
                     {site.nom}
                   </Badge>
                 ))}

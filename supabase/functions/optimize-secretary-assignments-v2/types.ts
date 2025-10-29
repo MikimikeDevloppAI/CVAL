@@ -159,6 +159,7 @@ export const SCORE_WEIGHTS = {
   SITE_PREF_1: 1200,
   SITE_PREF_2: 1190,
   SITE_PREF_3: 1180,
+  SITE_PREF_4: 1170,
 };
 
 export const PENALTIES = {

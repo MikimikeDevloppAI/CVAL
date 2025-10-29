@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 interface SecretaireSuggestion {
   secretaire_id: string;
   secretaire_nom: string;
-  priorite_site?: 1 | 2 | 3;
+  priorite_site?: 1 | 2 | 3 | 4;
   preference_besoin?: 1 | 2 | 3;
   peut_toute_journee?: boolean;
 }
@@ -518,7 +518,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
               admin.push({
                 secretaire_id: sec.id,
                 secretaire_nom: `${sec.first_name} ${sec.name}`.trim(),
-                priorite_site: parseInt(site.priorite) as 1 | 2 | 3,
+                priorite_site: parseInt(site.priorite) as 1 | 2 | 3 | 4,
                 peut_toute_journee: true
               });
             }
@@ -553,7 +553,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             notWorking.push({
               secretaire_id: s.id,
               secretaire_nom: `${s.first_name} ${s.name}`.trim(),
-              priorite_site: parseInt(site.priorite) as 1 | 2 | 3,
+              priorite_site: parseInt(site.priorite) as 1 | 2 | 3 | 4,
               peut_toute_journee: false
             });
           }
@@ -732,7 +732,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             admin.push({
               secretaire_id: sec.id,
               secretaire_nom: `${sec.first_name} ${sec.name}`.trim(),
-              priorite_site: parseInt(site.priorite) as 1 | 2 | 3,
+              priorite_site: parseInt(site.priorite) as 1 | 2 | 3 | 4,
               peut_toute_journee: await canCoverFullDay(sec.id)
             });
           }
@@ -760,7 +760,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             notWorking.push({
               secretaire_id: s.id,
               secretaire_nom: `${s.first_name} ${s.name}`.trim(),
-              priorite_site: parseInt(site.priorite) as 1 | 2 | 3,
+              priorite_site: parseInt(site.priorite) as 1 | 2 | 3 | 4,
               peut_toute_journee: false
             });
           }

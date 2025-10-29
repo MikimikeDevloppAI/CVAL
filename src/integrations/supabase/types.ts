@@ -1553,7 +1553,7 @@ export type Database = {
       demi_journee: "matin" | "apres_midi" | "toute_journee"
       periode: "matin" | "apres_midi"
       priorite_besoin: "haute" | "moyenne" | "basse"
-      priorite_site: "1" | "2" | "3"
+      priorite_site: "1" | "2" | "3" | "4"
       source_horaire: "horaire_base" | "bloc_operatoire" | "absence"
       statut_absence: "en_attente" | "approuve" | "refuse"
       statut_horaire: "disponible" | "absent" | "bloc_operatoire"
@@ -1709,7 +1709,7 @@ export const Constants = {
       demi_journee: ["matin", "apres_midi", "toute_journee"],
       periode: ["matin", "apres_midi"],
       priorite_besoin: ["haute", "moyenne", "basse"],
-      priorite_site: ["1", "2", "3"],
+      priorite_site: ["1", "2", "3", "4"],
       source_horaire: ["horaire_base", "bloc_operatoire", "absence"],
       statut_absence: ["en_attente", "approuve", "refuse"],
       statut_horaire: ["disponible", "absent", "bloc_operatoire"],

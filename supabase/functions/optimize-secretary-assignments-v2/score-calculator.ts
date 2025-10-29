@@ -109,7 +109,8 @@ export function calculateDynamicScore(
   if (siteMatch) {
     const siteScore = siteMatch.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                       siteMatch.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                      SCORE_WEIGHTS.SITE_PREF_3;
+                      siteMatch.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
+                      SCORE_WEIGHTS.SITE_PREF_4;
     positiveScores.push(siteScore);
     console.log(`  ✅ Score SITE_PREF_${siteMatch.priorite}: ${siteScore}`);
   }
@@ -277,7 +278,8 @@ export function calculateComboScore(
     if (siteMatchMatin) {
       const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                        SCORE_WEIGHTS.SITE_PREF_3;
+                        siteMatchMatin.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
+                        SCORE_WEIGHTS.SITE_PREF_4;
       positiveScores.push(siteScore);
       if (isFocused) logger.info(`  ✅ MATIN SITE_PREF_${siteMatchMatin.priorite}: ${siteScore}`);
     }
@@ -368,7 +370,8 @@ export function calculateComboScore(
     if (siteMatchAM) {
       const siteScore = siteMatchAM.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchAM.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                        SCORE_WEIGHTS.SITE_PREF_3;
+                        siteMatchAM.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
+                        SCORE_WEIGHTS.SITE_PREF_4;
       positiveScores.push(siteScore);
       console.log(`  ✅ AM SITE_PREF_${siteMatchAM.priorite}: ${siteScore}`);
     }
