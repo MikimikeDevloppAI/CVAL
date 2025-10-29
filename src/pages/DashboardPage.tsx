@@ -772,7 +772,7 @@ const DashboardPage = () => {
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
         {/* View Mode Tabs */}
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
-          <div className="mb-6 space-y-4">
+          <div className="grid grid-cols-3 items-center mb-6">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
               Planning hebdomadaire
             </h2>
@@ -784,6 +784,7 @@ const DashboardPage = () => {
                 <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
               </TabsList>
             </div>
+            <div></div>
           </div>
 
         {/* Week Selector */}
