@@ -95,7 +95,7 @@ export interface SecretaireMedecin {
 export interface SecretaireSite {
   secretaire_id: string;
   site_id: string;
-  priorite: '1' | '2' | '3';
+  priorite: '1' | '2' | '3' | '4';
 }
 
 export interface AssignmentSummary {
@@ -105,7 +105,7 @@ export interface AssignmentSummary {
   periode: 'matin' | 'apres_midi';
   is_admin: boolean;
   is_bloc: boolean;
-  site_priorite: 1 | 2 | 3 | null;
+  site_priorite: 1 | 2 | 3 | 4 | null;
 }
 
 export interface TodayAssignment {
@@ -148,21 +148,22 @@ export interface WeekData {
 }
 
 export const SCORE_WEIGHTS = {
-  BESOIN_OP_PREF_1: 4000,
-  BESOIN_OP_PREF_2: 3500,
-  BESOIN_OP_PREF_3: 3250,
-  MEDECIN_PREF_1: 400,
-  MEDECIN_PREF_2: 240,
-  SITE_PREF_1: 200,
-  SITE_PREF_2: 190,
-  SITE_PREF_3: 180,
+  BESOIN_OP_PREF_1: 5000,
+  BESOIN_OP_PREF_2: 4500,
+  BESOIN_OP_PREF_3: 4250,
+  MEDECIN_PREF_1: 1400,
+  MEDECIN_PREF_2: 1240,
+  SITE_PREF_1: 1200,
+  SITE_PREF_2: 1190,
+  SITE_PREF_3: 1180,
+  SITE_PREF_4: 1170,
 };
 
 export const PENALTIES = {
   CHANGEMENT_SITE: -40,
   CHANGEMENT_SITE_HIGH_PENALTY: -60,
   ADMIN_FIRST: 10,
-  SITE_PREF_23_OVERLOAD: -10,
+  SITE_PREF_234_OVERLOAD: -150,
   BLOC_EXCLUSION: -10000,
 };
 

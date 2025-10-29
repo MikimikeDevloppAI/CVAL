@@ -29,7 +29,7 @@ function countWeekAdminAssignments(
   ).length;
 }
 
-// Helper to count site assignments in week for P2/P3 sites
+// Helper to count site assignments in week for P2/P3/P4 sites
 function countWeekSiteAssignments(
   secretaire_id: string,
   site_id: string,
@@ -39,12 +39,12 @@ function countWeekSiteAssignments(
     a => a.secretaire_id === secretaire_id && 
          a.site_id === site_id &&
          a.site_priorite && 
-         (a.site_priorite === 2 || a.site_priorite === 3)
+         (a.site_priorite === 2 || a.site_priorite === 3 || a.site_priorite === 4)
   ).length;
 }
 
 // Calculate score for a combo (morning + afternoon)
-// SCORING: Same as assign-v2 but with optional +30 bonus for current state match
+// SCORING: Same as assign-v2 but with optional +100 bonus for current state match
 export function calculateComboScore(
   secretaire_id: string,
   needMatin: SiteNeed | null,
@@ -63,7 +63,7 @@ export function calculateComboScore(
   for (const assignment of currentAssignments) {
     if (assignment.secretaire_id === secretaire_id && 
         assignment.site_priorite && 
-        (assignment.site_priorite === 2 || assignment.site_priorite === 3)) {
+        (assignment.site_priorite === 2 || assignment.site_priorite === 3 || assignment.site_priorite === 4)) {
       const count = sitesCount.get(assignment.site_id) || 0;
       sitesCount.set(assignment.site_id, count + 1);
     }
@@ -108,7 +108,8 @@ export function calculateComboScore(
     if (siteMatchMatin) {
       const siteScore = siteMatchMatin.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchMatin.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                        SCORE_WEIGHTS.SITE_PREF_3;
+                        siteMatchMatin.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
+                        SCORE_WEIGHTS.SITE_PREF_4;
       positiveScores.push(siteScore);
     }
     
@@ -133,12 +134,12 @@ export function calculateComboScore(
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
     
-    // 1e. Pénalité sur-assignation site P2/P3 (MATIN)
-    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3')) {
+    // 1e. Pénalité sur-assignation site P2/P3/P4 (MATIN)
+    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3' || siteMatchMatin.priorite === '4')) {
       const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
       if (currentSiteCount >= 2) {
         const overload = currentSiteCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        const penalty = overload * PENALTIES.SITE_PREF_234_OVERLOAD;
         totalScore += penalty;
       }
       // Incrémenter pour l'après-midi
@@ -185,7 +186,8 @@ export function calculateComboScore(
     if (siteMatchAM) {
       const siteScore = siteMatchAM.priorite === '1' ? SCORE_WEIGHTS.SITE_PREF_1 :
                         siteMatchAM.priorite === '2' ? SCORE_WEIGHTS.SITE_PREF_2 :
-                        SCORE_WEIGHTS.SITE_PREF_3;
+                        siteMatchAM.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
+                        SCORE_WEIGHTS.SITE_PREF_4;
       positiveScores.push(siteScore);
     }
     
@@ -209,12 +211,12 @@ export function calculateComboScore(
       }
     }
     
-    // 2e. Pénalité sur-assignation site P2/P3 (AM)
-    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3')) {
+    // 2e. Pénalité sur-assignation site P2/P3/P4 (AM)
+    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3' || siteMatchAM.priorite === '4')) {
       const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
       if (currentSiteCount >= 2) {
         const overload = currentSiteCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_23_OVERLOAD;
+        const penalty = overload * PENALTIES.SITE_PREF_234_OVERLOAD;
         totalScore += penalty;
       }
     }
@@ -239,7 +241,7 @@ export function calculateComboScore(
   }
   
   // ============================================================
-  // 4. BONUS +15 PAR DEMI-JOURNÉE SI COMBO CORRESPOND À L'ÉTAT ACTUEL (Y COMPRIS ADMIN)
+  // 4. BONUS +100 PAR DEMI-JOURNÉE SI COMBO CORRESPOND À L'ÉTAT ACTUEL (Y COMPRIS ADMIN)
   // ============================================================
   if (currentState) {
     const state = currentState.get(secretaire_id);
@@ -269,28 +271,28 @@ export function calculateComboScore(
       
       console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
       
-      // Bonus: +15 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
+      // Bonus: +100 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
       let bonus = 0;
       
       if (matchesMatin) {
-        bonus += 15;
+        bonus += 100;
         if (isAdminComboMatin) {
-          console.log(`  🎯 BONUS +15 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
+          console.log(`  🎯 BONUS +100 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
         } else if (needMatin?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +15 matin: besoin BLOC conservé ✅`);
+          console.log(`  🎯 BONUS +100 matin: besoin BLOC conservé ✅`);
         } else {
-          console.log(`  🎯 BONUS +15 matin: site conservé ✅`);
+          console.log(`  🎯 BONUS +100 matin: site conservé ✅`);
         }
       }
       
       if (matchesAM) {
-        bonus += 15;
+        bonus += 100;
         if (isAdminComboAM) {
-          console.log(`  🎯 BONUS +15 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
+          console.log(`  🎯 BONUS +100 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
         } else if (needAM?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +15 AM: besoin BLOC conservé ✅`);
+          console.log(`  🎯 BONUS +100 AM: besoin BLOC conservé ✅`);
         } else {
-          console.log(`  🎯 BONUS +15 AM: site conservé ✅`);
+          console.log(`  🎯 BONUS +100 AM: site conservé ✅`);
         }
       }
       
