@@ -761,8 +761,10 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Section Divider */}
-      <div className="my-8 space-y-4">
+      {/* Planning hebdomadaire container */}
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6 mt-8">
+        {/* Section Divider */}
+        <div className="mb-8 space-y-4">
         <div className="relative">
           <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent shadow-lg shadow-primary/20"></div>
         </div>
@@ -942,6 +944,7 @@ const DashboardPage = () => {
           )}
         </TabsContent>
       </Tabs>
+      </div>
 
       <MedecinsPopup
         open={medecinsPopupOpen} 
