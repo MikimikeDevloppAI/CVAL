@@ -412,9 +412,9 @@ export function buildMILPModelSoft(
   }
   
   // ============================================================
-  // CONSTRAINT: Closure sites (at least 2 full-day assignments)
+  // CONSTRAINT: Closure sites WITH 1R/2F/3F ROLES
   // ============================================================
-  const closureSites = week_data.sites.filter(s => s.fermeture);
+  const closureSites = week_data.sites.filter((s: any) => s.fermeture);
   
   for (const site of closureSites) {
     const morningNeed = needsMatin.find(n => n.site_id === site.id);
@@ -426,6 +426,13 @@ export function buildMILPModelSoft(
         afternoonNeed.medecins_ids.length > 0) {
       
       const fullDayVars: string[] = [];
+      const roleVars = {
+        is_1r: [] as Array<{ secId: string, varName: string, comboVar: string }>,
+        is_2f3f: [] as Array<{ secId: string, varName: string, comboVar: string, needs3F: boolean }>
+      };
+      
+      // Detect if this site needs 3F
+      const needs3F = context.sites_needing_3f.get(date)?.has(site.id) || false;
       
       // Find all combos that cover both periods for this site
       for (const combo of combos) {
@@ -444,6 +451,55 @@ export function buildMILPModelSoft(
             model.variables[combo.varName][linkConstraint] = -1;
             
             fullDayVars.push(fullDayVar);
+            
+            // Create role variables for 1R and 2F/3F
+            const var1R = `role_1r_${combo.secretaire_id}_${site.id}_${date}`;
+            const var2F3F = `role_2f3f_${combo.secretaire_id}_${site.id}_${date}`;
+            
+            model.binaries[var1R] = 1;
+            model.binaries[var2F3F] = 1;
+            
+            // Calculate penalty for this role based on current counters
+            const count1R = context.closing_1r_counters.get(combo.secretaire_id) || 0;
+            const count2F3F = context.closing_2f3f_counters.get(combo.secretaire_id) || 0;
+            const totalClosing = count1R + count2F3F;
+            
+            let penalty1R = 0;
+            let penalty2F3F = 0;
+            
+            // Pénalité si 1R et déjà 3+ rôles de fermeture cette semaine
+            if (totalClosing >= 3) {
+              penalty1R -= 80;
+            }
+            if (totalClosing >= 4) {
+              penalty1R -= 200; // Pénalité supplémentaire
+            }
+            
+            // Pénalité si 2F/3F et déjà 2+ fois 2F/3F cette semaine
+            if (count2F3F >= 2) {
+              penalty2F3F -= 80;
+            }
+            // Pénalité si 2F/3F et déjà 3+ rôles de fermeture cette semaine
+            if (totalClosing >= 3) {
+              penalty2F3F -= 80;
+            }
+            if (totalClosing >= 4) {
+              penalty2F3F -= 200; // Pénalité supplémentaire
+            }
+            
+            // Règle Florence Bron mardi
+            const d = new Date(date);
+            const isTuesday = d.getDay() === 2;
+            const FLORENCE_BRON_ID = '1e5339aa-5e82-4295-b918-e15a580b3396';
+            if (isTuesday && combo.secretaire_id === FLORENCE_BRON_ID) {
+              penalty2F3F -= 500; // Très forte pénalité
+            }
+            
+            model.variables[var1R] = { score_total: penalty1R };
+            model.variables[var2F3F] = { score_total: penalty2F3F };
+            
+            roleVars.is_1r.push({ secId: combo.secretaire_id, varName: var1R, comboVar: combo.varName });
+            roleVars.is_2f3f.push({ secId: combo.secretaire_id, varName: var2F3F, comboVar: combo.varName, needs3F });
           }
         }
       }
@@ -456,9 +512,48 @@ export function buildMILPModelSoft(
           model.variables[fdVar][closureConstraint] = 1;
         }
         
-        console.log(`  🔐 Site fermeture ${site.nom}: ${fullDayVars.length} journées complètes possibles (min: 2)`);
+        // Contrainte: Exactement 1 personne en 1R
+        const constraint1R = `closure_1r_${site.id}_${date}`;
+        model.constraints[constraint1R] = { equal: 1 };
+        for (const { varName } of roleVars.is_1r) {
+          model.variables[varName][constraint1R] = 1;
+        }
+        
+        // Contrainte: Exactement 1 personne en 2F/3F
+        const constraint2F3F = `closure_2f3f_${site.id}_${date}`;
+        model.constraints[constraint2F3F] = { equal: 1 };
+        for (const { varName } of roleVars.is_2f3f) {
+          model.variables[varName][constraint2F3F] = 1;
+        }
+        
+        // Contrainte: Une personne ne peut pas avoir les deux rôles
+        for (const { secId, varName: var1R } of roleVars.is_1r) {
+          const var2F3F = `role_2f3f_${secId}_${site.id}_${date}`;
+          const exclusiveConstraint = `exclusive_role_${secId}_${site.id}_${date}`;
+          model.constraints[exclusiveConstraint] = { max: 1 };
+          model.variables[var1R][exclusiveConstraint] = 1;
+          model.variables[var2F3F][exclusiveConstraint] = 1;
+        }
+        
+        // Lier les rôles aux combos full-day (un rôle ne peut être actif QUE si le combo est sélectionné)
+        for (const { varName: var1R, comboVar } of roleVars.is_1r) {
+          const linkConstraint = `link_1r_${var1R}`;
+          model.constraints[linkConstraint] = { max: 0 };
+          model.variables[var1R][linkConstraint] = 1;
+          model.variables[comboVar][linkConstraint] = -1;
+        }
+        
+        for (const { varName: var2F3F, comboVar } of roleVars.is_2f3f) {
+          const linkConstraint = `link_2f3f_${var2F3F}`;
+          model.constraints[linkConstraint] = { max: 0 };
+          model.variables[var2F3F][linkConstraint] = 1;
+          model.variables[comboVar][linkConstraint] = -1;
+        }
+        
+        const roleType = needs3F ? '3F' : '2F';
+        logger.info(`  🔐 Site fermeture ${site.nom}: ${fullDayVars.length} journées complètes (min: 2) | Rôles: 1R + ${roleType}`);
       } else {
-        console.warn(`  ⚠️ Site fermeture ${site.nom}: Seulement ${fullDayVars.length} journées complètes possibles!`);
+        logger.info(`  ⚠️ Site fermeture ${site.nom}: Seulement ${fullDayVars.length} journées complètes possibles!`);
       }
     }
   }

@@ -248,8 +248,11 @@ async function runOptimizationPass(
   summary: any;
 }> {
   
+  
   const adminCounters = new Map<string, number>();
   const p2p3Counters = new Map<string, Map<string, Set<string>>>();
+  const closing1RCounters = new Map<string, number>();
+  const closing2F3FCounters = new Map<string, number>();
   
   const weekAssignments = new Map<string, any[]>();
   
@@ -266,6 +269,8 @@ async function runOptimizationPass(
     if (passNumber === 2 && pass1Assignments) {
       adminCounters.clear();
       p2p3Counters.clear();
+      closing1RCounters.clear();
+      closing2F3FCounters.clear();
       
       const contextDates = sortedDates.filter(d => d !== date);
       const pass2Dates: string[] = [];
@@ -310,6 +315,14 @@ async function runOptimizationPass(
             }
             
             secMap.get(assign.site_id)!.add(contextDate);
+          }
+          
+          // Compter les rôles de fermeture (1R, 2F, 3F)
+          if (assign.is_1r) {
+            closing1RCounters.set(secId, (closing1RCounters.get(secId) || 0) + 1);
+          }
+          if (assign.is_2f || assign.is_3f) {
+            closing2F3FCounters.set(secId, (closing2F3FCounters.get(secId) || 0) + 1);
           }
         }
       }
@@ -387,11 +400,68 @@ async function runOptimizationPass(
     // ============================================================
     // BUILD CONTEXT
     // ============================================================
+    
+    // Détecter les sites nécessitant 3F (Paul Jacquier jeudi+vendredi)
+    const sitesNeeding3F = new Map<string, Set<string>>();
+    const PAUL_JACQUIER_ID = '121dc7d9-99dc-46bd-9b6c-d240ac6dc6c8';
+    
+    // Group besoins by site and check if Paul Jacquier works both Thursday and Friday
+    const sitesByDate = new Map<string, Map<string, any[]>>();
+    for (const besoin of weekData.besoins_effectifs) {
+      if (!sitesByDate.has(besoin.date)) {
+        sitesByDate.set(besoin.date, new Map());
+      }
+      const dateMap = sitesByDate.get(besoin.date)!;
+      if (!dateMap.has(besoin.site_id)) {
+        dateMap.set(besoin.site_id, []);
+      }
+      dateMap.get(besoin.site_id)!.push(besoin);
+    }
+    
+    // Check each closing site
+    for (const site of weekData.sites.filter((s: any) => s.fermeture)) {
+      for (const checkDate of sortedDates) {
+        const d = new Date(checkDate);
+        const dayOfWeek = d.getDay();
+        
+        // Check if Thursday (4)
+        if (dayOfWeek === 4) {
+          const friday = new Date(d);
+          friday.setDate(friday.getDate() + 1);
+          const fridayStr = friday.toISOString().split('T')[0];
+          
+          // Check if Paul Jacquier works both days
+          const thursdayBesoins = sitesByDate.get(checkDate)?.get(site.id) || [];
+          const fridayBesoins = sitesByDate.get(fridayStr)?.get(site.id) || [];
+          
+          const paulWorksThursday = thursdayBesoins.some((b: any) => b.medecin_id === PAUL_JACQUIER_ID);
+          const paulWorksFriday = fridayBesoins.some((b: any) => b.medecin_id === PAUL_JACQUIER_ID);
+          
+          if (paulWorksThursday && paulWorksFriday) {
+            if (!sitesNeeding3F.has(checkDate)) {
+              sitesNeeding3F.set(checkDate, new Set());
+            }
+            sitesNeeding3F.get(checkDate)!.add(site.id);
+            
+            if (!sitesNeeding3F.has(fridayStr)) {
+              sitesNeeding3F.set(fridayStr, new Set());
+            }
+            sitesNeeding3F.get(fridayStr)!.add(site.id);
+            
+            logger.info(`  🔍 Site ${site.nom} nécessite 3F: Paul Jacquier travaille jeudi ${checkDate} et vendredi ${fridayStr}`);
+          }
+        }
+      }
+    }
+    
     const context = {
       week_assignments,
       today_assignments: new Map(),
       admin_counters: adminCounters,
-      p2p3_counters: p2p3Counters
+      p2p3_counters: p2p3Counters,
+      closing_1r_counters: closing1RCounters,
+      closing_2f3f_counters: closing2F3FCounters,
+      sites_needing_3f: sitesNeeding3F
     };
     
     // ============================================================
@@ -469,6 +539,14 @@ async function runOptimizationPass(
           }
           
           secMap.get(assign.site_id)!.add(date);
+        }
+        
+        // Update closing counters
+        if (assign.is_1r) {
+          closing1RCounters.set(assign.secretaire_id, (closing1RCounters.get(assign.secretaire_id) || 0) + 1);
+        }
+        if (assign.is_2f || assign.is_3f) {
+          closing2F3FCounters.set(assign.secretaire_id, (closing2F3FCounters.get(assign.secretaire_id) || 0) + 1);
         }
       }
     }
@@ -580,20 +658,11 @@ async function optimizeSingleWeek(
   logger.info('\n♻️ Rafraîchissement des vues matérialisées...');
   await supabase.rpc('refresh_besoins_view');
   
-  const lastDate = sortedDates[sortedDates.length - 1];
-  logger.info(`\n🎯 Assignation des responsables de fermeture pour ${lastDate}...`);
-    const { error: closingError } = await supabase.functions.invoke('assign-closing-responsibles', {
-      body: { dates: sortedDates }
-    });
-  if (closingError) {
-    logger.info('⚠️ Erreur lors de l\'assignation des responsables de fermeture:', closingError);
-  }
-  
   return {
     success: true,
     pass1_summary: pass1Results.summary,
     pass2_summary: pass2Results.summary,
-    message: `✅ Optimisation en 2 passes terminée pour ${sortedDates.length} jours`
+    message: `✅ Optimisation en 2 passes terminée pour ${sortedDates.length} jours (avec assignation 1R/2F/3F intégrée)`
   };
 }
 

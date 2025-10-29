@@ -10,6 +10,8 @@ export interface SiteNeed {
   besoin_operation_id?: string;
   type_intervention_id?: string; // Pour exceptions (Gastro)
   salle_assignee?: string; // 🆕 Salle d'opération assignée
+  needs_closing?: boolean; // true si site de fermeture avec médecins matin+AM
+  needs_3f?: boolean; // true si Paul Jacquier jeudi+vendredi
 }
 
 export interface Secretaire {
@@ -126,6 +128,9 @@ export interface DynamicContext {
   today_assignments: Map<string, TodayAssignment>;
   admin_counters: Map<string, number>; // secretaire_id -> nombre demi-journées admin
   p2p3_counters: Map<string, Map<string, Set<string>>>; // secretaire_id -> (site_id -> Set<date>)
+  closing_1r_counters: Map<string, number>; // secretaire_id -> nombre de fois 1R cette semaine
+  closing_2f3f_counters: Map<string, number>; // secretaire_id -> nombre de fois 2F ou 3F cette semaine
+  sites_needing_3f: Map<string, Set<string>>; // date -> Set<site_id> nécessitant 3F
 }
 
 export interface PreferencesData {
@@ -199,3 +204,17 @@ export const SALLES_STANDARD = [SALLE_ROUGE_ID, SALLE_VERTE_ID, SALLE_JAUNE_ID];
 
 // Bonus pour même site matin + après-midi
 export const SAME_SITE_BONUS = 20;
+
+// Pénalités pour fermetures
+export const CLOSING_PENALTIES = {
+  TWO_2F3F_TIMES: -80, // Pénalité si 2 fois 2F ou 3F dans la semaine
+  THREE_CLOSING_ROLES: -80, // Pénalité si 3 rôles de fermeture (1R + 2F + 3F) dans la semaine
+  FOUR_OR_MORE_CLOSING: -200, // Pénalité supplémentaire si 4+ rôles de fermeture
+  FLORENCE_BRON_TUESDAY_2F: -500, // Très forte pénalité pour Florence Bron 2F le mardi
+};
+
+// ID Florence Bron (à charger depuis la DB)
+export const FLORENCE_BRON_ID = '1e5339aa-5e82-4295-b918-e15a580b3396';
+
+// ID Paul Jacquier (pour détection 3F)
+export const PAUL_JACQUIER_ID = '121dc7d9-99dc-46bd-9b6c-d240ac6dc6c8';

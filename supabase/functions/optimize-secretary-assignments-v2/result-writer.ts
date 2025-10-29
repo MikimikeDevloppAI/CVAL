@@ -69,33 +69,21 @@ export async function writeAssignments(
   const BLOC_SITE_ID = blocSiteData?.id || '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
   
   const updates: any[] = [];
+  const roleUpdates: Map<string, { is_1r?: boolean, is_2f?: boolean, is_3f?: boolean }> = new Map();
   let blocCount = 0;
   let siteCount = 0;
   
-  // Parse combo variables
+  // PHASE 1: Parse combo variables for site assignments
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('combo_')) continue;
     if (Number(value) <= 0.5) continue;
     
     // Format: combo_secretaire_id_needMatinId_needAMId
-    // We need to extract the parts carefully because needIds contain underscores
-    
     const withoutPrefix = varName.slice(6); // Remove "combo_"
     const parts = withoutPrefix.split('_');
     
     // First part is secretaire_id (UUID)
     const secretaire_id = parts[0];
-    
-    // Find the start of needAMId by looking for the last occurrence of the secretaire_id pattern
-    // The structure is: secretaire_id_...needMatinId..._...needAMId...
-    
-    // Reconstruct needMatinId and needAMId
-    // We know the structure: parts[0] is secretaire_id
-    // Then comes needMatinId which can be:
-    //   - "null"
-    //   - site_id_date_periodCode (3 parts)
-    //   - site_id_date_periodCode_bloc_op_id_besoin_op_id (5 parts)
-    // Then comes needAMId with same format
     
     let needMatinId = '';
     let needAMId = '';
@@ -182,14 +170,64 @@ export async function writeAssignments(
     }
   }
   
+  // PHASE 2: Parse role variables for 1R/2F/3F
+  for (const [varName, value] of Object.entries(solution)) {
+    if (Number(value) <= 0.5) continue;
+    
+    if (varName.startsWith('role_1r_')) {
+      // Format: role_1r_secretaire_id_site_id_date
+      const parts = varName.split('_');
+      const secId = parts[2];
+      const siteId = parts[3];
+      
+      // Update both morning and afternoon capacites
+      for (const periode of ['matin', 'apres_midi']) {
+        const capKey = `${secId}_${siteId}_${date}_${periode}`;
+        if (!roleUpdates.has(capKey)) {
+          roleUpdates.set(capKey, {});
+        }
+        roleUpdates.get(capKey)!.is_1r = true;
+      }
+      
+      console.log(`  🔒 1R assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
+    }
+    
+    if (varName.startsWith('role_2f3f_')) {
+      // Format: role_2f3f_secretaire_id_site_id_date
+      const parts = varName.split('_');
+      const secId = parts[2];
+      const siteId = parts[3];
+      
+      // Determine if it's 2F or 3F based on need
+      const need = needs.find(n => n.site_id === siteId && n.date === date);
+      const is3F = need?.needs_3f || false;
+      
+      // Update both morning and afternoon capacites
+      for (const periode of ['matin', 'apres_midi']) {
+        const capKey = `${secId}_${siteId}_${date}_${periode}`;
+        if (!roleUpdates.has(capKey)) {
+          roleUpdates.set(capKey, {});
+        }
+        if (is3F) {
+          roleUpdates.get(capKey)!.is_3f = true;
+        } else {
+          roleUpdates.get(capKey)!.is_2f = true;
+        }
+      }
+      
+      console.log(`  🔒 ${is3F ? '3F' : '2F'} assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
+    }
+  }
+  
   console.log(`  📊 Assignations: ${updates.length} total (${blocCount} bloc, ${siteCount} sites)`);
+  console.log(`  📊 Rôles: ${roleUpdates.size} (1R/2F/3F)`);
   
   if (updates.length === 0) {
     console.warn(`  ⚠️ Aucune assignation à écrire!`);
-    return;
+    return 0;
   }
   
-  // Batch update
+  // PHASE 3: Batch update for site assignments
   for (const update of updates) {
     const { error } = await supabase
       .from('capacite_effective')
@@ -205,5 +243,26 @@ export async function writeAssignments(
     }
   }
   
+  // PHASE 4: Update roles (1R/2F/3F)
+  for (const [capKey, roles] of roleUpdates.entries()) {
+    const [secId, siteId, keyDate, periode] = capKey.split('_');
+    
+    const { error } = await supabase
+      .from('capacite_effective')
+      .update(roles)
+      .eq('secretaire_id', secId)
+      .eq('site_id', siteId)
+      .eq('date', keyDate)
+      .eq('demi_journee', periode)
+      .eq('actif', true);
+    
+    if (error) {
+      console.error(`  ❌ Erreur update rôle ${capKey}:`, error);
+    }
+  }
+  
   console.log(`  ✅ ${updates.length} assignations écrites avec succès`);
+  console.log(`  ✅ ${roleUpdates.size} rôles écrits avec succès`);
+  
+  return updates.length;
 }
