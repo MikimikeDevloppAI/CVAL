@@ -761,19 +761,20 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Planning hebdomadaire container */}
-      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6 mt-8">
-        {/* Section Divider */}
-        <div className="mb-8 space-y-4">
+      {/* Gradient separator */}
+      <div className="my-8">
         <div className="relative">
           <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent shadow-lg shadow-primary/20"></div>
         </div>
-        <div className="flex items-center justify-center">
+      </div>
+
+      {/* Planning hebdomadaire container */}
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
+        <div className="flex items-center justify-center mb-6">
           <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
             Planning hebdomadaire
           </h2>
         </div>
-      </div>
 
       {/* View Mode Tabs */}
       <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
