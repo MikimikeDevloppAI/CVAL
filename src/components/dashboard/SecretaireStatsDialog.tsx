@@ -181,9 +181,6 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
               <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                 Répartition des responsabilités de fermeture
               </h3>
-              <span className="text-xs text-muted-foreground italic">
-                Comptabilisé en journées entières
-              </span>
             </div>
             <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
