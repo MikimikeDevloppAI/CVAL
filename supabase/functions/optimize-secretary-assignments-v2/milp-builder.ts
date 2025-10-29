@@ -469,19 +469,20 @@ export function buildMILPModelSoft(
             
             // Pénalité si 1R et déjà 3+ rôles de fermeture cette semaine
             if (totalClosing >= 3) {
-              penalty1R -= 80;
+              penalty1R -= 100; // Augmenté à -100
             }
             if (totalClosing >= 4) {
               penalty1R -= 200; // Pénalité supplémentaire
             }
             
-            // Pénalité si 2F/3F et déjà 2+ fois 2F/3F cette semaine
+            // Pénalités 2F/3F
+            // -100 si déjà >1 (donc à partir du 2ème) 2F/3F cette semaine
             if (count2F3F >= 2) {
-              penalty2F3F -= 80;
+              penalty2F3F -= 100;
             }
-            // Pénalité si 2F/3F et déjà 3+ rôles de fermeture cette semaine
+            // -100 si plus de deux rôles de fermeture au total (1R+2F/3F) cette semaine
             if (totalClosing >= 3) {
-              penalty2F3F -= 80;
+              penalty2F3F -= 100;
             }
             if (totalClosing >= 4) {
               penalty2F3F -= 200; // Pénalité supplémentaire
