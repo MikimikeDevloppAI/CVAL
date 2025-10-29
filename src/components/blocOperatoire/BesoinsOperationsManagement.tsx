@@ -218,7 +218,6 @@ export function BesoinsOperationsManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">{besoin.nom}</h3>
-                  <p className="text-sm text-muted-foreground">Code: {besoin.code}</p>
                 </div>
                 <Button
                   size="sm"
