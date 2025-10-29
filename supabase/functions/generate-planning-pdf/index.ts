@@ -155,19 +155,25 @@ serve(async (req) => {
       let typeIntervention: string | undefined;
       let medecin: string | undefined;
 
-      if (cap.planning_genere_bloc_operatoire_id) {
+      if (cap.planning_genere_bloc_operatoire_id || cap.besoin_operation_id) {
         type = 'bloc';
-        const blocData = blocsMap.get(cap.planning_genere_bloc_operatoire_id);
-        if (blocData) {
-          salle = blocData.salles_operation?.name;
-          typeIntervention = blocData.types_intervention?.nom;
-          if (blocData.medecins) {
-            medecin = `${blocData.medecins.first_name || ''} ${blocData.medecins.name || ''}`.trim();
+        
+        // Récupérer le besoin d'opération si présent
+        if (cap.besoin_operation_id) {
+          typeBesoinBloc = besoinsOpsMap.get(cap.besoin_operation_id);
+        }
+        
+        // Récupérer les détails du bloc opératoire si présent
+        if (cap.planning_genere_bloc_operatoire_id) {
+          const blocData = blocsMap.get(cap.planning_genere_bloc_operatoire_id);
+          if (blocData) {
+            salle = blocData.salles_operation?.name;
+            typeIntervention = blocData.types_intervention?.nom;
+            if (blocData.medecins) {
+              medecin = `${blocData.medecins.first_name || ''} ${blocData.medecins.name || ''}`.trim();
+            }
           }
         }
-      } else if (cap.besoin_operation_id) {
-        type = 'bloc';
-        typeBesoinBloc = besoinsOpsMap.get(cap.besoin_operation_id);
       } else if (siteName.toLowerCase().includes('administratif')) {
         type = 'administratif';
       }
@@ -405,20 +411,24 @@ function generatePlanningHTML(
     if (assignment.type === 'bloc') {
       const lines: string[] = [];
       
-      if (assignment.typeBesoinBloc) {
-        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
-      }
-      
+      // 1. Salle
       if (assignment.salle) {
         lines.push(`Salle ${assignment.salle}`);
       }
       
+      // 2. Médecin
       if (assignment.medecin) {
         lines.push(`Médecin : Dr ${assignment.medecin}`);
       }
       
+      // 3. Type d'intervention
       if (assignment.typeIntervention) {
         lines.push(`Type d'intervention : ${assignment.typeIntervention}`);
+      }
+      
+      // 4. Besoin opératoire
+      if (assignment.typeBesoinBloc) {
+        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
       }
       
       return lines.join('<br>') + (badges.length > 0 ? '<br>' + badges.join(' ') : '');
