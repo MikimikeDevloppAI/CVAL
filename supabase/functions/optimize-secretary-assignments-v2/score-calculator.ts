@@ -169,11 +169,11 @@ export function calculateDynamicScore(
   // dans milp-builder.ts avec des contraintes Big-M
   
   // ============================================================
-  // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3 (DYNAMIQUE)
+  // 4. PÉNALITÉ SUR-ASSIGNATION SITE PREF 2/3/4 (DYNAMIQUE)
   // ============================================================
   // ✨ Compter les JOURS uniques, uniquement pour Esplanade Ophtalmologie
   if (siteMatch && 
-      (siteMatch.priorite === '2' || siteMatch.priorite === '3') &&
+      (siteMatch.priorite === '2' || siteMatch.priorite === '3' || siteMatch.priorite === '4') &&
       need.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
     
     // Nombre de jours uniques déjà assignés cette semaine
@@ -191,10 +191,10 @@ export function calculateDynamicScore(
     
     // Pénalité dès le 2ème jour
     if (totalDays >= 2) {
-      const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD; // -150 par jour excédentaire
+      const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD; // -150 par jour excédentaire
       score += penalty;
       
-      console.log(`    ⚠️ Sur-assignation P2/P3 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours (pénalité: ${penalty})`);
+      console.log(`    ⚠️ Sur-assignation P2/P3/P4 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours (pénalité: ${penalty})`);
     }
   }
   
@@ -306,9 +306,9 @@ export function calculateComboScore(
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
     
-    // 1e. Pénalité sur-assignation site P2/P3 (MATIN) - uniquement Esplanade Ophtalmologie
+    // 1e. Pénalité sur-assignation site P2/P3/P4 (MATIN) - uniquement Esplanade Ophtalmologie
     if (siteMatchMatin && 
-        (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3') &&
+        (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3' || siteMatchMatin.priorite === '4') &&
         needMatin.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
       
       // Obtenir le nombre de jours CETTE SEMAINE depuis le contexte
@@ -319,7 +319,7 @@ export function calculateComboScore(
       const totalDays = weekDaysCount + 1;
       
       if (totalDays >= 2) {
-        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD;
+        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
         totalScore += penalty;
         if (isFocused) logger.info(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
       }
@@ -397,9 +397,9 @@ export function calculateComboScore(
       }
     }
     
-    // 2e. Pénalité sur-assignation site P2/P3 (AM) - uniquement Esplanade Ophtalmologie
+    // 2e. Pénalité sur-assignation site P2/P3/P4 (AM) - uniquement Esplanade Ophtalmologie
     if (siteMatchAM && 
-        (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3') &&
+        (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3' || siteMatchAM.priorite === '4') &&
         needAM.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
       
       // Obtenir le nombre de jours CETTE SEMAINE depuis le contexte
@@ -416,7 +416,7 @@ export function calculateComboScore(
       if (totalDays >= 2) {
         // ✅ Si déjà pénalisé ce matin, ne pas re-pénaliser
         if (!alreadyCountedToday) {
-          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_23_OVERLOAD;
+          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
           totalScore += penalty;
           console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
         } else {

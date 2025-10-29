@@ -96,7 +96,7 @@ export interface SecretaireMedecin {
 export interface SecretaireSite {
   secretaire_id: string;
   site_id: string;
-  priorite: '1' | '2' | '3';
+  priorite: '1' | '2' | '3' | '4';
 }
 
 export interface AssignmentSummary {
@@ -106,7 +106,7 @@ export interface AssignmentSummary {
   periode: 'matin' | 'apres_midi';
   is_admin: boolean;
   is_bloc: boolean;
-  site_priorite: 1 | 2 | 3 | null;
+  site_priorite: 1 | 2 | 3 | 4 | null;
 }
 
 export interface TodayAssignment {
@@ -166,7 +166,7 @@ export const PENALTIES = {
   CHANGEMENT_SITE: -40,
   CHANGEMENT_SITE_HIGH_PENALTY: -60,
   ADMIN_FIRST: 10,
-  SITE_PREF_23_OVERLOAD: -150,
+  SITE_PREF_234_OVERLOAD: -150,
   BLOC_EXCLUSION: -10000,
 };
 
