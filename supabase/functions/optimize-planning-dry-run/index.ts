@@ -437,8 +437,8 @@ serve(async (req) => {
       week_data.medecins_map
     );
 
-    // Capture current state from REAL capacities (for bonus +15/+15)
-    console.log(`\n🎯 Capture de l'état actuel pour bonus +15 par demi-journée...`);
+    // Capture current state from REAL capacities (for bonus +100/+100)
+    console.log(`\n🎯 Capture de l'état actuel pour bonus +100 par demi-journée...`);
     const currentState = new Map<string, CurrentState>();
     
     for (const cap of capacites.filter(c => c.actif)) {
@@ -460,12 +460,12 @@ serve(async (req) => {
       const state = currentState.get(key)!;
       if (cap.demi_journee === 'matin') {
         state.matin_site_id = cap.site_id;
-        state.matin_besoin_op_id = cap.besoin_operation_id || null;
-        state.matin_bloc_op_id = cap.planning_genere_bloc_operatoire_id || null;
+        state.matin_besoin_op_id = cap.besoin_operation_id ?? null;
+        state.matin_bloc_op_id = cap.planning_genere_bloc_operatoire_id ?? null;
       } else {
         state.am_site_id = cap.site_id;
-        state.am_besoin_op_id = cap.besoin_operation_id || null;
-        state.am_bloc_op_id = cap.planning_genere_bloc_operatoire_id || null;
+        state.am_besoin_op_id = cap.besoin_operation_id ?? null;
+        state.am_bloc_op_id = cap.planning_genere_bloc_operatoire_id ?? null;
       }
     }
     

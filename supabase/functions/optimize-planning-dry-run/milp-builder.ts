@@ -173,7 +173,7 @@ export function buildMILPModelSoft(
             sites: week_data.secretaires_sites
           },
           secretaire,
-          currentState  // ← Pass currentState for +30 bonus
+          currentState  // ← Pass currentState for +100 bonus
         );
         
         combos.push({
