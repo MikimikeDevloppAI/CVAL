@@ -770,22 +770,19 @@ const DashboardPage = () => {
 
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
-        <div className="flex items-center justify-center mb-6">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
-            Planning hebdomadaire
-          </h2>
-        </div>
-
-      {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
-        <div className="flex justify-center mb-6">
-          <TabsList>
-            <TabsTrigger value="site">Sites</TabsTrigger>
-            <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
-            <TabsTrigger value="medecin">Médecins</TabsTrigger>
-            <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
-          </TabsList>
-        </div>
+        {/* View Mode Tabs */}
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
+              Planning hebdomadaire
+            </h2>
+            <TabsList>
+              <TabsTrigger value="site">Sites</TabsTrigger>
+              <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
+              <TabsTrigger value="medecin">Médecins</TabsTrigger>
+              <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
+            </TabsList>
+          </div>
 
         {/* Week Selector */}
         <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg mb-6">
