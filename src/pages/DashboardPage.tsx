@@ -155,41 +155,46 @@ const DashboardPage = () => {
     setUnfilledNeedsLoading(true);
     try {
       const today = new Date();
-      const fourWeeksLater = addWeeks(today, 4);
-      const startDate = format(today, 'yyyy-MM-dd');
-      const endDate = format(fourWeeksLater, 'yyyy-MM-dd');
-      
-      // Sommer les déficits depuis les 3 vues séparées (comme dans UnfilledNeedsSummaryDialog)
-      const [sitesResult, blocResult, fermetureResult] = await Promise.all([
-        supabase
-          .from('besoins_sites_summary')
-          .select('deficit')
-          .gte('date', startDate)
-          .lte('date', endDate)
-          .gt('deficit', 0),
-        supabase
-          .from('besoins_bloc_operatoire_summary')
-          .select('deficit')
-          .gte('date', startDate)
-          .lte('date', endDate)
-          .gt('deficit', 0),
-        supabase
-          .from('besoins_fermeture_summary')
-          .select('deficit')
-          .gte('date', startDate)
-          .lte('date', endDate)
-          .gt('deficit', 0)
-      ]);
-      
-      if (sitesResult.error) throw sitesResult.error;
-      if (blocResult.error) throw blocResult.error;
-      if (fermetureResult.error) throw fermetureResult.error;
-      
-      const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-      const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-      const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-      const total = sitesDeficit + blocDeficit + fermetureDeficit;
-      
+      let total = 0;
+
+      // Calcule exactement comme dans le dialogue: somme par semaine (4 semaines)
+      for (let i = 0; i < 4; i++) {
+        const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
+        const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
+        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+          supabase
+            .from('besoins_sites_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_bloc_operatoire_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_fermeture_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0)
+        ]);
+
+        if (sitesResult.error) throw sitesResult.error;
+        if (blocResult.error) throw blocResult.error;
+        if (fermetureResult.error) throw fermetureResult.error;
+
+        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        total += sitesDeficit + blocDeficit + fermetureDeficit;
+      }
+
       setUnfilledNeedsCount(total);
     } catch (error) {
       console.error('Error fetching unfilled needs count:', error);
