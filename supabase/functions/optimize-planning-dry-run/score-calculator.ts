@@ -257,16 +257,14 @@ export function calculateComboScore(
         (isAdminComboMatin && state.matin_site_id === ADMIN_SITE_ID) ||
         (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
         (needMatin && needMatin.type === 'bloc_operatoire' && 
-         needMatin.bloc_operation_id === state.matin_bloc_op_id &&
-         needMatin.besoin_operation_id === state.matin_besoin_op_id)
+         needMatin.bloc_operation_id === state.matin_bloc_op_id)
       );
       
       const matchesAM = (
         (isAdminComboAM && state.am_site_id === ADMIN_SITE_ID) ||
         (needAM && needAM.type === 'site' && needAM.site_id === state.am_site_id) ||
         (needAM && needAM.type === 'bloc_operatoire' && 
-         needAM.bloc_operation_id === state.am_bloc_op_id &&
-         needAM.besoin_operation_id === state.am_besoin_op_id)
+         needAM.bloc_operation_id === state.am_bloc_op_id)
       );
       
       console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
@@ -279,7 +277,7 @@ export function calculateComboScore(
         if (isAdminComboMatin) {
           console.log(`  🎯 BONUS +100 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
         } else if (needMatin?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 matin: besoin BLOC conservé ✅`);
+          console.log(`  🎯 BONUS +100 matin: session BLOC conservée ✅`);
         } else {
           console.log(`  🎯 BONUS +100 matin: site conservé ✅`);
         }
@@ -290,7 +288,7 @@ export function calculateComboScore(
         if (isAdminComboAM) {
           console.log(`  🎯 BONUS +100 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
         } else if (needAM?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +100 AM: besoin BLOC conservé ✅`);
+          console.log(`  🎯 BONUS +100 AM: session BLOC conservée ✅`);
         } else {
           console.log(`  🎯 BONUS +100 AM: site conservé ✅`);
         }
