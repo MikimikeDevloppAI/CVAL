@@ -764,7 +764,7 @@ const DashboardPage = () => {
       {/* Gradient separator */}
       <div className="my-8">
         <div className="relative">
-          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent shadow-lg shadow-primary/20"></div>
+          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent shadow-lg shadow-muted-foreground/10"></div>
         </div>
       </div>
 
