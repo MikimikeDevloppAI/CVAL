@@ -120,7 +120,7 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
               {format(new Date(dateRange.end), 'dd MMMM yyyy', { locale: fr })}
               {totalManques > 0 && (
                 <span className="ml-2 font-semibold text-destructive">
-                  • {totalManques} manque{totalManques > 1 ? 's' : ''} total{totalManques > 1 ? 'aux' : ''}
+                  • {totalManques}
                 </span>
               )}
             </p>
