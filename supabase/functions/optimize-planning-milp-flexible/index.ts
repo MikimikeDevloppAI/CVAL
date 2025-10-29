@@ -393,9 +393,131 @@ async function calculatePeriodScore(
   const preferredSites = secSitesMap.get(secretaire_id) || new Set();
   const competentBesoins = secBesoinsMap.get(secretaire_id) || new Set();
 
-  // ==================== CALCUL POUR LES SITES ====================
+  // Get site IDs for ophtalmology aggregation
+  const { data: allSites } = await supabase
+    .from('sites')
+    .select('id, nom')
+    .eq('actif', true);
+
+  const siteMap = new Map<string, string>();
+  let valleeSiteId = '';
+  let esplanadeSiteId = '';
+  
+  for (const site of allSites || []) {
+    siteMap.set(site.id, site.nom);
+    if (site.nom === 'Clinique La Vallée - Ophtalmologie') {
+      valleeSiteId = site.id;
+    } else if (site.nom === 'Centre Esplanade - Ophtalmologie') {
+      esplanadeSiteId = site.id;
+    }
+  }
+
+  const ophtalmologySites = new Set([valleeSiteId, esplanadeSiteId].filter(id => id !== ''));
+  
+  // Get "Accueil Ophtalmologie" besoin_operation_id
+  const { data: accueilOphtaBesoin } = await supabase
+    .from('besoins_operations')
+    .select('id')
+    .eq('code', 'ACCUEIL_OPHTA')
+    .single();
+
+  const accueilOphtaId = accueilOphtaBesoin?.id;
+
+  // ==================== AGRÉGATION OPHTALMOLOGIE ====================
+  
+  const hasOphtaSitePreference = [...preferredSites].some(siteId => ophtalmologySites.has(siteId));
+  
+  if (hasOphtaSitePreference && ophtalmologySites.size > 0) {
+    // BESOINS = besoins des deux sites ophtalmologie + besoins "Accueil Ophtalmologie"
+    let besoinOphtalmoTotal = 0;
+
+    // Count besoins for both ophtalmology sites
+    for (const siteId of ophtalmologySites) {
+      const { data: besoinsData } = await supabase
+        .from('besoin_effectif')
+        .select('id')
+        .eq('date', date)
+        .eq('demi_journee', periode)
+        .eq('site_id', siteId)
+        .eq('actif', true);
+      
+      besoinOphtalmoTotal += besoinsData?.length || 0;
+    }
+
+    // Add "Accueil Ophtalmologie" needs
+    if (accueilOphtaId && competentBesoins.has(accueilOphtaId)) {
+      const { data: allOperations } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select('id, type_intervention_id')
+        .eq('date', date)
+        .eq('periode', periode);
+
+      if (allOperations && allOperations.length > 0) {
+        const typeInterventionIds = [...new Set(allOperations.map((op: any) => op.type_intervention_id))];
+        
+        const { data: personnelBesoins } = await supabase
+          .from('types_intervention_besoins_personnel')
+          .select('type_intervention_id, besoin_operation_id, nombre_requis')
+          .in('type_intervention_id', typeInterventionIds)
+          .eq('besoin_operation_id', accueilOphtaId)
+          .eq('actif', true);
+
+        for (const op of allOperations) {
+          const opBesoins = (personnelBesoins || []).filter((b: any) => b.type_intervention_id === op.type_intervention_id);
+          for (const besoin of opBesoins) {
+            besoinOphtalmoTotal += besoin.nombre_requis;
+          }
+        }
+      }
+    }
+
+    // CAPACITÉS = secrétaires uniques qui ont une capacité active ET qui ont au moins un des deux sites en préférence
+    const { data: allCapacitiesData } = await supabase
+      .from('capacite_effective')
+      .select('secretaire_id')
+      .eq('date', date)
+      .eq('demi_journee', periode)
+      .eq('actif', true)
+      .not('secretaire_id', 'is', null);
+
+    // Get secretaire preferences for all secretaries with capacities
+    const secretaireIds = [...new Set((allCapacitiesData || []).map((c: any) => c.secretaire_id))];
+    
+    const { data: allSecPrefs } = await supabase
+      .from('secretaires_sites')
+      .select('secretaire_id, site_id')
+      .in('secretaire_id', secretaireIds);
+
+    // Count unique secretaries who have ophtalmology site preference
+    const secretairesWithOphtaPref = new Set<string>();
+    for (const pref of allSecPrefs || []) {
+      if (ophtalmologySites.has(pref.site_id)) {
+        secretairesWithOphtaPref.add(pref.secretaire_id);
+      }
+    }
+
+    const capaciteOphtalmo = secretairesWithOphtaPref.size;
+
+    // Calculate balance
+    if (besoinOphtalmoTotal > capaciteOphtalmo) {
+      const manque = besoinOphtalmoTotal - capaciteOphtalmo;
+      nombreManques += manque;
+      details.push(`🚨 Ophtalmologie (agrégé): besoin=${besoinOphtalmoTotal}, capacité=${capaciteOphtalmo}, MANQUE=${manque}`);
+    } else if (capaciteOphtalmo > besoinOphtalmoTotal) {
+      const surplus = capaciteOphtalmo - besoinOphtalmoTotal;
+      totalSurcapacite += surplus;
+      details.push(`✅ Ophtalmologie (agrégé): besoin=${besoinOphtalmoTotal}, capacité=${capaciteOphtalmo}, surplus=${surplus}`);
+    } else {
+      details.push(`✅ Ophtalmologie (agrégé): besoin=${besoinOphtalmoTotal}, capacité=${capaciteOphtalmo}, équilibré`);
+    }
+  }
+
+  // ==================== CALCUL POUR LES AUTRES SITES ====================
   
   for (const siteId of preferredSites) {
+    // Skip ophtalmology sites (already handled in aggregation)
+    if (ophtalmologySites.has(siteId)) continue;
+
     // Count besoins effectifs for this site
     const { data: besoinsData } = await supabase
       .from('besoin_effectif')
@@ -407,25 +529,27 @@ async function calculatePeriodScore(
 
     const besoinCount = besoinsData?.length || 0;
 
-    // Count capacités existantes for this site
-    const { data: capacitesData } = await supabase
+    // Count capacités: secretaries with active capacity who have this site in preferences
+    const { data: allCapacitiesData } = await supabase
       .from('capacite_effective')
-      .select('id')
+      .select('secretaire_id')
       .eq('date', date)
       .eq('demi_journee', periode)
-      .eq('site_id', siteId)
-      .eq('actif', true);
+      .eq('actif', true)
+      .not('secretaire_id', 'is', null);
 
-    const capaciteCount = capacitesData?.length || 0;
+    const secretaireIds = [...new Set((allCapacitiesData || []).map((c: any) => c.secretaire_id))];
+    
+    // Check which secretaries have this site in preferences
+    const { data: secPrefsForSite } = await supabase
+      .from('secretaires_sites')
+      .select('secretaire_id')
+      .in('secretaire_id', secretaireIds)
+      .eq('site_id', siteId);
 
-    // Get site name for logging
-    const { data: siteInfo } = await supabase
-      .from('sites')
-      .select('nom')
-      .eq('id', siteId)
-      .single();
+    const capaciteCount = secPrefsForSite?.length || 0;
 
-    const siteName = siteInfo?.nom || siteId.substring(0, 8);
+    const siteName = siteMap.get(siteId) || siteId.substring(0, 8);
 
     if (besoinCount > capaciteCount) {
       const manque = besoinCount - capaciteCount;
@@ -440,81 +564,9 @@ async function calculatePeriodScore(
     }
   }
 
-  // ==================== CALCUL POUR LES BESOINS OPÉRATOIRES ====================
-  
-  if (competentBesoins.size > 0) {
-    // Get ALL planned operations for this date/period
-    const { data: allOperations } = await supabase
-      .from('planning_genere_bloc_operatoire')
-      .select('id, type_intervention_id')
-      .eq('date', date)
-      .eq('periode', periode);
-
-    if (allOperations && allOperations.length > 0) {
-      const typeInterventionIds = [...new Set(allOperations.map((op: any) => op.type_intervention_id))];
-      
-      const { data: personnelBesoins } = await supabase
-        .from('types_intervention_besoins_personnel')
-        .select('type_intervention_id, besoin_operation_id, nombre_requis')
-        .in('type_intervention_id', typeInterventionIds)
-        .eq('actif', true);
-
-      // Filter only besoins for which this secretary is competent
-      const eligibleBesoins = (personnelBesoins || []).filter(
-        (b: any) => competentBesoins.has(b.besoin_operation_id)
-      );
-
-      // Group needs by besoin_operation_id
-      const besoinNeedsMap = new Map<string, number>();
-      
-      for (const op of allOperations) {
-        const opBesoins = eligibleBesoins.filter((b: any) => b.type_intervention_id === op.type_intervention_id);
-        for (const besoin of opBesoins) {
-          const current = besoinNeedsMap.get(besoin.besoin_operation_id) || 0;
-          besoinNeedsMap.set(besoin.besoin_operation_id, current + besoin.nombre_requis);
-        }
-      }
-
-      // Calculate for each operational besoin
-      for (const [besoinOpId, totalRequis] of besoinNeedsMap) {
-        // Count existing capacités for this besoin
-        const { data: capacitesData } = await supabase
-          .from('capacite_effective')
-          .select('id')
-          .eq('date', date)
-          .eq('demi_journee', periode)
-          .eq('besoin_operation_id', besoinOpId)
-          .eq('actif', true);
-
-        const capaciteExistante = capacitesData?.length || 0;
-
-        // Get besoin name
-        const { data: besoinInfo } = await supabase
-          .from('besoins_operations')
-          .select('nom, code')
-          .eq('id', besoinOpId)
-          .single();
-
-        const besoinName = besoinInfo ? `${besoinInfo.code} (${besoinInfo.nom})` : besoinOpId.substring(0, 8);
-
-        if (totalRequis > capaciteExistante) {
-          const manque = totalRequis - capaciteExistante;
-          nombreManques += manque;
-          details.push(`🚨 Opé ${besoinName}: besoin=${totalRequis}, capacité=${capaciteExistante}, MANQUE=${manque}`);
-        } else if (capaciteExistante > totalRequis) {
-          const surplus = capaciteExistante - totalRequis;
-          totalSurcapacite += surplus;
-          details.push(`✅ Opé ${besoinName}: besoin=${totalRequis}, capacité=${capaciteExistante}, surplus=${surplus}`);
-        } else {
-          details.push(`✅ Opé ${besoinName}: besoin=${totalRequis}, capacité=${capaciteExistante}, équilibré`);
-        }
-      }
-    }
-  }
-
-  // If no sites or operations, return neutral score
+  // If no sites, return neutral score
   if (details.length === 0) {
-    details.push('Aucun site ou opération éligible');
+    details.push('Aucun site éligible');
   }
 
   // Calculate composite score: (manques × 10000) - surcapacité
