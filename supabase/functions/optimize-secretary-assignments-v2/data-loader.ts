@@ -204,7 +204,10 @@ export async function getCurrentWeekAssignments(
       periode: cap.demi_journee,
       is_admin: cap.site_id === ADMIN_SITE_ID,
       is_bloc: isBloc,
-      site_priorite: sitePriorite ? parseInt(sitePriorite.priorite) as (1 | 2 | 3) : null
+      site_priorite: sitePriorite ? parseInt(sitePriorite.priorite) as (1 | 2 | 3 | 4) : null,
+      is_1r: cap.is_1r || false,
+      is_2f: cap.is_2f || false,
+      is_3f: cap.is_3f || false
     });
   }
   

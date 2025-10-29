@@ -109,6 +109,9 @@ export interface AssignmentSummary {
   is_admin: boolean;
   is_bloc: boolean;
   site_priorite: 1 | 2 | 3 | 4 | null;
+  is_1r: boolean;
+  is_2f: boolean;
+  is_3f: boolean;
 }
 
 export interface TodayAssignment {

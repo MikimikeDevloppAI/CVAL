@@ -228,7 +228,10 @@ async function loadTodayAssignments(
       date: cap.date,
       periode: cap.demi_journee,
       is_admin: cap.site_id === ADMIN_SITE_ID,
-      is_bloc: !!cap.planning_genere_bloc_operatoire_id
+      is_bloc: !!cap.planning_genere_bloc_operatoire_id,
+      is_1r: cap.is_1r || false,
+      is_2f: cap.is_2f || false,
+      is_3f: cap.is_3f || false
     });
   }
   
@@ -317,12 +320,14 @@ async function runOptimizationPass(
             secMap.get(assign.site_id)!.add(contextDate);
           }
           
-          // Compter les rôles de fermeture (1R, 2F, 3F)
-          if (assign.is_1r) {
-            closing1RCounters.set(secId, (closing1RCounters.get(secId) || 0) + 1);
-          }
-          if (assign.is_2f || assign.is_3f) {
-            closing2F3FCounters.set(secId, (closing2F3FCounters.get(secId) || 0) + 1);
+          // Compter les rôles de fermeture (1R, 2F, 3F) - uniquement sur la période MATIN pour éviter double comptage
+          if (assign.periode === 'matin') {
+            if (assign.is_1r) {
+              closing1RCounters.set(secId, (closing1RCounters.get(secId) || 0) + 1);
+            }
+            if (assign.is_2f || assign.is_3f) {
+              closing2F3FCounters.set(secId, (closing2F3FCounters.get(secId) || 0) + 1);
+            }
           }
         }
       }
@@ -541,12 +546,14 @@ async function runOptimizationPass(
           secMap.get(assign.site_id)!.add(date);
         }
         
-        // Update closing counters
-        if (assign.is_1r) {
-          closing1RCounters.set(assign.secretaire_id, (closing1RCounters.get(assign.secretaire_id) || 0) + 1);
-        }
-        if (assign.is_2f || assign.is_3f) {
-          closing2F3FCounters.set(assign.secretaire_id, (closing2F3FCounters.get(assign.secretaire_id) || 0) + 1);
+        // Update closing counters - uniquement sur la période MATIN pour éviter double comptage
+        if (assign.periode === 'matin') {
+          if (assign.is_1r) {
+            closing1RCounters.set(assign.secretaire_id, (closing1RCounters.get(assign.secretaire_id) || 0) + 1);
+          }
+          if (assign.is_2f || assign.is_3f) {
+            closing2F3FCounters.set(assign.secretaire_id, (closing2F3FCounters.get(assign.secretaire_id) || 0) + 1);
+          }
         }
       }
     }
@@ -586,6 +593,30 @@ async function runOptimizationPass(
         logger.debug(`\n⚠️ Secrétaires P2/P3 avec 2+ jours Esplanade Ophtalmo:`);
         for (const { name, days } of esplanadeOverload.slice(0, 10)) {
           logger.debug(`  ${name}: ${days} jours`);
+        }
+      }
+      
+      // Logs ciblés pour Christine Ribeaud et Loïs
+      const christineRibeaud = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
+      );
+      const lois = weekData.secretaires.find((s: any) => 
+        s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
+      );
+      
+      if (christineRibeaud || lois) {
+        logger.debug(`\n🔍 Compteurs rôles fermeture après ${date}:`);
+        
+        if (christineRibeaud) {
+          const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
+          const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
+          logger.debug(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
+        }
+        
+        if (lois) {
+          const count1R = closing1RCounters.get(lois.id) || 0;
+          const count2F3F = closing2F3FCounters.get(lois.id) || 0;
+          logger.debug(`  👤 Loïs: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
         }
       }
     }
