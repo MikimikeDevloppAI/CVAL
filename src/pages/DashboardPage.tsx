@@ -159,23 +159,23 @@ const DashboardPage = () => {
       const startDate = format(today, 'yyyy-MM-dd');
       const endDate = format(fourWeeksLater, 'yyyy-MM-dd');
       
-      // Récupérer les données des 3 vues et les agréger EXACTEMENT comme dans UnfilledNeedsPanel
+      // Sommer les déficits depuis les 3 vues séparées (comme dans UnfilledNeedsSummaryDialog)
       const [sitesResult, blocResult, fermetureResult] = await Promise.all([
         supabase
           .from('besoins_sites_summary')
-          .select('date, site_id')
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_bloc_operatoire_summary')
-          .select('date, type_intervention_id, medecin_id')
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0),
         supabase
           .from('besoins_fermeture_summary')
-          .select('date, site_id')
+          .select('deficit')
           .gte('date', startDate)
           .lte('date', endDate)
           .gt('deficit', 0)
@@ -185,28 +185,12 @@ const DashboardPage = () => {
       if (blocResult.error) throw blocResult.error;
       if (fermetureResult.error) throw fermetureResult.error;
       
-      // Créer un Map pour agréger comme dans UnfilledNeedsPanel
-      const grouped = new Map<string, boolean>();
+      const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+      const total = sitesDeficit + blocDeficit + fermetureDeficit;
       
-      // 1. Agréger les besoins sites (un besoin = date + site, peu importe les périodes)
-      (sitesResult.data || []).forEach(need => {
-        const key = `${need.date}-site-${need.site_id}`;
-        grouped.set(key, true);
-      });
-      
-      // 2. Agréger les besoins bloc opératoire (un besoin = date + type_intervention + medecin)
-      (blocResult.data || []).forEach(need => {
-        const key = `${need.date}-bloc-${need.type_intervention_id}-${need.medecin_id}`;
-        grouped.set(key, true);
-      });
-      
-      // 3. Agréger les besoins fermeture (un besoin = date + site)
-      (fermetureResult.data || []).forEach(need => {
-        const key = `${need.date}-fermeture-${need.site_id}`;
-        grouped.set(key, true);
-      });
-      
-      setUnfilledNeedsCount(grouped.size);
+      setUnfilledNeedsCount(total);
     } catch (error) {
       console.error('Error fetching unfilled needs count:', error);
       setUnfilledNeedsCount(0);
