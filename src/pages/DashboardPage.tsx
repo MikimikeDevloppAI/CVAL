@@ -782,20 +782,17 @@ const DashboardPage = () => {
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
         {/* View Mode Tabs */}
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent mb-6">
+          Planning hebdomadaire
+        </h2>
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
-          <div className="grid grid-cols-3 items-center mb-6">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
-              Planning hebdomadaire
-            </h2>
-            <div className="flex justify-center">
-              <TabsList>
-                <TabsTrigger value="site">Sites</TabsTrigger>
-                <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
-                <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
-                <TabsTrigger value="medecin">Médecins</TabsTrigger>
-              </TabsList>
-            </div>
-            <div></div>
+          <div className="flex justify-center mb-6">
+            <TabsList>
+              <TabsTrigger value="site">Sites</TabsTrigger>
+              <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
+              <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
+              <TabsTrigger value="medecin">Médecins</TabsTrigger>
+            </TabsList>
           </div>
 
         {/* Week Selector */}
