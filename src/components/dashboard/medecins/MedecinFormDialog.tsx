@@ -65,6 +65,20 @@ export function MedecinFormDialog({ medecin, onSuccess, onBack }: MedecinFormDia
     fetchSpecialites();
   }, []);
 
+  // Mettre à jour les valeurs du formulaire quand le médecin change
+  useEffect(() => {
+    if (medecin) {
+      form.reset({
+        first_name: medecin.first_name || '',
+        name: medecin.name || '',
+        email: medecin.email || '',
+        phone_number: medecin.phone_number || '',
+        specialiteId: medecin.specialite_id || '',
+        besoin_secretaires: medecin.besoin_secretaires || 1.2,
+      });
+    }
+  }, [medecin, form]);
+
   const onSubmit = async (data: MedecinFormData) => {
     setLoading(true);
     try {
