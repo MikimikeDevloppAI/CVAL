@@ -191,10 +191,12 @@ export function calculateDynamicScore(
     
     // Pénalité dès le 2ème jour
     if (totalDays >= 2) {
-      const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD; // -150 par jour excédentaire
+      // 🆕 Récupérer le multiplicateur historique S-2 + S-1
+      const multiplier = context.penalty_multipliers_esplanade?.get(secretaire_id) || 1.0;
+      const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD * multiplier;
       score += penalty;
       
-      console.log(`    ⚠️ Sur-assignation P2/P3/P4 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours (pénalité: ${penalty})`);
+      console.log(`    ⚠️ Sur-assignation P2/P3/P4 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours × ${multiplier.toFixed(2)} (pénalité: ${penalty})`);
     }
   }
   
@@ -319,9 +321,10 @@ export function calculateComboScore(
       const totalDays = weekDaysCount + 1;
       
       if (totalDays >= 2) {
-        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
+        const multiplier = context.penalty_multipliers_esplanade?.get(secretaire_id) || 1.0;
+        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD * multiplier;
         totalScore += penalty;
-        if (isFocused) logger.info(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
+        if (isFocused) logger.info(`  ⚠️ MATIN Site P${siteMatchMatin.priorite} (Esplanade) sur-assigné (${totalDays} jours × ${multiplier.toFixed(2)}): ${penalty}`);
       }
       
       // ✅ Marquer que ce site a été visité AUJOURD'HUI (pour éviter double comptage avec AM)
@@ -416,9 +419,10 @@ export function calculateComboScore(
       if (totalDays >= 2) {
         // ✅ Si déjà pénalisé ce matin, ne pas re-pénaliser
         if (!alreadyCountedToday) {
-          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
+          const multiplier = context.penalty_multipliers_esplanade?.get(secretaire_id) || 1.0;
+          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD * multiplier;
           totalScore += penalty;
-          console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours): ${penalty}`);
+          console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours × ${multiplier.toFixed(2)}): ${penalty}`);
         } else {
           console.log(`  ✅ AM Site déjà pénalisé ce matin, pas de re-pénalité`);
         }

@@ -475,7 +475,7 @@ export function buildMILPModelSoft(
             const totalClosing = count1R + count2F3F;
             
             // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
-            const multiplier = context.penalty_multipliers?.get(combo.secretaire_id) || 1.0;
+            const multiplier = context.penalty_multipliers_1r2f?.get(combo.secretaire_id) || 1.0;
             
             let penalty1R = 0;
             let penalty2F3F = 0;
@@ -619,7 +619,7 @@ export function buildMILPModelSoft(
           const totalClosing = count1R + count2F3F;
           
           // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
-          const multiplier = context.penalty_multipliers?.get(secId) || 1.0;
+          const multiplier = context.penalty_multipliers_1r2f?.get(secId) || 1.0;
           
           let penalty1R = 0;
           let penalty2F3F = 0;
@@ -758,7 +758,7 @@ export function buildMILPModelSoft(
           const totalClosing = count1R + count2F3F;
           
           // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
-          const multiplier = context.penalty_multipliers?.get(secId) || 1.0;
+          const multiplier = context.penalty_multipliers_1r2f?.get(secId) || 1.0;
           
           let penalty1R = 0;
           let penalty2F3F = 0;

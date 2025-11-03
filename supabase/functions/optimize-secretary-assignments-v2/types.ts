@@ -134,7 +134,8 @@ export interface DynamicContext {
   closing_1r_counters: Map<string, number>; // secretaire_id -> nombre de fois 1R cette semaine
   closing_2f3f_counters: Map<string, number>; // secretaire_id -> nombre de fois 2F ou 3F cette semaine
   sites_needing_3f: Map<string, Set<string>>; // date -> Set<site_id> nécessitant 3F
-  penalty_multipliers?: Map<string, number>; // 🆕 secretaire_id -> multiplicateur basé sur S-2 + S-1
+  penalty_multipliers_1r2f?: Map<string, number>; // 🆕 Pour 1R/2F
+  penalty_multipliers_esplanade?: Map<string, number>; // 🆕 Pour Esplanade P2/P3/P4
 }
 
 export interface PreferencesData {

@@ -242,11 +242,14 @@ async function loadTodayAssignments(
   return assignments;
 }
 
-// Load previous 2 weeks (S-2 and S-1) history for 1R/2F rotation penalties
+// Load previous 2 weeks (S-2 and S-1) history for 1R/2F rotation penalties and Esplanade
 async function loadPreviousWeeksHistory(
   currentWeekStart: string,
   supabase: any
-): Promise<Map<string, number>> {
+): Promise<{
+  closing1R2FHistory: Map<string, number>,
+  esplanadeHistory: Map<string, number>
+}> {
   const currentMonday = new Date(currentWeekStart + 'T00:00:00Z');
   
   // S-1: previous week
@@ -279,16 +282,19 @@ async function loadPreviousWeeksHistory(
   
   if (error) {
     logger.error(`❌ Erreur chargement historique: ${error.message}`);
-    return new Map();
+    return { closing1R2FHistory: new Map(), esplanadeHistory: new Map() };
   }
   
   const detailsBySecretary = new Map<string, { count1R: number, count2F3F: number }>();
+  const esplanadeDaysCount = new Map<string, Set<string>>(); // secId -> Set<dates>
   const alreadyCounted = new Set<string>();
   
   for (const cap of capacites || []) {
     const secId = cap.secretaire_id;
     const roleKey = `${secId}_${cap.date}_${cap.site_id}`;
+    const dateStr = cap.date;
     
+    // 1. Comptage 1R/2F (existant)
     if (!detailsBySecretary.has(secId)) {
       detailsBySecretary.set(secId, { count1R: 0, count2F3F: 0 });
     }
@@ -304,17 +310,39 @@ async function loadPreviousWeeksHistory(
       details.count2F3F += 1;
       alreadyCounted.add(`${roleKey}_2f`);
     }
+    
+    // 2. 🆕 Comptage jours Esplanade
+    if (cap.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+      if (!esplanadeDaysCount.has(secId)) {
+        esplanadeDaysCount.set(secId, new Set());
+      }
+      esplanadeDaysCount.get(secId)!.add(dateStr);
+    }
   }
   
-  const finalScores = new Map<string, number>();
+  // Calculer les scores 1R/2F
+  const closing1R2FHistory = new Map<string, number>();
   
   for (const [secId, details] of detailsBySecretary.entries()) {
     const score = details.count1R * 1 + details.count2F3F * 2;
-    finalScores.set(secId, score);
+    closing1R2FHistory.set(secId, score);
     logger.info(`  📊 ${secId.substring(0, 8)}: ${details.count1R}×1R + ${details.count2F3F}×2F/3F = ${score} pts`);
   }
   
-  return finalScores;
+  // 🆕 Calculer les multiplicateurs Esplanade
+  const esplanadeHistory = new Map<string, number>();
+  
+  for (const [secId, datesSet] of esplanadeDaysCount.entries()) {
+    const jours = datesSet.size;
+    const multiplier = Math.max(0, jours - 2) / 2;
+    esplanadeHistory.set(secId, multiplier);
+    
+    if (multiplier > 0) {
+      logger.info(`  🏥 ${secId.substring(0, 8)}: ${jours} jours Esplanade → multiplicateur +${multiplier.toFixed(2)}`);
+    }
+  }
+  
+  return { closing1R2FHistory, esplanadeHistory };
 }
 
 // Run a single optimization pass for the week
@@ -324,7 +352,8 @@ async function runOptimizationPass(
   supabase: any,
   passNumber: 1 | 2,
   pass1Assignments?: Map<string, any[]>,
-  previousWeeksHistory?: Map<string, number>
+  closing1R2FHistory?: Map<string, number>,
+  esplanadeHistory?: Map<string, number>
 ): Promise<{
   success: boolean;
   weekAssignments: Map<string, any[]>;
@@ -336,7 +365,8 @@ async function runOptimizationPass(
   const p2p3Counters = new Map<string, Map<string, Set<string>>>();
   const closing1RCounters = new Map<string, number>();
   const closing2F3FCounters = new Map<string, number>();
-  const penaltyMultipliers = new Map<string, number>();
+  const penaltyMultipliers1R2F = new Map<string, number>();
+  const penaltyMultipliersEsplanade = new Map<string, number>();
   
   const weekAssignments = new Map<string, any[]>();
   
@@ -355,7 +385,8 @@ async function runOptimizationPass(
       p2p3Counters.clear();
       closing1RCounters.clear();
       closing2F3FCounters.clear();
-      penaltyMultipliers.clear();
+      penaltyMultipliers1R2F.clear();
+      penaltyMultipliersEsplanade.clear();
       
       const contextDates = sortedDates.filter(d => d !== date);
       const pass2Dates: string[] = [];
@@ -426,15 +457,25 @@ async function runOptimizationPass(
       }
       
       // 🆕 Calculer les multiplicateurs de pénalité depuis l'historique S-2 + S-1
-      penaltyMultipliers.clear();
+      penaltyMultipliers1R2F.clear();
+      penaltyMultipliersEsplanade.clear();
       
-      if (previousWeeksHistory) {
-        logger.info(`\n🔢 Calcul multiplicateurs de pénalité depuis historique S-2 + S-1:`);
-        for (const [secId, historyScore] of previousWeeksHistory.entries()) {
+      if (closing1R2FHistory) {
+        logger.info(`\n🔢 Calcul multiplicateurs 1R/2F depuis historique S-2 + S-1:`);
+        for (const [secId, historyScore] of closing1R2FHistory.entries()) {
           const multiplier = 1 + (historyScore / 10);
-          penaltyMultipliers.set(secId, multiplier);
+          penaltyMultipliers1R2F.set(secId, multiplier);
           const sec = weekData.secretaires.find((s: any) => s.id === secId);
           logger.info(`  ${sec?.name || secId.substring(0, 8)}: ${multiplier.toFixed(2)}x (historique: ${historyScore} pts)`);
+        }
+      }
+      
+      if (esplanadeHistory) {
+        logger.info(`\n🏥 Calcul multiplicateurs Esplanade depuis historique S-2 + S-1:`);
+        for (const [secId, multiplier] of esplanadeHistory.entries()) {
+          penaltyMultipliersEsplanade.set(secId, 1 + multiplier);
+          const sec = weekData.secretaires.find((s: any) => s.id === secId);
+          logger.info(`  ${sec?.name || secId.substring(0, 8)}: ${(1 + multiplier).toFixed(2)}x (jours Esplanade S-2+S-1: ${((multiplier * 2) + 2).toFixed(0)})`);
         }
       }
       
@@ -573,7 +614,8 @@ async function runOptimizationPass(
       closing_1r_counters: closing1RCounters,
       closing_2f3f_counters: closing2F3FCounters,
       sites_needing_3f: sitesNeeding3F,
-      penalty_multipliers: penaltyMultipliers
+      penalty_multipliers_1r2f: penaltyMultipliers1R2F,
+      penalty_multipliers_esplanade: penaltyMultipliersEsplanade
     };
     
     // ============================================================
@@ -855,7 +897,7 @@ async function runOptimizationPass(
 async function optimizeSingleWeek(
   dates: string[],
   supabase: any,
-  previousWeeksHistory?: Map<string, number>
+  previousWeeksHistory?: { closing1R2FHistory: Map<string, number>, esplanadeHistory: Map<string, number> }
 ): Promise<any> {
   const sortedDates = dates.sort();
   
@@ -881,7 +923,8 @@ async function optimizeSingleWeek(
     supabase,
     1,
     undefined,
-    previousWeeksHistory
+    previousWeeksHistory?.closing1R2FHistory,
+    previousWeeksHistory?.esplanadeHistory
   );
   
   if (!pass1Results.success) {
@@ -901,7 +944,8 @@ async function optimizeSingleWeek(
     supabase,
     2,
     pass1Results.weekAssignments,
-    previousWeeksHistory
+    previousWeeksHistory?.closing1R2FHistory,
+    previousWeeksHistory?.esplanadeHistory
   );
   
   logger.info('\n♻️ Rafraîchissement des vues matérialisées...');
