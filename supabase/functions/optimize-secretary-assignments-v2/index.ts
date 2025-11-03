@@ -336,10 +336,28 @@ async function loadPreviousWeeksHistory(
     const jours = datesSet.size;
     const multiplier = Math.max(0, jours - 2) / 2;
     esplanadeHistory.set(secId, multiplier);
-    
-    if (multiplier > 0) {
-      logger.info(`  🏥 ${secId.substring(0, 8)}: ${jours} jours Esplanade → multiplicateur +${multiplier.toFixed(2)}`);
-    }
+  }
+  
+  // Résumé compact
+  logger.info(`\n📊 Historique S-2 + S-1:`);
+  logger.info(`  🔒 1R/2F: ${closing1R2FHistory.size} secrétaires avec historique`);
+  logger.info(`  🏥 Esplanade: ${esplanadeHistory.size} secrétaires avec multiplicateur > 0`);
+  
+  // Top 3 des scores 1R/2F
+  const top1R2F = Array.from(closing1R2FHistory.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  if (top1R2F.length > 0) {
+    logger.info(`  🥇 Top 3 1R/2F: ${top1R2F.map(([_, score]) => `${score} pts`).join(', ')}`);
+  }
+  
+  // Top 3 des multiplicateurs Esplanade
+  const topEsplanade = Array.from(esplanadeHistory.entries())
+    .filter(([_, mult]) => mult > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  if (topEsplanade.length > 0) {
+    logger.info(`  🥇 Top 3 Esplanade: ${topEsplanade.map(([_, mult]) => `×${(1 + mult).toFixed(2)}`).join(', ')}`);
   }
   
   return { closing1R2FHistory, esplanadeHistory };
@@ -373,9 +391,6 @@ async function runOptimizationPass(
   const dailyResults: any[] = [];
   
   for (const date of sortedDates) {
-    logger.info(`\n${'='.repeat(60)}`);
-    logger.info(`📅 PASSE ${passNumber} - Optimisation du ${date}`);
-    logger.info('='.repeat(60));
     
     // ============================================================
     // 🔑 INITIALISER LES COMPTEURS AVEC LE CONTEXTE GLOBAL (Pass 2 only)
@@ -471,38 +486,8 @@ async function runOptimizationPass(
       }
       
       if (esplanadeHistory) {
-        logger.info(`\n🏥 Calcul multiplicateurs Esplanade depuis historique S-2 + S-1:`);
         for (const [secId, multiplier] of esplanadeHistory.entries()) {
           penaltyMultipliersEsplanade.set(secId, 1 + multiplier);
-          const sec = weekData.secretaires.find((s: any) => s.id === secId);
-          logger.info(`  ${sec?.name || secId.substring(0, 8)}: ${(1 + multiplier).toFixed(2)}x (jours Esplanade S-2+S-1: ${((multiplier * 2) + 2).toFixed(0)})`);
-        }
-      }
-      
-      logger.info(`\n📊 Compteurs Pass 2 initialisés avec contexte global:`);
-      logger.info(`  📅 Dates P2 (déjà optimisées): ${pass2Dates.length > 0 ? pass2Dates.join(', ') : 'aucune'}`);
-      logger.info(`  📅 Dates P1 (futures): ${pass1Dates.length > 0 ? pass1Dates.join(', ') : 'aucune'}`);
-      
-      const topAdmin = Array.from(adminCounters.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([id, count]) => {
-          const sec = weekData.secretaires.find((s: any) => s.id === id);
-          return `${sec?.name || id.slice(0,8)}=${count}`;
-        });
-      
-      logger.info(`  💼 Admin top 5: ${topAdmin.join(', ')}`);
-      logger.info(`  ⚠️ P2/P3 Esplanade: ${p2p3Counters.size} secrétaires`);
-      
-      if (logger.focus && logger.focusIds.size > 0) {
-        logger.info(`\n🔍 Focus secretaries for ${date}:`);
-        for (const secId of logger.focusIds) {
-          const sec = weekData.secretaires.find((s: any) => s.id === secId);
-          const adminCount = adminCounters.get(secId) || 0;
-          const esplanadeSet = p2p3Counters.get(secId)?.get(ESPLANADE_OPHTALMOLOGIE_SITE_ID);
-          const esplanadeDays = esplanadeSet ? esplanadeSet.size : 0;
-          
-          logger.info(`  👤 ${sec?.name || secId.slice(0,8)}: Admin=${adminCount}, Esplanade P2/P3=${esplanadeDays} jours`);
         }
       }
     }
@@ -522,8 +507,6 @@ async function runOptimizationPass(
     );
     
     needs.push(...weekData.admin_needs.filter((n: any) => n.date === date));
-    
-    logger.info(`\n📋 ${needs.length} besoins identifiés pour ${date}`);
     
     // ============================================================
     // RESET DES CAPACITÉS
@@ -640,19 +623,6 @@ async function runOptimizationPass(
       logger.error(`   Le système va continuer avec les combos partiels disponibles...`);
     }
     
-    logger.info(`\n✅ Solution - Score: ${solution.result?.toFixed(1) || 'N/A'}`);
-    
-    const selectedCombos: any[] = [];
-    for (const [varName, value] of Object.entries(solution)) {
-      if (varName !== 'feasible' && varName !== 'result' && varName !== 'bounded' && value === 1) {
-        const combo = (model as any)._combos?.find((c: any) => c.varName === varName);
-        if (combo) {
-          selectedCombos.push(combo);
-        }
-      }
-    }
-    
-    logger.info(`  Assignées: ${selectedCombos.length} secrétaires`);
     
     // ============================================================
     // WRITE ASSIGNMENTS
@@ -665,7 +635,7 @@ async function runOptimizationPass(
       supabase
     );
     
-    logger.info(`✅ ${writeCount} assignations écrites`);
+    
     
     // ============================================================
     // STOCKER LES ASSIGNMENTS DE CE JOUR
@@ -719,112 +689,6 @@ async function runOptimizationPass(
       }
     }
     
-    // ============================================================
-    // LOGS DE DIAGNOSTIC (debug only)
-    // ============================================================
-    if (logger.level === 'debug') {
-      logger.debug(`\n📊 État des compteurs après ${date}:`);
-      
-      const topAdminCounters = Array.from(adminCounters.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-      
-      logger.debug(`\n💼 Top 10 Admin assignments (semaine):`);
-      for (const [secId, count] of topAdminCounters) {
-        const sec = weekData.secretaires.find((s: any) => s.id === secId);
-        const target = sec?.nombre_demi_journees_admin || 'N/A';
-        logger.debug(`  ${sec?.name || secId.slice(0, 8)}: ${count}/${target}`);
-      }
-      
-      const esplanadeOverload: Array<{ secId: string, name: string, days: number }> = [];
-      for (const [secId, siteMap] of p2p3Counters) {
-        const esplanadeSet = siteMap.get(ESPLANADE_OPHTALMOLOGIE_SITE_ID);
-        if (esplanadeSet && esplanadeSet.size >= 2) {
-          const sec = weekData.secretaires.find((s: any) => s.id === secId);
-          esplanadeOverload.push({
-            secId,
-            name: sec?.name || secId.slice(0, 8),
-            days: esplanadeSet.size
-          });
-        }
-      }
-      
-      if (esplanadeOverload.length > 0) {
-        esplanadeOverload.sort((a, b) => b.days - a.days);
-        logger.debug(`\n⚠️ Secrétaires P2/P3 avec 2+ jours Esplanade Ophtalmo:`);
-        for (const { name, days } of esplanadeOverload.slice(0, 10)) {
-          logger.debug(`  ${name}: ${days} jours`);
-        }
-      }
-      
-      // Logs ciblés pour Christine Ribeaud et Loïs
-      const christineRibeaud = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
-      );
-      const mirlanda = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('hasani') && s.first_name?.toLowerCase().includes('mirlanda')
-      );
-      const lois = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
-      );
-      
-      if (christineRibeaud || mirlanda || lois) {
-        logger.debug(`\n🔍 Compteurs rôles fermeture après ${date}:`);
-        
-        if (christineRibeaud) {
-          const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
-          const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
-          logger.debug(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-        
-        if (mirlanda) {
-          const count1R = closing1RCounters.get(mirlanda.id) || 0;
-          const count2F3F = closing2F3FCounters.get(mirlanda.id) || 0;
-          logger.debug(`  👤 Mirlanda Hasani: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-        
-        if (lois) {
-          const count1R = closing1RCounters.get(lois.id) || 0;
-          const count2F3F = closing2F3FCounters.get(lois.id) || 0;
-          logger.debug(`  👤 Loïs: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-      }
-    }
-    
-    // Logs ciblés Christine, Mirlanda & Loïs (toujours affichés si focus ou debug)
-    if (logger.level === 'debug' || (logger.focus && logger.focusIds.size > 0)) {
-      const christineRibeaud = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('ribeaud') && s.first_name?.toLowerCase().includes('christine')
-      );
-      const mirlanda = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('hasani') && s.first_name?.toLowerCase().includes('mirlanda')
-      );
-      const lois = weekData.secretaires.find((s: any) => 
-        s.name?.toLowerCase().includes('lois') || s.first_name?.toLowerCase().includes('lois')
-      );
-      
-      if (christineRibeaud || mirlanda || lois) {
-        logger.info(`\n🎯 Rôles fermeture après ${date}:`);
-        
-        if (christineRibeaud) {
-          const count1R = closing1RCounters.get(christineRibeaud.id) || 0;
-          const count2F3F = closing2F3FCounters.get(christineRibeaud.id) || 0;
-          logger.info(`  👤 Christine Ribeaud: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-        
-        if (mirlanda) {
-          const count1R = closing1RCounters.get(mirlanda.id) || 0;
-          const count2F3F = closing2F3FCounters.get(mirlanda.id) || 0;
-          logger.info(`  👤 Mirlanda Hasani: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-        
-        if (lois) {
-          const count1R = closing1RCounters.get(lois.id) || 0;
-          const count2F3F = closing2F3FCounters.get(lois.id) || 0;
-          logger.info(`  👤 Loïs: 1R=${count1R}, 2F/3F=${count2F3F} (total=${count1R + count2F3F})`);
-        }
-      }
-    }
     
     dailyResults.push({
       date,
@@ -902,7 +766,6 @@ async function optimizeSingleWeek(
   const sortedDates = dates.sort();
   
   logger.info(`\n🚀 Optimisation de la semaine: ${sortedDates[0]} → ${sortedDates[sortedDates.length - 1]}`);
-  logger.info(`📦 Chargement unique des données de la semaine...`);
   
   const weekData = await loadWeekData(dates, supabase);
   

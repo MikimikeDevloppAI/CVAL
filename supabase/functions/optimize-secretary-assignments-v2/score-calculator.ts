@@ -57,16 +57,6 @@ export function calculateDynamicScore(
   preferences: PreferencesData,
   secretaire: Secretaire
 ): number {
-  console.log(`\n🎯 Calcul du score pour:`, {
-    secretaire_id,
-    need: {
-      site_id: need.site_id,
-      date: need.date,
-      periode: need.periode,
-      type: need.type
-    }
-  });
-  
   let score = 0;
   
   // ============================================================
@@ -85,7 +75,6 @@ export function calculateDynamicScore(
                           besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
                           SCORE_WEIGHTS.BESOIN_OP_PREF_3;
       positiveScores.push(besoinScore);
-      console.log(`  ✅ Score BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
     }
   }
   
@@ -98,7 +87,6 @@ export function calculateDynamicScore(
       const medecinScore = medecinMatch.priorite === '1' ? 
         SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
       positiveScores.push(medecinScore);
-      console.log(`  ✅ Score MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
     }
   }
   
@@ -112,16 +100,12 @@ export function calculateDynamicScore(
                       siteMatch.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
                       SCORE_WEIGHTS.SITE_PREF_4;
     positiveScores.push(siteScore);
-    console.log(`  ✅ Score SITE_PREF_${siteMatch.priorite}: ${siteScore}`);
   }
-  
-  console.log(`  📊 Scores positifs trouvés: [${positiveScores.join(', ')}]`);
   
   // Prendre le MAX des scores positifs
   const base_score = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
   if (base_score > 0) {
     score += base_score;
-    console.log(`  🏆 Score BASE (MAX): ${base_score}`);
   }
   
   // ============================================================
@@ -147,18 +131,15 @@ export function calculateDynamicScore(
       if (totalAdminCount < secretaire.nombre_demi_journees_admin) {
         const adminBonus = 100;
         score += adminBonus;
-        console.log(`  💼💼 Admin (${totalAdminCount}/${secretaire.nombre_demi_journees_admin}): Bonus ${adminBonus}`);
       } else {
         // Au-delà de l'objectif : bonus minimal de 1 point
         const adminBonus = 1;
         score += adminBonus;
-        console.log(`  💼 Admin (${totalAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): Bonus ${adminBonus} (dépassement)`);
       }
     } else {
       // Comportement standard pour les secrétaires sans objectif admin spécifique
       const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - totalAdminCount);
       score += adminBonus;
-      console.log(`  💼 Admin standard: ${totalAdminCount} assignations → Bonus: ${adminBonus}`);
     }
   }
   
@@ -195,8 +176,6 @@ export function calculateDynamicScore(
       const multiplier = context.penalty_multipliers_esplanade?.get(secretaire_id) || 1.0;
       const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD * multiplier;
       score += penalty;
-      
-      console.log(`    ⚠️ Sur-assignation P2/P3/P4 (Esplanade Ophtalmo): ${secretaire.name} - ${totalDays} jours × ${multiplier.toFixed(2)} (pénalité: ${penalty})`);
     }
   }
   
@@ -205,8 +184,6 @@ export function calculateDynamicScore(
   // ============================================================
   // Cette pénalité est maintenant gérée par les variables auxiliaires
   // dans milp-builder.ts avec des contraintes Big-M
-  
-  console.log(`  🎯 SCORE TOTAL: ${score}`);
   
   return score;
 }
@@ -223,13 +200,6 @@ export function calculateComboScore(
   secretaire: Secretaire
 ): number {
   const isFocused = logger.isFocused(secretaire_id, needMatin?.date || needAM?.date);
-  
-  if (isFocused) {
-    logger.info(`\n🎯 Calcul score COMBO pour ${secretaire.name}:`, {
-      matin: needMatin?.site_id || 'ADMIN',
-      am: needAM?.site_id || 'ADMIN'
-    });
-  }
   
   let totalScore = 0;
   
@@ -256,7 +226,6 @@ export function calculateComboScore(
                             besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
                             SCORE_WEIGHTS.BESOIN_OP_PREF_3;
         positiveScores.push(besoinScore);
-        console.log(`  ✅ MATIN BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
       }
     }
     
@@ -269,7 +238,6 @@ export function calculateComboScore(
         const medecinScore = medecinMatch.priorite === '1' ? 
           SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
         positiveScores.push(medecinScore);
-        console.log(`  ✅ MATIN MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
       }
     }
     
@@ -349,7 +317,6 @@ export function calculateComboScore(
                             besoinMatch.preference === 2 ? SCORE_WEIGHTS.BESOIN_OP_PREF_2 :
                             SCORE_WEIGHTS.BESOIN_OP_PREF_3;
         positiveScores.push(besoinScore);
-        console.log(`  ✅ AM BESOIN_OP_PREF_${besoinMatch.preference}: ${besoinScore}`);
       }
     }
     
@@ -362,7 +329,6 @@ export function calculateComboScore(
         const medecinScore = medecinMatch.priorite === '1' ? 
           SCORE_WEIGHTS.MEDECIN_PREF_1 : SCORE_WEIGHTS.MEDECIN_PREF_2;
         positiveScores.push(medecinScore);
-        console.log(`  ✅ AM MEDECIN_PREF_${medecinMatch.priorite}: ${medecinScore}`);
       }
     }
     
@@ -376,7 +342,6 @@ export function calculateComboScore(
                         siteMatchAM.priorite === '3' ? SCORE_WEIGHTS.SITE_PREF_3 :
                         SCORE_WEIGHTS.SITE_PREF_4;
       positiveScores.push(siteScore);
-      console.log(`  ✅ AM SITE_PREF_${siteMatchAM.priorite}: ${siteScore}`);
     }
     
     const amBaseScore = positiveScores.length > 0 ? Math.max(...positiveScores) : 0;
@@ -388,15 +353,15 @@ export function calculateComboScore(
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
           totalScore += 100;
-          console.log(`  💼💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +100`);
+          if (isFocused) logger.info(`  💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +100`);
         } else {
           totalScore += 1;
-          console.log(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
+          if (isFocused) logger.info(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
         totalScore += adminBonus;
-        console.log(`  💼 AM Admin standard (${currentAdminCount}): +${adminBonus}`);
+        if (isFocused) logger.info(`  💼 AM Admin standard (${currentAdminCount}): +${adminBonus}`);
       }
     }
     
@@ -422,9 +387,7 @@ export function calculateComboScore(
           const multiplier = context.penalty_multipliers_esplanade?.get(secretaire_id) || 1.0;
           const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD * multiplier;
           totalScore += penalty;
-          console.log(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours × ${multiplier.toFixed(2)}): ${penalty}`);
-        } else {
-          console.log(`  ✅ AM Site déjà pénalisé ce matin, pas de re-pénalité`);
+          if (isFocused) logger.info(`  ⚠️ AM Site P${siteMatchAM.priorite} (Esplanade) sur-assigné (${totalDays} jours × ${multiplier.toFixed(2)}): ${penalty}`);
         }
       }
     }
@@ -475,20 +438,13 @@ export function calculateComboScore(
             PENALTIES.CHANGEMENT_SITE;
           
           totalScore += changePenalty;
-          console.log(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
-        } else {
-          // Log pour debug
-          if (isBothGastro) {
-            console.log(`  ✅ Exception Gastro Matin + Gastro AM: pas de pénalité (salles Gastro)`);
-          } else {
-            console.log(`  ✅ Exception Gastro ↔ Vieille Ville: pas de pénalité`);
-          }
+          if (isFocused) logger.info(`  🔄 Changement de site: ${changePenalty} (high=${isHighPenalty})`);
         }
       }
     }
   }
   
-  console.log(`  🎯 SCORE COMBO TOTAL: ${totalScore}`);
+  if (isFocused) logger.info(`  🎯 SCORE COMBO TOTAL: ${totalScore}`);
   
   return totalScore;
 }
