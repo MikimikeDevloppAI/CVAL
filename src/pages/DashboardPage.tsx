@@ -753,8 +753,9 @@ const DashboardPage = () => {
         <QuickActionButton
           label="Statistiques"
           icon={<BarChart3 className="h-6 w-6" />}
-          href="/statistiques"
           gradient="from-blue-500 to-purple-500"
+          subtitle="À venir prochainement"
+          disabled
         />
         <QuickActionButton
           label="Planifier"

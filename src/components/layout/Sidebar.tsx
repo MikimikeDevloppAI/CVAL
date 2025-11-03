@@ -31,7 +31,6 @@ import { UserHelpSheet } from '@/components/assistant/UserHelpSheet';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Statistiques', href: '/statistiques', icon: BarChart3 },
 ];
 
 const settingsItem = { name: 'Paramètres', href: '/settings', icon: Settings };
@@ -108,31 +107,6 @@ export const Sidebar = () => {
             <ul className="mt-2 space-y-1">
               {visibleItems.map((item) => {
                 const isActive = location.pathname === item.href;
-                const isStatistiques = item.name === 'Statistiques';
-                
-                if (isStatistiques) {
-                  return (
-                    <li key={item.name}>
-                      <div className="px-3 py-2">
-                        <div
-                          className={cn(
-                            'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium',
-                            'text-sidebar-foreground/40 cursor-not-allowed'
-                          )}
-                        >
-                          <item.icon
-                            className="h-4 w-4 shrink-0 text-sidebar-foreground/40"
-                          />
-                          {item.name}
-                        </div>
-                        <p className="text-xs text-sidebar-foreground/50 mt-1 ml-3 italic">
-                          À venir prochainement
-                        </p>
-                      </div>
-                    </li>
-                  );
-                }
-                
                 return (
                   <li key={item.name}>
                     <Link
