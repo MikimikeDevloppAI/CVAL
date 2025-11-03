@@ -787,53 +787,7 @@ async function optimizeSingleWeek(
   );
   
   logger.info('\n♻️ Rafraîchissement des vues matérialisées...');
-  const { error: refreshError } = await supabase.rpc('refresh_besoins_view');
-  if (refreshError) {
-    console.error('⚠️ Erreur lors du refresh des vues:', refreshError);
-  }
-  
-  // ============================================================
-  // ASSIGNATION DES RESPONSABLES DE FERMETURE (1R/2F/3F)
-  // ============================================================
-  logger.info('\n🔒 Assignation des responsables de fermeture (1R/2F/3F)...');
-  
-  try {
-    // Calculer les bornes de la semaine ISO
-    const refDate = new Date(sortedDates[0]);
-    const dayOfWeek = refDate.getUTCDay();
-    const daysUntilMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
-    const mondayDate = new Date(refDate);
-    mondayDate.setUTCDate(refDate.getUTCDate() + daysUntilMonday);
-    const sundayDate = new Date(mondayDate);
-    sundayDate.setUTCDate(mondayDate.getUTCDate() + 6);
-    
-    const week_start = mondayDate.toISOString().split('T')[0];
-    const week_end = sundayDate.toISOString().split('T')[0];
-    
-    const closingUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/assign-closing-responsibles`;
-    const closingResponse = await fetch(closingUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-      },
-      body: JSON.stringify({ 
-        week_start,
-        week_end,
-        selected_dates: sortedDates
-      })
-    });
-    
-    if (!closingResponse.ok) {
-      const errorText = await closingResponse.text();
-      console.error('⚠️ Erreur lors de l\'assignation des responsables de fermeture:', errorText);
-    } else {
-      const closingResult = await closingResponse.json();
-      logger.info(`✅ Responsables de fermeture assignés: ${JSON.stringify(closingResult)}`);
-    }
-  } catch (error) {
-    console.error('⚠️ Erreur lors de l\'appel à assign-closing-responsibles:', error);
-  }
+  await supabase.rpc('refresh_besoins_view');
   
   return {
     success: true,

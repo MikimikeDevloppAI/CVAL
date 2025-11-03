@@ -146,12 +146,6 @@ serve(async (req) => {
       (s.name?.toLowerCase().includes('bron') && s.first_name?.toLowerCase().includes('florence'))
     );
 
-    // Find Lucie Pratillo's ID
-    const luciePratillo = secretaries?.find(s => 
-      (s.first_name?.toLowerCase() === 'lucie' && s.name?.toLowerCase() === 'pratillo') ||
-      s.id === '5d3af9e3-674b-48d6-b54f-bd84c9eee670'
-    );
-
     // Find Paul Jacquier's ID
     const { data: medecins, error: medError } = await supabase
       .from('medecins')
@@ -166,7 +160,6 @@ serve(async (req) => {
     );
 
     console.log(`🔍 Florence Bron ID: ${florenceBron?.id || 'not found'}`);
-    console.log(`🔍 Lucie Pratillo ID: ${luciePratillo?.id || 'not found'}`);
     console.log(`🔍 Paul Jacquier ID: ${paulJacquier?.id || 'not found'}`);
 
     // Step 4: Get sites that require closing
@@ -207,33 +200,13 @@ serve(async (req) => {
       }
     }
 
-    // Identify sites needing closing responsibles based on doctor availability
-    const sitesNeedingClosing: Array<{date: string, site_id: string, site_nom: string, closing_period: 'full_day' | 'morning_only' | 'afternoon_only'}> = [];
+    // Filter sites that have doctors working both morning and afternoon
+    const sitesNeedingClosing: Array<{date: string, site_id: string, site_nom: string}> = [];
     for (const [key, periods] of needsByDateAndSite.entries()) {
-      const [date, site_id] = key.split('|');
-      const site = sites?.find(s => s.id === site_id);
-      
-      const hasMorning = periods.has('matin');
-      const hasAfternoon = periods.has('apres_midi');
-      
-      if (hasMorning && hasAfternoon) {
-        sitesNeedingClosing.push({ 
-          date, site_id, 
-          site_nom: site?.nom || '', 
-          closing_period: 'full_day' 
-        });
-      } else if (hasMorning) {
-        sitesNeedingClosing.push({ 
-          date, site_id, 
-          site_nom: site?.nom || '', 
-          closing_period: 'morning_only' 
-        });
-      } else if (hasAfternoon) {
-        sitesNeedingClosing.push({ 
-          date, site_id, 
-          site_nom: site?.nom || '', 
-          closing_period: 'afternoon_only' 
-        });
+      if (periods.has('matin') && periods.has('apres_midi')) {
+        const [date, site_id] = key.split('|');
+        const site = sites?.find(s => s.id === site_id);
+        sitesNeedingClosing.push({ date, site_id, site_nom: site?.nom || '' });
       }
     }
 
@@ -257,7 +230,7 @@ serve(async (req) => {
 
     // Step 6: Assign closing responsibles for each site/date
     for (const siteDay of sitesNeedingClosingFiltered) {
-      const { date, site_id, closing_period } = siteDay;
+      const { date, site_id } = siteDay;
       const dayOfWeek = new Date(date).getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, ...
 
       // Check if Paul Jacquier works Thursday AND Friday at THIS SPECIFIC SITE
@@ -321,80 +294,56 @@ serve(async (req) => {
 
       if (pmError) throw pmError;
 
-      // Find secretaries based on closing_period
+      // Find secretaries working BOTH morning and afternoon
       const morningIds = new Set(assignedMorning?.map(a => a.secretaire_id).filter(Boolean) || []);
       const afternoonIds = new Set(assignedAfternoon?.map(a => a.secretaire_id).filter(Boolean) || []);
       
-      let eligibleSecretaries: string[] = [];
-      let targetPeriods: ('matin' | 'apres_midi')[] = [];
+      const bothPeriods = Array.from(morningIds).filter(id => afternoonIds.has(id));
       
-      if (closing_period === 'full_day') {
-        // Only secretaries working BOTH periods
-        eligibleSecretaries = Array.from(morningIds).filter(id => afternoonIds.has(id));
-        targetPeriods = ['matin', 'apres_midi'];
-        
-        if (eligibleSecretaries.length === 0) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Aucune secrétaire toute la journée - impossible d'assigner`);
-          continue;
-        }
-      } else if (closing_period === 'morning_only') {
-        // Secretaries working in the morning (can work elsewhere in afternoon)
-        eligibleSecretaries = Array.from(morningIds);
-        targetPeriods = ['matin'];
-        
-        if (eligibleSecretaries.length === 0) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Aucune secrétaire le matin - impossible d'assigner`);
-          continue;
-        }
-      } else if (closing_period === 'afternoon_only') {
-        // Secretaries working in the afternoon (can work elsewhere in morning)
-        eligibleSecretaries = Array.from(afternoonIds);
-        targetPeriods = ['apres_midi'];
-        
-        if (eligibleSecretaries.length === 0) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Aucune secrétaire l'après-midi - impossible d'assigner`);
-          continue;
-        }
+      if (bothPeriods.length === 0) {
+        console.log(`  ⚠️ Aucune secrétaire ne travaille toute la journée - impossible d'assigner 1R/2F/3F`);
+        continue;
       }
       
-      // Si une seule personne éligible, on ne peut pas assigner deux rôles distincts
-      if (eligibleSecretaries.length === 1) {
-        console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Une seule secrétaire éligible - assignation d'un seul rôle (2F/3F)`);
+      // Si une seule personne toute la journée, on ne peut pas assigner deux rôles distincts
+      if (bothPeriods.length === 1) {
+        console.log(`  ⚠️ Une seule secrétaire toute la journée - assignation d'un seul rôle (2F/3F) pour éviter check_single_responsable_role`);
         
-        const singleSecId = eligibleSecretaries[0];
+        const singleSecId = bothPeriods[0];
         const secName = secretaries?.find(s => s.id === singleSecId);
-        
-        // Skip Lucie Pratillo for 2F/3F
-        if (luciePratillo && singleSecId === luciePratillo.id) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Lucie Pratillo est la seule éligible mais ne peut pas être 2F/3F`);
-          continue;
-        }
         
         // Assigner uniquement 2F ou 3F (pas 1R)
         const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
         
-        // Reset flags for target periods only
-        for (const period of targetPeriods) {
-          await supabase
-            .from('capacite_effective')
-            .update({ is_1r: false, is_2f: false, is_3f: false })
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('demi_journee', period)
-            .eq('actif', true);
-          
-          // Set 2F/3F for this period
-          await supabase
-            .from('capacite_effective')
-            .update(update2F3FData)
-            .eq('date', date)
-            .eq('site_id', site_id)
-            .eq('demi_journee', period)
-            .eq('secretaire_id', singleSecId)
-            .eq('actif', true);
-        }
+        // Reset flags
+        await supabase
+          .from('capacite_effective')
+          .update({ is_1r: false, is_2f: false, is_3f: false })
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('actif', true);
         
-        console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (période: ${targetPeriods.join(', ')})`);
+        // Set 2F/3F morning
+        await supabase
+          .from('capacite_effective')
+          .update(update2F3FData)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('demi_journee', 'matin')
+          .eq('secretaire_id', singleSecId)
+          .eq('actif', true);
+        
+        // Set 2F/3F afternoon
+        await supabase
+          .from('capacite_effective')
+          .update(update2F3FData)
+          .eq('date', date)
+          .eq('site_id', site_id)
+          .eq('demi_journee', 'apres_midi')
+          .eq('secretaire_id', singleSecId)
+          .eq('actif', true);
+        
+        console.log(`  ✅ ${secName?.first_name} ${secName?.name}: ${needsThreeF ? '3F' : '2F'} uniquement (1R impossible)`);
         assignmentCount += 1;
         continue;
       }
@@ -403,7 +352,7 @@ serve(async (req) => {
       const isTuesday = dayOfWeek === 2;
       
       // Ensure all candidates have a score entry
-      for (const candidateId of eligibleSecretaries) {
+      for (const candidateId of bothPeriods) {
         if (!currentWeekScores.has(candidateId)) {
           currentWeekScores.set(candidateId, { 
             id: candidateId, 
@@ -421,57 +370,43 @@ serve(async (req) => {
       let responsable2F3F = null;
       
       if (needsThreeF) {
-        // For 3F: use only current week score (no historical), exclude Lucie Pratillo
-        const candidates3F = eligibleSecretaries
-          .filter(id => !(luciePratillo && id === luciePratillo.id))
-          .map(id => {
-            const current = currentWeekScores.get(id)!;
-            return {
-              id,
-              score: current.score,
-              has2F3F: current.count_2f > 0 || current.count_3f > 0
-            };
-          }).sort((a, b) => {
-            // Prioritize those without 2F/3F this week
-            if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
-            return a.score - b.score;
-          });
-        
-        if (candidates3F.length === 0) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Aucun candidat pour 3F (Lucie Pratillo exclue)`);
-          continue;
-        }
+        // For 3F: use only current week score (no historical)
+        const candidates3F = bothPeriods.map(id => {
+          const current = currentWeekScores.get(id)!;
+          return {
+            id,
+            score: current.score,
+            has2F3F: current.count_2f > 0 || current.count_3f > 0
+          };
+        }).sort((a, b) => {
+          // Prioritize those without 2F/3F this week
+          if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
+          return a.score - b.score;
+        });
         
         responsable2F3F = candidates3F[0].id;
       } else {
-        // For 2F: only current week score, avoid Florence Bron on Tuesday and exclude Lucie Pratillo
-        const candidates2F = eligibleSecretaries
-          .filter(id => !(luciePratillo && id === luciePratillo.id))
-          .map(id => {
-            const current = currentWeekScores.get(id)!;
-            return {
-              id,
-              score: current.score,
-              has2F3F: current.count_2f > 0 || current.count_3f > 0,
-              isFlorenceTuesday: isTuesday && florenceBron && id === florenceBron.id
-            };
-          }).sort((a, b) => {
-            // Skip Florence Bron on Tuesday for 2F
-            if (a.isFlorenceTuesday !== b.isFlorenceTuesday) return a.isFlorenceTuesday ? 1 : -1;
-            // Prioritize those without 2F/3F this week
-            if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
-            return a.score - b.score;
-          });
-        
-        if (candidates2F.length === 0) {
-          console.log(`  ⚠️ ${siteDay.site_nom} (${date}): Aucun candidat pour 2F (Lucie Pratillo exclue)`);
-          continue;
-        }
+        // For 2F: only current week score, avoid Florence Bron on Tuesday
+        const candidates2F = bothPeriods.map(id => {
+          const current = currentWeekScores.get(id)!;
+          return {
+            id,
+            score: current.score,
+            has2F3F: current.count_2f > 0 || current.count_3f > 0,
+            isFlorenceTuesday: isTuesday && florenceBron && id === florenceBron.id
+          };
+        }).sort((a, b) => {
+          // Skip Florence Bron on Tuesday for 2F
+          if (a.isFlorenceTuesday !== b.isFlorenceTuesday) return a.isFlorenceTuesday ? 1 : -1;
+          // Prioritize those without 2F/3F this week
+          if (a.has2F3F !== b.has2F3F) return a.has2F3F ? 1 : -1;
+          return a.score - b.score;
+        });
         
         responsable2F3F = candidates2F[0].id;
         
         if (candidates2F[0].isFlorenceTuesday) {
-          console.log(`⚠️ ${siteDay.site_nom} (${date}): Florence Bron assigned 2F on Tuesday (no other option)`);
+          console.log(`⚠️ Florence Bron assigned 2F on Tuesday ${date} (no other option)`);
         }
       }
       
@@ -488,7 +423,7 @@ serve(async (req) => {
       // STEP 2: Assign 1R
       // Choose someone with lowest score, excluding 2F/3F
       // IMPORTANT: Must be different from responsable2F3F to avoid check_single_responsable_role violation
-      const candidates1R = eligibleSecretaries
+      const candidates1R = bothPeriods
         .filter(id => id !== responsable2F3F)
         .map(id => {
           const current = currentWeekScores.get(id)!;
@@ -514,47 +449,64 @@ serve(async (req) => {
       score1R.score += 1;
       score1R.count_1r += 1;
       
-      // First, reset all responsable flags for this site/date (only for target periods)
-      for (const period of targetPeriods) {
-        const { error: resetError } = await supabase
-          .from('capacite_effective')
-          .update({ is_1r: false, is_2f: false, is_3f: false })
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('demi_journee', period)
-          .eq('actif', true);
+      // First, reset all responsable flags for this site/date
+      const { error: resetError } = await supabase
+        .from('capacite_effective')
+        .update({ is_1r: false, is_2f: false, is_3f: false })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('actif', true);
 
-        if (resetError) throw resetError;
-      }
+      if (resetError) throw resetError;
 
-      // Update records for each target period - set 1R flag
+      // Update morning records - set 1R flag
+      const { error: update1RMorningError } = await supabase
+        .from('capacite_effective')
+        .update({ is_1r: true })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('demi_journee', 'matin')
+        .eq('secretaire_id', responsable1R)
+        .eq('actif', true);
+
+      if (update1RMorningError) throw update1RMorningError;
+
+      // Update morning records - set 2F or 3F flag
       const update2F3FData = needsThreeF ? { is_3f: true } : { is_2f: true };
-      
-      for (const period of targetPeriods) {
-        // Set 1R
-        const { error: update1RError } = await supabase
-          .from('capacite_effective')
-          .update({ is_1r: true })
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('demi_journee', period)
-          .eq('secretaire_id', responsable1R)
-          .eq('actif', true);
+      const { error: update2F3FMorningError } = await supabase
+        .from('capacite_effective')
+        .update(update2F3FData)
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('demi_journee', 'matin')
+        .eq('secretaire_id', responsable2F3F)
+        .eq('actif', true);
 
-        if (update1RError) throw update1RError;
+      if (update2F3FMorningError) throw update2F3FMorningError;
 
-        // Set 2F or 3F
-        const { error: update2F3FError } = await supabase
-          .from('capacite_effective')
-          .update(update2F3FData)
-          .eq('date', date)
-          .eq('site_id', site_id)
-          .eq('demi_journee', period)
-          .eq('secretaire_id', responsable2F3F)
-          .eq('actif', true);
+      // Update afternoon records - set 1R flag
+      const { error: update1RAfternoonError } = await supabase
+        .from('capacite_effective')
+        .update({ is_1r: true })
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('demi_journee', 'apres_midi')
+        .eq('secretaire_id', responsable1R)
+        .eq('actif', true);
 
-        if (update2F3FError) throw update2F3FError;
-      }
+      if (update1RAfternoonError) throw update1RAfternoonError;
+
+      // Update afternoon records - set 2F or 3F flag
+      const { error: update2F3FAfternoonError } = await supabase
+        .from('capacite_effective')
+        .update(update2F3FData)
+        .eq('date', date)
+        .eq('site_id', site_id)
+        .eq('demi_journee', 'apres_midi')
+        .eq('secretaire_id', responsable2F3F)
+        .eq('actif', true);
+
+      if (update2F3FAfternoonError) throw update2F3FAfternoonError;
 
       assignmentCount++;
     }
@@ -927,8 +879,7 @@ interface SwapContext {
       has2F3FThisWeek,
       secretaries || [],
       supabase,
-      florenceBron,
-      luciePratillo
+      florenceBron
     );
 
     // Exécuter Phase 2
@@ -938,8 +889,7 @@ interface SwapContext {
       has2F3FThisWeek,
       secretaries || [],
       supabase,
-      florenceBron,
-      luciePratillo
+      florenceBron
     );
 
 
