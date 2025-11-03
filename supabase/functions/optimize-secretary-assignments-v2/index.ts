@@ -966,7 +966,7 @@ serve(async (req) => {
       const previousWeeksHistory = await loadPreviousWeeksHistory(weekStart, supabase);
       
       const weekResults = await optimizeSingleWeek(weekDates, supabase, previousWeeksHistory);
-      allResults.push(...weekResults);
+      allResults.push(weekResults);
     }
     
     return new Response(
