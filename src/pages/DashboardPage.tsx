@@ -117,7 +117,15 @@ interface DashboardOperation {
 }
 
 const DashboardPage = () => {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    const saved = localStorage.getItem('selectedWeek');
+    return saved ? new Date(saved) : new Date();
+  });
+  
+  // Persist selected week
+  useEffect(() => {
+    localStorage.setItem('selectedWeek', currentWeek.toISOString());
+  }, [currentWeek]);
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
   const [dashboardMedecins, setDashboardMedecins] = useState<DashboardMedecin[]>([]);
