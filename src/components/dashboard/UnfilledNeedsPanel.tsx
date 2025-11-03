@@ -1330,7 +1330,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
               {periodData.suggestions_not_working.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
-                    Créer un créneau (non disponible)
+                    Ajouter un créneau
                   </div>
                   {periodData.suggestions_not_working.map(sug => (
                     <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
