@@ -48,7 +48,7 @@ export function MedecinFormDialog({ medecin, onSuccess, onBack }: MedecinFormDia
       email: medecin?.email || '',
       phone_number: medecin?.phone_number || '',
       specialiteId: medecin?.specialite_id || '',
-      besoin_secretaires: medecin?.besoin_secretaires || 1.2,
+      besoin_secretaires: medecin?.besoin_secretaires ?? 1.2,
     },
   });
 
@@ -74,7 +74,7 @@ export function MedecinFormDialog({ medecin, onSuccess, onBack }: MedecinFormDia
         email: medecin.email || '',
         phone_number: medecin.phone_number || '',
         specialiteId: medecin.specialite_id || '',
-        besoin_secretaires: medecin.besoin_secretaires || 1.2,
+        besoin_secretaires: medecin.besoin_secretaires ?? 1.2,
       });
     }
   }, [medecin, form]);
