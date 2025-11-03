@@ -20,7 +20,8 @@ export async function assignPhase1(
   has2F3FThisWeek: Set<string>,
   secretaries: any[],
   supabase: any,
-  florenceBron?: any
+  florenceBron?: any,
+  luciePratillo?: any
 ): Promise<number> {
   console.log('\n🏗️ PHASE 1: Assignation initiale par contraintes');
   
@@ -36,7 +37,7 @@ export async function assignPhase1(
   
   for (const site of sites2) {
     const assigned = await assignSite2Secretaries(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron, luciePratillo
     );
     if (assigned) assignmentsCount++;
   }
@@ -46,7 +47,7 @@ export async function assignPhase1(
   
   for (const site of sites3) {
     const assigned = await assignSiteWithChoice(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron, luciePratillo
     );
     if (assigned) assignmentsCount++;
   }
@@ -56,7 +57,7 @@ export async function assignPhase1(
   
   for (const site of sites4plus) {
     const assigned = await assignSiteWithChoice(
-      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron
+      site, currentWeekScores, has2F3FThisWeek, secretaries, supabase, florenceBron, luciePratillo
     );
     if (assigned) assignmentsCount++;
   }
@@ -71,9 +72,20 @@ async function assignSite2Secretaries(
   has2F3F: Set<string>,
   secretaries: any[],
   supabase: any,
-  florenceBron?: any
+  florenceBron?: any,
+  luciePratillo?: any
 ): Promise<boolean> {
   const [sec1_id, sec2_id] = site.full_day_secretaries;
+  
+  // Check if Lucie Pratillo is one of the two secretaries
+  const isLucieSec1 = luciePratillo && sec1_id === luciePratillo.id;
+  const isLucieSec2 = luciePratillo && sec2_id === luciePratillo.id;
+  
+  // If both are excluded from 2F/3F, cannot assign
+  if (isLucieSec1 && isLucieSec2) {
+    console.log(`  ❌ ${site.site_nom} (${site.date}): impossible (les 2 sont Lucie Pratillo, ne peut pas être 2F/3F)`);
+    return false;
+  }
   
   const sec1_has_2f3f = has2F3F.has(sec1_id);
   const sec2_has_2f3f = has2F3F.has(sec2_id);
@@ -84,10 +96,20 @@ async function assignSite2Secretaries(
   if (sec1_has_2f3f && sec2_has_2f3f) {
     console.log(`  ❌ ${site.site_nom} (${site.date}): impossible (les 2 ont déjà 2F/3F)`);
     return false;
-  } else if (sec1_has_2f3f) {
+  } else if (sec1_has_2f3f || isLucieSec1) {
+    // sec1 has 2F/3F already OR is Lucie Pratillo: assign sec2 as 2F/3F
+    if (isLucieSec2) {
+      console.log(`  ❌ ${site.site_nom} (${site.date}): impossible (sec2 est Lucie Pratillo, ne peut pas être 2F/3F)`);
+      return false;
+    }
     responsable_2f3f = sec2_id;
     responsable_1r = sec1_id;
-  } else if (sec2_has_2f3f) {
+  } else if (sec2_has_2f3f || isLucieSec2) {
+    // sec2 has 2F/3F already OR is Lucie Pratillo: assign sec1 as 2F/3F
+    if (isLucieSec1) {
+      console.log(`  ❌ ${site.site_nom} (${site.date}): impossible (sec1 est Lucie Pratillo, ne peut pas être 2F/3F)`);
+      return false;
+    }
     responsable_2f3f = sec1_id;
     responsable_1r = sec2_id;
   } else {
@@ -148,9 +170,22 @@ async function assignSiteWithChoice(
   has2F3F: Set<string>,
   secretaries: any[],
   supabase: any,
-  florenceBron?: any
+  florenceBron?: any,
+  luciePratillo?: any
 ): Promise<boolean> {
   let eligible_2f3f = site.full_day_secretaries.filter(id => !has2F3F.has(id));
+  
+  // Exclude Lucie Pratillo from 2F/3F candidates
+  if (luciePratillo) {
+    const withoutLucie = eligible_2f3f.filter(id => id !== luciePratillo.id);
+    if (withoutLucie.length > 0) {
+      eligible_2f3f = withoutLucie;
+      console.log(`  🚫 Lucie Pratillo exclue des candidats 2F/3F pour ${site.site_nom} (${site.date})`);
+    } else {
+      console.log(`  ❌ ${site.site_nom} (${site.date}): aucun candidat (seule Lucie Pratillo disponible)`);
+      return false;
+    }
+  }
   
   // Florence Bron cannot have 2F on Tuesday (only applies to 2F, not 3F)
   const isTuesday = site.dayOfWeek === 2;
