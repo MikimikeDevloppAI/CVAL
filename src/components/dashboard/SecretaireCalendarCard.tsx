@@ -3,12 +3,6 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface Assignment {
   site_nom?: string;
@@ -69,46 +63,6 @@ export function SecretaireCalendarCard({
 
   const openActions = (date: string, periode: 'matin' | 'apres_midi' | 'journee') => {
     setSelectedDay({ date, nom: secretaire.nom_complet, periode });
-  };
-  const getTooltipContent = (day: typeof weekDays[0]) => {
-    if (!day.data) return 'Aucune assignation';
-    
-    const content: string[] = [];
-    
-    if (day.data.matin.length > 0) {
-      content.push('Matin:');
-      day.data.matin.forEach(a => {
-        if (a.site_nom) content.push(`  📍 ${a.site_nom}`);
-        if (a.medecin_nom) content.push(`  🩺 ${a.medecin_nom}`);
-        if (a.besoin_operation_nom || a.salle_nom) {
-          const parts = [];
-          if (a.salle_nom) parts.push(a.salle_nom);
-          if (a.besoin_operation_nom) parts.push(a.besoin_operation_nom);
-          const badges = [a.is_1r && '1R', a.is_2f && '2F', a.is_3f && '3F'].filter(Boolean).join(' ');
-          if (badges) parts.push(`(${badges})`);
-          content.push(`  💼 ${parts.join(' - ')}`);
-        }
-      });
-    }
-    
-    if (day.data.apres_midi.length > 0) {
-      if (content.length > 0) content.push('');
-      content.push('Après-midi:');
-      day.data.apres_midi.forEach(a => {
-        if (a.site_nom) content.push(`  📍 ${a.site_nom}`);
-        if (a.medecin_nom) content.push(`  🩺 ${a.medecin_nom}`);
-        if (a.besoin_operation_nom || a.salle_nom) {
-          const parts = [];
-          if (a.salle_nom) parts.push(a.salle_nom);
-          if (a.besoin_operation_nom) parts.push(a.besoin_operation_nom);
-          const badges = [a.is_1r && '1R', a.is_2f && '2F', a.is_3f && '3F'].filter(Boolean).join(' ');
-          if (badges) parts.push(`(${badges})`);
-          content.push(`  💼 ${parts.join(' - ')}`);
-        }
-      });
-    }
-    
-    return content.join('\n') || 'Aucune assignation';
   };
 
   const renderDayBar = (day: typeof weekDays[0]) => {
@@ -283,30 +237,19 @@ export function SecretaireCalendarCard({
 
       {/* Days List - Vertical */}
       <div className="p-3 space-y-2">
-        <TooltipProvider>
-          {weekDays.map((day) => (
-            <Tooltip key={day.date}>
-              <TooltipTrigger asChild>
-                <div 
-                  className="space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground capitalize">
-                      {day.dayName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {day.dayNumber}
-                    </span>
-                  </div>
-                  {renderDayBar(day)}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs whitespace-pre-line">
-                <div className="text-xs">{getTooltipContent(day)}</div>
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </TooltipProvider>
+        {weekDays.map((day) => (
+          <div key={day.date} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground capitalize">
+                {day.dayName}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {day.dayNumber}
+              </span>
+            </div>
+            {renderDayBar(day)}
+          </div>
+        ))}
       </div>
 
       {selectedDay && (
