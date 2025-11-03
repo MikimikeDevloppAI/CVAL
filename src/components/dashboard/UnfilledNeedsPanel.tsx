@@ -829,8 +829,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           actif: true
         };
 
-        // Ajouter les IDs bloc SEULEMENT si fournis explicitement
-        if (blocOperationId && planningGenereId) {
+        // Ajouter les IDs bloc SEULEMENT si fournis explicitement (vérifier qu'ils ne sont pas vides)
+        if (blocOperationId && blocOperationId !== '' && planningGenereId && planningGenereId !== '') {
           insertData.besoin_operation_id = blocOperationId;
           insertData.planning_genere_bloc_operatoire_id = planningGenereId;
         }
@@ -1670,8 +1670,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                             'matin',
                                             sug,
                                             false,
-                                            besoin.besoin_operation_id,
-                                            besoin.planning_genere_bloc_id
+                                            besoin.besoin_operation_id || undefined,
+                                            besoin.planning_genere_bloc_id || undefined
                                           );
                                           setSelectedSecretaire(prev => ({ 
                                             ...prev, 
@@ -1770,8 +1770,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                             'apres_midi',
                                             sug,
                                             false,
-                                            besoin.besoin_operation_id,
-                                            besoin.planning_genere_bloc_id
+                                            besoin.besoin_operation_id || undefined,
+                                            besoin.planning_genere_bloc_id || undefined
                                           );
                                           setSelectedSecretaire(prev => ({ 
                                             ...prev, 
