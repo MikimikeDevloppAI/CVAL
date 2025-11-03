@@ -156,9 +156,9 @@ export function calculateComboScore(
     if (needMatin.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
-          totalScore += 90;
+          totalScore += 200;
         } else {
-          // +0 au-delà de l'objectif
+          totalScore += 1;
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
@@ -271,9 +271,9 @@ export function calculateComboScore(
     if (needAM.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
-          totalScore += 90;
+          totalScore += 200;
         } else {
-          // +0 au-delà de l'objectif
+          totalScore += 1;
         }
       } else {
         const adminBonus = Math.max(0, PENALTIES.ADMIN_FIRST - currentAdminCount);
