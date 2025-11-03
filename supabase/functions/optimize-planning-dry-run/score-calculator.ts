@@ -57,7 +57,7 @@ function countWeekSiteDays(
 }
 
 // Calculate score for a combo (morning + afternoon)
-// SCORING: Same as assign-v2 but with optional +100 bonus for current state match
+// SCORING: Same as assign-v2 but with +200 bonus per half-day for current state conservation
 export function calculateComboScore(
   secretaire_id: string,
   needMatin: SiteNeed | null,
@@ -125,7 +125,34 @@ export function calculateComboScore(
       totalScore += matinBaseScore;
     }
     
-    // 1d. Bonus admin progressif (MATIN)
+    // 1d. Bonus de conservation pour le MATIN (+200)
+    if (currentState) {
+      const state = currentState.get(secretaire_id);
+      if (state) {
+        let isMatinConserved = false;
+        
+        if (needMatin.site_id === ADMIN_SITE_ID) {
+          // Pour ADMIN : juste vérifier le site_id
+          isMatinConserved = state.matin_site_id === ADMIN_SITE_ID;
+        } else if (needMatin.type === 'bloc_operatoire') {
+          // Pour BLOC : vérifier site_id + besoin_operation_id + bloc_operation_id
+          isMatinConserved = 
+            state.matin_site_id === needMatin.site_id &&
+            state.matin_besoin_op_id === needMatin.besoin_operation_id &&
+            state.matin_bloc_op_id === needMatin.bloc_operation_id;
+        } else {
+          // Pour sites normaux : juste vérifier le site_id
+          isMatinConserved = state.matin_site_id === needMatin.site_id;
+        }
+        
+        if (isMatinConserved) {
+          console.log(`  ✅ BONUS CONSERVATION MATIN: +200 pour ${secretaire.first_name} ${secretaire.name}`);
+          totalScore += 200;
+        }
+      }
+    }
+    
+    // 1e. Bonus admin progressif (MATIN)
     if (needMatin.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
@@ -140,7 +167,7 @@ export function calculateComboScore(
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
     
-    // 1e. Pénalité sur-assignation site P2/P3/P4 (MATIN) - uniquement Esplanade Ophtalmologie
+    // 1f. Pénalité sur-assignation site P2/P3/P4 (MATIN) - uniquement Esplanade Ophtalmologie
     if (siteMatchMatin && 
         (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3' || siteMatchMatin.priorite === '4') &&
         needMatin.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
@@ -213,7 +240,34 @@ export function calculateComboScore(
       totalScore += amBaseScore;
     }
     
-    // 2d. Bonus admin progressif (AM)
+    // 2d. Bonus de conservation pour l'APRÈS-MIDI (+200)
+    if (currentState) {
+      const state = currentState.get(secretaire_id);
+      if (state) {
+        let isAMConserved = false;
+        
+        if (needAM.site_id === ADMIN_SITE_ID) {
+          // Pour ADMIN : juste vérifier le site_id
+          isAMConserved = state.am_site_id === ADMIN_SITE_ID;
+        } else if (needAM.type === 'bloc_operatoire') {
+          // Pour BLOC : vérifier site_id + besoin_operation_id + bloc_operation_id
+          isAMConserved = 
+            state.am_site_id === needAM.site_id &&
+            state.am_besoin_op_id === needAM.besoin_operation_id &&
+            state.am_bloc_op_id === needAM.bloc_operation_id;
+        } else {
+          // Pour sites normaux : juste vérifier le site_id
+          isAMConserved = state.am_site_id === needAM.site_id;
+        }
+        
+        if (isAMConserved) {
+          console.log(`  ✅ BONUS CONSERVATION AM: +200 pour ${secretaire.first_name} ${secretaire.name}`);
+          totalScore += 200;
+        }
+      }
+    }
+    
+    // 2e. Bonus admin progressif (AM)
     if (needAM.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
@@ -227,7 +281,7 @@ export function calculateComboScore(
       }
     }
     
-    // 2e. Pénalité sur-assignation site P2/P3/P4 (AM) - uniquement Esplanade Ophtalmologie
+    // 2f. Pénalité sur-assignation site P2/P3/P4 (AM) - uniquement Esplanade Ophtalmologie
     if (siteMatchAM && 
         (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3' || siteMatchAM.priorite === '4') &&
         needAM.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
