@@ -14,6 +14,8 @@ import { DryRunOptimizationDialog } from './DryRunOptimizationDialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
+const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
+
 interface SecretaireSuggestion {
   secretaire_id: string;
   secretaire_nom: string;
@@ -317,7 +319,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
           grouped.set(key, {
             date: need.date,
-            site_id: blocSite?.id || '',
+            site_id: blocSite?.id || BLOC_OPERATOIRE_SITE_ID,
             site_nom: 'Clinique La Vallée - Bloc opératoire',
             planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
             besoins_personnel: [],
@@ -825,7 +827,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           date: need.date,
           secretaire_id: suggestion.secretaire_id,
           demi_journee: p,
-          site_id: need.site_id,
+          site_id: (blocOperationId && planningGenereId) ? BLOC_OPERATOIRE_SITE_ID : need.site_id,
           actif: true
         };
 
