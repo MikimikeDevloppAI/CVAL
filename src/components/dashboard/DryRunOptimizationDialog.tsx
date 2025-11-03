@@ -111,7 +111,7 @@ export const DryRunOptimizationDialog = ({
   const [loadingChanges, setLoadingChanges] = useState(false);
   const [validatingChanges, setValidatingChanges] = useState<Set<string>>(new Set());
 
-  // Group changes by secretary when both morning and afternoon have the same change
+  // Group changes by secretary - always show both morning and afternoon
   const groupedChanges = useMemo(() => {
     const groups = new Map<string, GroupedChange>();
     
@@ -162,38 +162,13 @@ export const DryRunOptimizationDialog = ({
       });
     });
     
-    // Check if morning and afternoon can be merged
-    const result: GroupedChange[] = [];
-    groups.forEach(group => {
-      if (group.periods.length === 2) {
-        const matin = group.periods.find(p => p.demi_journee === 'matin');
-        const am = group.periods.find(p => p.demi_journee === 'apres_midi');
-        
-        if (matin && am && matin.avant === am.avant && matin.apres === am.apres) {
-          // Merge into one entry
-          result.push({
-            ...group,
-            periods: [{ 
-              demi_journee: 'matin', 
-              avant: matin.avant, 
-              apres: matin.apres,
-              is_1r_avant: matin.is_1r_avant,
-              is_2f_avant: matin.is_2f_avant,
-              is_3f_avant: matin.is_3f_avant,
-              is_1r_apres: matin.is_1r_apres,
-              is_2f_apres: matin.is_2f_apres,
-              is_3f_apres: matin.is_3f_apres
-            }]
-          });
-        } else {
-          result.push(group);
-        }
-      } else {
-        result.push(group);
-      }
-    });
-    
-    return result;
+    // Sort periods: matin first, then apres_midi
+    return Array.from(groups.values()).map(group => ({
+      ...group,
+      periods: group.periods.sort((a, b) => 
+        a.demi_journee === 'matin' ? -1 : 1
+      )
+    }));
   }, [changes]);
 
   // Calculate site satisfaction from result (exclude bloc_operatoire)
@@ -378,19 +353,49 @@ export const DryRunOptimizationDialog = ({
           throw dryRunError;
         }
 
-        // Fetch secretaires, site and besoin_operation names
+        // Get secretaires with changes and fetch their current assignments for both periods
         const secretaireIds = new Set<string>();
+        (dryRunData || []).forEach((record: any) => {
+          if (record.secretaire_id) secretaireIds.add(record.secretaire_id);
+        });
+
+        // Fetch current assignments for all periods (to show unchanged periods)
+        const { data: currentAssignments, error: currentError } = await supabase
+          .from('capacite_effective')
+          .select(`
+            *,
+            site_id,
+            besoin_operation_id,
+            planning_genere_bloc_operatoire_id,
+            is_1r,
+            is_2f,
+            is_3f
+          `)
+          .eq('date', date)
+          .in('secretaire_id', Array.from(secretaireIds));
+
+        if (currentError) {
+          console.error('Error fetching current assignments:', currentError);
+          throw currentError;
+        }
+
+        // Fetch secretaires, site and besoin_operation names
         const siteIds = new Set<string>();
         const besoinOpIds = new Set<string>();
         const blocOpIds = new Set<string>();
 
         (dryRunData || []).forEach((record: any) => {
-          if (record.secretaire_id) secretaireIds.add(record.secretaire_id);
           if (record.capacite_effective.site_id) siteIds.add(record.capacite_effective.site_id);
           if (record.site_id) siteIds.add(record.site_id);
           if (record.capacite_effective.besoin_operation_id) besoinOpIds.add(record.capacite_effective.besoin_operation_id);
           if (record.besoin_operation_id) besoinOpIds.add(record.besoin_operation_id);
           if (record.capacite_effective.planning_genere_bloc_operatoire_id) blocOpIds.add(record.capacite_effective.planning_genere_bloc_operatoire_id);
+          if (record.planning_genere_bloc_operatoire_id) blocOpIds.add(record.planning_genere_bloc_operatoire_id);
+        });
+
+        (currentAssignments || []).forEach((record: any) => {
+          if (record.site_id) siteIds.add(record.site_id);
+          if (record.besoin_operation_id) besoinOpIds.add(record.besoin_operation_id);
           if (record.planning_genere_bloc_operatoire_id) blocOpIds.add(record.planning_genere_bloc_operatoire_id);
         });
 
@@ -421,35 +426,85 @@ export const DryRunOptimizationDialog = ({
           blocData?.map(b => [b.id, (b.types_intervention as any)?.nom || null]) || []
         );
 
-        const changesList: Change[] = (dryRunData || []).map((record: any) => {
-          const isBlocAvant = record.capacite_effective.planning_genere_bloc_operatoire_id !== null;
-          const isBlocApres = record.planning_genere_bloc_operatoire_id !== null;
-          
-          return {
-            secretaire_id: record.secretaire_id,
-            secretaire_nom: secretairesMap.get(record.secretaire_id) || 'Inconnu',
-            date: record.date,
-            demi_journee: record.demi_journee,
-            site_avant_id: record.capacite_effective.site_id,
-            site_avant_nom: sitesMap.get(record.capacite_effective.site_id) || null,
-            site_apres_id: record.site_id,
-            site_apres_nom: sitesMap.get(record.site_id) || null,
-            besoin_operation_avant_id: record.capacite_effective.besoin_operation_id,
-            besoin_operation_avant_nom: besoinsMap.get(record.capacite_effective.besoin_operation_id) || null,
-            besoin_operation_apres_id: record.besoin_operation_id,
-            besoin_operation_apres_nom: besoinsMap.get(record.besoin_operation_id) || null,
-            type_intervention_avant_nom: typeInterventionMap.get(record.capacite_effective.planning_genere_bloc_operatoire_id) || null,
-            type_intervention_apres_nom: typeInterventionMap.get(record.planning_genere_bloc_operatoire_id) || null,
-            type_avant: isBlocAvant ? 'bloc_operatoire' : 'site',
-            type_apres: isBlocApres ? 'bloc_operatoire' : 'site',
-            type: isBlocApres ? 'bloc_operatoire' : 'site', // Keep for backward compatibility
-            is_1r_avant: record.capacite_effective.is_1r || false,
-            is_2f_avant: record.capacite_effective.is_2f || false,
-            is_3f_avant: record.capacite_effective.is_3f || false,
-            is_1r_apres: record.is_1r || false,
-            is_2f_apres: record.is_2f || false,
-            is_3f_apres: record.is_3f || false,
-          };
+        // Create a map of changes
+        const changesMap = new Map<string, any>();
+        (dryRunData || []).forEach((record: any) => {
+          const key = `${record.secretaire_id}-${record.demi_journee}`;
+          changesMap.set(key, record);
+        });
+
+        // Build complete change list including unchanged periods
+        const changesList: Change[] = [];
+        
+        secretaireIds.forEach(secretaireId => {
+          ['matin', 'apres_midi'].forEach(demiJournee => {
+            const changeKey = `${secretaireId}-${demiJournee}`;
+            const changeRecord = changesMap.get(changeKey);
+            const currentRecord = currentAssignments?.find(
+              (a: any) => a.secretaire_id === secretaireId && a.demi_journee === demiJournee
+            );
+
+            if (changeRecord) {
+              // Period has a change - use dry_run data
+              const isBlocAvant = changeRecord.capacite_effective.planning_genere_bloc_operatoire_id !== null;
+              const isBlocApres = changeRecord.planning_genere_bloc_operatoire_id !== null;
+              
+              changesList.push({
+                secretaire_id: changeRecord.secretaire_id,
+                secretaire_nom: secretairesMap.get(changeRecord.secretaire_id) || 'Inconnu',
+                date: changeRecord.date,
+                demi_journee: demiJournee as 'matin' | 'apres_midi',
+                site_avant_id: changeRecord.capacite_effective.site_id,
+                site_avant_nom: sitesMap.get(changeRecord.capacite_effective.site_id) || null,
+                site_apres_id: changeRecord.site_id,
+                site_apres_nom: sitesMap.get(changeRecord.site_id) || null,
+                besoin_operation_avant_id: changeRecord.capacite_effective.besoin_operation_id,
+                besoin_operation_avant_nom: besoinsMap.get(changeRecord.capacite_effective.besoin_operation_id) || null,
+                besoin_operation_apres_id: changeRecord.besoin_operation_id,
+                besoin_operation_apres_nom: besoinsMap.get(changeRecord.besoin_operation_id) || null,
+                type_intervention_avant_nom: typeInterventionMap.get(changeRecord.capacite_effective.planning_genere_bloc_operatoire_id) || null,
+                type_intervention_apres_nom: typeInterventionMap.get(changeRecord.planning_genere_bloc_operatoire_id) || null,
+                type_avant: isBlocAvant ? 'bloc_operatoire' : 'site',
+                type_apres: isBlocApres ? 'bloc_operatoire' : 'site',
+                type: isBlocApres ? 'bloc_operatoire' : 'site',
+                is_1r_avant: changeRecord.capacite_effective.is_1r || false,
+                is_2f_avant: changeRecord.capacite_effective.is_2f || false,
+                is_3f_avant: changeRecord.capacite_effective.is_3f || false,
+                is_1r_apres: changeRecord.is_1r || false,
+                is_2f_apres: changeRecord.is_2f || false,
+                is_3f_apres: changeRecord.is_3f || false,
+              });
+            } else if (currentRecord) {
+              // Period has no change - show current assignment (avant = apres)
+              const isBloc = currentRecord.planning_genere_bloc_operatoire_id !== null;
+              
+              changesList.push({
+                secretaire_id: secretaireId,
+                secretaire_nom: secretairesMap.get(secretaireId) || 'Inconnu',
+                date: date,
+                demi_journee: demiJournee as 'matin' | 'apres_midi',
+                site_avant_id: currentRecord.site_id,
+                site_avant_nom: sitesMap.get(currentRecord.site_id) || null,
+                site_apres_id: currentRecord.site_id,
+                site_apres_nom: sitesMap.get(currentRecord.site_id) || null,
+                besoin_operation_avant_id: currentRecord.besoin_operation_id,
+                besoin_operation_avant_nom: besoinsMap.get(currentRecord.besoin_operation_id) || null,
+                besoin_operation_apres_id: currentRecord.besoin_operation_id,
+                besoin_operation_apres_nom: besoinsMap.get(currentRecord.besoin_operation_id) || null,
+                type_intervention_avant_nom: typeInterventionMap.get(currentRecord.planning_genere_bloc_operatoire_id) || null,
+                type_intervention_apres_nom: typeInterventionMap.get(currentRecord.planning_genere_bloc_operatoire_id) || null,
+                type_avant: isBloc ? 'bloc_operatoire' : 'site',
+                type_apres: isBloc ? 'bloc_operatoire' : 'site',
+                type: isBloc ? 'bloc_operatoire' : 'site',
+                is_1r_avant: currentRecord.is_1r || false,
+                is_2f_avant: currentRecord.is_2f || false,
+                is_3f_avant: currentRecord.is_3f || false,
+                is_1r_apres: currentRecord.is_1r || false,
+                is_2f_apres: currentRecord.is_2f || false,
+                is_3f_apres: currentRecord.is_3f || false,
+              });
+            }
+          });
         });
 
         setChanges(changesList);
@@ -725,113 +780,63 @@ export const DryRunOptimizationDialog = ({
                       </thead>
                       <tbody>
                         {groupedChanges.map((group, idx) => (
-                          group.periods.length === 1 && changes.filter(c => c.secretaire_id === group.secretaire_id).length === 2 ? (
-                            // Both morning and afternoon merged into one
-                            <tr key={idx} className="border-t">
-                              <td className="p-2 font-medium">{group.secretaire_nom}</td>
-                              <td className="p-2">Journée complète</td>
-                                <td className="p-2 text-muted-foreground">
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span>{group.periods[0].avant}</span>
-                                    {group.periods[0].is_1r_avant && (
-                                      <Badge variant="outline" className="text-xs">1R</Badge>
-                                    )}
-                                    {group.periods[0].is_2f_avant && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
-                                    )}
-                                    {group.periods[0].is_3f_avant && (
-                                      <Badge variant="outline" className="text-xs">3F</Badge>
-                                    )}
-                                  </div>
+                          // Always show separate entries for morning and afternoon
+                          group.periods.map((period, periodIdx) => (
+                            <tr key={`${idx}-${periodIdx}`} className="border-t">
+                              {periodIdx === 0 && (
+                                <td className="p-2 font-medium" rowSpan={group.periods.length}>
+                                  {group.secretaire_nom}
                                 </td>
-                                <td className="p-2">
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span>{group.periods[0].apres}</span>
-                                    {group.periods[0].is_1r_apres && (
-                                      <Badge variant="outline" className="text-xs">1R</Badge>
-                                    )}
-                                    {group.periods[0].is_2f_apres && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
-                                    )}
-                                    {group.periods[0].is_3f_apres && (
-                                      <Badge variant="outline" className="text-xs">3F</Badge>
-                                    )}
-                                  </div>
-                                </td>
-                              <td className="p-2 text-center">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => applyIndividualChange(changes.find(c => c.secretaire_id === group.secretaire_id)!)}
-                                  disabled={validatingChanges.size > 0}
-                                >
-                                  {validatingChanges.has(`${group.secretaire_id}-${date}-matin`) ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Check className="h-3 w-3" />
-                                  )}
-                                </Button>
+                              )}
+                              <td className="p-2">
+                                {period.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
                               </td>
+                              <td className="p-2 text-muted-foreground">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span>{period.avant}</span>
+                                  {period.is_1r_avant && (
+                                    <Badge variant="outline" className="text-xs">1R</Badge>
+                                  )}
+                                  {period.is_2f_avant && (
+                                    <Badge variant="outline" className="text-xs">2F</Badge>
+                                  )}
+                                  {period.is_3f_avant && (
+                                    <Badge variant="outline" className="text-xs">3F</Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span>{period.apres}</span>
+                                  {period.is_1r_apres && (
+                                    <Badge variant="outline" className="text-xs">1R</Badge>
+                                  )}
+                                  {period.is_2f_apres && (
+                                    <Badge variant="outline" className="text-xs">2F</Badge>
+                                  )}
+                                  {period.is_3f_apres && (
+                                    <Badge variant="outline" className="text-xs">3F</Badge>
+                                  )}
+                                </div>
+                              </td>
+                              {periodIdx === 0 && (
+                                <td className="p-2 text-center" rowSpan={group.periods.length}>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => applyIndividualChange(changes.find(c => c.secretaire_id === group.secretaire_id)!)}
+                                    disabled={validatingChanges.size > 0}
+                                  >
+                                    {validatingChanges.has(`${group.secretaire_id}-${date}-${period.demi_journee}`) ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Check className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </td>
+                              )}
                             </tr>
-                          ) : (
-                            // Separate entries for each period
-                            group.periods.map((period, periodIdx) => (
-                              <tr key={`${idx}-${periodIdx}`} className="border-t">
-                                {periodIdx === 0 && (
-                                  <td className="p-2 font-medium" rowSpan={group.periods.length}>
-                                    {group.secretaire_nom}
-                                  </td>
-                                )}
-                                <td className="p-2">
-                                  {period.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
-                                </td>
-                                <td className="p-2 text-muted-foreground">
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span>{period.avant}</span>
-                                    {period.is_1r_avant && (
-                                      <Badge variant="outline" className="text-xs">1R</Badge>
-                                    )}
-                                    {period.is_2f_avant && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
-                                    )}
-                                    {period.is_3f_avant && (
-                                      <Badge variant="outline" className="text-xs">3F</Badge>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span>{period.apres}</span>
-                                    {period.is_1r_apres && (
-                                      <Badge variant="outline" className="text-xs">1R</Badge>
-                                    )}
-                                    {period.is_2f_apres && (
-                                      <Badge variant="outline" className="text-xs">2F</Badge>
-                                    )}
-                                    {period.is_3f_apres && (
-                                      <Badge variant="outline" className="text-xs">3F</Badge>
-                                    )}
-                                  </div>
-                                </td>
-                                {periodIdx === 0 && (
-                                  <td className="p-2 text-center" rowSpan={group.periods.length}>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => applyIndividualChange(changes.find(c => c.secretaire_id === group.secretaire_id)!)}
-                                      disabled={validatingChanges.size > 0}
-                                    >
-                                      {validatingChanges.has(`${group.secretaire_id}-${date}-${period.demi_journee}`) ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                      ) : (
-                                        <Check className="h-3 w-3" />
-                                      )}
-                                    </Button>
-                                  </td>
-                                )}
-                              </tr>
-                            ))
-                          )
+                          ))
                         ))}
                       </tbody>
                     </table>
