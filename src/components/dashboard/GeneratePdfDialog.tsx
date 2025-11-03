@@ -83,7 +83,7 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] backdrop-blur-xl bg-card/95 border-2 border-teal-200/50 dark:border-teal-800/50">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto backdrop-blur-xl bg-card/95 border-2 border-teal-200/50 dark:border-teal-800/50">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
             Générer un PDF Planning
@@ -118,7 +118,7 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
               </Button>
             </div>
 
-            <ScrollArea className="h-[200px] rounded-lg border border-border/50 bg-muted/20 p-3">
+            <ScrollArea className="h-[200px] max-h-[30vh] rounded-lg border border-border/50 bg-muted/20 p-3">
               <div className="grid grid-cols-2 gap-2">
                 {availableWeeks.map((week) => (
                   <div
@@ -175,7 +175,7 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Historique des PDFs générés</h3>
             
-            <ScrollArea className="h-[300px] rounded-lg border border-border/50 bg-muted/20 p-3">
+            <ScrollArea className="h-[300px] max-h-[45vh] rounded-lg border border-border/50 bg-muted/20 p-3">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
