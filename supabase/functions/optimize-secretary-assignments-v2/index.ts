@@ -381,8 +381,8 @@ async function runOptimizationPass(
   
   const adminCounters = new Map<string, number>();
   const p2p3Counters = new Map<string, Map<string, Set<string>>>();
-  const closing1RCounters = new Map<string, number>();
-  const closing2F3FCounters = new Map<string, number>();
+  const closing1RDays = new Map<string, Set<string>>(); // secretaire_id → Set de dates uniques
+  const closing2F3FDays = new Map<string, Set<string>>(); // secretaire_id → Set de dates uniques
   const penaltyMultipliers1R2F = new Map<string, number>();
   const penaltyMultipliersEsplanade = new Map<string, number>();
   
@@ -398,8 +398,8 @@ async function runOptimizationPass(
     if (passNumber === 2 && pass1Assignments) {
       adminCounters.clear();
       p2p3Counters.clear();
-      closing1RCounters.clear();
-      closing2F3FCounters.clear();
+      closing1RDays.clear();
+      closing2F3FDays.clear();
       penaltyMultipliers1R2F.clear();
       penaltyMultipliersEsplanade.clear();
       
@@ -448,25 +448,19 @@ async function runOptimizationPass(
             secMap.get(assign.site_id)!.add(contextDate);
           }
           
-          // Compter les rôles de fermeture (1R, 2F, 3F) - éviter double comptage pour journée complète
-          const roleKey = `${secId}_${contextDate}_${assign.site_id}`;
-          
+          // Compter les jours uniques où la secrétaire a un rôle 1R ou 2F/3F
           if (assign.is_1r) {
-            const alreadyCounted1R = closing1RCounters.get(roleKey);
-            if (!alreadyCounted1R) {
-              closing1RCounters.set(secId, (closing1RCounters.get(secId) || 0) + 1);
-              // Marquer comme déjà compté pour ce jour/site
-              closing1RCounters.set(roleKey, true as any);
+            if (!closing1RDays.has(secId)) {
+              closing1RDays.set(secId, new Set());
             }
+            closing1RDays.get(secId)!.add(contextDate);
           }
           
           if (assign.is_2f || assign.is_3f) {
-            const alreadyCounted2F = closing2F3FCounters.get(roleKey);
-            if (!alreadyCounted2F) {
-              closing2F3FCounters.set(secId, (closing2F3FCounters.get(secId) || 0) + 1);
-              // Marquer comme déjà compté pour ce jour/site
-              closing2F3FCounters.set(roleKey, true as any);
+            if (!closing2F3FDays.has(secId)) {
+              closing2F3FDays.set(secId, new Set());
             }
+            closing2F3FDays.get(secId)!.add(contextDate);
           }
         }
       }
@@ -594,8 +588,12 @@ async function runOptimizationPass(
       today_assignments: new Map(),
       admin_counters: adminCounters,
       p2p3_counters: p2p3Counters,
-      closing_1r_counters: closing1RCounters,
-      closing_2f3f_counters: closing2F3FCounters,
+      closing_1r_counters: new Map(
+        Array.from(closing1RDays.entries()).map(([id, dates]) => [id, dates.size])
+      ),
+      closing_2f3f_counters: new Map(
+        Array.from(closing2F3FDays.entries()).map(([id, dates]) => [id, dates.size])
+      ),
       sites_needing_3f: sitesNeeding3F,
       penalty_multipliers_1r2f: penaltyMultipliers1R2F,
       penalty_multipliers_esplanade: penaltyMultipliersEsplanade
@@ -672,19 +670,25 @@ async function runOptimizationPass(
           secMap.get(assign.site_id)!.add(date);
         }
         
-        // Update closing counters - uniquement sur la période MATIN pour éviter double comptage
-        if (assign.periode === 'matin') {
-          const oldCount1R = closing1RCounters.get(assign.secretaire_id) || 0;
-          const oldCount2F3F = closing2F3FCounters.get(assign.secretaire_id) || 0;
+        // Compter les jours uniques où la secrétaire a un rôle 1R ou 2F/3F
+        if (assign.is_1r) {
+          if (!closing1RDays.has(assign.secretaire_id)) {
+            closing1RDays.set(assign.secretaire_id, new Set());
+          }
+          closing1RDays.get(assign.secretaire_id)!.add(date);
           
-          if (assign.is_1r) {
-            closing1RCounters.set(assign.secretaire_id, oldCount1R + 1);
-            logger.debug(`  → 1R: ${assign.secretaire_id.slice(0, 8)}... compteur ${oldCount1R} → ${oldCount1R + 1}`);
+          const totalDays = closing1RDays.get(assign.secretaire_id)!.size;
+          logger.debug(`  → 1R: ${assign.secretaire_id.slice(0, 8)}... jour ${date} → total ${totalDays} jour(s)`);
+        }
+        
+        if (assign.is_2f || assign.is_3f) {
+          if (!closing2F3FDays.has(assign.secretaire_id)) {
+            closing2F3FDays.set(assign.secretaire_id, new Set());
           }
-          if (assign.is_2f || assign.is_3f) {
-            closing2F3FCounters.set(assign.secretaire_id, oldCount2F3F + 1);
-            logger.debug(`  → 2F/3F: ${assign.secretaire_id.slice(0, 8)}... compteur ${oldCount2F3F} → ${oldCount2F3F + 1}`);
-          }
+          closing2F3FDays.get(assign.secretaire_id)!.add(date);
+          
+          const totalDays = closing2F3FDays.get(assign.secretaire_id)!.size;
+          logger.debug(`  → 2F/3F: ${assign.secretaire_id.slice(0, 8)}... jour ${date} → total ${totalDays} jour(s)`);
         }
       }
     }
@@ -708,8 +712,8 @@ async function runOptimizationPass(
   const exceeding3Total: Array<{ name: string, count1R: number, count2F3F: number, total: number }> = [];
   
   for (const sec of weekData.secretaires) {
-    const count1R = closing1RCounters.get(sec.id) || 0;
-    const count2F3F = closing2F3FCounters.get(sec.id) || 0;
+    const count1R = closing1RDays.get(sec.id)?.size || 0;
+    const count2F3F = closing2F3FDays.get(sec.id)?.size || 0;
     const total = count1R + count2F3F;
     
     if (count2F3F > 2) {
