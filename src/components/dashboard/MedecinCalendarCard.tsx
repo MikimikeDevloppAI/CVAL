@@ -238,16 +238,13 @@ export function MedecinCalendarCard({
         {/* Header */}
         <div className="bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-4 border-b border-border/50">
           <h3 className="text-base font-semibold truncate">{medecin.nom_complet}</h3>
-          <div className="flex flex-wrap gap-1 mt-2">
-            <Badge variant="outline" className="bg-cyan-500/10 text-[10px] px-1.5 py-0">
-              {medecin.specialite_nom}
-            </Badge>
-            {!medecin.actif && (
+          {!medecin.actif && (
+            <div className="flex flex-wrap gap-1 mt-2">
               <Badge variant="outline" className="bg-destructive/10 text-[10px] px-1.5 py-0">
                 Inactif
               </Badge>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Days List - Vertical */}
