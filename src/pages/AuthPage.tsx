@@ -61,14 +61,6 @@ const AuthPage = () => {
               className="h-14 w-auto"
             />
           </div>
-          <div className="text-center">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Clinique La Vallée
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Système de planning médical
-            </p>
-          </div>
         </div>
 
         <Card className="shadow-xl border-border/50">
