@@ -57,7 +57,7 @@ function calculateNeeds(
       if (besoin.medecin_id) {
         const medecin = medecins_map.get(besoin.medecin_id);
         if (medecin) {
-          totalBesoin += medecin.besoin_secretaires || 1.2;
+          totalBesoin += medecin.besoin_secretaires ?? 1.2;
           medecins_ids.push(besoin.medecin_id);
         }
       }

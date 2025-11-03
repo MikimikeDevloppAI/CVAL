@@ -481,7 +481,7 @@ async function buildMILP(
       }
       
       const entry = siteNeedsMap.get(key)!;
-      entry.total_need += besoin.medecins?.besoin_secretaires || 1.2;
+      entry.total_need += besoin.medecins?.besoin_secretaires ?? 1.2;
       if (besoin.medecin_id) {
         entry.medecin_ids.add(besoin.medecin_id);
       }
