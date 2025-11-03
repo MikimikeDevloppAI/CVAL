@@ -634,19 +634,37 @@ export function buildMILPModelSoft(
           roleVars.is_1r.push({ secId, varName: var1R, comboVar: comboVars[0] });
           roleVars.is_2f3f.push({ secId, varName: var2F3F, comboVar: comboVars[0], needs3F });
           
-          // Link role to ANY of the combos for this secretary on this site (morning)
+          // ✅ CORRECTION: Lien agrégé rôle ↔ combos (une seule contrainte par rôle)
+          // Un rôle peut être actif si AU MOINS UN des combos de cette secrétaire sur ce site est actif
+          const linkConstraint1R = `link_1r_${var1R}`;
+          model.constraints[linkConstraint1R] = { max: 0 };
+          model.variables[var1R][linkConstraint1R] = 1;  // +1 * var1R
+          
           for (const comboVar of comboVars) {
-            const linkConstraint1R = `link_1r_${var1R}_${comboVar}`;
-            model.constraints[linkConstraint1R] = { max: 0 };
-            model.variables[var1R][linkConstraint1R] = 1;
-            model.variables[comboVar][linkConstraint1R] = -1;
-            
-            const linkConstraint2F = `link_2f3f_${var2F3F}_${comboVar}`;
-            model.constraints[linkConstraint2F] = { max: 0 };
-            model.variables[var2F3F][linkConstraint2F] = 1;
-            model.variables[comboVar][linkConstraint2F] = -1;
+            model.variables[comboVar][linkConstraint1R] = -1;  // -1 * comboVar
+          }
+          
+          const linkConstraint2F = `link_2f3f_${var2F3F}`;
+          model.constraints[linkConstraint2F] = { max: 0 };
+          model.variables[var2F3F][linkConstraint2F] = 1;  // +1 * var2F3F
+          
+          for (const comboVar of comboVars) {
+            model.variables[comboVar][linkConstraint2F] = -1;  // -1 * comboVar
           }
         }
+        
+        // ✅ NOUVELLE CONTRAINTE: Minimum 2 secrétaires le matin sur ce site de fermeture
+        const morningMinConstraint = `closure_min_${site.id}_${date}_matin`;
+        model.constraints[morningMinConstraint] = { min: 2 };
+        
+        // Ajouter TOUS les combos qui couvrent ce site le matin
+        for (const [secId, comboVars] of morningCandidates.entries()) {
+          for (const comboVar of comboVars) {
+            model.variables[comboVar][morningMinConstraint] = 1;
+          }
+        }
+        
+        logger.info(`  ✅ Contrainte minimum 2 secrétaires appliquée: ${morningCandidates.size} candidates avec ${Array.from(morningCandidates.values()).reduce((sum, cvs) => sum + cvs.length, 0)} combos possibles`);
         
         // Exactly 1 person in 1R for morning
         const constraint1R = `closure_1r_${site.id}_${date}_matin`;
@@ -738,19 +756,37 @@ export function buildMILPModelSoft(
           roleVars.is_1r.push({ secId, varName: var1R, comboVar: comboVars[0] });
           roleVars.is_2f3f.push({ secId, varName: var2F3F, comboVar: comboVars[0], needs3F });
           
-          // Link role to ANY of the combos for this secretary on this site (afternoon)
+          // ✅ CORRECTION: Lien agrégé rôle ↔ combos (une seule contrainte par rôle)
+          // Un rôle peut être actif si AU MOINS UN des combos de cette secrétaire sur ce site est actif
+          const linkConstraint1R = `link_1r_${var1R}`;
+          model.constraints[linkConstraint1R] = { max: 0 };
+          model.variables[var1R][linkConstraint1R] = 1;  // +1 * var1R
+          
           for (const comboVar of comboVars) {
-            const linkConstraint1R = `link_1r_${var1R}_${comboVar}`;
-            model.constraints[linkConstraint1R] = { max: 0 };
-            model.variables[var1R][linkConstraint1R] = 1;
-            model.variables[comboVar][linkConstraint1R] = -1;
-            
-            const linkConstraint2F = `link_2f3f_${var2F3F}_${comboVar}`;
-            model.constraints[linkConstraint2F] = { max: 0 };
-            model.variables[var2F3F][linkConstraint2F] = 1;
-            model.variables[comboVar][linkConstraint2F] = -1;
+            model.variables[comboVar][linkConstraint1R] = -1;  // -1 * comboVar
+          }
+          
+          const linkConstraint2F = `link_2f3f_${var2F3F}`;
+          model.constraints[linkConstraint2F] = { max: 0 };
+          model.variables[var2F3F][linkConstraint2F] = 1;  // +1 * var2F3F
+          
+          for (const comboVar of comboVars) {
+            model.variables[comboVar][linkConstraint2F] = -1;  // -1 * comboVar
           }
         }
+        
+        // ✅ NOUVELLE CONTRAINTE: Minimum 2 secrétaires l'après-midi sur ce site de fermeture
+        const afternoonMinConstraint = `closure_min_${site.id}_${date}_pm`;
+        model.constraints[afternoonMinConstraint] = { min: 2 };
+        
+        // Ajouter TOUS les combos qui couvrent ce site l'après-midi
+        for (const [secId, comboVars] of afternoonCandidates.entries()) {
+          for (const comboVar of comboVars) {
+            model.variables[comboVar][afternoonMinConstraint] = 1;
+          }
+        }
+        
+        logger.info(`  ✅ Contrainte minimum 2 secrétaires appliquée: ${afternoonCandidates.size} candidates avec ${Array.from(afternoonCandidates.values()).reduce((sum, cvs) => sum + cvs.length, 0)} combos possibles`);
         
         // Exactly 1 person in 1R for afternoon
         const constraint1R = `closure_1r_${site.id}_${date}_pm`;

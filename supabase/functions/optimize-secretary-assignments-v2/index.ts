@@ -66,6 +66,10 @@ export const logger = {
     if (this.level === 'debug') {
       console.log(...args);
     }
+  },
+  
+  error(...args: any[]) {
+    console.error(...args);
   }
 };
 
@@ -483,6 +487,13 @@ async function runOptimizationPass(
     );
     
     const solution = solver.Solve(model);
+    
+    // ✅ VÉRIFICATION: Solution infaisable
+    if (solution.feasible === false) {
+      logger.error(`\n❌ Solution INFAISABLE pour ${date}`);
+      logger.error(`   Raison probable: Pas assez de secrétaires disponibles pour respecter les contraintes de fermeture (minimum 2 secrétaires requis)`);
+      logger.error(`   Le système va continuer avec les combos partiels disponibles...`);
+    }
     
     logger.info(`\n✅ Solution - Score: ${solution.result?.toFixed(1) || 'N/A'}`);
     
