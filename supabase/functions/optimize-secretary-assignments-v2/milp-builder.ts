@@ -469,25 +469,25 @@ export function buildMILPModelSoft(
             
             // Pénalité 2F/3F: dès la 2e fois dans la semaine
             if (count2F3F >= 1) {
-              penalty2F3F -= 100;
+              penalty2F3F -= 200;
             }
             
             // Pénalité totale: dès le 3e rôle de fermeture (1R+2F/3F)
             if (totalClosing >= 2) {
-              penalty1R -= 100;
-              penalty2F3F -= 100;
+              penalty1R -= 200;
+              penalty2F3F -= 200;
             }
             
             // Escalade: pénalité supplémentaire à partir du 4e rôle
             if (totalClosing >= 3) {
-              penalty1R -= 100;
-              penalty2F3F -= 100;
+              penalty1R -= 200;
+              penalty2F3F -= 200;
             }
             
             // Escalade: pénalité encore plus forte à partir du 5e rôle
             if (totalClosing >= 4) {
-              penalty1R -= 100;
-              penalty2F3F -= 100;
+              penalty1R -= 200;
+              penalty2F3F -= 200;
             }
             
             // Règle Florence Bron mardi
