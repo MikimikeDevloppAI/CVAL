@@ -5,7 +5,18 @@ import type {
   AssignmentSummary,
   CurrentState
 } from './types.ts';
-import { ADMIN_SITE_ID, FORBIDDEN_SITES } from './types.ts';
+import { 
+  ADMIN_SITE_ID, 
+  FORBIDDEN_SITES,
+  GASTRO_TYPE_INTERVENTION_ID,
+  VIEILLE_VILLE_SITE_ID,
+  ESPLANADE_OPHTALMOLOGIE_SITE_ID,
+  SALLE_ROUGE_ID,
+  SALLE_VERTE_ID,
+  SALLE_JAUNE_ID,
+  SALLE_GASTRO_ID,
+  SALLES_STANDARD
+} from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
 
 interface Combo {
@@ -136,13 +147,71 @@ export function buildMILPModelSoft(
     // Generate all combos (matin × AM)
     for (const needM of eligibleMatin) {
       for (const needA of eligibleAM) {
-        // EXCLUSION: Bloc + Forbidden site (and vice versa)
+        // ============================================================
+        // EXCLUSION: Règles basées sur les SALLES (alignées avec Assign V2)
+        // ============================================================
         const isBlocMatin = needM?.type === 'bloc_operatoire';
         const isBlocAM = needA?.type === 'bloc_operatoire';
         const isForbiddenMatin = needM && FORBIDDEN_SITES.includes(needM.site_id);
         const isForbiddenAM = needA && FORBIDDEN_SITES.includes(needA.site_id);
         
-        if ((isBlocMatin && isForbiddenAM) || (isForbiddenMatin && isBlocAM)) {
+        // Déterminer le type de salle
+        const salleMatin = needM?.salle_assignee;
+        const salleAM = needA?.salle_assignee;
+        
+        const isSalleStandardMatin = salleMatin && SALLES_STANDARD.includes(salleMatin);
+        const isSalleStandardAM = salleAM && SALLES_STANDARD.includes(salleAM);
+        // Détection robuste avec fallback sur type_intervention_id si salle non assignée
+        const isSalleGastroMatin = salleMatin ? (salleMatin === SALLE_GASTRO_ID) : (needM?.type === 'bloc_operatoire' && needM?.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID);
+        const isSalleGastroAM = salleAM ? (salleAM === SALLE_GASTRO_ID) : (needA?.type === 'bloc_operatoire' && needA?.type_intervention_id === GASTRO_TYPE_INTERVENTION_ID);
+        
+        // ============================================================
+        // RÈGLE 1: Salles standard (Rouge, Verte, Jaune)
+        // → Exclusion avec Centre Esplanade ET Vieille Ville
+        // ============================================================
+        if (isSalleStandardMatin && isForbiddenAM) {
+          continue;
+        }
+        if (isForbiddenMatin && isSalleStandardAM) {
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 2: Salle Gastro
+        // → Exclusion UNIQUEMENT avec Centre Esplanade
+        // → Autorisé avec Vieille Ville, Admin, et autre Gastro
+        // ============================================================
+        const isEsplanadeMatin = needM?.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID;
+        const isEsplanadeAM = needA?.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID;
+        
+        if (isSalleGastroMatin && isEsplanadeAM) {
+          continue;
+        }
+        if (isEsplanadeMatin && isSalleGastroAM) {
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 4: Gastro + autre type d'opération (autre salle) = interdit
+        // ============================================================
+        if (isSalleGastroMatin && needA?.type === 'bloc_operatoire' && !isSalleGastroAM) {
+          continue;
+        }
+        if (isSalleGastroAM && needM?.type === 'bloc_operatoire' && !isSalleGastroMatin) {
+          continue;
+        }
+        
+        // ============================================================
+        // RÈGLE 5: Gastro + autre site (hors Admin et Vieille Ville) = interdit
+        // ============================================================
+        const isVieilleVilleMatin = needM?.site_id === VIEILLE_VILLE_SITE_ID;
+        const isVieilleVilleAM = needA?.site_id === VIEILLE_VILLE_SITE_ID;
+        
+        // Ne pas exclure Gastro + Gastro (même si sites différents)
+        if (isSalleGastroMatin && needA && needA.site_id !== ADMIN_SITE_ID && !isVieilleVilleAM && !isSalleGastroAM) {
+          continue;
+        }
+        if (isSalleGastroAM && needM && needM.site_id !== ADMIN_SITE_ID && !isVieilleVilleMatin && !isSalleGastroMatin) {
           continue;
         }
         

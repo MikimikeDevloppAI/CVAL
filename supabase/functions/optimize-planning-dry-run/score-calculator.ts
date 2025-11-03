@@ -5,7 +5,16 @@ import type {
   PreferencesData,
   DynamicContext
 } from './types.ts';
-import { ADMIN_SITE_ID, SCORE_WEIGHTS, PENALTIES, HIGH_PENALTY_SITES } from './types.ts';
+import { 
+  ADMIN_SITE_ID, 
+  SCORE_WEIGHTS, 
+  PENALTIES, 
+  HIGH_PENALTY_SITES,
+  SAME_SITE_BONUS,
+  ESPLANADE_OPHTALMOLOGIE_SITE_ID,
+  VIEILLE_VILLE_SITE_ID,
+  SALLE_GASTRO_ID
+} from './types.ts';
 
 // Helper to find current assignment for a secretaire on the target date
 function getCurrentAssignment(
@@ -29,18 +38,22 @@ function countWeekAdminAssignments(
   ).length;
 }
 
-// Helper to count site assignments in week for P2/P3/P4 sites
-function countWeekSiteAssignments(
+// Helper to count UNIQUE DAYS for P2/P3/P4 sites (Esplanade only)
+function countWeekSiteDays(
   secretaire_id: string,
   site_id: string,
   week_assignments: AssignmentSummary[]
-): number {
-  return week_assignments.filter(
-    a => a.secretaire_id === secretaire_id && 
-         a.site_id === site_id &&
-         a.site_priorite && 
-         (a.site_priorite === 2 || a.site_priorite === 3 || a.site_priorite === 4)
-  ).length;
+): Set<string> {
+  const dates = new Set<string>();
+  week_assignments
+    .filter(
+      a => a.secretaire_id === secretaire_id && 
+           a.site_id === site_id &&
+           a.site_priorite && 
+           (a.site_priorite === 2 || a.site_priorite === 3 || a.site_priorite === 4)
+    )
+    .forEach(a => dates.add(a.date));
+  return dates;
 }
 
 // Calculate score for a combo (morning + afternoon)
@@ -59,15 +72,8 @@ export function calculateComboScore(
   // Compteurs pour bonus/pénalités progressifs
   let currentAdminCount = countWeekAdminAssignments(secretaire_id, currentAssignments);
   
-  const sitesCount = new Map<string, number>();
-  for (const assignment of currentAssignments) {
-    if (assignment.secretaire_id === secretaire_id && 
-        assignment.site_priorite && 
-        (assignment.site_priorite === 2 || assignment.site_priorite === 3 || assignment.site_priorite === 4)) {
-      const count = sitesCount.get(assignment.site_id) || 0;
-      sitesCount.set(assignment.site_id, count + 1);
-    }
-  }
+  // Map pour tracker les JOURS uniques visités (uniquement Esplanade)
+  const siteDaysCount = new Map<string, number>(); // site_id -> totalDays après visite
   
   // ============================================================
   // 1. MATIN: Scores positifs
@@ -134,16 +140,26 @@ export function calculateComboScore(
       currentAdminCount++; // Incrémenter pour l'après-midi
     }
     
-    // 1e. Pénalité sur-assignation site P2/P3/P4 (MATIN)
-    if (siteMatchMatin && (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3' || siteMatchMatin.priorite === '4')) {
-      const currentSiteCount = sitesCount.get(needMatin.site_id) || 0;
-      if (currentSiteCount >= 2) {
-        const overload = currentSiteCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_234_OVERLOAD;
+    // 1e. Pénalité sur-assignation site P2/P3/P4 (MATIN) - uniquement Esplanade Ophtalmologie
+    if (siteMatchMatin && 
+        (siteMatchMatin.priorite === '2' || siteMatchMatin.priorite === '3' || siteMatchMatin.priorite === '4') &&
+        needMatin.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+      
+      // Obtenir le nombre de JOURS CETTE SEMAINE
+      const weekDaysSet = countWeekSiteDays(secretaire_id, needMatin.site_id, currentAssignments);
+      const weekDaysCount = weekDaysSet.size;
+      
+      // Compter aujourd'hui comme un nouveau jour
+      const totalDays = weekDaysCount + 1;
+      
+      // Pénalité dès le 2ème jour
+      if (totalDays >= 2) {
+        const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
         totalScore += penalty;
       }
-      // Incrémenter pour l'après-midi
-      sitesCount.set(needMatin.site_id, currentSiteCount + 1);
+      
+      // Marquer que ce site a été visité AUJOURD'HUI
+      siteDaysCount.set(needMatin.site_id, totalDays);
     }
   }
   
@@ -211,98 +227,80 @@ export function calculateComboScore(
       }
     }
     
-    // 2e. Pénalité sur-assignation site P2/P3/P4 (AM)
-    if (siteMatchAM && (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3' || siteMatchAM.priorite === '4')) {
-      const currentSiteCount = sitesCount.get(needAM.site_id) || 0;
-      if (currentSiteCount >= 2) {
-        const overload = currentSiteCount - 2;
-        const penalty = overload * PENALTIES.SITE_PREF_234_OVERLOAD;
-        totalScore += penalty;
+    // 2e. Pénalité sur-assignation site P2/P3/P4 (AM) - uniquement Esplanade Ophtalmologie
+    if (siteMatchAM && 
+        (siteMatchAM.priorite === '2' || siteMatchAM.priorite === '3' || siteMatchAM.priorite === '4') &&
+        needAM.site_id === ESPLANADE_OPHTALMOLOGIE_SITE_ID) {
+      
+      // Obtenir le nombre de JOURS CETTE SEMAINE
+      const weekDaysSet = countWeekSiteDays(secretaire_id, needAM.site_id, currentAssignments);
+      const weekDaysCount = weekDaysSet.size;
+      
+      // Vérifier si DÉJÀ ASSIGNÉE CE MATIN au même site Esplanade
+      const alreadyCountedToday = siteDaysCount.has(needAM.site_id);
+      
+      // Si pas encore comptée aujourd'hui → +1 jour
+      // Si déjà comptée ce matin → utiliser le compte du matin (pas de nouveau jour)
+      const totalDays = alreadyCountedToday ? siteDaysCount.get(needAM.site_id)! : weekDaysCount + 1;
+      
+      // Pénalité dès le 2ème jour
+      if (totalDays >= 2) {
+        // Si déjà pénalisé ce matin, ne pas re-pénaliser
+        if (!alreadyCountedToday) {
+          const penalty = (totalDays - 1) * PENALTIES.SITE_PREF_234_OVERLOAD;
+          totalScore += penalty;
+        }
       }
     }
   }
   
   // ============================================================
-  // 3. PÉNALITÉ CHANGEMENT DE SITE
+  // 3. BONUS MÊME SITE + PÉNALITÉ CHANGEMENT DE SITE
   // ============================================================
-  if (needMatin && needAM && needMatin.site_id !== needAM.site_id) {
-    // Exclure les changements impliquant ADMIN
-    if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
-      const isHighPenalty = 
-        HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
-        HIGH_PENALTY_SITES.includes(needAM.site_id);
-      
-      const changePenalty = isHighPenalty ? 
-        PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
-        PENALTIES.CHANGEMENT_SITE;
-      
-      totalScore += changePenalty;
+  if (needMatin && needAM) {
+    // Bonus pour même site matin + après-midi (hors ADMIN)
+    if (needMatin.site_id === needAM.site_id && needMatin.site_id !== ADMIN_SITE_ID) {
+      totalScore += SAME_SITE_BONUS;
     }
-  }
-  
-  // ============================================================
-  // 4. BONUS +100 PAR DEMI-JOURNÉE SI COMBO CORRESPOND À L'ÉTAT ACTUEL (Y COMPRIS ADMIN)
-  // ============================================================
-  if (currentState) {
-    const state = currentState.get(secretaire_id);
-    if (state) {
-      console.log(`  📋 État actuel: Matin=${state.matin_site_id?.slice(0,8)} (besoin=${state.matin_besoin_op_id?.slice(0,8)}, bloc=${state.matin_bloc_op_id?.slice(0,8)}), AM=${state.am_site_id?.slice(0,8)} (besoin=${state.am_besoin_op_id?.slice(0,8)}, bloc=${state.am_bloc_op_id?.slice(0,8)})`);
-      console.log(`  🔍 Combo proposé: Matin=${needMatin?.site_id?.slice(0,8)} (type=${needMatin?.type}${needMatin?.type === 'bloc_operatoire' ? `, bloc=${needMatin.bloc_operation_id?.slice(0,8)}, besoin=${needMatin.besoin_operation_id?.slice(0,8)}` : ''}), AM=${needAM?.site_id?.slice(0,8)} (type=${needAM?.type}${needAM?.type === 'bloc_operatoire' ? `, bloc=${needAM.bloc_operation_id?.slice(0,8)}, besoin=${needAM.besoin_operation_id?.slice(0,8)}` : ''})`);
-      
-      // Détection ADMIN: null OU explicite (site_id === ADMIN_SITE_ID)
-      const isAdminComboMatin = (needMatin === null) || (needMatin?.type === 'site' && needMatin.site_id === ADMIN_SITE_ID);
-      const isAdminComboAM = (needAM === null) || (needAM?.type === 'site' && needAM.site_id === ADMIN_SITE_ID);
-      
-      const matchesMatin = (
-        (isAdminComboMatin && state.matin_site_id === ADMIN_SITE_ID) ||
-        (needMatin && needMatin.type === 'site' && needMatin.site_id === state.matin_site_id) ||
-        (needMatin && needMatin.type === 'bloc_operatoire' && 
-         needMatin.bloc_operation_id === state.matin_bloc_op_id &&
-         needMatin.besoin_operation_id === state.matin_besoin_op_id)
-      );
-      
-      const matchesAM = (
-        (isAdminComboAM && state.am_site_id === ADMIN_SITE_ID) ||
-        (needAM && needAM.type === 'site' && needAM.site_id === state.am_site_id) ||
-        (needAM && needAM.type === 'bloc_operatoire' && 
-         needAM.bloc_operation_id === state.am_bloc_op_id &&
-         needAM.besoin_operation_id === state.am_besoin_op_id)
-      );
-      
-      console.log(`  🔍 Match matin: ${matchesMatin}, Match AM: ${matchesAM}`);
-      
-      // Bonus: +200 par demi-journée qui conserve l'état actuel (Y COMPRIS ADMIN)
-      let bonus = 0;
-      
-      if (matchesMatin) {
-        bonus += 200;
-        if (isAdminComboMatin) {
-          console.log(`  🎯 BONUS +200 matin: état ADMIN conservé (${needMatin === null ? 'null' : 'explicite'}) ✅`);
-        } else if (needMatin?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +200 matin: session BLOC + besoin conservés ✅`);
-        } else {
-          console.log(`  🎯 BONUS +200 matin: site conservé ✅`);
+    
+    // Pénalité pour changement de site
+    if (needMatin.site_id !== needAM.site_id) {
+      // Exclure les changements impliquant ADMIN
+      if (needMatin.site_id !== ADMIN_SITE_ID && needAM.site_id !== ADMIN_SITE_ID) {
+        
+        // ============================================================
+        // RÈGLES GASTRO-ENTÉROLOGIE (basées sur salle_assignee)
+        // ============================================================
+        const isSalleGastroMatin = needMatin.salle_assignee === SALLE_GASTRO_ID;
+        const isSalleGastroAM = needAM.salle_assignee === SALLE_GASTRO_ID;
+        
+        const isVieilleVilleMatin = needMatin.site_id === VIEILLE_VILLE_SITE_ID;
+        const isVieilleVilleAM = needAM.site_id === VIEILLE_VILLE_SITE_ID;
+        
+        // CAS 1: Gastro Matin + Gastro Après-midi = Pas de pénalité
+        const isBothGastro = isSalleGastroMatin && isSalleGastroAM;
+        
+        // CAS 2: Gastro ↔ Vieille Ville Gastro = Pas de pénalité
+        const isGastroVieilleVilleChange = 
+          (isSalleGastroMatin && isVieilleVilleAM) || 
+          (isVieilleVilleMatin && isSalleGastroAM);
+        
+        // Vérifier si on doit appliquer une pénalité
+        const noGastroPenalty = isBothGastro || isGastroVieilleVilleChange;
+        
+        if (!noGastroPenalty) {
+          // Pénalité normale de changement de site
+          const isHighPenalty = 
+            HIGH_PENALTY_SITES.includes(needMatin.site_id) || 
+            HIGH_PENALTY_SITES.includes(needAM.site_id);
+          
+          const changePenalty = isHighPenalty ? 
+            PENALTIES.CHANGEMENT_SITE_HIGH_PENALTY : 
+            PENALTIES.CHANGEMENT_SITE;
+          
+          totalScore += changePenalty;
         }
       }
-      
-      if (matchesAM) {
-        bonus += 200;
-        if (isAdminComboAM) {
-          console.log(`  🎯 BONUS +200 AM: état ADMIN conservé (${needAM === null ? 'null' : 'explicite'}) ✅`);
-        } else if (needAM?.type === 'bloc_operatoire') {
-          console.log(`  🎯 BONUS +200 AM: session BLOC + besoin conservés ✅`);
-        } else {
-          console.log(`  🎯 BONUS +200 AM: site conservé ✅`);
-        }
-      }
-      
-      if (bonus === 0) {
-        console.log(`  ❌ Pas de bonus (aucun match avec état actuel)`);
-      }
-      
-      totalScore += bonus;
-    } else {
-      console.log(`  ℹ️ Pas d'état actuel trouvé pour cette secrétaire`);
     }
   }
   
