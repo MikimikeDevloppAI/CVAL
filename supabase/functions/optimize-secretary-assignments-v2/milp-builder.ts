@@ -418,6 +418,15 @@ export function buildMILPModelSoft(
   const closureSites = week_data.sites.filter((s: any) => s.fermeture);
   
   for (const site of closureSites) {
+    // 🆕 EXCLURE LE SAMEDI (pas de contraintes de fermeture)
+    const dateObj = new Date(date + 'T00:00:00Z');
+    const dayOfWeek = dateObj.getUTCDay(); // 0 = dimanche, 6 = samedi
+    
+    if (dayOfWeek === 6) {
+      logger.debug(`  ⏭️ Skip contraintes fermeture pour ${site.nom} le ${date} (samedi)`);
+      continue;
+    }
+    
     const morningNeed = needsMatin.find(n => n.site_id === site.id);
     const afternoonNeed = needsAM.find(n => n.site_id === site.id);
     
@@ -465,30 +474,33 @@ export function buildMILPModelSoft(
             const count2F3F = context.closing_2f3f_counters.get(combo.secretaire_id) || 0;
             const totalClosing = count1R + count2F3F;
             
+            // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
+            const multiplier = context.penalty_multipliers?.get(combo.secretaire_id) || 1.0;
+            
             let penalty1R = 0;
             let penalty2F3F = 0;
             
             // Pénalité 2F/3F: dès la 2e fois dans la semaine
             if (count2F3F >= 1) {
-              penalty2F3F -= 250;
+              penalty2F3F -= 150 * multiplier;
             }
             
             // Pénalité totale: dès le 3e rôle de fermeture (1R+2F/3F)
             if (totalClosing >= 2) {
-              penalty1R -= 250;
-              penalty2F3F -= 250;
+              penalty1R -= 150 * multiplier;
+              penalty2F3F -= 150 * multiplier;
             }
             
             // Escalade: pénalité supplémentaire à partir du 4e rôle
             if (totalClosing >= 3) {
-              penalty1R -= 200;
-              penalty2F3F -= 200;
+              penalty1R -= 200 * multiplier;
+              penalty2F3F -= 200 * multiplier;
             }
             
             // Escalade: pénalité encore plus forte à partir du 5e rôle
             if (totalClosing >= 4) {
-              penalty1R -= 200;
-              penalty2F3F -= 200;
+              penalty1R -= 200 * multiplier;
+              penalty2F3F -= 200 * multiplier;
             }
             
             // Règle Florence Bron mardi
@@ -606,21 +618,24 @@ export function buildMILPModelSoft(
           const count2F3F = context.closing_2f3f_counters.get(secId) || 0;
           const totalClosing = count1R + count2F3F;
           
+          // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
+          const multiplier = context.penalty_multipliers?.get(secId) || 1.0;
+          
           let penalty1R = 0;
           let penalty2F3F = 0;
           
-          if (count2F3F >= 1) penalty2F3F -= 250;
+          if (count2F3F >= 1) penalty2F3F -= 150 * multiplier;
           if (totalClosing >= 2) {
-            penalty1R -= 250;
-            penalty2F3F -= 250;
+            penalty1R -= 150 * multiplier;
+            penalty2F3F -= 150 * multiplier;
           }
           if (totalClosing >= 3) {
-            penalty1R -= 200;
-            penalty2F3F -= 200;
+            penalty1R -= 200 * multiplier;
+            penalty2F3F -= 200 * multiplier;
           }
           if (totalClosing >= 4) {
-            penalty1R -= 200;
-            penalty2F3F -= 200;
+            penalty1R -= 200 * multiplier;
+            penalty2F3F -= 200 * multiplier;
           }
           
           // EXCLUSION: Lucie Pratillo ne peut JAMAIS être 2F/3F
@@ -742,21 +757,24 @@ export function buildMILPModelSoft(
           const count2F3F = context.closing_2f3f_counters.get(secId) || 0;
           const totalClosing = count1R + count2F3F;
           
+          // 🆕 Récupérer le multiplicateur depuis l'historique S-2 + S-1
+          const multiplier = context.penalty_multipliers?.get(secId) || 1.0;
+          
           let penalty1R = 0;
           let penalty2F3F = 0;
           
-          if (count2F3F >= 1) penalty2F3F -= 250;
+          if (count2F3F >= 1) penalty2F3F -= 150 * multiplier;
           if (totalClosing >= 2) {
-            penalty1R -= 250;
-            penalty2F3F -= 250;
+            penalty1R -= 150 * multiplier;
+            penalty2F3F -= 150 * multiplier;
           }
           if (totalClosing >= 3) {
-            penalty1R -= 200;
-            penalty2F3F -= 200;
+            penalty1R -= 200 * multiplier;
+            penalty2F3F -= 200 * multiplier;
           }
           if (totalClosing >= 4) {
-            penalty1R -= 200;
-            penalty2F3F -= 200;
+            penalty1R -= 200 * multiplier;
+            penalty2F3F -= 200 * multiplier;
           }
           
           // EXCLUSION: Lucie Pratillo ne peut JAMAIS être 2F/3F

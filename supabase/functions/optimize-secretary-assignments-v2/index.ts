@@ -242,13 +242,89 @@ async function loadTodayAssignments(
   return assignments;
 }
 
+// Load previous 2 weeks (S-2 and S-1) history for 1R/2F rotation penalties
+async function loadPreviousWeeksHistory(
+  currentWeekStart: string,
+  supabase: any
+): Promise<Map<string, number>> {
+  const currentMonday = new Date(currentWeekStart + 'T00:00:00Z');
+  
+  // S-1: previous week
+  const s1Monday = new Date(currentMonday);
+  s1Monday.setUTCDate(s1Monday.getUTCDate() - 7);
+  const s1Sunday = new Date(s1Monday);
+  s1Sunday.setUTCDate(s1Sunday.getUTCDate() + 6);
+  
+  // S-2: 2 weeks before
+  const s2Monday = new Date(currentMonday);
+  s2Monday.setUTCDate(s2Monday.getUTCDate() - 14);
+  const s2Sunday = new Date(s2Monday);
+  s2Sunday.setUTCDate(s2Sunday.getUTCDate() + 6);
+  
+  const s1Start = s1Monday.toISOString().split('T')[0];
+  const s1End = s1Sunday.toISOString().split('T')[0];
+  const s2Start = s2Monday.toISOString().split('T')[0];
+  const s2End = s2Sunday.toISOString().split('T')[0];
+  
+  logger.info(`📅 Chargement historique S-2: ${s2Start} → ${s2End}`);
+  logger.info(`📅 Chargement historique S-1: ${s1Start} → ${s1End}`);
+  
+  const { data: capacites, error } = await supabase
+    .from('capacite_effective')
+    .select('*')
+    .gte('date', s2Start)
+    .lte('date', s1End)
+    .eq('actif', true)
+    .not('secretaire_id', 'is', null);
+  
+  if (error) {
+    logger.error(`❌ Erreur chargement historique: ${error.message}`);
+    return new Map();
+  }
+  
+  const detailsBySecretary = new Map<string, { count1R: number, count2F3F: number }>();
+  const alreadyCounted = new Set<string>();
+  
+  for (const cap of capacites || []) {
+    const secId = cap.secretaire_id;
+    const roleKey = `${secId}_${cap.date}_${cap.site_id}`;
+    
+    if (!detailsBySecretary.has(secId)) {
+      detailsBySecretary.set(secId, { count1R: 0, count2F3F: 0 });
+    }
+    
+    const details = detailsBySecretary.get(secId)!;
+    
+    if (cap.is_1r && !alreadyCounted.has(`${roleKey}_1r`)) {
+      details.count1R += 1;
+      alreadyCounted.add(`${roleKey}_1r`);
+    }
+    
+    if ((cap.is_2f || cap.is_3f) && !alreadyCounted.has(`${roleKey}_2f`)) {
+      details.count2F3F += 1;
+      alreadyCounted.add(`${roleKey}_2f`);
+    }
+  }
+  
+  const finalScores = new Map<string, number>();
+  
+  for (const [secId, details] of detailsBySecretary.entries()) {
+    const score = details.count1R * 1 + details.count2F3F * 2;
+    finalScores.set(secId, score);
+    logger.info(`  📊 ${secId.substring(0, 8)}: ${details.count1R}×1R + ${details.count2F3F}×2F/3F = ${score} pts`);
+  }
+  
+  return finalScores;
+}
+
 // Run a single optimization pass for the week
 async function runOptimizationPass(
   sortedDates: string[],
   weekData: any,
   supabase: any,
   passNumber: 1 | 2,
-  pass1Assignments?: Map<string, any[]>
+  pass1Assignments?: Map<string, any[]>,
+  previousWeeksHistory?: Map<string, number>
 ): Promise<{
   success: boolean;
   weekAssignments: Map<string, any[]>;
@@ -260,6 +336,7 @@ async function runOptimizationPass(
   const p2p3Counters = new Map<string, Map<string, Set<string>>>();
   const closing1RCounters = new Map<string, number>();
   const closing2F3FCounters = new Map<string, number>();
+  const penaltyMultipliers = new Map<string, number>();
   
   const weekAssignments = new Map<string, any[]>();
   
@@ -278,6 +355,7 @@ async function runOptimizationPass(
       p2p3Counters.clear();
       closing1RCounters.clear();
       closing2F3FCounters.clear();
+      penaltyMultipliers.clear();
       
       const contextDates = sortedDates.filter(d => d !== date);
       const pass2Dates: string[] = [];
@@ -344,6 +422,19 @@ async function runOptimizationPass(
               closing2F3FCounters.set(roleKey, true as any);
             }
           }
+        }
+      }
+      
+      // 🆕 Calculer les multiplicateurs de pénalité depuis l'historique S-2 + S-1
+      penaltyMultipliers.clear();
+      
+      if (previousWeeksHistory) {
+        logger.info(`\n🔢 Calcul multiplicateurs de pénalité depuis historique S-2 + S-1:`);
+        for (const [secId, historyScore] of previousWeeksHistory.entries()) {
+          const multiplier = 1 + (historyScore / 10);
+          penaltyMultipliers.set(secId, multiplier);
+          const sec = weekData.secretaires.find((s: any) => s.id === secId);
+          logger.info(`  ${sec?.name || secId.substring(0, 8)}: ${multiplier.toFixed(2)}x (historique: ${historyScore} pts)`);
         }
       }
       
@@ -481,7 +572,8 @@ async function runOptimizationPass(
       p2p3_counters: p2p3Counters,
       closing_1r_counters: closing1RCounters,
       closing_2f3f_counters: closing2F3FCounters,
-      sites_needing_3f: sitesNeeding3F
+      sites_needing_3f: sitesNeeding3F,
+      penalty_multipliers: penaltyMultipliers
     };
     
     // ============================================================
@@ -762,7 +854,8 @@ async function runOptimizationPass(
 
 async function optimizeSingleWeek(
   dates: string[],
-  supabase: any
+  supabase: any,
+  previousWeeksHistory?: Map<string, number>
 ): Promise<any> {
   const sortedDates = dates.sort();
   
@@ -786,7 +879,9 @@ async function optimizeSingleWeek(
     sortedDates,
     weekData,
     supabase,
-    1
+    1,
+    undefined,
+    previousWeeksHistory
   );
   
   if (!pass1Results.success) {
@@ -805,7 +900,8 @@ async function optimizeSingleWeek(
     weekData,
     supabase,
     2,
-    pass1Results.weekAssignments
+    pass1Results.weekAssignments,
+    previousWeeksHistory
   );
   
   logger.info('\n♻️ Rafraîchissement des vues matérialisées...');
@@ -861,17 +957,23 @@ serve(async (req) => {
     
     logger.info(`📅 ${weekGroups.size} semaine(s) à optimiser`);
     
-    const weekPromises = Array.from(weekGroups.values()).map(weekDates => 
-      optimizeSingleWeek(weekDates, supabase)
-    );
+    const allResults: any[] = [];
     
-    const results = await Promise.all(weekPromises);
+    for (const [weekStart, weekDates] of weekGroups.entries()) {
+      logger.info(`\n🗓️ Optimisation de la semaine du ${weekStart} (${weekDates.length} jours)`);
+      
+      // 🆕 Charger l'historique des 2 semaines précédentes
+      const previousWeeksHistory = await loadPreviousWeeksHistory(weekStart, supabase);
+      
+      const weekResults = await optimizeSingleWeek(weekDates, supabase, previousWeeksHistory);
+      allResults.push(...weekResults);
+    }
     
     return new Response(
       JSON.stringify({
         success: true,
         message: `Optimisation terminée pour ${dates.length} dates`,
-        results
+        results: allResults
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
