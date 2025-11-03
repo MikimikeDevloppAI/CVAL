@@ -989,7 +989,7 @@ serve(async (req) => {
         responsable2F3F = candidates2F3F[0].id;
         
         const score2F3F = currentWeekScores.get(responsable2F3F)!;
-        score2F3F.score += needsThreeF ? 15 : 10;
+        score2F3F.score += needsThreeF ? 3 : 2;
         if (needsThreeF) {
           score2F3F.count_3f += 1;
         } else {
@@ -1019,7 +1019,7 @@ serve(async (req) => {
             let adjustedScore = current.score;
             
             if ((current.count_2f + current.count_3f) >= 2) {
-              adjustedScore += 50;
+              adjustedScore += 10;
             }
             
             return { id, adjustedScore };
@@ -1030,7 +1030,7 @@ serve(async (req) => {
           responsable1R = candidates1R[0].id;
           
           const score1R = currentWeekScores.get(responsable1R)!;
-          score1R.score += 2;
+          score1R.score += 1;
           score1R.count_1r += 1;
           
           closingAssignments.set(`${responsable1R}_matin`, { is_1r: true, is_2f: false, is_3f: false });
