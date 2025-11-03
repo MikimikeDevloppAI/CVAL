@@ -30,18 +30,18 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
   const fetchUnfilledNeeds = async () => {
     setLoading(true);
     try {
-      const today = new Date();
-      const fourWeeksLater = addWeeks(today, 4);
-      const startDate = format(today, 'yyyy-MM-dd');
+      const startDate = '2025-12-08';
+      const fourWeeksLater = addWeeks(new Date(startDate), 4);
       const endDate = format(fourWeeksLater, 'yyyy-MM-dd');
 
       setDateRange({ start: startDate, end: endDate });
 
-      // Créer 4 semaines à partir d'aujourd'hui
+      // Créer 4 semaines à partir du 8 décembre 2025
       const weeksData: WeekData[] = [];
+      const baseDate = new Date(startDate);
       for (let i = 0; i < 4; i++) {
-        const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
-        const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
+        const weekStart = startOfWeek(addWeeks(baseDate, i), { locale: fr });
+        const weekEnd = endOfWeek(addWeeks(baseDate, i), { locale: fr });
         const weekStartStr = format(weekStart, 'yyyy-MM-dd');
         const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
         
