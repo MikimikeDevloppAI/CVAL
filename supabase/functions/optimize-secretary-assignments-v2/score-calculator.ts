@@ -127,9 +127,9 @@ export function calculateDynamicScore(
     
     // Vérifier si le secrétaire a un objectif de demi-journées admin défini
     if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
-      // Tant qu'on est sous l'objectif : bonus de 100 points
+      // Tant qu'on est sous l'objectif : bonus de 200 points
       if (totalAdminCount < secretaire.nombre_demi_journees_admin) {
-        const adminBonus = 100;
+        const adminBonus = 200;
         score += adminBonus;
       } else {
         // Au-delà de l'objectif : bonus minimal de 1 point
@@ -262,8 +262,8 @@ export function calculateComboScore(
     if (needMatin.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
-          totalScore += 100;
-          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +100`);
+          totalScore += 200;
+          if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +200`);
         } else {
           totalScore += 1;
           if (isFocused) logger.info(`  💼 MATIN Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
@@ -352,8 +352,8 @@ export function calculateComboScore(
     if (needAM.site_id === ADMIN_SITE_ID) {
       if (secretaire.nombre_demi_journees_admin && secretaire.nombre_demi_journees_admin > 0) {
         if (currentAdminCount < secretaire.nombre_demi_journees_admin) {
-          totalScore += 100;
-          if (isFocused) logger.info(`  💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +100`);
+          totalScore += 200;
+          if (isFocused) logger.info(`  💼 AM Admin (${currentAdminCount}/${secretaire.nombre_demi_journees_admin}): +200`);
         } else {
           totalScore += 1;
           if (isFocused) logger.info(`  💼 AM Admin (${currentAdminCount} ≥ ${secretaire.nombre_demi_journees_admin}): +1 (dépassement)`);
