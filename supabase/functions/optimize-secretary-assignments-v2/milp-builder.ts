@@ -628,6 +628,20 @@ export function buildMILPModelSoft(
             penalty2F3F -= 10000;
           }
           
+          // 🎯 BONUS: Profil "Matin sur site + Après-midi Admin" pour 2F
+          // Vérifier si cette secrétaire a un combo qui correspond à ce profil
+          const hasTargetProfile = comboVars.some(comboVar => {
+            const combo = combos.find(c => c.varName === comboVar);
+            return combo && 
+                   combo.needMatin?.site_id === site.id && 
+                   combo.needAM?.site_id === ADMIN_SITE_ID;
+          });
+          
+          if (hasTargetProfile) {
+            penalty2F3F += 200; // Bonus pour profil idéal
+            console.log(`  🎯 Bonus profil "Matin ${site.nom} + AM Admin" pour 2F: +200`);
+          }
+          
           model.variables[var1R] = { score_total: penalty1R };
           model.variables[var2F3F] = { score_total: penalty2F3F };
           

@@ -324,13 +324,24 @@ async function runOptimizationPass(
             secMap.get(assign.site_id)!.add(contextDate);
           }
           
-          // Compter les rôles de fermeture (1R, 2F, 3F) - uniquement sur la période MATIN pour éviter double comptage
-          if (assign.periode === 'matin') {
-            if (assign.is_1r) {
+          // Compter les rôles de fermeture (1R, 2F, 3F) - éviter double comptage pour journée complète
+          const roleKey = `${secId}_${contextDate}_${assign.site_id}`;
+          
+          if (assign.is_1r) {
+            const alreadyCounted1R = closing1RCounters.get(roleKey);
+            if (!alreadyCounted1R) {
               closing1RCounters.set(secId, (closing1RCounters.get(secId) || 0) + 1);
+              // Marquer comme déjà compté pour ce jour/site
+              closing1RCounters.set(roleKey, true as any);
             }
-            if (assign.is_2f || assign.is_3f) {
+          }
+          
+          if (assign.is_2f || assign.is_3f) {
+            const alreadyCounted2F = closing2F3FCounters.get(roleKey);
+            if (!alreadyCounted2F) {
               closing2F3FCounters.set(secId, (closing2F3FCounters.get(secId) || 0) + 1);
+              // Marquer comme déjà compté pour ce jour/site
+              closing2F3FCounters.set(roleKey, true as any);
             }
           }
         }
