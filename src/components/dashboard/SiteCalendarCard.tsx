@@ -180,11 +180,6 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
               {site.site_nom}
             </h3>
           </div>
-          {hasIssues && (
-            <Badge variant="outline" className="bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
-              Besoins non satisfaits
-            </Badge>
-          )}
         </div>
       </div>
 
