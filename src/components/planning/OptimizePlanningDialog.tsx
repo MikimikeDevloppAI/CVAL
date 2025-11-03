@@ -57,12 +57,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
   
   const { toast } = useToast();
 
-  // Generate 12 weeks starting from current week
+  // Generate 52 weeks starting from current week
   useEffect(() => {
     const today = new Date();
     const generatedWeeks: WeekData[] = [];
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 52; i++) {
       const weekDate = addWeeks(today, i);
       const weekStart = startOfWeek(weekDate, { locale: fr, weekStartsOn: 1 });
       const weekEnd = endOfWeek(weekDate, { locale: fr, weekStartsOn: 1 });
