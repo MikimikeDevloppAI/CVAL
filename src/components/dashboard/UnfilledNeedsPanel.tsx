@@ -319,7 +319,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             date: need.date,
             site_id: blocSite?.id || '',
             site_nom: 'Clinique La Vallée - Bloc opératoire',
-            planning_genere_bloc_operatoire_id: `${need.type_intervention_id}-${need.medecin_id}`,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id,
             besoins_personnel: [],
             has_both_periods: false,
             total_manque: 0,
@@ -791,9 +791,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     need: AggregatedNeed | any,
     periode: 'matin' | 'apres_midi',
     suggestion: SecretaireSuggestion,
-    fullDay: boolean = false
+    fullDay: boolean = false,
+    blocOperationId?: string,
+    planningGenereId?: string
   ) => {
-    const besoinOperationId = (need as any).besoin_operation_id;
     const key = `${need.date}-${periode}-${need.site_id}-${suggestion.secretaire_id}-${fullDay}`;
     setAssigningId(key);
 
@@ -814,21 +815,29 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           periode: p,
           secretaire: suggestion.secretaire_nom,
           site_id: need.site_id,
-          besoin_operation_id: besoinOperationId,
-          planning_genere_bloc_id: need.planning_genere_bloc_operatoire_id,
+          besoin_operation_id: blocOperationId,
+          planning_genere_bloc_id: planningGenereId,
         });
+
+        // Pour les besoins SITE : ne JAMAIS remplir les champs bloc
+        // Pour les besoins BLOC : utiliser les paramètres passés explicitement
+        const insertData: any = {
+          date: need.date,
+          secretaire_id: suggestion.secretaire_id,
+          demi_journee: p,
+          site_id: need.site_id,
+          actif: true
+        };
+
+        // Ajouter les IDs bloc SEULEMENT si fournis explicitement
+        if (blocOperationId && planningGenereId) {
+          insertData.besoin_operation_id = blocOperationId;
+          insertData.planning_genere_bloc_operatoire_id = planningGenereId;
+        }
 
         const { error } = await supabase
           .from('capacite_effective')
-          .insert({
-            date: need.date,
-            secretaire_id: suggestion.secretaire_id,
-            demi_journee: p,
-            site_id: need.site_id,
-            besoin_operation_id: besoinOperationId || null,
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
-            actif: true
-          });
+          .insert(insertData);
 
         if (error) throw error;
       }
@@ -1656,13 +1665,14 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                           s.secretaire_id === selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-matin`]
                                         );
                                         if (sug) {
-                                          const tempNeed = { 
-                                            ...need, 
-                                            site_id: need.site_id,
-                                            besoin_operation_id: besoin.besoin_operation_id,
-                                            planning_genere_bloc_operatoire_id: besoin.planning_genere_bloc_id
-                                          } as any;
-                                          handleQuickAssign(tempNeed, 'matin', sug, false);
+                                          handleQuickAssign(
+                                            need,
+                                            'matin',
+                                            sug,
+                                            false,
+                                            besoin.besoin_operation_id,
+                                            besoin.planning_genere_bloc_id
+                                          );
                                           setSelectedSecretaire(prev => ({ 
                                             ...prev, 
                                             [`${needKey}-${besoin.besoin_operation_id}-matin`]: "" 
@@ -1755,13 +1765,14 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                           s.secretaire_id === selectedSecretaire[`${needKey}-${besoin.besoin_operation_id}-apres_midi`]
                                         );
                                         if (sug) {
-                                          const tempNeed = { 
-                                            ...need, 
-                                            site_id: need.site_id,
-                                            besoin_operation_id: besoin.besoin_operation_id,
-                                            planning_genere_bloc_operatoire_id: besoin.planning_genere_bloc_id
-                                          } as any;
-                                          handleQuickAssign(tempNeed, 'apres_midi', sug, false);
+                                          handleQuickAssign(
+                                            need,
+                                            'apres_midi',
+                                            sug,
+                                            false,
+                                            besoin.besoin_operation_id,
+                                            besoin.planning_genere_bloc_id
+                                          );
                                           setSelectedSecretaire(prev => ({ 
                                             ...prev, 
                                             [`${needKey}-${besoin.besoin_operation_id}-apres_midi`]: "" 
