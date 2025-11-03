@@ -469,13 +469,13 @@ export function buildMILPModelSoft(
             
             // Pénalité 2F/3F: dès la 2e fois dans la semaine
             if (count2F3F >= 1) {
-              penalty2F3F -= 200;
+              penalty2F3F -= 250;
             }
             
             // Pénalité totale: dès le 3e rôle de fermeture (1R+2F/3F)
             if (totalClosing >= 2) {
-              penalty1R -= 200;
-              penalty2F3F -= 200;
+              penalty1R -= 250;
+              penalty2F3F -= 250;
             }
             
             // Escalade: pénalité supplémentaire à partir du 4e rôle
