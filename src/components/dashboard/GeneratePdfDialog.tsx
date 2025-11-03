@@ -190,7 +190,7 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
                   {pdfs.map((pdf) => (
                     <div
                       key={pdf.id}
-                      className="p-3 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm hover:border-teal-300/50 transition-all"
+                      className="p-3 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm hover:border-teal-300/50 transition-all overflow-hidden"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 p-2 rounded-lg bg-teal-500/10">
