@@ -550,7 +550,7 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full pr-4">
+          <ScrollArea className="h-[600px] pr-4">
             <div className="space-y-2">
               {weeks.map((week, index) => {
                 const isExpanded = expandedWeeks.has(index);
