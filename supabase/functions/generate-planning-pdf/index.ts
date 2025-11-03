@@ -418,17 +418,17 @@ function generatePlanningHTML(
       
       // 2. Médecin
       if (assignment.medecin) {
-        lines.push(`Médecin : Dr ${assignment.medecin}`);
+        lines.push(`Dr ${assignment.medecin}`);
       }
       
       // 3. Type d'intervention
       if (assignment.typeIntervention) {
-        lines.push(`Type d'intervention : ${assignment.typeIntervention}`);
+        lines.push(`${assignment.typeIntervention}`);
       }
       
       // 4. Besoin opératoire
       if (assignment.typeBesoinBloc) {
-        lines.push(`Besoin opératoire : ${assignment.typeBesoinBloc}`);
+        lines.push(`${assignment.typeBesoinBloc}`);
       }
       
       return lines.join('<br>') + (badges.length > 0 ? '<br>' + badges.join(' ') : '');
