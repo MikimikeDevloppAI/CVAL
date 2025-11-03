@@ -269,7 +269,7 @@ const DashboardPage = () => {
             .from('besoin_effectif')
             .select(`
               *,
-              medecins(id, first_name, name)
+              medecins(id, first_name, name, besoin_secretaires)
             `)
             .eq('site_id', site.id)
             .gte('date', startDate)
@@ -330,11 +330,12 @@ const DashboardPage = () => {
                 });
               }
               
-              // Add to besoin count
+              // Add to besoin count from medecin's besoin_secretaires
+              const besoinSecretaire = besoin.medecins.besoin_secretaires ?? 1.2;
               if (periode === 'matin') {
-                day.besoin_secretaires_matin += 1.2;
+                day.besoin_secretaires_matin += besoinSecretaire;
               } else {
-                day.besoin_secretaires_apres_midi += 1.2;
+                day.besoin_secretaires_apres_midi += besoinSecretaire;
               }
             }
           });
