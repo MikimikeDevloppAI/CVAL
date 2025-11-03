@@ -20,6 +20,7 @@ import { calculateComboScore } from './score-calculator.ts';
 import { logger } from './index.ts';
 
 const DEBUG_VERBOSE = false;
+const LUCIE_PRATILLO_ID = '5d3af9e3-674b-48d6-b54f-bd84c9eee670';
 
 interface Combo {
   secretaire_id: string;
@@ -420,11 +421,11 @@ export function buildMILPModelSoft(
     const morningNeed = needsMatin.find(n => n.site_id === site.id);
     const afternoonNeed = needsAM.find(n => n.site_id === site.id);
     
-    // Only enforce if both periods have medical needs
-    if (morningNeed && afternoonNeed && 
-        morningNeed.medecins_ids.length > 0 && 
-        afternoonNeed.medecins_ids.length > 0) {
-      
+    const hasMorning = morningNeed && morningNeed.medecins_ids.length > 0;
+    const hasAfternoon = afternoonNeed && afternoonNeed.medecins_ids.length > 0;
+    
+    // CAS C: Journée complète (both morning AND afternoon needs) - logique actuelle conservée
+    if (hasMorning && hasAfternoon) {
       const fullDayVars: string[] = [];
       const roleVars = {
         is_1r: [] as Array<{ secId: string, varName: string, comboVar: string }>,
@@ -498,6 +499,11 @@ export function buildMILPModelSoft(
               penalty2F3F -= 500; // Très forte pénalité
             }
             
+            // EXCLUSION: Lucie Pratillo ne peut JAMAIS être 2F/3F
+            if (combo.secretaire_id === LUCIE_PRATILLO_ID) {
+              penalty2F3F -= 10000; // Pénalité extrême pour rendre la solution infaisable
+            }
+            
             // Debug logs pour secrétaires ciblées
             const sec = week_data.secretaires.find((s: any) => s.id === combo.secretaire_id);
             const secName = sec?.name || combo.secretaire_id.substring(0, 8);
@@ -565,6 +571,214 @@ export function buildMILPModelSoft(
         logger.info(`  🔐 Site fermeture ${site.nom}: ${fullDayVars.length} journées complètes (min: 2) | Rôles: 1R + ${roleType}`);
       } else {
         logger.info(`  ⚠️ Site fermeture ${site.nom}: Seulement ${fullDayVars.length} journées complètes possibles!`);
+      }
+    } 
+    // CAS A: Besoin UNIQUEMENT LE MATIN
+    else if (hasMorning && !hasAfternoon) {
+      const morningCandidates = new Map<string, string[]>(); // secId -> comboVars[]
+      const roleVars = {
+        is_1r: [] as Array<{ secId: string, varName: string, comboVar: string }>,
+        is_2f3f: [] as Array<{ secId: string, varName: string, comboVar: string, needs3F: boolean }>
+      };
+      
+      const needs3F = context.sites_needing_3f.get(date)?.has(site.id) || false;
+      
+      // Find all combos where morning = this site (afternoon can be anything)
+      for (const combo of combos) {
+        if (combo.needMatin?.site_id === site.id) {
+          if (!morningCandidates.has(combo.secretaire_id)) {
+            morningCandidates.set(combo.secretaire_id, []);
+          }
+          morningCandidates.get(combo.secretaire_id)!.push(combo.varName);
+        }
+      }
+      
+      if (morningCandidates.size >= 2) {
+        // Create role variables with _matin suffix
+        for (const [secId, comboVars] of morningCandidates.entries()) {
+          const var1R = `role_1r_${secId}_${site.id}_${date}_matin`;
+          const var2F3F = `role_2f3f_${secId}_${site.id}_${date}_matin`;
+          
+          model.binaries[var1R] = 1;
+          model.binaries[var2F3F] = 1;
+          
+          const count1R = context.closing_1r_counters.get(secId) || 0;
+          const count2F3F = context.closing_2f3f_counters.get(secId) || 0;
+          const totalClosing = count1R + count2F3F;
+          
+          let penalty1R = 0;
+          let penalty2F3F = 0;
+          
+          if (count2F3F >= 1) penalty2F3F -= 250;
+          if (totalClosing >= 2) {
+            penalty1R -= 250;
+            penalty2F3F -= 250;
+          }
+          if (totalClosing >= 3) {
+            penalty1R -= 200;
+            penalty2F3F -= 200;
+          }
+          if (totalClosing >= 4) {
+            penalty1R -= 200;
+            penalty2F3F -= 200;
+          }
+          
+          // EXCLUSION: Lucie Pratillo ne peut JAMAIS être 2F/3F
+          if (secId === LUCIE_PRATILLO_ID) {
+            penalty2F3F -= 10000;
+          }
+          
+          model.variables[var1R] = { score_total: penalty1R };
+          model.variables[var2F3F] = { score_total: penalty2F3F };
+          
+          roleVars.is_1r.push({ secId, varName: var1R, comboVar: comboVars[0] });
+          roleVars.is_2f3f.push({ secId, varName: var2F3F, comboVar: comboVars[0], needs3F });
+          
+          // Link role to ANY of the combos for this secretary on this site (morning)
+          for (const comboVar of comboVars) {
+            const linkConstraint1R = `link_1r_${var1R}_${comboVar}`;
+            model.constraints[linkConstraint1R] = { max: 0 };
+            model.variables[var1R][linkConstraint1R] = 1;
+            model.variables[comboVar][linkConstraint1R] = -1;
+            
+            const linkConstraint2F = `link_2f3f_${var2F3F}_${comboVar}`;
+            model.constraints[linkConstraint2F] = { max: 0 };
+            model.variables[var2F3F][linkConstraint2F] = 1;
+            model.variables[comboVar][linkConstraint2F] = -1;
+          }
+        }
+        
+        // Exactly 1 person in 1R for morning
+        const constraint1R = `closure_1r_${site.id}_${date}_matin`;
+        model.constraints[constraint1R] = { equal: 1 };
+        for (const { varName } of roleVars.is_1r) {
+          model.variables[varName][constraint1R] = 1;
+        }
+        
+        // Exactly 1 person in 2F/3F for morning
+        const constraint2F3F = `closure_2f3f_${site.id}_${date}_matin`;
+        model.constraints[constraint2F3F] = { equal: 1 };
+        for (const { varName } of roleVars.is_2f3f) {
+          model.variables[varName][constraint2F3F] = 1;
+        }
+        
+        // Exclusivity: one person cannot have both roles
+        for (const { secId, varName: var1R } of roleVars.is_1r) {
+          const var2F3F = `role_2f3f_${secId}_${site.id}_${date}_matin`;
+          const exclusiveConstraint = `exclusive_role_${secId}_${site.id}_${date}_matin`;
+          model.constraints[exclusiveConstraint] = { max: 1 };
+          model.variables[var1R][exclusiveConstraint] = 1;
+          model.variables[var2F3F][exclusiveConstraint] = 1;
+        }
+        
+        const roleType = needs3F ? '3F' : '2F';
+        logger.info(`  🌅 Site fermeture ${site.nom} (MATIN SEULEMENT): ${morningCandidates.size} candidates | Rôles: 1R + ${roleType}`);
+      } else {
+        logger.info(`  ⚠️ Site fermeture ${site.nom} (MATIN): Seulement ${morningCandidates.size} candidates!`);
+      }
+    }
+    // CAS B: Besoin UNIQUEMENT L'APRÈS-MIDI
+    else if (!hasMorning && hasAfternoon) {
+      const afternoonCandidates = new Map<string, string[]>(); // secId -> comboVars[]
+      const roleVars = {
+        is_1r: [] as Array<{ secId: string, varName: string, comboVar: string }>,
+        is_2f3f: [] as Array<{ secId: string, varName: string, comboVar: string, needs3F: boolean }>
+      };
+      
+      const needs3F = context.sites_needing_3f.get(date)?.has(site.id) || false;
+      
+      // Find all combos where afternoon = this site (morning can be anything)
+      for (const combo of combos) {
+        if (combo.needAM?.site_id === site.id) {
+          if (!afternoonCandidates.has(combo.secretaire_id)) {
+            afternoonCandidates.set(combo.secretaire_id, []);
+          }
+          afternoonCandidates.get(combo.secretaire_id)!.push(combo.varName);
+        }
+      }
+      
+      if (afternoonCandidates.size >= 2) {
+        // Create role variables with _pm suffix
+        for (const [secId, comboVars] of afternoonCandidates.entries()) {
+          const var1R = `role_1r_${secId}_${site.id}_${date}_pm`;
+          const var2F3F = `role_2f3f_${secId}_${site.id}_${date}_pm`;
+          
+          model.binaries[var1R] = 1;
+          model.binaries[var2F3F] = 1;
+          
+          const count1R = context.closing_1r_counters.get(secId) || 0;
+          const count2F3F = context.closing_2f3f_counters.get(secId) || 0;
+          const totalClosing = count1R + count2F3F;
+          
+          let penalty1R = 0;
+          let penalty2F3F = 0;
+          
+          if (count2F3F >= 1) penalty2F3F -= 250;
+          if (totalClosing >= 2) {
+            penalty1R -= 250;
+            penalty2F3F -= 250;
+          }
+          if (totalClosing >= 3) {
+            penalty1R -= 200;
+            penalty2F3F -= 200;
+          }
+          if (totalClosing >= 4) {
+            penalty1R -= 200;
+            penalty2F3F -= 200;
+          }
+          
+          // EXCLUSION: Lucie Pratillo ne peut JAMAIS être 2F/3F
+          if (secId === LUCIE_PRATILLO_ID) {
+            penalty2F3F -= 10000;
+          }
+          
+          model.variables[var1R] = { score_total: penalty1R };
+          model.variables[var2F3F] = { score_total: penalty2F3F };
+          
+          roleVars.is_1r.push({ secId, varName: var1R, comboVar: comboVars[0] });
+          roleVars.is_2f3f.push({ secId, varName: var2F3F, comboVar: comboVars[0], needs3F });
+          
+          // Link role to ANY of the combos for this secretary on this site (afternoon)
+          for (const comboVar of comboVars) {
+            const linkConstraint1R = `link_1r_${var1R}_${comboVar}`;
+            model.constraints[linkConstraint1R] = { max: 0 };
+            model.variables[var1R][linkConstraint1R] = 1;
+            model.variables[comboVar][linkConstraint1R] = -1;
+            
+            const linkConstraint2F = `link_2f3f_${var2F3F}_${comboVar}`;
+            model.constraints[linkConstraint2F] = { max: 0 };
+            model.variables[var2F3F][linkConstraint2F] = 1;
+            model.variables[comboVar][linkConstraint2F] = -1;
+          }
+        }
+        
+        // Exactly 1 person in 1R for afternoon
+        const constraint1R = `closure_1r_${site.id}_${date}_pm`;
+        model.constraints[constraint1R] = { equal: 1 };
+        for (const { varName } of roleVars.is_1r) {
+          model.variables[varName][constraint1R] = 1;
+        }
+        
+        // Exactly 1 person in 2F/3F for afternoon
+        const constraint2F3F = `closure_2f3f_${site.id}_${date}_pm`;
+        model.constraints[constraint2F3F] = { equal: 1 };
+        for (const { varName } of roleVars.is_2f3f) {
+          model.variables[varName][constraint2F3F] = 1;
+        }
+        
+        // Exclusivity: one person cannot have both roles
+        for (const { secId, varName: var1R } of roleVars.is_1r) {
+          const var2F3F = `role_2f3f_${secId}_${site.id}_${date}_pm`;
+          const exclusiveConstraint = `exclusive_role_${secId}_${site.id}_${date}_pm`;
+          model.constraints[exclusiveConstraint] = { max: 1 };
+          model.variables[var1R][exclusiveConstraint] = 1;
+          model.variables[var2F3F][exclusiveConstraint] = 1;
+        }
+        
+        const roleType = needs3F ? '3F' : '2F';
+        logger.info(`  🌇 Site fermeture ${site.nom} (APRÈS-MIDI SEULEMENT): ${afternoonCandidates.size} candidates | Rôles: 1R + ${roleType}`);
+      } else {
+        logger.info(`  ⚠️ Site fermeture ${site.nom} (APRÈS-MIDI): Seulement ${afternoonCandidates.size} candidates!`);
       }
     }
   }

@@ -183,45 +183,76 @@ export async function writeAssignments(
   }
   
   // PHASE 2: Parse role variables for 1R/2F/3F
-  // Structure simplifiée: roleUpdates stocke par secretaire_id seulement
-  const roleUpdatesBySecretary = new Map<string, { is_1r?: boolean, is_2f?: boolean, is_3f?: boolean, siteId: string }>();
+  // Structure avec période: roleUpdates stocke par secretaire_id + periode
+  const roleUpdatesBySecretary = new Map<string, { 
+    is_1r?: boolean, 
+    is_2f?: boolean, 
+    is_3f?: boolean, 
+    siteId: string,
+    periode: 'matin' | 'apres_midi' | 'both'
+  }>();
   
   for (const [varName, value] of Object.entries(solution)) {
     if (Number(value) <= 0.5) continue;
     
     if (varName.startsWith('role_1r_')) {
-      // Format: role_1r_secretaire_id_site_id_date
+      // Format: role_1r_secretaire_id_site_id_date[_matin|_pm]?
       const parts = varName.split('_');
       const secId = parts[2];
       const siteId = parts[3];
+      const dateOrPeriod = parts[4];
+      const maybePeriod = parts[5];
+      
+      // Detect period suffix
+      let periode: 'matin' | 'apres_midi' | 'both' = 'both';
+      if (maybePeriod === 'matin') {
+        periode = 'matin';
+      } else if (maybePeriod === 'pm') {
+        periode = 'apres_midi';
+      }
 
-      // Enforce site for both periods when a closing role is assigned
-      const key = `${secId}|${siteId}`;
-      if (!roleSiteKeys.has(key)) {
-        roleSiteEnforcements.push({ secId, siteId });
-        roleSiteKeys.add(key);
+      // Enforce site for both periods only if periode === 'both'
+      if (periode === 'both') {
+        const key = `${secId}|${siteId}`;
+        if (!roleSiteKeys.has(key)) {
+          roleSiteEnforcements.push({ secId, siteId });
+          roleSiteKeys.add(key);
+        }
       }
       
       // Stocker le rôle au niveau de la secrétaire
       if (!roleUpdatesBySecretary.has(secId)) {
-        roleUpdatesBySecretary.set(secId, { siteId });
+        roleUpdatesBySecretary.set(secId, { siteId, periode });
       }
       roleUpdatesBySecretary.get(secId)!.is_1r = true;
       
-      console.log(`  🔒 1R assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
+      const periodStr = periode === 'both' ? '' : ` (${periode})`;
+      console.log(`  🔒 1R assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})${periodStr}`);
     }
     
     if (varName.startsWith('role_2f3f_')) {
-      // Format: role_2f3f_secretaire_id_site_id_date
+      // Format: role_2f3f_secretaire_id_site_id_date[_matin|_pm]?
       const parts = varName.split('_');
       const secId = parts[2];
       const siteId = parts[3];
+      const dateOrPeriod = parts[4];
+      const maybePeriod = parts[5];
+      
+      // Detect period suffix
+      let periode: 'matin' | 'apres_midi' | 'both' = 'both';
+      if (maybePeriod === 'matin') {
+        periode = 'matin';
+      } else if (maybePeriod === 'pm') {
+        periode = 'apres_midi';
+      }
 
-      // Enforce site for both periods when a closing role is assigned
-      const key = `${secId}|${siteId}`;
-      if (!roleSiteKeys.has(key)) {
-        roleSiteEnforcements.push({ secId, siteId });
-        roleSiteKeys.add(key);
+      // Enforce site for both periods only if periode === 'both'
+      if (periode === 'both') {
+        const key = `${secId}|${siteId}`;
+        if (!roleSiteKeys.has(key)) {
+          roleSiteEnforcements.push({ secId, siteId });
+          roleSiteKeys.add(key);
+        }
       }
       
       // Determine if it's 2F or 3F based on need
@@ -230,7 +261,7 @@ export async function writeAssignments(
       
       // Stocker le rôle au niveau de la secrétaire
       if (!roleUpdatesBySecretary.has(secId)) {
-        roleUpdatesBySecretary.set(secId, { siteId });
+        roleUpdatesBySecretary.set(secId, { siteId, periode });
       }
       if (is3F) {
         roleUpdatesBySecretary.get(secId)!.is_3f = true;
@@ -238,7 +269,8 @@ export async function writeAssignments(
         roleUpdatesBySecretary.get(secId)!.is_2f = true;
       }
       
-      console.log(`  🔒 ${is3F ? '3F' : '2F'} assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})`);
+      const periodStr = periode === 'both' ? '' : ` (${periode})`;
+      console.log(`  🔒 ${is3F ? '3F' : '2F'} assigné: ${secId.slice(0,8)}... sur ${siteId.slice(0,8)}... (${date})${periodStr}`);
     }
   }
   
@@ -292,8 +324,8 @@ export async function writeAssignments(
     }
   }
   
-  // PHASE 4: Update roles (1R/2F/3F) on BOTH periods with fallback strategy
-  console.log('\n📋 PHASE 4: Écriture des rôles 1R/2F/3F sur MATIN + APRÈS-MIDI...');
+  // PHASE 4: Update roles (1R/2F/3F) according to periode
+  console.log('\n📋 PHASE 4: Écriture des rôles 1R/2F/3F selon période...');
   
   for (const [secId, roleData] of roleUpdatesBySecretary.entries()) {
     const updates: any = {
@@ -308,8 +340,14 @@ export async function writeAssignments(
       roleData.is_3f ? '3F' : null,
     ].filter(Boolean).join('+');
 
-    // Process BOTH periods: matin AND apres_midi
-    for (const periode of ['matin', 'apres_midi'] as const) {
+    // Determine which periods to update based on roleData.periode
+    const periodsToUpdate: Array<'matin' | 'apres_midi'> = 
+      roleData.periode === 'both' 
+        ? ['matin', 'apres_midi'] 
+        : [roleData.periode];
+
+    // Process selected periods
+    for (const periode of periodsToUpdate) {
       const key = `${secId}|${date}|${periode}`;
       const capId = capIdMap.get(key);
       
@@ -354,7 +392,7 @@ export async function writeAssignments(
   console.log(`  ✅ ${roleUpdatesBySecretary.size} secrétaires avec rôles traités`);
   
   // ============================================================================
-  // POST-WRITE DIAGNOSTIC: Verify roles are written on BOTH periods with autocorrection
+  // POST-WRITE DIAGNOSTIC: Verify roles are written on correct periods with autocorrection
   // ============================================================================
   console.log('\n🔍 POST-WRITE DIAGNOSTIC: Vérification rôles dans la base...');
   
@@ -366,71 +404,57 @@ export async function writeAssignments(
         roleData.is_3f ? '3F' : null,
       ].filter(Boolean).join('+');
       
-      // Check both periods in database
+      const periodsToCheck: Array<'matin' | 'apres_midi'> = 
+        roleData.periode === 'both' 
+          ? ['matin', 'apres_midi'] 
+          : [roleData.periode];
+      
+      // Check relevant periods in database
       const { data: dbCheck, error: errCheck } = await supabase
         .from('capacite_effective')
         .select('id, demi_journee, is_1r, is_2f, is_3f')
         .eq('date', date)
         .eq('actif', true)
         .eq('secretaire_id', secId)
-        .in('demi_journee', ['matin', 'apres_midi']);
+        .in('demi_journee', periodsToCheck);
       
       if (errCheck) {
         console.error(`❌ Erreur vérification pour ${secId.slice(0,8)}...:`, errCheck.message);
         continue;
       }
       
-      const matinRow = dbCheck?.find(r => r.demi_journee === 'matin');
-      const pmRow = dbCheck?.find(r => r.demi_journee === 'apres_midi');
-      
-      // Check if flags are correctly set on each period
-      const matinOk = matinRow && (
-        (roleData.is_1r ? matinRow.is_1r : !matinRow.is_1r) &&
-        (roleData.is_2f ? matinRow.is_2f : !matinRow.is_2f) &&
-        (roleData.is_3f ? matinRow.is_3f : !matinRow.is_3f)
-      );
-      const pmOk = pmRow && (
-        (roleData.is_1r ? pmRow.is_1r : !pmRow.is_1r) &&
-        (roleData.is_2f ? pmRow.is_2f : !pmRow.is_2f) &&
-        (roleData.is_3f ? pmRow.is_3f : !pmRow.is_3f)
-      );
-      
-      if (!matinOk && matinRow) {
-        console.error(`❌ MATIN flags incorrects pour ${secId.slice(0,8)}... avec rôle ${roleStr} - AUTOCORRECTION...`);
+      for (const periode of periodsToCheck) {
+        const row = dbCheck?.find(r => r.demi_journee === periode);
         
-        await supabase
-          .from('capacite_effective')
-          .update({
-            is_1r: roleData.is_1r || false,
-            is_2f: roleData.is_2f || false,
-            is_3f: roleData.is_3f || false,
-          })
-          .eq('id', matinRow.id);
-          
-        console.log(`✅ Autocorrection MATIN effectuée`);
-      }
-      
-      if (!pmOk && pmRow) {
-        console.error(`❌ APRÈS-MIDI flags incorrects pour ${secId.slice(0,8)}... avec rôle ${roleStr} - AUTOCORRECTION...`);
+        if (!row) {
+          console.error(`❌ Aucune ligne ${periode.toUpperCase()} trouvée pour ${secId.slice(0,8)}...`);
+          continue;
+        }
         
-        await supabase
-          .from('capacite_effective')
-          .update({
-            is_1r: roleData.is_1r || false,
-            is_2f: roleData.is_2f || false,
-            is_3f: roleData.is_3f || false,
-          })
-          .eq('id', pmRow.id);
+        // Check if flags are correctly set
+        const isOk = (
+          (roleData.is_1r ? row.is_1r : !row.is_1r) &&
+          (roleData.is_2f ? row.is_2f : !row.is_2f) &&
+          (roleData.is_3f ? row.is_3f : !row.is_3f)
+        );
+        
+        if (!isOk) {
+          console.error(`❌ ${periode.toUpperCase()} flags incorrects pour ${secId.slice(0,8)}... avec rôle ${roleStr} - AUTOCORRECTION...`);
           
-        console.log(`✅ Autocorrection APRÈS-MIDI effectuée`);
-      }
-      
-      if (matinOk && pmOk) {
-        console.log(`✅ Rôle ${roleStr} correctement écrit sur LES DEUX périodes pour ${secId.slice(0,8)}...`);
-      } else if (!matinRow) {
-        console.error(`❌ Aucune ligne MATIN trouvée pour ${secId.slice(0,8)}...`);
-      } else if (!pmRow) {
-        console.error(`❌ Aucune ligne APRÈS-MIDI trouvée pour ${secId.slice(0,8)}...`);
+          await supabase
+            .from('capacite_effective')
+            .update({
+              is_1r: roleData.is_1r || false,
+              is_2f: roleData.is_2f || false,
+              is_3f: roleData.is_3f || false,
+            })
+            .eq('id', row.id);
+            
+          console.log(`✅ Autocorrection ${periode.toUpperCase()} effectuée`);
+        } else {
+          const periodStr = roleData.periode === 'both' ? 'LES DEUX périodes' : periode.toUpperCase();
+          console.log(`✅ Rôle ${roleStr} correctement écrit sur ${periodStr} pour ${secId.slice(0,8)}...`);
+        }
       }
     }
   }
