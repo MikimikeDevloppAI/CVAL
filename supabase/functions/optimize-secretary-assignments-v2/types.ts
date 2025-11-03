@@ -162,8 +162,8 @@ export const SCORE_WEIGHTS = {
   BESOIN_OP_PREF_1: 5000,
   BESOIN_OP_PREF_2: 4500,
   BESOIN_OP_PREF_3: 4250,
-  MEDECIN_PREF_1: 1400,
-  MEDECIN_PREF_2: 1240,
+  MEDECIN_PREF_1: 2400,
+  MEDECIN_PREF_2: 2240,
   SITE_PREF_1: 1200,
   SITE_PREF_2: 1190,
   SITE_PREF_3: 1180,
@@ -210,8 +210,8 @@ export const SAME_SITE_BONUS = 20;
 
 // Pénalités pour fermetures (calibrées pour favoriser rotation)
 export const CLOSING_PENALTIES = {
-  TWO_2F3F_TIMES: -100, // Pénalité dès la 2e fois 2F/3F dans la semaine (count2F3F >= 1)
-  THREE_CLOSING_ROLES: -100, // Pénalité dès le 3e rôle de fermeture total (totalClosing >= 2)
+  TWO_2F3F_TIMES: -200, // Pénalité dès la 2e fois 2F/3F dans la semaine (count2F3F >= 1)
+  THREE_CLOSING_ROLES: -200, // Pénalité dès le 3e rôle de fermeture total (totalClosing >= 2)
   FOUR_OR_MORE_CLOSING: -200, // Pénalité supplémentaire cumulée si 4+ et 5+ rôles
   FLORENCE_BRON_TUESDAY_2F: -500, // Très forte pénalité pour Florence Bron 2F le mardi
 };
