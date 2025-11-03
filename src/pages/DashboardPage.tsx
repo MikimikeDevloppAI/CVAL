@@ -788,9 +788,9 @@ const DashboardPage = () => {
             <div className="flex justify-center">
               <TabsList>
                 <TabsTrigger value="site">Sites</TabsTrigger>
+                <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
                 <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
                 <TabsTrigger value="medecin">Médecins</TabsTrigger>
-                <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
               </TabsList>
             </div>
             <div></div>
