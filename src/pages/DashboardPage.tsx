@@ -231,6 +231,24 @@ const DashboardPage = () => {
         !site.nom.toLowerCase().includes('opératoire')
       );
 
+      // Fetch salles for bloc opératoire
+      const { data: sallesData } = await supabase
+        .from('salles_operation')
+        .select('*')
+        .order('name');
+
+      // Create virtual sites for each salle
+      const salleSites = (sallesData || []).map(salle => ({
+        id: `salle-${salle.id}`,
+        nom: salle.name || 'Salle inconnue',
+        actif: true,
+        fermeture: false,
+        adresse: '',
+        created_at: salle.created_at,
+        updated_at: salle.created_at,
+        salle_id: salle.id // Store original salle ID
+      }));
+
       // Add administrative site at the end
       const adminSite = {
         id: '00000000-0000-0000-0000-000000000001',
@@ -241,7 +259,9 @@ const DashboardPage = () => {
         created_at: '',
         updated_at: ''
       };
-      const allSites = [...sites, adminSite];
+      
+      // Order: Salles → Sites normaux → Administratif
+      const allSites = [...salleSites, ...sites, adminSite];
 
       // Fetch stats
       const { data: secretaires } = await supabase
@@ -272,38 +292,195 @@ const DashboardPage = () => {
       const dashboardData = await Promise.all(
         allSites.map(async (site) => {
           const isAdminSite = site.id === '00000000-0000-0000-0000-000000000001';
-          // Fetch besoins effectifs (médecins)
-          const { data: besoins } = await supabase
-            .from('besoin_effectif')
-            .select(`
-              *,
-              medecins(id, first_name, name, besoin_secretaires)
-            `)
-            .eq('site_id', site.id)
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .eq('type', 'medecin')
-            .order('date');
+          const isSalleSite = site.id.startsWith('salle-');
+          
+          let besoins: any[] = [];
+          let capacite: any[] = [];
+          
+          if (isSalleSite) {
+            // For salle sites, fetch bloc operations
+            const salleId = (site as any).salle_id;
+            const { data: operations } = await supabase
+              .from('planning_genere_bloc_operatoire')
+              .select(`
+                *,
+                medecins(id, first_name, name, besoin_secretaires),
+                types_intervention(id, nom)
+              `)
+              .eq('salle_assignee', salleId)
+              .gte('date', startDate)
+              .lte('date', endDate)
+              .neq('statut', 'annule')
+              .order('date');
+            
+            // For each operation, get personnel needs and assignments
+            const operationsWithPersonnel = await Promise.all(
+              (operations || []).map(async (op) => {
+                // Fetch personnel needs for this intervention type
+                const { data: personnelBesoins } = await supabase
+                  .from('types_intervention_besoins_personnel')
+                  .select(`
+                    nombre_requis,
+                    besoins_operations(id, nom, code)
+                  `)
+                  .eq('type_intervention_id', op.type_intervention_id)
+                  .eq('actif', true);
+                
+                // Fetch actual assignments for this operation
+                const { data: assignments } = await supabase
+                  .from('capacite_effective')
+                  .select(`
+                    *,
+                    secretaires(id, first_name, name)
+                  `)
+                  .eq('planning_genere_bloc_operatoire_id', op.id)
+                  .eq('actif', true);
+                
+                return { ...op, personnelBesoins, assignments };
+              })
+            );
+            
+            // Transform operations into the expected format
+            // We don't populate besoins/capacite for salle sites in the traditional way
+            // Instead we'll process them directly in the daysMap
+          } else {
+            // Fetch besoins effectifs (médecins) for normal sites
+            const { data: besoinsData } = await supabase
+              .from('besoin_effectif')
+              .select(`
+                *,
+                medecins(id, first_name, name, besoin_secretaires)
+              `)
+              .eq('site_id', site.id)
+              .gte('date', startDate)
+              .lte('date', endDate)
+              .eq('type', 'medecin')
+              .order('date');
+            besoins = besoinsData || [];
 
-          // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
-          // Exclure les assignations au bloc opératoire dans la vue par site
-          const { data: capacite } = await supabase
-            .from('capacite_effective')
-            .select(`
-              *,
-              secretaires(id, first_name, name)
-            `)
-            .eq('site_id', site.id)
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .eq('actif', true)
-            .is('planning_genere_bloc_operatoire_id', null)
-            .order('date');
+            // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
+            // Exclure les assignations au bloc opératoire dans la vue par site
+            const { data: capaciteData } = await supabase
+              .from('capacite_effective')
+              .select(`
+                *,
+                secretaires(id, first_name, name)
+              `)
+              .eq('site_id', site.id)
+              .gte('date', startDate)
+              .lte('date', endDate)
+              .eq('actif', true)
+              .is('planning_genere_bloc_operatoire_id', null)
+              .order('date');
+            capacite = capaciteData || [];
+          }
 
           // Group by date only (not by period)
           const daysMap = new Map<string, DayData>();
           
-          // Process besoins (médecins)
+          if (isSalleSite) {
+            // For salle sites, process bloc operations
+            const salleId = (site as any).salle_id;
+            const { data: operations } = await supabase
+              .from('planning_genere_bloc_operatoire')
+              .select(`
+                *,
+                medecins(id, first_name, name, besoin_secretaires),
+                types_intervention(id, nom)
+              `)
+              .eq('salle_assignee', salleId)
+              .gte('date', startDate)
+              .lte('date', endDate)
+              .neq('statut', 'annule')
+              .order('date');
+            
+            // Process each operation
+            for (const op of operations || []) {
+              const date = op.date;
+              if (!daysMap.has(date)) {
+                daysMap.set(date, {
+                  date,
+                  medecins: [],
+                  secretaires: [],
+                  besoin_secretaires_matin: 0,
+                  besoin_secretaires_apres_midi: 0,
+                  status_matin: 'non_satisfait',
+                  status_apres_midi: 'non_satisfait'
+                });
+              }
+              const day = daysMap.get(date)!;
+              const periode = op.periode === 'matin' ? 'matin' : 'apres_midi';
+              
+              // Add medecin
+              if (op.medecins) {
+                const existingMedecin = day.medecins.find(m => m.id === op.medecins.id);
+                if (existingMedecin) {
+                  existingMedecin[periode] = true;
+                } else {
+                  day.medecins.push({
+                    id: op.medecins.id,
+                    nom: op.medecins.name || '',
+                    prenom: op.medecins.first_name || '',
+                    matin: periode === 'matin',
+                    apres_midi: periode === 'apres_midi'
+                  });
+                }
+              }
+              
+              // Fetch personnel needs and assignments
+              const { data: personnelBesoins } = await supabase
+                .from('types_intervention_besoins_personnel')
+                .select(`
+                  nombre_requis,
+                  besoins_operations(id, nom)
+                `)
+                .eq('type_intervention_id', op.type_intervention_id)
+                .eq('actif', true);
+              
+              const { data: assignments } = await supabase
+                .from('capacite_effective')
+                .select(`
+                  *,
+                  secretaires(id, first_name, name)
+                `)
+                .eq('planning_genere_bloc_operatoire_id', op.id)
+                .eq('actif', true);
+              
+              // Calculate total personnel needed
+              const totalBesoin = (personnelBesoins || []).reduce((sum, b) => sum + b.nombre_requis, 0);
+              if (periode === 'matin') {
+                day.besoin_secretaires_matin += totalBesoin;
+              } else {
+                day.besoin_secretaires_apres_midi += totalBesoin;
+              }
+              
+              // Add assigned secretaires
+              (assignments || []).forEach(assign => {
+                if (assign.secretaires) {
+                  const existingSecretaire = day.secretaires.find(s => s.id === assign.secretaires.id);
+                  if (existingSecretaire) {
+                    existingSecretaire[periode] = true;
+                    if (assign.is_1r) existingSecretaire.is_1r = true;
+                    if (assign.is_2f) existingSecretaire.is_2f = true;
+                    if (assign.is_3f) existingSecretaire.is_3f = true;
+                  } else {
+                    day.secretaires.push({
+                      id: assign.secretaires.id,
+                      nom: assign.secretaires.name || '',
+                      prenom: assign.secretaires.first_name || '',
+                      matin: periode === 'matin',
+                      apres_midi: periode === 'apres_midi',
+                      is_1r: assign.is_1r,
+                      is_2f: assign.is_2f,
+                      is_3f: assign.is_3f
+                    });
+                  }
+                }
+              });
+            }
+          }
+          
+          // Process besoins (médecins) for regular sites
           besoins?.forEach((besoin) => {
             const date = besoin.date;
             if (!daysMap.has(date)) {
