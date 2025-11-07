@@ -240,7 +240,7 @@ const DashboardPage = () => {
       // Create virtual sites for each salle
       const salleSites = (sallesData || []).map(salle => ({
         id: `salle-${salle.id}`,
-        nom: salle.name || 'Salle inconnue',
+        nom: `Salle ${salle.name || 'inconnue'}`,
         actif: true,
         fermeture: false,
         adresse: '',
@@ -260,8 +260,8 @@ const DashboardPage = () => {
         updated_at: ''
       };
       
-      // Order: Salles → Sites normaux → Administratif
-      const allSites = [...salleSites, ...sites, adminSite];
+      // Order: Sites normaux → Salles → Administratif
+      const allSites = [...sites, ...salleSites, adminSite];
 
       // Fetch stats
       const { data: secretaires } = await supabase
