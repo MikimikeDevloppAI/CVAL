@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { QuickActionButton } from '@/components/dashboard/QuickActionButton';
 import { SiteCalendarCard } from '@/components/dashboard/SiteCalendarCard';
+import { SitesTableView } from '@/components/dashboard/SitesTableView';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
 import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
@@ -26,10 +27,12 @@ import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
 import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
 import { toast } from 'sonner';
 
-interface PersonnePresence {
+export interface PersonnePresence {
   id: string;
   nom: string;
   prenom?: string;
+  nom_complet?: string;
+  periode?: 'matin' | 'apres_midi';
   matin: boolean;
   apres_midi: boolean;
   validated?: boolean;
@@ -38,7 +41,7 @@ interface PersonnePresence {
   is_3f?: boolean;
 }
 
-interface DayData {
+export interface DayData {
   date: string;
   medecins: PersonnePresence[];
   secretaires: PersonnePresence[];
@@ -48,9 +51,10 @@ interface DayData {
   status_apres_midi: 'satisfait' | 'partiel' | 'non_satisfait';
 }
 
-interface DashboardSite {
+export interface DashboardSite {
   site_id: string;
   site_nom: string;
+  fermeture: boolean;
   site_fermeture: boolean;
   days: DayData[];
 }
@@ -152,6 +156,10 @@ const DashboardPage = () => {
 
   const startDate = format(startOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
   const endDate = format(endOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
+  const weekDays = eachDayOfInterval({
+    start: parseISO(startDate),
+    end: parseISO(endDate)
+  });
 
   const calculateStatus = (besoin: number, assigne: number): 'satisfait' | 'partiel' | 'non_satisfait' => {
     if (assigne >= besoin) return 'satisfait';
@@ -584,6 +592,7 @@ const DashboardPage = () => {
             site_id: site.id,
             site_nom: site.nom,
             site_fermeture: site.fermeture || false,
+            fermeture: site.fermeture || false,
             days
           };
         })
@@ -1040,18 +1049,13 @@ const DashboardPage = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6">
-              {dashboardSites.map((site, index) => (
-                <SiteCalendarCard
-                  key={site.site_id}
-                  site={site}
-                  startDate={startDate}
-                  endDate={endDate}
-                  index={index}
-                  onRefresh={fetchDashboardData}
-                />
-              ))}
-            </div>
+            <SitesTableView
+              sites={dashboardSites}
+              weekDays={weekDays}
+              onDayClick={(siteId, date) => {
+                console.log('Day clicked:', siteId, date);
+              }}
+            />
           )}
         </TabsContent>
 
