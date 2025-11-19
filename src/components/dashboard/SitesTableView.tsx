@@ -74,140 +74,87 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                   );
                 }
 
-                const hasMatin = dayData.medecins.some(m => m.matin) || 
-                                 dayData.secretaires.some(s => s.matin);
-                const hasApresMidi = dayData.medecins.some(m => m.apres_midi) || 
-                                     dayData.secretaires.some(s => s.apres_midi);
+                // Regrouper médecins et secrétaires avec leur période
+                const allMedecins = dayData.medecins.map(m => ({
+                  ...m,
+                  type: 'medecin' as const,
+                  isMatinOnly: m.matin && !m.apres_midi,
+                  isApresMidiOnly: !m.matin && m.apres_midi,
+                  isFullDay: m.matin && m.apres_midi
+                }));
+                
+                const allSecretaires = dayData.secretaires.map(s => ({
+                  ...s,
+                  type: 'secretaire' as const,
+                  isMatinOnly: s.matin && !s.apres_midi,
+                  isApresMidiOnly: !s.matin && s.apres_midi,
+                  isFullDay: s.matin && s.apres_midi
+                }));
 
-                const matinMedecins = dayData.medecins.filter(m => m.matin);
-                const apresMidiMedecins = dayData.medecins.filter(m => m.apres_midi);
-                const matinSecretaires = dayData.secretaires.filter(s => s.matin);
-                const apresMidiSecretaires = dayData.secretaires.filter(s => s.apres_midi);
-
-                const hasDeficitMatin = dayData.status_matin === 'non_satisfait';
-                const hasDeficitApresMidi = dayData.status_apres_midi === 'non_satisfait';
+                const hasDeficit = dayData.status_matin === 'non_satisfait' || 
+                                  dayData.status_apres_midi === 'non_satisfait';
 
                 return (
                   <TableCell
                     key={dateStr}
                     className={cn(
-                      "p-2 cursor-pointer hover:bg-accent/50 transition-colors",
-                      (hasDeficitMatin || hasDeficitApresMidi) && "border-l-2 border-l-destructive"
+                      "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top",
+                      hasDeficit && "border-l-2 border-l-destructive"
                     )}
                     onClick={() => onDayClick?.(site.site_id, dateStr)}
                   >
                     <div className="space-y-2 text-xs">
-                      {/* Matin */}
-                      {hasMatin && (
-                        <div className={cn(
-                          "p-1.5 rounded border",
-                          hasDeficitMatin ? "bg-destructive/10 border-destructive/30" : "bg-card"
-                        )}>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-500 text-white">
-                              M
-                            </Badge>
-                            {hasDeficitMatin && (
-                              <AlertCircle className="h-3 w-3 text-destructive" />
-                            )}
+                      {/* Médecins */}
+                      {allMedecins.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground mb-1 pb-1 border-b">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>Médecins</span>
                           </div>
-                          
-                          {matinMedecins.length > 0 && (
-                            <div className="mb-1">
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-                                <Stethoscope className="h-2.5 w-2.5" />
-                                <span>Médecins</span>
+                          <div className="space-y-1">
+                            {allMedecins.map(m => (
+                              <div key={m.id} className="flex items-center gap-1.5">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full flex-shrink-0",
+                                  m.isMatinOnly && "bg-blue-500",
+                                  m.isApresMidiOnly && "bg-yellow-500",
+                                  m.isFullDay && "bg-green-500"
+                                )} />
+                                <span className="text-[10px] truncate">
+                                  {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
+                                </span>
                               </div>
-                              <div className="space-y-0.5">
-                                {matinMedecins.slice(0, 2).map(m => (
-                                  <div key={m.id} className="text-[10px] truncate">
-                                    {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
-                                  </div>
-                                ))}
-                                {matinMedecins.length > 2 && (
-                                  <span className="text-[10px] text-primary">+{matinMedecins.length - 2}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {matinSecretaires.length > 0 && (
-                            <div>
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-                                <User className="h-2.5 w-2.5" />
-                                <span>Assistants</span>
-                              </div>
-                              <div className="space-y-0.5">
-                                {matinSecretaires.slice(0, 2).map(s => (
-                                  <div key={s.id} className="text-[10px] truncate">
-                                    {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
-                                  </div>
-                                ))}
-                                {matinSecretaires.length > 2 && (
-                                  <span className="text-[10px] text-primary">+{matinSecretaires.length - 2}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
                       )}
 
-                      {/* Après-midi */}
-                      {hasApresMidi && (
-                        <div className={cn(
-                          "p-1.5 rounded border",
-                          hasDeficitApresMidi ? "bg-destructive/10 border-destructive/30" : "bg-card"
-                        )}>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-yellow-500 text-white">
-                              AM
-                            </Badge>
-                            {hasDeficitApresMidi && (
-                              <AlertCircle className="h-3 w-3 text-destructive" />
-                            )}
+                      {/* Assistants médicaux */}
+                      {allSecretaires.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground mb-1 pb-1 border-b">
+                            <User className="h-3 w-3" />
+                            <span>Assistants médicaux</span>
                           </div>
-                          
-                          {apresMidiMedecins.length > 0 && (
-                            <div className="mb-1">
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-                                <Stethoscope className="h-2.5 w-2.5" />
-                                <span>Médecins</span>
+                          <div className="space-y-1">
+                            {allSecretaires.map(s => (
+                              <div key={s.id} className="flex items-center gap-1.5">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full flex-shrink-0",
+                                  s.isMatinOnly && "bg-blue-500",
+                                  s.isApresMidiOnly && "bg-yellow-500",
+                                  s.isFullDay && "bg-green-500"
+                                )} />
+                                <span className="text-[10px] truncate">
+                                  {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
+                                </span>
                               </div>
-                              <div className="space-y-0.5">
-                                {apresMidiMedecins.slice(0, 2).map(m => (
-                                  <div key={m.id} className="text-[10px] truncate">
-                                    {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
-                                  </div>
-                                ))}
-                                {apresMidiMedecins.length > 2 && (
-                                  <span className="text-[10px] text-primary">+{apresMidiMedecins.length - 2}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {apresMidiSecretaires.length > 0 && (
-                            <div>
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-                                <User className="h-2.5 w-2.5" />
-                                <span>Assistants</span>
-                              </div>
-                              <div className="space-y-0.5">
-                                {apresMidiSecretaires.slice(0, 2).map(s => (
-                                  <div key={s.id} className="text-[10px] truncate">
-                                    {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
-                                  </div>
-                                ))}
-                                {apresMidiSecretaires.length > 2 && (
-                                  <span className="text-[10px] text-primary">+{apresMidiSecretaires.length - 2}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
                       )}
 
-                      {!hasMatin && !hasApresMidi && (
+                      {allMedecins.length === 0 && allSecretaires.length === 0 && (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </div>
