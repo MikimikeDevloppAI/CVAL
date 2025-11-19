@@ -74,15 +74,15 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                   );
                 }
 
-                const hasMatin = dayData.medecins.some(m => m.periode === 'matin') || 
-                                 dayData.secretaires.some(s => s.periode === 'matin');
-                const hasApresMidi = dayData.medecins.some(m => m.periode === 'apres_midi') || 
-                                     dayData.secretaires.some(s => s.periode === 'apres_midi');
+                const hasMatin = dayData.medecins.some(m => m.matin) || 
+                                 dayData.secretaires.some(s => s.matin);
+                const hasApresMidi = dayData.medecins.some(m => m.apres_midi) || 
+                                     dayData.secretaires.some(s => s.apres_midi);
 
-                const matinMedecins = dayData.medecins.filter(m => m.periode === 'matin');
-                const apresMidiMedecins = dayData.medecins.filter(m => m.periode === 'apres_midi');
-                const matinSecretaires = dayData.secretaires.filter(s => s.periode === 'matin');
-                const apresMidiSecretaires = dayData.secretaires.filter(s => s.periode === 'apres_midi');
+                const matinMedecins = dayData.medecins.filter(m => m.matin);
+                const apresMidiMedecins = dayData.medecins.filter(m => m.apres_midi);
+                const matinSecretaires = dayData.secretaires.filter(s => s.matin);
+                const apresMidiSecretaires = dayData.secretaires.filter(s => s.apres_midi);
 
                 const hasDeficitMatin = dayData.status_matin === 'non_satisfait';
                 const hasDeficitApresMidi = dayData.status_apres_midi === 'non_satisfait';
@@ -121,7 +121,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <div className="space-y-0.5">
                                 {matinMedecins.slice(0, 2).map(m => (
                                   <div key={m.id} className="text-[10px] truncate">
-                                    {m.nom_complet}
+                                    {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
                                   </div>
                                 ))}
                                 {matinMedecins.length > 2 && (
@@ -140,7 +140,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <div className="space-y-0.5">
                                 {matinSecretaires.slice(0, 2).map(s => (
                                   <div key={s.id} className="text-[10px] truncate">
-                                    {s.nom_complet}
+                                    {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
                                   </div>
                                 ))}
                                 {matinSecretaires.length > 2 && (
@@ -176,7 +176,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <div className="space-y-0.5">
                                 {apresMidiMedecins.slice(0, 2).map(m => (
                                   <div key={m.id} className="text-[10px] truncate">
-                                    {m.nom_complet}
+                                    {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
                                   </div>
                                 ))}
                                 {apresMidiMedecins.length > 2 && (
@@ -195,7 +195,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <div className="space-y-0.5">
                                 {apresMidiSecretaires.slice(0, 2).map(s => (
                                   <div key={s.id} className="text-[10px] truncate">
-                                    {s.nom_complet}
+                                    {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
                                   </div>
                                 ))}
                                 {apresMidiSecretaires.length > 2 && (
