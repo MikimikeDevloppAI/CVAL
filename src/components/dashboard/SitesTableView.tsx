@@ -152,14 +152,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                       rowSpan={2} 
                       className="sticky left-0 z-10 bg-background font-medium border-r align-top"
                     >
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-sm">{site.site_nom}</span>
-                        {site.fermeture && (
-                          <Badge variant="outline" className="mt-1 w-fit text-xs">
-                            Fermeture
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
                     <TableCell className="sticky left-[200px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
                       <div className="flex items-center gap-1">
@@ -228,14 +221,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                   {/* Pour le site admin, on affiche le nom du site dans cette ligne */}
                   {isAdminSite && (
                     <TableCell className="sticky left-0 z-10 bg-background font-medium border-r align-top">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-sm">{site.site_nom}</span>
-                        {site.fermeture && (
-                          <Badge variant="outline" className="mt-1 w-fit text-xs">
-                            Fermeture
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
                   )}
                   <TableCell className="sticky left-[200px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
