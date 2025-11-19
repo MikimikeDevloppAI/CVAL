@@ -352,9 +352,9 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                                         capacite_id: s.id,
                                         nom: s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim(),
                                         periode: s.isFullDay ? 'journee' : s.isMatinOnly ? 'matin' : 'apres_midi',
-                                        is_1r: false,
-                                        is_2f: false,
-                                        is_3f: false,
+                                        is_1r: s.is_1r || false,
+                                        is_2f: s.is_2f || false,
+                                        is_3f: s.is_3f || false,
                                       },
                                       date: dateStr,
                                       siteId: site.site_id,
@@ -363,6 +363,13 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                                   className="text-[10px] truncate hover:underline hover:text-primary cursor-pointer text-left"
                                 >
                                   {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
+                                  {(s.is_1r || s.is_2f || s.is_3f) && (
+                                    <span className="ml-1 text-[9px] font-semibold text-primary">
+                                      {s.is_1r && '1R'}
+                                      {s.is_2f && '2F'}
+                                      {s.is_3f && '3F'}
+                                    </span>
+                                  )}
                                 </button>
                               </div>
                             ))
