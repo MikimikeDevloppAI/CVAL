@@ -150,7 +150,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                   <TableRow key={`${site.site_id}-medecins`} className="hover:bg-muted/50">
                     <TableCell 
                       rowSpan={2} 
-                      className="sticky left-0 z-10 bg-background font-medium border-r align-top"
+                      className="sticky left-0 z-10 bg-background font-medium border-r align-middle"
                     >
                       <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
@@ -172,12 +172,21 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                         );
                       }
 
-                      const medecins = dayData.medecins.map(m => ({
-                        ...m,
-                        isMatinOnly: m.matin && !m.apres_midi,
-                        isApresMidiOnly: !m.matin && m.apres_midi,
-                        isFullDay: m.matin && m.apres_midi
-                      }));
+                      const medecins = dayData.medecins
+                        .map(m => ({
+                          ...m,
+                          isMatinOnly: m.matin && !m.apres_midi,
+                          isApresMidiOnly: !m.matin && m.apres_midi,
+                          isFullDay: m.matin && m.apres_midi,
+                          nom_complet_lower: (m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()).toLowerCase()
+                        }))
+                        .sort((a, b) => {
+                          // D'abord par type de période (journée complète, matin, après-midi)
+                          if (a.isFullDay !== b.isFullDay) return a.isFullDay ? -1 : 1;
+                          if (a.isMatinOnly !== b.isMatinOnly) return a.isMatinOnly ? -1 : 1;
+                          // Ensuite par ordre alphabétique
+                          return a.nom_complet_lower.localeCompare(b.nom_complet_lower, 'fr');
+                        });
 
                       const hasDeficit = dayData.status_matin === 'non_satisfait' || 
                                         dayData.status_apres_midi === 'non_satisfait';
@@ -220,7 +229,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                 <TableRow key={`${site.site_id}-assistants`} className="hover:bg-muted/50 border-b-2">
                   {/* Pour le site admin, on affiche le nom du site dans cette ligne */}
                   {isAdminSite && (
-                    <TableCell className="sticky left-0 z-10 bg-background font-medium border-r align-top">
+                    <TableCell className="sticky left-0 z-10 bg-background font-medium border-r align-middle">
                       <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
                   )}
@@ -242,12 +251,21 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                       );
                     }
 
-                    const secretaires = dayData.secretaires.map(s => ({
-                      ...s,
-                      isMatinOnly: s.matin && !s.apres_midi,
-                      isApresMidiOnly: !s.matin && s.apres_midi,
-                      isFullDay: s.matin && s.apres_midi
-                    }));
+                    const secretaires = dayData.secretaires
+                      .map(s => ({
+                        ...s,
+                        isMatinOnly: s.matin && !s.apres_midi,
+                        isApresMidiOnly: !s.matin && s.apres_midi,
+                        isFullDay: s.matin && s.apres_midi,
+                        nom_complet_lower: (s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()).toLowerCase()
+                      }))
+                      .sort((a, b) => {
+                        // D'abord par type de période (journée complète, matin, après-midi)
+                        if (a.isFullDay !== b.isFullDay) return a.isFullDay ? -1 : 1;
+                        if (a.isMatinOnly !== b.isMatinOnly) return a.isMatinOnly ? -1 : 1;
+                        // Ensuite par ordre alphabétique
+                        return a.nom_complet_lower.localeCompare(b.nom_complet_lower, 'fr');
+                      });
 
                     const hasDeficit = dayData.status_matin === 'non_satisfait' || 
                                       dayData.status_apres_midi === 'non_satisfait';
