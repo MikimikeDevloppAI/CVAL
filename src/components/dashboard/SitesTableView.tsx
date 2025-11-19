@@ -98,7 +98,8 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
       result.push(sitesVieilleVille[0]);
     }
 
-    return result;
+    // Trier par ordre alphabétique
+    return result.sort((a, b) => a.site_nom.localeCompare(b.site_nom, 'fr'));
   })();
 
   // Filtrer les sites qui ont au moins un médecin ou secrétaire sur la semaine
