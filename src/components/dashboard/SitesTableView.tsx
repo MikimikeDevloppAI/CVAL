@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { User, Stethoscope, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
+import { EditSecretaireAssignmentDialog } from './EditSecretaireAssignmentDialog';
 
 interface SitesTableViewProps {
   sites: DashboardSite[];
@@ -13,6 +16,42 @@ interface SitesTableViewProps {
 }
 
 export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewProps) {
+  const [editMedecinDialog, setEditMedecinDialog] = useState<{
+    open: boolean;
+    medecinId: string;
+    medecinNom: string;
+    date: string;
+    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
+  }>({
+    open: false,
+    medecinId: '',
+    medecinNom: '',
+    date: '',
+    siteId: '',
+    periode: 'matin',
+  });
+
+  const [editSecretaireDialog, setEditSecretaireDialog] = useState<{
+    open: boolean;
+    secretaire: {
+      id: string;
+      capacite_id: string;
+      nom: string;
+      periode: 'matin' | 'apres_midi' | 'journee';
+      is_1r: boolean;
+      is_2f: boolean;
+      is_3f: boolean;
+    } | null;
+    date: string;
+    siteId: string;
+  }>({
+    open: false,
+    secretaire: null,
+    date: '',
+    siteId: '',
+  });
+
   // Filtrer les jours ouvrés (lundi-vendredi)
   const weekdaysOnly = weekDays.filter(d => {
     const dow = d.getDay();
@@ -111,7 +150,8 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
   });
 
   return (
-    <div className="relative overflow-x-auto border rounded-lg">
+    <>
+      <div className="relative overflow-x-auto border rounded-lg">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
@@ -210,9 +250,22 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                                     m.isApresMidiOnly && "bg-yellow-500",
                                     m.isFullDay && "bg-green-500"
                                   )} />
-                                  <span className="text-[10px] truncate">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditMedecinDialog({
+                                        open: true,
+                                        medecinId: m.id,
+                                        medecinNom: m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim(),
+                                        date: dateStr,
+                                        siteId: site.site_id,
+                                        periode: m.isFullDay ? 'journee' : m.isMatinOnly ? 'matin' : 'apres_midi',
+                                      });
+                                    }}
+                                    className="text-[10px] truncate hover:underline hover:text-primary cursor-pointer text-left"
+                                  >
                                     {m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim()}
-                                  </span>
+                                  </button>
                                 </div>
                               ))
                             ) : (
@@ -289,9 +342,28 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                                   s.isApresMidiOnly && "bg-yellow-500",
                                   s.isFullDay && "bg-green-500"
                                 )} />
-                                <span className="text-[10px] truncate">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditSecretaireDialog({
+                                      open: true,
+                                      secretaire: {
+                                        id: s.id,
+                                        capacite_id: s.id,
+                                        nom: s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim(),
+                                        periode: s.isFullDay ? 'journee' : s.isMatinOnly ? 'matin' : 'apres_midi',
+                                        is_1r: false,
+                                        is_2f: false,
+                                        is_3f: false,
+                                      },
+                                      date: dateStr,
+                                      siteId: site.site_id,
+                                    });
+                                  }}
+                                  className="text-[10px] truncate hover:underline hover:text-primary cursor-pointer text-left"
+                                >
                                   {s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim()}
-                                </span>
+                                </button>
                               </div>
                             ))
                           ) : (
@@ -308,5 +380,38 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
         </TableBody>
       </Table>
     </div>
+
+    {/* Dialog pour éditer l'affectation d'un médecin */}
+    <EditMedecinAssignmentDialog
+      open={editMedecinDialog.open}
+      onOpenChange={(open) => setEditMedecinDialog({ ...editMedecinDialog, open })}
+      medecinId={editMedecinDialog.medecinId}
+      medecinNom={editMedecinDialog.medecinNom}
+      date={editMedecinDialog.date}
+      currentSiteId={editMedecinDialog.siteId}
+      periode={editMedecinDialog.periode}
+      onSuccess={() => {
+        setEditMedecinDialog({ ...editMedecinDialog, open: false });
+        // Trigger refresh if needed
+        window.location.reload();
+      }}
+    />
+
+    {/* Dialog pour éditer l'affectation d'un assistant médical */}
+    {editSecretaireDialog.secretaire && (
+      <EditSecretaireAssignmentDialog
+        open={editSecretaireDialog.open}
+        onOpenChange={(open) => setEditSecretaireDialog({ ...editSecretaireDialog, open })}
+        secretaire={editSecretaireDialog.secretaire}
+        date={editSecretaireDialog.date}
+        siteId={editSecretaireDialog.siteId}
+        onSuccess={() => {
+          setEditSecretaireDialog({ ...editSecretaireDialog, open: false });
+          // Trigger refresh if needed
+          window.location.reload();
+        }}
+      />
+    )}
+  </>
   );
 }
