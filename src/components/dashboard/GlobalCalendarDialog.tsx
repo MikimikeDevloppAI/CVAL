@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Users, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
@@ -110,6 +110,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [typesIntervention, setTypesIntervention] = useState<{ id: string; nom: string }[]>([]);
+  const [viewType, setViewType] = useState<'personne' | 'site'>('personne');
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -435,7 +436,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
           </TabsList>
 
           <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-4">
-            <div className="flex items-center justify-between flex-shrink-0 mb-6 bg-muted/30 rounded-full p-2 border shadow-sm">
+            <div className="flex items-center justify-between flex-shrink-0 mb-4 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
                 variant="ghost" 
                 size="icon"
@@ -470,10 +471,35 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               </Button>
             </div>
 
+            {/* View Type Selector */}
+            <div className="flex items-center justify-center gap-2 mb-4 flex-shrink-0">
+              <Button
+                variant={viewType === 'personne' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewType('personne')}
+                className="gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Par personne
+              </Button>
+              <Button
+                variant={viewType === 'site' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewType('site')}
+                className="gap-2"
+              >
+                <Building2 className="h-4 w-4" />
+                Par site
+              </Button>
+            </div>
+
             {loading ? (
               <div className="text-center py-8">Chargement...</div>
             ) : (
               <div className="flex flex-col flex-1 overflow-hidden">
+                {viewType === 'personne' ? (
+                  // Vue par personne (existante)
+                  <>
                 <div className="border rounded-lg flex-1 overflow-auto">
                   <div className="min-w-max">
                     {/* En-tête des dates - sticky pour tout le calendrier */}
@@ -685,6 +711,159 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Aucune assignation</span>
                   </div>
                 </div>
+                  </>
+                ) : (
+                  // Vue par site (nouvelle)
+                  <>
+                  <div className="border rounded-lg flex-1 overflow-auto">
+                    <div className="min-w-max">
+                      {/* En-tête des dates */}
+                      <div className="sticky top-0 z-30 bg-muted border-b">
+                        <div className="flex">
+                          <div className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[200px] flex items-center">
+                            <span className="font-medium text-xs">Site</span>
+                          </div>
+                          {days.map(day => (
+                            <div
+                              key={day.dateStr}
+                              className={cn(
+                                "p-1 text-center min-w-[120px] border-l",
+                                (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                              )}
+                            >
+                              <div className="font-medium text-xs">
+                                {format(day.date, 'EEE', { locale: fr })}
+                              </div>
+                              <div className="text-muted-foreground text-xs">
+                                {format(day.date, 'd')}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Sites */}
+                      {sites.map(site => (
+                        <div key={site.id} className="flex border-b hover:bg-muted/30">
+                          <div className="sticky left-0 z-10 bg-background border-r p-2 min-w-[200px] text-xs font-medium flex items-center">
+                            {formatSiteName(site.nom)}
+                          </div>
+                          {days.map(day => {
+                            const besoinsDay = besoins.filter(b => b.site_id === site.id && b.date === day.dateStr);
+                            const capacitesDay = capacites.filter(c => c.site_id === site.id && c.date === day.dateStr);
+                            const isWeekendDay = isWeekend(day.dateStr);
+                            const isHolidayDay = isHoliday(day.dateStr);
+                            
+                            return (
+                              <div
+                                key={day.dateStr}
+                                className={cn(
+                                  "p-1 border-l min-w-[120px]",
+                                  (isWeekendDay || isHolidayDay) && "bg-muted/20"
+                                )}
+                              >
+                                <div className="space-y-1">
+                                  {/* Médecins */}
+                                  {besoinsDay.length > 0 && (
+                                    <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">Médecins</div>
+                                  )}
+                                  {besoinsDay.map(besoin => {
+                                    const medecin = medecins.find(m => m.id === besoin.medecin_id);
+                                    if (!medecin) return null;
+                                    
+                                    const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                    const showAbsence = absence && !isWeekendDay;
+                                    
+                                    return (
+                                      <div
+                                        key={besoin.id}
+                                        className={cn(
+                                          "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                          showAbsence ? "bg-red-100 text-red-800" : "bg-blue-500 text-white"
+                                        )}
+                                        title={showAbsence ? `${medecin.first_name} ${medecin.name} - ${getAbsenceLabel(absence.type)}` : `Dr ${medecin.first_name} ${medecin.name}`}
+                                        onClick={() => {
+                                          if (!showAbsence) {
+                                            setMedecinActionsDialog({
+                                              open: true,
+                                              medecinId: medecin.id,
+                                              medecinNom: medecin.name,
+                                              medecinPrenom: medecin.first_name,
+                                              date: day.dateStr,
+                                              siteId: site.id,
+                                              periode: (besoin.demi_journee === 'toute_journee' ? 'journee' : besoin.demi_journee) as 'matin' | 'apres_midi' | 'journee'
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        {showAbsence ? getAbsenceLabel(absence.type) : `${medecin.first_name[0]}. ${medecin.name}`}
+                                      </div>
+                                    );
+                                  })}
+                                  
+                                  {/* Secrétaires */}
+                                  {capacitesDay.length > 0 && (
+                                    <div className="text-[9px] font-semibold text-muted-foreground mb-0.5 mt-1">Assistants</div>
+                                  )}
+                                  {capacitesDay.map(capacite => {
+                                    const secretaire = secretaires.find(s => s.id === capacite.secretaire_id);
+                                    if (!secretaire) return null;
+                                    
+                                    const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                    const showAbsence = absence && !isWeekendDay;
+                                    
+                                    return (
+                                      <div
+                                        key={capacite.id}
+                                        className={cn(
+                                          "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                          showAbsence ? "bg-red-100 text-red-800" : "bg-green-500 text-white"
+                                        )}
+                                        title={showAbsence ? `${secretaire.first_name} ${secretaire.name} - ${getAbsenceLabel(absence.type)}` : `${secretaire.first_name} ${secretaire.name}`}
+                                        onClick={() => {
+                                          if (!showAbsence) {
+                                            setSecretaireActionsDialog({
+                                              open: true,
+                                              secretaireId: secretaire.id,
+                                              secretaireNom: secretaire.name,
+                                              secretairePrenom: secretaire.first_name,
+                                              date: day.dateStr,
+                                              siteId: site.id,
+                                              periode: (capacite.demi_journee === 'toute_journee' ? 'journee' : capacite.demi_journee) as 'matin' | 'apres_midi' | 'journee',
+                                              besoinOperationId: capacite.besoin_operation_id
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        {showAbsence ? getAbsenceLabel(absence.type) : `${secretaire.first_name[0]}. ${secretaire.name}`}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-blue-500"></div>
+                      <span>Médecin</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-green-500"></div>
+                      <span>Assistant médical</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
+                      <span>Absence</span>
+                    </div>
+                  </div>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
