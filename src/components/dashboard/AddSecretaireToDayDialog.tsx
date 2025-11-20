@@ -43,11 +43,6 @@ interface Secretaire {
   existing_assignment?: string;
 }
 
-interface Site {
-  id: string;
-  nom: string;
-}
-
 interface AddSecretaireToDayDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,7 +61,6 @@ export function AddSecretaireToDayDialog({
   onSuccess,
 }: AddSecretaireToDayDialogProps) {
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
   const [selectedSecretaireId, setSelectedSecretaireId] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState(siteId);
   const [periode, setPeriode] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
@@ -154,21 +148,6 @@ export function AddSecretaireToDayDialog({
         name: s.name,
         existing_assignment: ''
       })));
-    }
-
-    // Fetch sites
-    const { data: sitesData } = await supabase
-      .from('sites')
-      .select('id, nom')
-      .eq('actif', true)
-      .order('nom');
-
-    if (sitesData) {
-      const adminSite = {
-        id: '00000000-0000-0000-0000-000000000001',
-        nom: 'Site Administratif',
-      };
-      setSites([...sitesData, adminSite]);
     }
   };
 
@@ -342,22 +321,6 @@ export function AddSecretaireToDayDialog({
                 </AlertDescription>
               </Alert>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Site</Label>
-            <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="space-y-2">
