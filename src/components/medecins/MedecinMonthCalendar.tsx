@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
 import { EditBesoinMedecinDialog } from '@/components/shared/EditBesoinMedecinDialog';
 import { Edit, Trash2 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -98,6 +100,10 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     slot: DaySlot;
     date: string;
   } | null>(null);
+  
+  // Period selector for delete
+  const [showPeriodSelectorForDelete, setShowPeriodSelectorForDelete] = useState(false);
+  const [selectedPeriodForDelete, setSelectedPeriodForDelete] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
 
   const SITE_COLORS = [
     'hsl(var(--planning-event-teal))',
@@ -313,8 +319,40 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   };
 
   const handleDeleteClick = (besoinIds: string[]) => {
-    setBesoinToDelete(besoinIds.join(','));
+    if (!actionsSlot) return;
+    
+    // Si c'est une journée complète, demander quelle période supprimer
+    if (actionsSlot.slot.periodes.length === 2) {
+      setShowPeriodSelectorForDelete(true);
+      // Garder actionsSlot pour l'utiliser dans handlePeriodSelectedForDelete
+    } else {
+      // Sinon supprimer directement
+      setBesoinToDelete(besoinIds.join(','));
+      setDeleteDialogOpen(true);
+      setActionsSlot(null);
+    }
+  };
+  
+  const handlePeriodSelectedForDelete = (periode: 'matin' | 'apres_midi' | 'journee') => {
+    if (!actionsSlot) return;
+    
+    setSelectedPeriodForDelete(periode);
+    setShowPeriodSelectorForDelete(false);
+    
+    // Filtrer les IDs selon la période sélectionnée
+    const besoinsToDelete = besoins.filter(b => {
+      if (!actionsSlot.slot.ids.includes(b.id)) return false;
+      
+      if (periode === 'journee') {
+        return true; // Supprimer tout
+      } else {
+        return b.demi_journee === periode;
+      }
+    });
+    
+    setBesoinToDelete(besoinsToDelete.map(b => b.id).join(','));
     setDeleteDialogOpen(true);
+    setActionsSlot(null);
   };
 
   const handleDeleteConfirm = async () => {
@@ -351,6 +389,11 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     setEditingDate(actionsSlot.date);
     setActionsSlot(null);
     setEditDialogOpen(true);
+  };
+  
+  const handleDeleteFromActions = () => {
+    if (!actionsSlot) return;
+    handleDeleteClick(actionsSlot.slot.ids);
   };
 
   const handleEditSuccess = () => {
@@ -647,10 +690,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  handleDeleteClick(actionsSlot.slot.ids);
-                  setActionsSlot(null);
-                }}
+                onClick={handleDeleteFromActions}
                 className="w-full justify-start gap-2 text-destructive hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
@@ -676,6 +716,51 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           onSuccess={handleEditSuccess}
         />
       )}
+
+      {/* Period Selector for Delete */}
+      <Dialog open={showPeriodSelectorForDelete} onOpenChange={setShowPeriodSelectorForDelete}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sélectionner la période à supprimer</DialogTitle>
+            <DialogDescription>
+              Ce créneau couvre toute la journée. Quelle période souhaitez-vous supprimer ?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <RadioGroup 
+              value={selectedPeriodForDelete} 
+              onValueChange={(v: any) => setSelectedPeriodForDelete(v)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="matin" id="delete-matin" />
+                <Label htmlFor="delete-matin" className="font-normal cursor-pointer">
+                  Matin uniquement
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="apres_midi" id="delete-apres-midi" />
+                <Label htmlFor="delete-apres-midi" className="font-normal cursor-pointer">
+                  Après-midi uniquement
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="journee" id="delete-journee" />
+                <Label htmlFor="delete-journee" className="font-normal cursor-pointer">
+                  Toute la journée
+                </Label>
+              </div>
+            </RadioGroup>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowPeriodSelectorForDelete(false)}>
+                Annuler
+              </Button>
+              <Button onClick={() => handlePeriodSelectedForDelete(selectedPeriodForDelete)}>
+                Continuer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
