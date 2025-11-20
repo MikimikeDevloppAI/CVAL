@@ -5,7 +5,7 @@ import { RefreshCw, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addWeeks, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
-import { UnfilledNeedsPanel } from "./UnfilledNeedsPanel";
+import { UnfilledNeedsPanel } from "./UnfilledNeedsPanelCompact";
 import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
