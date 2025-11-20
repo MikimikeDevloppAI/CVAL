@@ -97,9 +97,9 @@ export const MultiDateDryRunDialog = ({
     const dayResult = result?.results.find(r => r.date === date);
     if (!dayResult) return;
 
-    const dateChangeIds = dayResult.individual_changes.map(change =>
-      `${change.date}_${change.secretaire_id}_${change.periode}`
-    );
+    const dateChangeIds = dayResult.individual_changes
+      .filter((change) => change.after)
+      .map(change => `${change.date}_${change.secretaire_id}_${change.periode}`);
 
     const allSelected = dateChangeIds.every(id => selectedChanges.has(id));
     const newSelected = new Set(selectedChanges);
@@ -117,9 +117,9 @@ export const MultiDateDryRunDialog = ({
     if (!result) return;
     
     const allChangeIds = result.results.flatMap(dayResult =>
-      dayResult.individual_changes.map(change =>
-        `${change.date}_${change.secretaire_id}_${change.periode}`
-      )
+      (dayResult.individual_changes || [])
+        .filter((change) => change.after)
+        .map(change => `${change.date}_${change.secretaire_id}_${change.periode}`)
     );
 
     if (selectedChanges.size === allChangeIds.length) {
@@ -227,9 +227,9 @@ export const MultiDateDryRunDialog = ({
     const dayResult = result?.results.find(r => r.date === date);
     if (!dayResult) return 0;
 
-    const dateChangeIds = dayResult.individual_changes.map(change =>
-      `${change.date}_${change.secretaire_id}_${change.periode}`
-    );
+    const dateChangeIds = dayResult.individual_changes
+      .filter((change) => change.after)
+      .map(change => `${change.date}_${change.secretaire_id}_${change.periode}`);
 
     return dateChangeIds.filter(id => selectedChanges.has(id)).length;
   };
@@ -242,7 +242,7 @@ export const MultiDateDryRunDialog = ({
             <span>Optimisation proposée</span>
             {result && (
               <Badge variant="outline" className="ml-2">
-                {result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)} changement(s) sur {result.results.length} jour(s)
+                 {result.results.reduce((sum, r) => sum + ((r.individual_changes || []).filter(c => c.after).length), 0)} changement(s) sur {result.results.length} jour(s)
               </Badge>
             )}
           </DialogTitle>
@@ -271,7 +271,7 @@ export const MultiDateDryRunDialog = ({
                       size="sm"
                       onClick={handleSelectAll}
                     >
-                      {selectedChanges.size === result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)
+                       {selectedChanges.size === result.results.reduce((sum, r) => sum + ((r.individual_changes || []).filter(c => c.after).length), 0)
                         ? 'Tout désélectionner'
                         : 'Tout sélectionner'}
                     </Button>
@@ -282,7 +282,7 @@ export const MultiDateDryRunDialog = ({
               {/* Changes by date */}
               {result.results.map((dayResult) => {
                 const selectedCount = getDateSelectedCount(dayResult.date);
-                const totalCount = dayResult.individual_changes?.length || 0;
+                 const totalCount = (dayResult.individual_changes || []).filter(c => c.after).length;
                 
                 return (
                   <div key={dayResult.date} className="border rounded-lg overflow-hidden">
@@ -324,40 +324,40 @@ export const MultiDateDryRunDialog = ({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(dayResult.individual_changes || []).map((change) => {
-                          const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
-                          return (
-                            <TableRow key={changeId}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedChanges.has(changeId)}
-                                  onCheckedChange={() => handleToggleChange(changeId)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">{change.secretaire_nom}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs">
-                                  {change.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {formatAssignment(change.before)}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <ArrowRight className="h-4 w-4 text-primary mx-auto" />
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                {change.after ? (
-                                  <span className="text-green-700">
-                                    {formatAssignment(change.after)}
-                                  </span>
-                                ) : (
-                                  <span className="text-red-600">Retrait</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                        {(dayResult.individual_changes || [])
+                          .filter((change) => change.after)
+                          .map((change) => {
+                            const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
+                            return (
+                              <TableRow key={changeId}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedChanges.has(changeId)}
+                                    onCheckedChange={() => handleToggleChange(changeId)}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium">{change.secretaire_nom}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    {change.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {formatAssignment(change.before)}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <ArrowRight className="h-4 w-4 text-primary mx-auto" />
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {change.after && (
+                                    <span className="text-green-700">
+                                      {formatAssignment(change.after)}
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                       </TableBody>
                     </Table>
                   </div>
