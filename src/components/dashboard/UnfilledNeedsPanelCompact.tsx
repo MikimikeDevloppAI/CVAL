@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, ChevronDown, Loader2, Sparkles, X } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -401,10 +401,10 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsOpen(false)}
+              onClick={() => setIsOpen(!isOpen)}
               className="h-8 w-8 p-0"
             >
-              <X className="h-4 w-4" />
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </div>
         </div>
