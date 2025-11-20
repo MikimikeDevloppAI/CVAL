@@ -423,7 +423,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden z-50">
+      <DialogContent className="max-w-[98vw] max-h-[95vh] flex flex-col overflow-hidden z-50">
         <DialogHeader>
           <DialogTitle className="text-2xl">Calendrier Global</DialogTitle>
         </DialogHeader>
