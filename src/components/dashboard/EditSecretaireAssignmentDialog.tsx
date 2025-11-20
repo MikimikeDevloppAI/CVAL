@@ -416,6 +416,7 @@ export function EditSecretaireAssignmentDialog({
       });
 
       onSuccess();
+      onOpenChange(false);
     } catch (error: any) {
       console.error('Error updating secretaire:', error);
       toast({
