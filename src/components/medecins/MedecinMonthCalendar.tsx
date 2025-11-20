@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
+import { EditBesoinMedecinDialog } from '@/components/shared/EditBesoinMedecinDialog';
 import {
   Select,
   SelectContent,
@@ -76,11 +77,12 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
+  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi' | null>(null);
 
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
-  const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi' | null>(null);
+  const [editingDate, setEditingDate] = useState<string>('');
 
   // Delete dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -323,155 +325,21 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
 
   const handleEditClick = (slot: DaySlot) => {
     setEditingSlot(slot);
-    setSelectedSiteId(slot.siteId);
     
-    // Détecter la période initiale: si les deux périodes sont présentes, afficher "toute_journee"
-    if (slot.periodes.length === 2) {
-      setSelectedPeriode('toute_journee');
-    } else if (slot.periodes.includes('matin')) {
-      setSelectedPeriode('matin');
-    } else if (slot.periodes.includes('apres_midi')) {
-      setSelectedPeriode('apres_midi');
-    }
-    
-    // Récupérer le type d'intervention du premier besoin
+    // Récupérer la date du premier besoin
     const firstBesoin = besoins.find(b => slot.ids.includes(b.id));
-    if (firstBesoin?.type_intervention_id) {
-      setSelectedTypeInterventionId(firstBesoin.type_intervention_id);
-    } else {
-      setSelectedTypeInterventionId('');
+    if (firstBesoin) {
+      setEditingDate(firstBesoin.date);
     }
     
     setEditDialogOpen(true);
   };
 
-  const handleEditSave = async () => {
-    if (!editingSlot || !selectedSiteId) {
-      toast.error('Veuillez sélectionner un site');
-      return;
-    }
-
-    const dateStr = editingSlot.ids.length > 0 
-      ? besoins.find(b => b.id === editingSlot.ids[0])?.date 
-      : null;
-
-    if (!dateStr) {
-      toast.error('Date non trouvée');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Déterminer quels besoins existants on doit garder/modifier/supprimer
-      const matinBesoin = besoins.find(b => editingSlot.ids.includes(b.id) && b.demi_journee === 'matin');
-      const apresmidiBesoin = besoins.find(b => editingSlot.ids.includes(b.id) && b.demi_journee === 'apres_midi');
-
-      if (selectedPeriode === 'toute_journee') {
-        // Modifier journée complète : assurer que matin ET après-midi existent
-        if (matinBesoin) {
-          await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: selectedTypeInterventionId || null,
-            })
-            .eq('id', matinBesoin.id);
-        } else {
-          // Créer le matin s'il n'existe pas
-          await supabase.from('besoin_effectif').insert({
-            type: 'medecin',
-            medecin_id: medecinId,
-            date: dateStr,
-            site_id: selectedSiteId,
-            demi_journee: 'matin',
-            type_intervention_id: selectedTypeInterventionId || null,
-          });
-        }
-
-        if (apresmidiBesoin) {
-          await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: selectedTypeInterventionId || null,
-            })
-            .eq('id', apresmidiBesoin.id);
-        } else {
-          // Créer l'après-midi s'il n'existe pas
-          await supabase.from('besoin_effectif').insert({
-            type: 'medecin',
-            medecin_id: medecinId,
-            date: dateStr,
-            site_id: selectedSiteId,
-            demi_journee: 'apres_midi',
-            type_intervention_id: selectedTypeInterventionId || null,
-          });
-        }
-      } else if (selectedPeriode === 'matin') {
-        // Modifier uniquement le matin, supprimer l'après-midi si existe
-        if (matinBesoin) {
-          await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: selectedTypeInterventionId || null,
-            })
-            .eq('id', matinBesoin.id);
-        } else {
-          // Créer le matin s'il n'existe pas
-          await supabase.from('besoin_effectif').insert({
-            type: 'medecin',
-            medecin_id: medecinId,
-            date: dateStr,
-            site_id: selectedSiteId,
-            demi_journee: 'matin',
-            type_intervention_id: selectedTypeInterventionId || null,
-          });
-        }
-
-        // Supprimer l'après-midi si existe
-        if (apresmidiBesoin) {
-          await supabase.from('besoin_effectif').delete().eq('id', apresmidiBesoin.id);
-        }
-      } else {
-        // selectedPeriode === 'apres_midi'
-        // Modifier uniquement l'après-midi, supprimer le matin si existe
-        if (apresmidiBesoin) {
-          await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: selectedTypeInterventionId || null,
-            })
-            .eq('id', apresmidiBesoin.id);
-        } else {
-          // Créer l'après-midi s'il n'existe pas
-          await supabase.from('besoin_effectif').insert({
-            type: 'medecin',
-            medecin_id: medecinId,
-            date: dateStr,
-            site_id: selectedSiteId,
-            demi_journee: 'apres_midi',
-            type_intervention_id: selectedTypeInterventionId || null,
-          });
-        }
-
-        // Supprimer le matin si existe
-        if (matinBesoin) {
-          await supabase.from('besoin_effectif').delete().eq('id', matinBesoin.id);
-        }
-      }
-
-      toast.success('Créneau modifié');
-      fetchBesoins();
-      setEditDialogOpen(false);
-      setEditingSlot(null);
-    } catch (error) {
-      toast.error('Erreur lors de la modification');
-    } finally {
-      setLoading(false);
-    }
+  const handleEditSuccess = () => {
+    fetchBesoins();
+    setEditDialogOpen(false);
+    setEditingSlot(null);
+    setEditingDate('');
   };
 
   // Générer les jours du mois avec padding
@@ -750,79 +618,19 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       </Dialog>
 
       {/* Edit Besoin Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-planning-teal/30">
-          <DialogHeader>
-            <DialogTitle>Modifier l&apos;assignation</DialogTitle>
-            <DialogDescription className="sr-only">Modifier l&apos;assignation pour {medecinNom}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Période</label>
-              <Select 
-                value={selectedPeriode || ''} 
-                onValueChange={(value: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriode(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="toute_journee">Journée complète</SelectItem>
-                  <SelectItem value="matin">Matin uniquement</SelectItem>
-                  <SelectItem value="apres_midi">Après-midi uniquement</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Site</label>
-              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedSiteId && sites.find(s => s.id === selectedSiteId)?.nom.toLowerCase().includes('bloc') && (
-              <div>
-                <label className="text-sm font-medium">Type d&apos;intervention (optionnel)</label>
-                <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {typesIntervention.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button
-                onClick={handleEditSave}
-                disabled={loading}
-                className="bg-gradient-to-r from-planning-teal to-planning-blue hover:opacity-90"
-              >
-                Enregistrer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {editingSlot && editingDate && (
+        <EditBesoinMedecinDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          medecinId={medecinId}
+          medecinNom={medecinNom}
+          date={editingDate}
+          initialSiteId={editingSlot.siteId}
+          initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
+          besoinIds={editingSlot.ids}
+          onSuccess={handleEditSuccess}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
