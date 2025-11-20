@@ -93,31 +93,48 @@ export function EditBesoinMedecinDialog({
     setLoading(true);
 
     try {
-      let targetBesoinIds: string[] = [];
+      // Récupérer les besoins existants avec leur période pour filtrage
+      let existingBesoinsData;
       
       if (besoinIds && besoinIds.length > 0) {
-        targetBesoinIds = besoinIds;
-      } else {
-        const { data: existingBesoins } = await supabase
+        const { data } = await supabase
           .from('besoin_effectif')
-          .select('id')
+          .select('id, demi_journee')
+          .in('id', besoinIds);
+        existingBesoinsData = data;
+      } else {
+        const { data } = await supabase
+          .from('besoin_effectif')
+          .select('id, demi_journee')
           .eq('medecin_id', medecinId)
           .eq('date', date)
           .eq('type', 'medecin')
           .eq('actif', true);
-        
-        targetBesoinIds = existingBesoins?.map(b => b.id) || [];
+        existingBesoinsData = data;
       }
 
-      if (targetBesoinIds.length > 0) {
-        for (const besoinId of targetBesoinIds) {
-          await supabase
-            .from('besoin_effectif')
-            .delete()
-            .eq('id', besoinId);
-        }
+      // Déterminer quels créneaux supprimer selon la période sélectionnée
+      let periodsToDelete: ('matin' | 'apres_midi')[] = [];
+      
+      if (selectedPeriod === 'toute_journee') {
+        periodsToDelete = ['matin', 'apres_midi'];
+      } else {
+        periodsToDelete = [selectedPeriod];
       }
 
+      // Supprimer UNIQUEMENT les créneaux qui correspondent à la période sélectionnée
+      const besoinsToDelete = existingBesoinsData?.filter(b => 
+        periodsToDelete.includes(b.demi_journee as 'matin' | 'apres_midi')
+      ) || [];
+
+      for (const besoin of besoinsToDelete) {
+        await supabase
+          .from('besoin_effectif')
+          .delete()
+          .eq('id', besoin.id);
+      }
+
+      // Recréer selon la période sélectionnée
       if (selectedPeriod === 'toute_journee') {
         await supabase.from('besoin_effectif').insert([
           {
