@@ -417,13 +417,13 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                     {filteredAbsences.map((absence, idx) => (
                       <div
                         key={absence.id}
-                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-red-200/50 dark:border-red-800/50 shadow-lg hover:shadow-xl hover:shadow-red-500/20 transition-all duration-300 hover:-translate-y-1 hover:border-red-400/70 dark:hover:border-red-600/70 group"
+                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-primary/20 dark:border-primary/30 shadow-lg hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 dark:hover:border-primary/50 group"
                         style={{ animationDelay: `${idx * 50}ms` }}
                       >
                         <div className="p-5">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-lg font-semibold text-foreground group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors mb-2">
+                              <h4 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors mb-2">
                                 {absence.type_personne === 'medecin' 
                                   ? `${absence.medecins?.first_name} ${absence.medecins?.name}`
                                   : `${absence.secretaires?.first_name} ${absence.secretaires?.name}`
@@ -433,7 +433,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                                 <Badge className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-cyan-500/20 text-xs">
                                   {absence.type_personne === 'medecin' ? 'Médecin' : 'Assistant médical'}
                                 </Badge>
-                                <Badge className="bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20 border-red-500/20 text-xs">
+                                <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20 text-xs">
                                   {getTypeLabel(absence.type)}
                                 </Badge>
                               </div>
@@ -448,7 +448,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                                     setSelectedAbsence(absence);
                                     setIsAbsenceDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-600"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10 hover:text-primary"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -466,8 +466,8 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
 
                           <div className="space-y-3">
                             <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
-                                <Calendar className="w-3 h-3 text-red-600 dark:text-red-400" />
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                                <Calendar className="w-3 h-3 text-primary" />
                               </div>
                               <div className="flex-1">
                                 <p className="text-xs font-medium text-muted-foreground mb-0.5">Période</p>
