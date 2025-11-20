@@ -287,16 +287,17 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                           {/* Bouton + qui apparaît au hover */}
                           {hoveredCell === `medecin-${site.site_id}-${dateStr}` && (
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuTrigger asChild>
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <Plus className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuContent align="end" className="w-56 z-[100]">
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -422,16 +423,17 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                         {/* Bouton + qui apparaît au hover */}
                         {hoveredCell === `${site.site_id}-${dateStr}` && (
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuTrigger asChild>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 <Plus className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuContent align="end" className="w-56 z-[100]">
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
