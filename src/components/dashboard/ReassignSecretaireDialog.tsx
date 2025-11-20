@@ -86,10 +86,15 @@ export function ReassignSecretaireDialog({
 
   useEffect(() => {
     if (open) {
-      fetchSecretairesFromOtherSites();
       checkIfBlocOperatoire();
     }
   }, [open, targetSiteId]);
+
+  useEffect(() => {
+    if (open && periode) {
+      fetchSecretairesFromOtherSites();
+    }
+  }, [open, targetSiteId, periode]);
 
   useEffect(() => {
     if (isBlocOperatoire && open && selectedSecretaireId) {
@@ -127,6 +132,12 @@ export function ReassignSecretaireDialog({
   };
 
   const fetchSecretairesFromOtherSites = async () => {
+    // Determine which periods to fetch based on selected periode
+    const periodsToFetch: ('matin' | 'apres_midi')[] = 
+      periode === 'journee' 
+        ? ['matin', 'apres_midi']
+        : [periode as 'matin' | 'apres_midi'];
+
     const { data: capacites } = await supabase
       .from('capacite_effective')
       .select(`
@@ -144,6 +155,7 @@ export function ReassignSecretaireDialog({
       .eq('date', date)
       .eq('actif', true)
       .neq('site_id', targetSiteId)
+      .in('demi_journee', periodsToFetch)
       .not('secretaire_id', 'is', null);
 
     if (capacites) {
@@ -290,7 +302,29 @@ export function ReassignSecretaireDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Secretaire selection */}
+          {/* Période selection - FIRST */}
+          <div className="space-y-2">
+            <Label>Période souhaitée *</Label>
+            <RadioGroup value={periode} onValueChange={(value: any) => {
+              setPeriode(value);
+              setSelectedSecretaireId(''); // Reset selection when period changes
+            }}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="matin" id="matin" />
+                <Label htmlFor="matin" className="font-normal cursor-pointer">Matin</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="apres_midi" id="apres_midi" />
+                <Label htmlFor="apres_midi" className="font-normal cursor-pointer">Après-midi</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="journee" id="journee" />
+                <Label htmlFor="journee" className="font-normal cursor-pointer">Toute la journée</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Secretaire selection - SECOND */}
           <div className="space-y-2">
             <Label>Assistant médical à réaffecter</Label>
             <Popover open={comboOpen} onOpenChange={setComboOpen}>
@@ -366,25 +400,6 @@ export function ReassignSecretaireDialog({
               </AlertDescription>
             </Alert>
           )}
-
-          {/* Période selection */}
-          <div className="space-y-2">
-            <Label>Nouvelle période</Label>
-            <RadioGroup value={periode} onValueChange={(value: any) => setPeriode(value)}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="matin" id="matin" />
-                <Label htmlFor="matin" className="font-normal cursor-pointer">Matin</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apres_midi" id="apres_midi" />
-                <Label htmlFor="apres_midi" className="font-normal cursor-pointer">Après-midi</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="journee" id="journee" />
-                <Label htmlFor="journee" className="font-normal cursor-pointer">Toute la journée</Label>
-              </div>
-            </RadioGroup>
-          </div>
 
           {/* Responsabilités (only for journee) */}
           {periode === 'journee' && (
