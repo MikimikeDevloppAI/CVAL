@@ -453,12 +453,13 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                                 </button>
                               </div>
                             ))
-                          ) : (
+                          ) : dayData.medecins.length > 0 ? (
                             <span className="text-xs text-muted-foreground">-</span>
-                          )}
+                          ) : null}
                         </div>
                         
-                        {/* Bouton + qui apparaît au hover */}
+                        {/* Bouton + qui apparaît au hover - seulement s'il y a des médecins */}
+                        {dayData.medecins.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -501,6 +502,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        )}
                       </TableCell>
                     );
                   })}
