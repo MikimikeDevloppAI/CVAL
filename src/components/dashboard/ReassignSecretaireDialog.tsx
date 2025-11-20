@@ -43,8 +43,9 @@ interface SecretaireFromOtherSite {
   name: string;
   current_site_id: string;
   current_site_name: string;
-  current_periode: 'matin' | 'apres_midi';
+  current_periode: 'matin' | 'apres_midi' | 'toute_journee';
   capacite_id: string;
+  capacite_id_apres_midi?: string;
   is_1r: boolean;
   is_2f: boolean;
   is_3f: boolean;
@@ -170,22 +171,77 @@ export function ReassignSecretaireDialog({
 
       const compatibleIds = new Set(compatibilityData?.map(c => c.secretaire_id) || []);
 
-      const secretairesFromOther: SecretaireFromOtherSite[] = capacites
-        .filter(c => c.secretaires && c.sites)
-        .map(c => ({
-          id: c.secretaire_id!,
-          first_name: (c.secretaires as any).first_name || '',
-          name: (c.secretaires as any).name || '',
-          current_site_id: c.site_id,
-          current_site_name: (c.sites as any).nom,
-          current_periode: c.demi_journee as 'matin' | 'apres_midi',
-          capacite_id: c.id,
-          is_1r: c.is_1r,
-          is_2f: c.is_2f,
-          is_3f: c.is_3f,
-          besoin_operation_id: c.besoin_operation_id || undefined,
-          is_compatible: compatibleIds.has(c.secretaire_id!),
-        }));
+      // Group by secretaire + site to detect full day assignments
+      const grouped = new Map<string, {
+        secretaire_id: string;
+        site_id: string;
+        first_name: string;
+        name: string;
+        site_nom: string;
+        capacites: typeof capacites;
+      }>();
+
+      capacites.filter(c => c.secretaires && c.sites).forEach(c => {
+        const key = `${c.secretaire_id}_${c.site_id}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            secretaire_id: c.secretaire_id!,
+            site_id: c.site_id,
+            first_name: (c.secretaires as any).first_name || '',
+            name: (c.secretaires as any).name || '',
+            site_nom: (c.sites as any).nom,
+            capacites: [],
+          });
+        }
+        grouped.get(key)!.capacites.push(c);
+      });
+
+      const secretairesFromOther: SecretaireFromOtherSite[] = [];
+
+      grouped.forEach(({ secretaire_id, site_id, first_name, name, site_nom, capacites: caps }) => {
+        const hasMatin = caps.some(c => c.demi_journee === 'matin');
+        const hasApresMidi = caps.some(c => c.demi_journee === 'apres_midi');
+
+        if (periode === 'journee' && hasMatin && hasApresMidi) {
+          // Both periods exist: show as full day
+          const matinCap = caps.find(c => c.demi_journee === 'matin')!;
+          const apresMidiCap = caps.find(c => c.demi_journee === 'apres_midi')!;
+          
+          secretairesFromOther.push({
+            id: secretaire_id,
+            first_name,
+            name,
+            current_site_id: site_id,
+            current_site_name: site_nom,
+            current_periode: 'toute_journee' as any,
+            capacite_id: matinCap.id,
+            capacite_id_apres_midi: apresMidiCap.id,
+            is_1r: matinCap.is_1r || apresMidiCap.is_1r,
+            is_2f: matinCap.is_2f || apresMidiCap.is_2f,
+            is_3f: matinCap.is_3f || apresMidiCap.is_3f,
+            besoin_operation_id: matinCap.besoin_operation_id || apresMidiCap.besoin_operation_id || undefined,
+            is_compatible: compatibleIds.has(secretaire_id),
+          });
+        } else {
+          // Single period or only one period available: show individual periods
+          caps.forEach(c => {
+            secretairesFromOther.push({
+              id: secretaire_id,
+              first_name,
+              name,
+              current_site_id: site_id,
+              current_site_name: site_nom,
+              current_periode: c.demi_journee as 'matin' | 'apres_midi',
+              capacite_id: c.id,
+              is_1r: c.is_1r,
+              is_2f: c.is_2f,
+              is_3f: c.is_3f,
+              besoin_operation_id: c.besoin_operation_id || undefined,
+              is_compatible: compatibleIds.has(secretaire_id),
+            });
+          });
+        }
+      });
 
       setSecretaires(secretairesFromOther);
     }
@@ -231,10 +287,10 @@ export function ReassignSecretaireDialog({
 
     setLoading(true);
     try {
-      // Determine which periods to delete and create
+      // Determine which periods to delete based on current assignment
       const periodsToDelete: ('matin' | 'apres_midi')[] = 
-        periode === 'journee' 
-          ? [selectedSecretaire.current_periode]
+        selectedSecretaire.current_periode === 'toute_journee'
+          ? ['matin', 'apres_midi']
           : [selectedSecretaire.current_periode];
 
       const periodsToCreate: ('matin' | 'apres_midi')[] = 
@@ -367,7 +423,11 @@ export function ReassignSecretaireDialog({
                         <div className="flex flex-col flex-1">
                           <span>{secretaire.first_name} {secretaire.name}</span>
                           <span className="text-xs text-muted-foreground">
-                            {secretaire.current_site_name} - {secretaire.current_periode === 'matin' ? 'Matin' : 'Après-midi'}
+                            {secretaire.current_site_name} - {
+                              secretaire.current_periode === 'matin' ? 'Matin' : 
+                              secretaire.current_periode === 'apres_midi' ? 'Après-midi' :
+                              'Toute la journée'
+                            }
                             {(secretaire.is_1r || secretaire.is_2f || secretaire.is_3f) && (
                               <Badge variant="outline" className="ml-2">
                                 {secretaire.is_1r && '1R'}
@@ -392,7 +452,11 @@ export function ReassignSecretaireDialog({
                 {selectedSecretaire.is_compatible ? (
                   <>
                     Actuellement assigné à <Badge variant="secondary">{selectedSecretaire.current_site_name}</Badge> 
-                    {' '}pour la période <Badge variant="secondary">{selectedSecretaire.current_periode === 'matin' ? 'Matin' : 'Après-midi'}</Badge>
+                    {' '}pour la période <Badge variant="secondary">
+                      {selectedSecretaire.current_periode === 'matin' ? 'Matin' : 
+                       selectedSecretaire.current_periode === 'apres_midi' ? 'Après-midi' :
+                       'Toute la journée'}
+                    </Badge>
                   </>
                 ) : (
                   "Cet assistant n'est pas compatible avec le site cible"
