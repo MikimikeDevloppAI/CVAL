@@ -173,17 +173,18 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       return dayOfWeek !== 0 && dayOfWeek !== 6; // Only weekdays
     });
 
-    let availableDays = weekDays.length;
+    // Use a Set to track unique unavailable days (holiday OR absence)
+    const unavailableDays = new Set<string>();
 
-    // Subtract holidays
+    // Add holidays to unavailable days
     weekDays.forEach(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
       if (holidays.some(h => h.date === dateStr)) {
-        availableDays--;
+        unavailableDays.add(dateStr);
       }
     });
 
-    // Subtract absences
+    // Add absences to unavailable days (will not double-count if already a holiday)
     const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
     
     weekDays.forEach(day => {
@@ -196,18 +197,18 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         if (isWithinInterval(day, { start: absStart, end: absEnd })) {
           // Check if it's a full day absence or toute_journee
           if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
-            // Full day absence
-            availableDays--;
+            // Full day absence - add to set (no double counting)
+            unavailableDays.add(dateStr);
             break;
           }
           // If demi_journee is 'matin' or 'apres_midi', it's a partial day
-          // For simplicity, we don't subtract from available days for partial absences
+          // For simplicity, we don't count partial absences as unavailable
           // The MILP will handle the detailed assignment
         }
       }
     });
 
-    return Math.max(0, availableDays);
+    return Math.max(0, weekDays.length - unavailableDays.size);
   };
 
   // Get detailed information for a secretary in a week
@@ -288,15 +289,51 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
   // Calculate suggested days for a secretary in a week
   const calculateSuggestedDays = (secretary: FlexibleSecretary, week: WeekData): number => {
-    const availableDays = calculateAvailableDays(secretary, week);
+    const weekDays = week.days.filter(day => {
+      const dayOfWeek = day.getDay();
+      return dayOfWeek !== 0 && dayOfWeek !== 6; // Only weekdays
+    });
+
+    // Use a Set to track unique unavailable days (holiday OR absence)
+    const unavailableDays = new Set<string>();
+
+    // Add holidays to unavailable days
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      if (holidays.some(h => h.date === dateStr)) {
+        unavailableDays.add(dateStr);
+      }
+    });
+
+    // Add absences to unavailable days (will not double-count if already a holiday)
+    const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
+    
+    weekDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      
+      for (const absence of secAbsences) {
+        const absStart = new Date(absence.date_debut);
+        const absEnd = new Date(absence.date_fin);
+        
+        if (isWithinInterval(day, { start: absStart, end: absEnd })) {
+          // Check if it's a full day absence or toute_journee
+          if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
+            // Full day absence - add to set (no double counting)
+            unavailableDays.add(dateStr);
+            break;
+          }
+        }
+      }
+    });
+
+    const availableDays = Math.max(0, weekDays.length - unavailableDays.size);
     
     if (availableDays === 0) return 0;
 
-    // Calculate required days based on percentage (for 1 week)
-    const requiredDays = Math.round((secretary.pourcentage_temps / 100) * 5);
+    // Calculate required days based on percentage and available days
+    const requiredDays = Math.round((secretary.pourcentage_temps / 100) * availableDays);
     
     // Check if this is a partial week selection
-    const weekDays = week.days;
     const selectedInWeek = weekDays.filter(day => 
       selectedDates.some(selected => isSameDay(selected, day))
     );
@@ -330,12 +367,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         }
       }
       
-      // Suggest: max(0, requiredDays - daysAlreadyWorked)
+      // Suggest: max(0, min(requiredDays - daysAlreadyWorked, availableDays))
       return Math.max(0, Math.min(requiredDays - daysAlreadyWorked, availableDays));
     }
     
     // Full week selection: return minimum of required and available
-    return Math.min(requiredDays, availableDays);
+    return Math.max(0, Math.min(requiredDays, availableDays));
   };
 
   // When a week is toggled, calculate assignments for all secretaries
