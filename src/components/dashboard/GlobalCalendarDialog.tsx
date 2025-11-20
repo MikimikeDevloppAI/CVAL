@@ -113,10 +113,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   } | null>(null);
   const [addBesoinDialog, setAddBesoinDialog] = useState<{
     open: boolean;
-    medecinId: string;
+    medecinId: string | undefined;
     medecinNom: string;
     medecinPrenom: string;
     date: string;
+    siteId?: string;
+  } | null>(null);
+  const [addCapaciteDialog, setAddCapaciteDialog] = useState<{
+    open: boolean;
+    secretaireId: string | undefined;
+    secretaireNom: string;
+    secretairePrenom: string;
+    date: string;
+    siteId?: string;
   } | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
@@ -933,7 +942,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   <td
                                     key={day.dateStr}
                                     className={cn(
-                                      "p-1 text-center min-w-[100px] border-l align-top",
+                                      "p-1 text-center min-w-[100px] border-l align-top relative group",
                                       isWeekend(day.dateStr) && "bg-muted/50",
                                       isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                                     )}
@@ -992,6 +1001,25 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         );
                                       })}
                                     </div>
+                                    {/* Bouton + pour ajouter un médecin */}
+                                    {!isWeekend(day.dateStr) && !isHoliday(day.dateStr) && (
+                                      <button
+                                        className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setAddBesoinDialog({
+                                            open: true,
+                                            medecinId: undefined,
+                                            medecinNom: '',
+                                            medecinPrenom: '',
+                                            date: day.dateStr,
+                                            siteId: site.id
+                                          });
+                                        }}
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                      </button>
+                                    )}
                                   </td>
                                 );
                               })}
@@ -1049,7 +1077,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   <td
                                     key={day.dateStr}
                                     className={cn(
-                                      "p-1 text-center min-w-[100px] border-l border-t align-top",
+                                      "p-1 text-center min-w-[100px] border-l border-t align-top relative group",
                                       isWeekend(day.dateStr) && "bg-muted/50",
                                       isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                                     )}
@@ -1109,6 +1137,25 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         );
                                       })}
                                     </div>
+                                    {/* Bouton + pour ajouter un assistant */}
+                                    {!isWeekend(day.dateStr) && !isHoliday(day.dateStr) && (
+                                      <button
+                                        className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setAddCapaciteDialog({
+                                            open: true,
+                                            secretaireId: undefined,
+                                            secretaireNom: '',
+                                            secretairePrenom: '',
+                                            date: day.dateStr,
+                                            siteId: site.id
+                                          });
+                                        }}
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                      </button>
+                                    )}
                                   </td>
                                 );
                               })}
