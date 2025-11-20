@@ -40,6 +40,7 @@ interface PeriodNeed {
   besoin_operation_nom?: string;
   medecin_nom?: string;
   type_intervention_nom?: string;
+  planning_genere_bloc_operatoire_id?: string;
   manque: number;
   suggestions_admin: SecretaireSuggestion[];
   suggestions_not_working: SecretaireSuggestion[];
@@ -130,6 +131,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           besoin_operation_nom: need.besoin_operation_nom!,
           medecin_nom: need.medecin_nom!,
           type_intervention_nom: need.type_intervention_nom!,
+          planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id!,
           manque: need.deficit!,
           suggestions_admin: [],
           suggestions_not_working: []
@@ -302,7 +304,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           .from('capacite_effective')
           .update({
             site_id: need.site_id,
-            besoin_operation_id: need.besoin_operation_id || null
+            besoin_operation_id: need.besoin_operation_id || null,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null
           })
           .eq('id', existingCapacity.id);
 
@@ -317,6 +320,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             demi_journee: need.periode,
             site_id: need.site_id,
             besoin_operation_id: need.besoin_operation_id || null,
+            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
             actif: true
           });
 
