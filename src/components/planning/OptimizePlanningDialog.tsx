@@ -225,6 +225,8 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     let holidaysCount = 0;
     let absencesCount = 0;
     let daysWorkedOutsideSelection = 0;
+    const holidayDates: string[] = [];
+    const absenceDates: string[] = [];
 
     const selectedInWeek = weekDays.filter(day => 
       selectedDates.some(selected => isSameDay(selected, day))
@@ -238,10 +240,11 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       const dateStr = format(day, 'yyyy-MM-dd');
       if (holidays.some(h => h.date === dateStr)) {
         holidaysCount++;
+        holidayDates.push(format(day, 'dd/MM'));
       }
     });
 
-    // Count absences
+    // Count absences (full-day only)
     const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
     weekDays.forEach(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
@@ -254,15 +257,16 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
           // Check if it's a full day absence or toute_journee
           if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
             absencesCount++;
+            absenceDates.push(format(day, 'dd/MM'));
             break;
           }
           // If demi_journee is 'matin' or 'apres_midi', it's a partial day
-          // For simplicity in counting, we don't count partial days here
+          // For simplicité, on ne compte pas les demi-journées ici
         }
       }
     });
 
-    // Count days worked outside selection
+    // Count days worked outside selection (full days)
     for (const day of nonSelectedInWeek) {
       const dateStr = format(day, 'yyyy-MM-dd');
       const hasMatin = capacities.some(
@@ -287,10 +291,11 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       holidaysCount,
       absencesCount,
       daysWorkedOutsideSelection,
-      hasPartialSelection: selectedInWeek.length > 0 && selectedInWeek.length < weekDays.length
+      hasPartialSelection: selectedInWeek.length > 0 && selectedInWeek.length < weekDays.length,
+      holidayDates,
+      absenceDates,
     };
   };
-
   // Calculate suggested days for a secretary in a week
   const calculateSuggestedDays = (secretary: FlexibleSecretary, week: WeekData): number => {
     const weekDays = week.days.filter(day => {
@@ -701,8 +706,8 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
                                     {sec.first_name} {sec.name}
                                   </span>
                                   <span className="text-muted-foreground text-[10px]">
-                                    {details.holidaysCount > 0 && `${details.holidaysCount}j férié • `}
-                                    {details.absencesCount > 0 && `${details.absencesCount}j congé • `}
+                                    {details.holidaysCount > 0 && `${details.holidaysCount}j férié (${details.holidayDates.join(', ')}) • `}
+                                    {details.absencesCount > 0 && `${details.absencesCount}j congé (${details.absenceDates.join(', ')}) • `}
                                     {details.hasPartialSelection && details.daysWorkedOutsideSelection > 0 && 
                                       `${details.daysWorkedOutsideSelection}j déjà • `}
                                     {availableDays}j dispo
