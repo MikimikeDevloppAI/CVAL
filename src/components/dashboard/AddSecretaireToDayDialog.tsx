@@ -99,18 +99,40 @@ export function AddSecretaireToDayDialog({
   }, [selectedSecretaireId, date]);
 
   const fetchData = async () => {
-    // Fetch secretaires who have this site in their preferences
-    const { data: secData } = await supabase
-      .from('secretaires')
-      .select(`
-        id, 
-        first_name, 
-        name,
-        secretaires_sites!inner(site_id)
-      `)
-      .eq('actif', true)
-      .eq('secretaires_sites.site_id', siteId)
-      .order('name');
+    // Check if the site is "Administratif"
+    const { data: siteData } = await supabase
+      .from('sites')
+      .select('nom')
+      .eq('id', siteId)
+      .single();
+    
+    const isAdministratif = siteData?.nom === 'Administratif';
+
+    // Fetch secretaires
+    let secData;
+    if (isAdministratif) {
+      // For Administratif, fetch all active secretaires
+      const { data } = await supabase
+        .from('secretaires')
+        .select('id, first_name, name')
+        .eq('actif', true)
+        .order('name');
+      secData = data;
+    } else {
+      // For other sites, only fetch secretaires who have this site in their preferences
+      const { data } = await supabase
+        .from('secretaires')
+        .select(`
+          id, 
+          first_name, 
+          name,
+          secretaires_sites!inner(site_id)
+        `)
+        .eq('actif', true)
+        .eq('secretaires_sites.site_id', siteId)
+        .order('name');
+      secData = data;
+    }
 
     if (secData) {
       // Fetch existing assignments for ALL periods for this date
