@@ -11,7 +11,7 @@ import { SecretairesPopup } from '@/components/dashboard/secretaires/Secretaires
 import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, Calendar, BarChart3, Plus, Building, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, CalendarDays, BarChart3, Plus, Building, FileText } from 'lucide-react';
 import { WeekSelector } from '@/components/shared/WeekSelector';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
@@ -949,7 +949,7 @@ const DashboardPage = () => {
         />
         <QuickActionButton
           label="Calendrier global"
-          icon={<Calendar className="h-6 w-6" />}
+          icon={<CalendarDays className="h-6 w-6" />}
           onClick={() => setGlobalCalendarOpen(true)}
           gradient="from-blue-500 to-purple-500"
         />
