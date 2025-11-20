@@ -307,12 +307,15 @@ export function ReassignSecretaireDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command className="max-h-[300px]">
                   <CommandInput placeholder="Rechercher..." />
                   <CommandEmpty>Aucun assistant trouvé.</CommandEmpty>
-                  <CommandGroup>
-                    {secretaires.map((secretaire) => (
+                  <CommandGroup className="overflow-auto">
+                    {Array.from(new Map(secretaires
+                      .filter(s => s.is_compatible)
+                      .map(s => [s.id, s])
+                    ).values()).map((secretaire) => (
                       <CommandItem
                         key={secretaire.id}
                         value={`${secretaire.first_name} ${secretaire.name}`}
@@ -328,12 +331,7 @@ export function ReassignSecretaireDialog({
                           )}
                         />
                         <div className="flex flex-col flex-1">
-                          <div className="flex items-center gap-2">
-                            <span>{secretaire.first_name} {secretaire.name}</span>
-                            {!secretaire.is_compatible && (
-                              <Badge variant="destructive" className="text-xs">Incompatible</Badge>
-                            )}
-                          </div>
+                          <span>{secretaire.first_name} {secretaire.name}</span>
                           <span className="text-xs text-muted-foreground">
                             {secretaire.current_site_name} - {secretaire.current_periode === 'matin' ? 'Matin' : 'Après-midi'}
                             {(secretaire.is_1r || secretaire.is_2f || secretaire.is_3f) && (
