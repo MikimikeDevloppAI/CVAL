@@ -200,6 +200,14 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     return labels[type] || type;
   };
 
+  const formatSiteName = (siteName: string) => {
+    if (siteName.startsWith('Clinique La Vallée')) {
+      const parts = siteName.split(' - ');
+      return parts.length > 1 ? parts[1] : siteName;
+    }
+    return siteName;
+  };
+
   const mergeAssignments = (assignments: (BesoinEffectif | CapaciteEffective)[]) => {
     const bySite: Record<string, { matin: boolean; apresMidi: boolean; siteNom: string }> = {};
     
@@ -410,7 +418,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                               )}
                                               title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
                                             >
-                                              {item.siteNom?.substring(0, 8)}
+                                              {formatSiteName(item.siteNom || '')?.substring(0, 8)}
                                             </div>
                                           ))}
                                         </div>
@@ -463,7 +471,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                           )}
                                           title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
                                         >
-                                          {item.siteNom?.substring(0, 8)}
+                                          {formatSiteName(item.siteNom || '')?.substring(0, 8)}
                                         </div>
                                       ))}
                                     </div>
