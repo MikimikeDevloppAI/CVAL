@@ -249,8 +249,57 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
 
                       if (!dayData) {
                         return (
-                          <TableCell key={dateStr} className="text-center text-muted-foreground text-xs">
-                            -
+                          <TableCell
+                            key={dateStr}
+                            className="p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group"
+                            onClick={() => onDayClick?.(site.site_id, dateStr)}
+                          >
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">-</span>
+                            </div>
+                            
+                            {/* Bouton + qui apparaît au hover */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56 z-[100]">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAddMedecinDialog({
+                                      open: true,
+                                      date: dateStr,
+                                      siteId: site.site_id,
+                                    });
+                                  }}
+                                >
+                                  <Stethoscope className="h-4 w-4 mr-2" />
+                                  Ajouter un médecin sans créneau
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setReassignMedecinDialog({
+                                      open: true,
+                                      date: dateStr,
+                                      siteId: site.site_id,
+                                      siteName: site.site_nom,
+                                    });
+                                  }}
+                                >
+                                  <Stethoscope className="h-4 w-4 mr-2" />
+                                  Réaffecter depuis un autre site
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         );
                       }
