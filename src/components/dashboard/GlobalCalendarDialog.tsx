@@ -715,19 +715,18 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                 ) : (
                   // Vue par site (nouvelle)
                   <>
-                  <div className="border rounded-lg flex-1 overflow-auto">
-                    <div className="min-w-max">
-                      {/* En-tête des dates */}
-                      <div className="sticky top-0 z-30 bg-background border-b shadow-sm">
-                        <div className="flex">
-                          <div className="sticky left-0 z-40 bg-background border-r p-2 min-w-[200px] flex items-center">
+                  <div className="border rounded-lg flex-1 overflow-auto relative">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 z-30 bg-background shadow-sm">
+                        <tr>
+                          <th className="sticky left-0 z-40 bg-background border-r border-b p-2 min-w-[200px] text-left">
                             <span className="font-medium text-xs">Site</span>
-                          </div>
+                          </th>
                           {days.map(day => (
-                            <div
+                            <th
                               key={day.dateStr}
                               className={cn(
-                                "p-1 text-center min-w-[120px] border-l bg-background",
+                                "p-1 text-center min-w-[120px] border-l border-b bg-background",
                                 (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                               )}
                             >
@@ -737,17 +736,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               <div className="text-muted-foreground text-xs">
                                 {format(day.date, 'd')}
                               </div>
-                            </div>
+                            </th>
                           ))}
-                        </div>
-                      </div>
+                        </tr>
+                      </thead>
 
-                      {/* Sites */}
+                      <tbody>
                       {sites.map(site => (
-                        <div key={site.id} className="flex border-b hover:bg-muted/30">
-                          <div className="sticky left-0 z-10 bg-background border-r p-2 min-w-[200px] text-xs font-medium flex items-center">
+                        <tr key={site.id} className="border-b hover:bg-muted/30">
+                          <td className="sticky left-0 z-10 bg-background border-r p-2 min-w-[200px] text-xs font-medium">
                             {formatSiteName(site.nom)}
-                          </div>
+                          </td>
                           {days.map(day => {
                             const besoinsDay = besoins.filter(b => b.site_id === site.id && b.date === day.dateStr);
                             const capacitesDay = capacites.filter(c => c.site_id === site.id && c.date === day.dateStr);
@@ -755,10 +754,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             const isHolidayDay = isHoliday(day.dateStr);
                             
                             return (
-                              <div
+                              <td
                                 key={day.dateStr}
                                 className={cn(
-                                  "p-1 border-l min-w-[120px]",
+                                  "p-1 border-l min-w-[120px] align-top",
                                   (isWeekendDay || isHolidayDay) && "bg-muted/20"
                                 )}
                               >
@@ -840,12 +839,13 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     );
                                   })}
                                 </div>
-                              </div>
+                              </td>
                             );
                           })}
-                        </div>
+                        </tr>
                       ))}
-                    </div>
+                      </tbody>
+                    </table>
                   </div>
                   
                   <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
