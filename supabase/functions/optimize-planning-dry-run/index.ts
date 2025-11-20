@@ -289,16 +289,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { date } = await req.json();
+    const { date, startDate, endDate } = await req.json();
 
-    if (!date) {
-      throw new Error('Date is required');
+    // Support both single date and date range
+    let dates: string[] = [];
+    if (startDate && endDate) {
+      // Generate all dates in range
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const current = new Date(start);
+      
+      while (current <= end) {
+        dates.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+      
+      console.log(`🧪 Dry-run optimization for period ${startDate} to ${endDate} (${dates.length} days)`);
+    } else if (date) {
+      dates = [date];
+      console.log(`🧪 Dry-run optimization for ${date}`);
+    } else {
+      throw new Error('Either date or startDate/endDate is required');
     }
 
-    console.log(`🧪 Dry-run optimization for ${date}`);
-
     // Load data using exact same function as v2
-    const week_data = await loadWeekData([date], supabase);
+    const week_data = await loadWeekData(dates, supabase);
     
     // Identify Paul Jacquier and Florence Bron for 3F/2F logic
     const florenceBron = week_data.secretaires.find(s => 
