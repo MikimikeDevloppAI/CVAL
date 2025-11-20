@@ -326,13 +326,24 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       }
     });
 
-    const availableDays = Math.max(0, weekDays.length - unavailableDays.size);
-    
-    if (availableDays === 0) return 0;
+    console.log(`[${secretary.name}] Semaine ${format(week.weekStart, 'dd/MM')}:`, {
+      weekDays: weekDays.length,
+      unavailableDays: unavailableDays.size,
+      unavailableDaysList: Array.from(unavailableDays),
+      pourcentage: secretary.pourcentage_temps
+    });
 
-    // Calculate required days based on percentage and available days
-    const requiredDays = Math.round((secretary.pourcentage_temps / 100) * availableDays);
+    // Formula: taux_activité * (5 - jours_indisponibles)
+    const joursDisponibles = Math.max(0, 5 - unavailableDays.size);
+    const joursRequis = Math.max(0, Math.round((secretary.pourcentage_temps / 100) * joursDisponibles));
+
+    console.log(`[${secretary.name}] Calcul: ${secretary.pourcentage_temps}% * (5 - ${unavailableDays.size}) = ${secretary.pourcentage_temps / 100} * ${joursDisponibles} = ${joursRequis}`);
     
+    if (joursDisponibles === 0) {
+      console.log(`[${secretary.name}] Aucun jour disponible → retour 0`);
+      return 0;
+    }
+
     // Check if this is a partial week selection
     const selectedInWeek = weekDays.filter(day => 
       selectedDates.some(selected => isSameDay(selected, day))
@@ -367,12 +378,16 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         }
       }
       
-      // Suggest: max(0, min(requiredDays - daysAlreadyWorked, availableDays))
-      return Math.max(0, Math.min(requiredDays - daysAlreadyWorked, availableDays));
+      console.log(`[${secretary.name}] Sélection partielle - jours déjà travaillés: ${daysAlreadyWorked}`);
+      // Suggest: max(0, min(joursRequis - daysAlreadyWorked, joursDisponibles))
+      const result = Math.max(0, Math.min(joursRequis - daysAlreadyWorked, joursDisponibles));
+      console.log(`[${secretary.name}] Résultat partiel: max(0, min(${joursRequis} - ${daysAlreadyWorked}, ${joursDisponibles})) = ${result}`);
+      return result;
     }
     
-    // Full week selection: return minimum of required and available
-    return Math.max(0, Math.min(requiredDays, availableDays));
+    // Full week selection: return joursRequis
+    console.log(`[${secretary.name}] Sélection complète → retour ${joursRequis}`);
+    return joursRequis;
   };
 
   // When a week is toggled, calculate assignments for all secretaries
