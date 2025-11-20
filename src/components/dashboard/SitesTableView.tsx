@@ -3,11 +3,13 @@ import { fr } from 'date-fns/locale';
 import { DashboardSite } from '@/pages/DashboardPage';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, Stethoscope, AlertCircle } from 'lucide-react';
+import { User, Stethoscope, AlertCircle, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 interface SitesTableViewProps {
   sites: DashboardSite[];
@@ -45,6 +47,8 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
     date: '',
     periode: 'matin',
   });
+
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
   // Filtrer les dimanches et garder les samedis seulement s'il y a des besoins
   const weekdaysOnly = weekDays.filter(d => {
@@ -240,10 +244,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                         <TableCell
                           key={dateStr}
                           className={cn(
-                            "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top",
+                            "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group",
                             hasDeficit && "border-l-2 border-l-destructive"
                           )}
                           onClick={() => onDayClick?.(site.site_id, dateStr)}
+                          onMouseEnter={() => setHoveredCell(`medecin-${site.site_id}-${dateStr}`)}
+                          onMouseLeave={() => setHoveredCell(null)}
                         >
                           <div className="space-y-1">
                             {medecins.length > 0 ? (
@@ -277,6 +283,41 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </div>
+                          
+                          {/* Bouton + qui apparaît au hover */}
+                          {hoveredCell === `medecin-${site.site_id}-${dateStr}` && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDayClick?.(site.site_id, dateStr);
+                                  }}
+                                >
+                                  <Stethoscope className="h-4 w-4 mr-2" />
+                                  Ajouter un médecin sans créneau
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDayClick?.(site.site_id, dateStr);
+                                  }}
+                                >
+                                  <Stethoscope className="h-4 w-4 mr-2" />
+                                  Réaffecter depuis un autre site
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </TableCell>
                       );
                     })}
@@ -332,10 +373,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                       <TableCell
                         key={dateStr}
                         className={cn(
-                          "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top",
+                          "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group",
                           hasDeficit && "border-l-2 border-l-destructive"
                         )}
                         onClick={() => onDayClick?.(site.site_id, dateStr)}
+                        onMouseEnter={() => setHoveredCell(`${site.site_id}-${dateStr}`)}
+                        onMouseLeave={() => setHoveredCell(null)}
                       >
                         <div className="space-y-1">
                           {secretaires.length > 0 ? (
@@ -375,6 +418,41 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </div>
+                        
+                        {/* Bouton + qui apparaît au hover */}
+                        {hoveredCell === `${site.site_id}-${dateStr}` && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDayClick?.(site.site_id, dateStr);
+                                }}
+                              >
+                                <User className="h-4 w-4 mr-2" />
+                                Ajouter quelqu'un sans créneau
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDayClick?.(site.site_id, dateStr);
+                                }}
+                              >
+                                <Stethoscope className="h-4 w-4 mr-2" />
+                                Réaffecter depuis un autre site
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </TableCell>
                     );
                   })}
