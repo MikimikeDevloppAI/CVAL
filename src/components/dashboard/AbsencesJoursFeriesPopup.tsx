@@ -430,10 +430,10 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                                 }
                               </h4>
                               <div className="flex gap-2 flex-wrap">
-                                <Badge className="bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-cyan-500/20 text-xs">
+                                <Badge className="bg-muted text-muted-foreground hover:bg-muted/80 border-border text-xs">
                                   {absence.type_personne === 'medecin' ? 'Médecin' : 'Assistant médical'}
                                 </Badge>
-                                <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20 text-xs">
+                                <Badge className="bg-accent/50 text-accent-foreground hover:bg-accent/60 border-accent/30 text-xs">
                                   {getTypeLabel(absence.type)}
                                 </Badge>
                               </div>
