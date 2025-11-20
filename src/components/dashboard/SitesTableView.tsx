@@ -120,8 +120,8 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
           secretaires: [],
           besoin_secretaires_matin: 0,
           besoin_secretaires_apres_midi: 0,
-          status_matin: 'non_satisfait' as const,
-          status_apres_midi: 'non_satisfait' as const,
+          status_matin: 'satisfait' as const,
+          status_apres_midi: 'satisfait' as const,
         };
       }
 
