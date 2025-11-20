@@ -304,7 +304,7 @@ export function AssignSecretaireOperationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">
+          <DialogTitle className="text-primary">
             Assigner un assistant médical
           </DialogTitle>
           <DialogDescription>
@@ -392,7 +392,6 @@ export function AssignSecretaireOperationDialog({
           <Button
             onClick={handleSubmit}
             disabled={loading || !selectedSecretaireId || fetchingData}
-            className="bg-gradient-to-r from-emerald-500 to-teal-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedSecretaire?.status === 'assigned_elsewhere' ? 'Réassigner' : 'Assigner'}
