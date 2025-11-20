@@ -824,7 +824,27 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     )}
                                   >
                                     <div className="space-y-0.5">
-                                      {Array.from(medecinsPeriodes.entries()).map(([medecinId, info]) => {
+                                      {Array.from(medecinsPeriodes.entries())
+                                        .sort(([idA, infoA], [idB, infoB]) => {
+                                          // Fonction pour déterminer l'ordre de couleur (vert=1, bleu=2, jaune=3)
+                                          const getColorOrder = (info: { matin: boolean; apresMidi: boolean }) => {
+                                            if (info.matin && info.apresMidi) return 1; // Vert (journée complète)
+                                            if (info.matin) return 2; // Bleu (matin)
+                                            return 3; // Jaune (après-midi)
+                                          };
+                                          
+                                          const orderA = getColorOrder(infoA);
+                                          const orderB = getColorOrder(infoB);
+                                          
+                                          // D'abord trier par couleur
+                                          if (orderA !== orderB) return orderA - orderB;
+                                          
+                                          // Ensuite par ordre alphabétique (nom complet)
+                                          const nomCompletA = `${infoA.prenom} ${infoA.nom}`.toLowerCase();
+                                          const nomCompletB = `${infoB.prenom} ${infoB.nom}`.toLowerCase();
+                                          return nomCompletA.localeCompare(nomCompletB);
+                                        })
+                                        .map(([medecinId, info]) => {
                                         const absence = getAbsenceForPersonAndDate(medecinId, day.dateStr, 'medecin');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
@@ -910,7 +930,27 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     )}
                                   >
                                     <div className="space-y-0.5">
-                                      {Array.from(secretairesPeriodes.entries()).map(([secretaireId, info]) => {
+                                      {Array.from(secretairesPeriodes.entries())
+                                        .sort(([idA, infoA], [idB, infoB]) => {
+                                          // Fonction pour déterminer l'ordre de couleur (vert=1, bleu=2, jaune=3)
+                                          const getColorOrder = (info: { matin: boolean; apresMidi: boolean }) => {
+                                            if (info.matin && info.apresMidi) return 1; // Vert (journée complète)
+                                            if (info.matin) return 2; // Bleu (matin)
+                                            return 3; // Jaune (après-midi)
+                                          };
+                                          
+                                          const orderA = getColorOrder(infoA);
+                                          const orderB = getColorOrder(infoB);
+                                          
+                                          // D'abord trier par couleur
+                                          if (orderA !== orderB) return orderA - orderB;
+                                          
+                                          // Ensuite par ordre alphabétique (nom complet)
+                                          const nomCompletA = `${infoA.prenom} ${infoA.nom}`.toLowerCase();
+                                          const nomCompletB = `${infoB.prenom} ${infoB.nom}`.toLowerCase();
+                                          return nomCompletA.localeCompare(nomCompletB);
+                                        })
+                                        .map(([secretaireId, info]) => {
                                         const absence = getAbsenceForPersonAndDate(secretaireId, day.dateStr, 'secretaire');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
