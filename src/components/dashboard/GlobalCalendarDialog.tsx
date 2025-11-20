@@ -189,6 +189,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       setCapacites(capacitesData || []);
       setAbsences(absencesData || []);
       setJoursFeries(feriesData?.map(f => f.date) || []);
+      
+      console.log('Calendrier par site - Debug:', {
+        sites: sitesData?.length,
+        besoins: besoinsData?.length,
+        capacites: capacitesData?.length,
+        medecins: medData?.length,
+        secretaires: secData?.length,
+        sampleBesoin: besoinsData?.[0],
+        sampleCapacite: capacitesData?.[0]
+      });
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -756,13 +766,25 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                         </tr>
                       </thead>
                       <tbody>
-                        {sites.map(site => (
+                        {sites.map((site, siteIndex) => (
                           <>
+                            {/* En-tête du site */}
+                            <tr key={`${site.id}-header`} className={cn(
+                              "bg-muted/50",
+                              siteIndex > 0 && "border-t-2 border-border"
+                            )}>
+                              <td 
+                                colSpan={days.length + 1} 
+                                className="sticky left-0 z-20 bg-muted/50 p-2"
+                              >
+                                <div className="text-sm font-semibold">{site.nom}</div>
+                              </td>
+                            </tr>
+                            
                             {/* Ligne Médecins */}
                             <tr key={`${site.id}-medecins`} className="border-b hover:bg-muted/30">
                               <td className="sticky left-0 z-20 bg-background border-r p-2">
-                                <div className="text-xs font-medium">{site.nom}</div>
-                                <div className="text-[10px] text-muted-foreground">Médecins</div>
+                                <div className="text-xs font-medium text-muted-foreground pl-4">👨‍⚕️ Médecins</div>
                               </td>
                               {days.map(day => {
                                 const besoinsDay = besoins.filter(b => 
@@ -770,6 +792,23 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   b.site_id === site.id
                                 );
                                 const merged = mergeAssignments(besoinsDay);
+                                
+                                // Debug first day of first site
+                                if (day.dateStr === days[0]?.dateStr && site.id === sites[0]?.id) {
+                                  console.log('Premier jour, premier site:', {
+                                    siteId: site.id,
+                                    siteNom: site.nom,
+                                    dateStr: day.dateStr,
+                                    besoinsTotal: besoins.length,
+                                    besoinsDay: besoinsDay.length,
+                                    merged: merged.length,
+                                    sampleBesoins: besoins.slice(0, 3).map(b => ({
+                                      date: b.date,
+                                      site_id: b.site_id,
+                                      medecin_id: b.medecin_id
+                                    }))
+                                  });
+                                }
 
                                 return (
                                   <td
@@ -820,9 +859,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             
                             {/* Ligne Assistants */}
                             <tr key={`${site.id}-assistants`} className="border-b hover:bg-muted/30">
-                              <td className="sticky left-0 z-20 bg-background border-r border-t p-2">
-                                <div className="text-xs font-medium text-transparent select-none">-</div>
-                                <div className="text-[10px] text-muted-foreground">Assistants</div>
+                              <td className="sticky left-0 z-20 bg-background border-r p-2">
+                                <div className="text-xs font-medium text-muted-foreground pl-4">🩺 Assistants</div>
                               </td>
                               {days.map(day => {
                                 const capacitesDay = capacites.filter(c => 
