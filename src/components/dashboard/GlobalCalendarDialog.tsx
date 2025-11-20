@@ -782,28 +782,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-green-500"></div>
-                    <span>Journée complète</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-blue-500"></div>
-                    <span>Matin</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-yellow-500"></div>
-                    <span>Après-midi</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
-                    <span>Absence</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-amber-50 border"></div>
-                    <span>Aucune assignation</span>
-                  </div>
-                  </div>
               </>
             )}
           </TabsContent>
