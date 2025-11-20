@@ -618,19 +618,20 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
       </Dialog>
 
       {/* Edit Besoin Dialog */}
-      {editingSlot && editingDate && (
-        <EditBesoinMedecinDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          medecinId={medecinId}
-          medecinNom={medecinNom}
-          date={editingDate}
-          initialSiteId={editingSlot.siteId}
-          initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
-          besoinIds={editingSlot.ids}
-          onSuccess={handleEditSuccess}
-        />
-      )}
+        {editingSlot && editingDate && (
+          <EditBesoinMedecinDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            medecinId={medecinId}
+            medecinNom={medecinNom}
+            date={editingDate}
+            initialSiteId={editingSlot.siteId}
+            initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
+            initialTypeInterventionId={editingSlot.typeIntervention || null}
+            besoinIds={editingSlot.ids}
+            onSuccess={handleEditSuccess}
+          />
+        )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

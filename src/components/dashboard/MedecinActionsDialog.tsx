@@ -50,6 +50,7 @@ export function MedecinActionsDialog({
   const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | 'journee'>(periode);
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
   const [actionType, setActionType] = useState<'reassign' | 'delete' | null>(null);
+  const [reassignBesoinIds, setReassignBesoinIds] = useState<string[]>([]);
 
   const handleActionClick = (action: 'reassign' | 'delete') => {
     setActionType(action);
@@ -67,10 +68,27 @@ export function MedecinActionsDialog({
     }
   };
 
-  const handlePeriodSelected = (selectedPeriod: 'matin' | 'apres_midi' | 'journee') => {
+  const handlePeriodSelected = async (selectedPeriod: 'matin' | 'apres_midi' | 'journee') => {
     setSelectedPeriode(selectedPeriod);
     setShowPeriodSelector(false);
+    
     if (actionType === 'reassign') {
+      // Fetch besoin IDs for the selected period
+      const demiJournees: ('matin' | 'apres_midi')[] = selectedPeriod === 'journee' 
+        ? ['matin', 'apres_midi'] 
+        : [selectedPeriod as 'matin' | 'apres_midi'];
+      
+      const { data: besoins } = await supabase
+        .from('besoin_effectif')
+        .select('id')
+        .eq('medecin_id', medecinId)
+        .eq('date', date)
+        .eq('site_id', siteId)
+        .eq('type', 'medecin')
+        .eq('actif', true)
+        .in('demi_journee', demiJournees);
+      
+      setReassignBesoinIds(besoins?.map(b => b.id) || []);
       setReassignOpen(true);
     } else if (actionType === 'delete') {
       setDeleteConfirmOpen(true);
@@ -207,6 +225,7 @@ export function MedecinActionsDialog({
         date={date}
         currentSiteId={siteId}
         periode={selectedPeriode}
+        besoinIds={reassignBesoinIds}
         onSuccess={onRefresh}
       />
 

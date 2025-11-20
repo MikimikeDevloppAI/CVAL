@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -28,8 +27,6 @@ interface EditBesoinMedecinDialogProps {
   besoinIds?: string[];
   onSuccess: () => void;
 }
-
-const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
 export function EditBesoinMedecinDialog({
   open,
@@ -61,35 +58,24 @@ export function EditBesoinMedecinDialog({
   }, [open, initialSiteId, initialPeriod, initialTypeInterventionId]);
 
   const fetchSites = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('sites')
       .select('id, nom')
       .eq('actif', true)
       .neq('nom', 'Administratif')
       .order('nom');
-
-    if (error) {
-      console.error('Error fetching sites:', error);
-      toast.error('Erreur lors du chargement des sites');
-      return;
-    }
-
-    setSites(data || []);
+    
+    if (data) setSites(data);
   };
 
   const fetchTypesIntervention = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('types_intervention')
       .select('id, nom')
       .eq('actif', true)
       .order('nom');
-
-    if (error) {
-      console.error('Error fetching types intervention:', error);
-      return;
-    }
-
-    setTypesIntervention(data || []);
+    
+    if (data) setTypesIntervention(data);
   };
 
   const handleSubmit = async () => {
@@ -98,8 +84,7 @@ export function EditBesoinMedecinDialog({
       return;
     }
 
-    // Validation bloc opératoire
-    const isBlocOperatoire = selectedSiteId === BLOC_OPERATOIRE_SITE_ID;
+    const isBlocOperatoire = sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire');
     if (isBlocOperatoire && !selectedTypeInterventionId) {
       toast.error('Le type d\'intervention est obligatoire pour le bloc opératoire');
       return;
@@ -108,191 +93,70 @@ export function EditBesoinMedecinDialog({
     setLoading(true);
 
     try {
-      // 1. Récupérer les besoins existants
-      let query = supabase
-        .from('besoin_effectif')
-        .select('id, demi_journee, site_id, type_intervention_id')
-        .eq('medecin_id', medecinId)
-        .eq('date', date)
-        .eq('type', 'medecin')
-        .eq('actif', true);
-
-      // Si besoinIds fournis, filtrer sur eux
+      let targetBesoinIds: string[] = [];
+      
       if (besoinIds && besoinIds.length > 0) {
-        query = query.in('id', besoinIds);
+        targetBesoinIds = besoinIds;
+      } else {
+        const { data: existingBesoins } = await supabase
+          .from('besoin_effectif')
+          .select('id')
+          .eq('medecin_id', medecinId)
+          .eq('date', date)
+          .eq('type', 'medecin')
+          .eq('actif', true);
+        
+        targetBesoinIds = existingBesoins?.map(b => b.id) || [];
       }
 
-      const { data: existingBesoins, error: fetchError } = await query;
-
-      if (fetchError) {
-        console.error('Error fetching existing besoins:', fetchError);
-        toast.error('Erreur lors de la récupération des besoins');
-        setLoading(false);
-        return;
+      if (targetBesoinIds.length > 0) {
+        for (const besoinId of targetBesoinIds) {
+          await supabase
+            .from('besoin_effectif')
+            .delete()
+            .eq('id', besoinId);
+        }
       }
-
-      // 2. Identifier matin et après-midi
-      const matinBesoin = existingBesoins?.find(b => b.demi_journee === 'matin');
-      const apresmidiBesoin = existingBesoins?.find(b => b.demi_journee === 'apres_midi');
-
-      // 3. Appliquer la logique selon la période sélectionnée
-      const updates: Promise<any>[] = [];
 
       if (selectedPeriod === 'toute_journee') {
-        // Toute la journée : mettre à jour/créer matin ET après-midi
-        if (matinBesoin) {
-          const { error: updateError } = await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null
-            })
-            .eq('id', matinBesoin.id);
-          
-          if (updateError) {
-            console.error('Error updating matin besoin:', updateError);
-            toast.error('Erreur lors de la mise à jour du matin');
-            setLoading(false);
-            return;
+        await supabase.from('besoin_effectif').insert([
+          {
+            date,
+            medecin_id: medecinId,
+            site_id: selectedSiteId,
+            demi_journee: 'matin',
+            type: 'medecin',
+            type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
+            actif: true,
+          },
+          {
+            date,
+            medecin_id: medecinId,
+            site_id: selectedSiteId,
+            demi_journee: 'apres_midi',
+            type: 'medecin',
+            type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
+            actif: true,
           }
-        } else {
-          const { error: insertError } = await supabase
-            .from('besoin_effectif')
-            .insert({
-              date,
-              medecin_id: medecinId,
-              site_id: selectedSiteId,
-              demi_journee: 'matin',
-              type: 'medecin',
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
-              actif: true
-            });
-          
-          if (insertError) {
-            console.error('Error inserting matin besoin:', insertError);
-            toast.error('Erreur lors de la création du matin');
-            setLoading(false);
-            return;
-          }
-        }
-
-        if (apresmidiBesoin) {
-          const { error: updateError } = await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null
-            })
-            .eq('id', apresmidiBesoin.id);
-          
-          if (updateError) {
-            console.error('Error updating après-midi besoin:', updateError);
-            toast.error('Erreur lors de la mise à jour de l\'après-midi');
-            setLoading(false);
-            return;
-          }
-        } else {
-          const { error: insertError } = await supabase
-            .from('besoin_effectif')
-            .insert({
-              date,
-              medecin_id: medecinId,
-              site_id: selectedSiteId,
-              demi_journee: 'apres_midi',
-              type: 'medecin',
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
-              actif: true
-            });
-          
-          if (insertError) {
-            console.error('Error inserting après-midi besoin:', insertError);
-            toast.error('Erreur lors de la création de l\'après-midi');
-            setLoading(false);
-            return;
-          }
-        }
-      } else if (selectedPeriod === 'matin') {
-        // Matin uniquement : mettre à jour/créer matin, ne pas toucher après-midi
-        if (matinBesoin) {
-          const { error: updateError } = await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null
-            })
-            .eq('id', matinBesoin.id);
-          
-          if (updateError) {
-            console.error('Error updating matin besoin:', updateError);
-            toast.error('Erreur lors de la mise à jour du matin');
-            setLoading(false);
-            return;
-          }
-        } else {
-          const { error: insertError } = await supabase
-            .from('besoin_effectif')
-            .insert({
-              date,
-              medecin_id: medecinId,
-              site_id: selectedSiteId,
-              demi_journee: 'matin',
-              type: 'medecin',
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
-              actif: true
-            });
-          
-          if (insertError) {
-            console.error('Error inserting matin besoin:', insertError);
-            toast.error('Erreur lors de la création du matin');
-            setLoading(false);
-            return;
-          }
-        }
-      } else if (selectedPeriod === 'apres_midi') {
-        // Après-midi uniquement : mettre à jour/créer après-midi, ne pas toucher matin
-        if (apresmidiBesoin) {
-          const { error: updateError } = await supabase
-            .from('besoin_effectif')
-            .update({
-              site_id: selectedSiteId,
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null
-            })
-            .eq('id', apresmidiBesoin.id);
-          
-          if (updateError) {
-            console.error('Error updating après-midi besoin:', updateError);
-            toast.error('Erreur lors de la mise à jour de l\'après-midi');
-            setLoading(false);
-            return;
-          }
-        } else {
-          const { error: insertError } = await supabase
-            .from('besoin_effectif')
-            .insert({
-              date,
-              medecin_id: medecinId,
-              site_id: selectedSiteId,
-              demi_journee: 'apres_midi',
-              type: 'medecin',
-              type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
-              actif: true
-            });
-          
-          if (insertError) {
-            console.error('Error inserting après-midi besoin:', insertError);
-            toast.error('Erreur lors de la création de l\'après-midi');
-            setLoading(false);
-            return;
-          }
-        }
+        ]);
+      } else {
+        await supabase.from('besoin_effectif').insert({
+          date,
+          medecin_id: medecinId,
+          site_id: selectedSiteId,
+          demi_journee: selectedPeriod,
+          type: 'medecin',
+          type_intervention_id: isBlocOperatoire ? selectedTypeInterventionId : null,
+          actif: true,
+        });
       }
 
       toast.success('Besoin modifié avec succès');
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
-      toast.error('Erreur lors de la modification du besoin');
+      console.error('Error:', error);
+      toast.error('Erreur lors de la modification');
     } finally {
       setLoading(false);
     }
@@ -300,23 +164,15 @@ export function EditBesoinMedecinDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
-            Modifier le besoin
-          </DialogTitle>
-          <DialogDescription>
-            Médecin : {medecinNom} - Date : {new Date(date).toLocaleDateString('fr-FR')}
-          </DialogDescription>
+          <DialogTitle>Modifier le besoin</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Période</Label>
-            <Select
-              value={selectedPeriod}
-              onValueChange={(value: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriod(value)}
-            >
+          <div>
+            <label className="text-sm font-medium mb-2 block">Période</label>
+            <Select value={selectedPeriod} onValueChange={(v: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriod(v)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -328,48 +184,44 @@ export function EditBesoinMedecinDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Site</Label>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Site</label>
             <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un site" />
               </SelectTrigger>
               <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.id} value={site.id}>
-                    {site.nom}
-                  </SelectItem>
+                {sites.map(site => (
+                  <SelectItem key={site.id} value={site.id}>{site.nom}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {selectedSiteId === BLOC_OPERATOIRE_SITE_ID && (
-            <div className="space-y-2">
-              <Label>Type d'intervention *</Label>
+          {selectedSiteId && sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire') && (
+            <div>
+              <label className="text-sm font-medium mb-2 block">Type d'intervention</label>
               <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {typesIntervention.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.nom}
-                    </SelectItem>
+                  {typesIntervention.map(type => (
+                    <SelectItem key={type.id} value={type.id}>{type.nom}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           )}
-        </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Annuler
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Modification...' : 'Modifier'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              Modifier
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

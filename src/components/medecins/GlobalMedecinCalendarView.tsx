@@ -13,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { EditBesoinMedecinDialog } from '@/components/shared/EditBesoinMedecinDialog';
 
 interface GlobalMedecinCalendarViewProps {
   open: boolean;
@@ -376,92 +377,6 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
     }
   };
 
-  const handleEditBesoin = async () => {
-    if (!editDialog || !selectedSiteId) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner un site',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Check if bloc operatoire and no type intervention selected
-    const isBlocOperatoire = sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire');
-    if (isBlocOperatoire && !selectedTypeInterventionId) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner un type d\'intervention pour le bloc opératoire',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Supprimer les anciens besoins
-      for (const besoinId of editDialog.besoinIds) {
-        await supabase
-          .from('besoin_effectif')
-          .delete()
-          .eq('id', besoinId);
-      }
-
-      // Créer le/les nouveaux besoins selon la période
-      if (selectedPeriod === 'toute_journee') {
-        await supabase.from('besoin_effectif').insert([
-          {
-            date: editDialog.date,
-            medecin_id: editDialog.medecinId,
-            site_id: selectedSiteId,
-            demi_journee: 'matin',
-            type: 'medecin',
-            type_intervention_id: selectedTypeInterventionId || null,
-            actif: true,
-          },
-          {
-            date: editDialog.date,
-            medecin_id: editDialog.medecinId,
-            site_id: selectedSiteId,
-            demi_journee: 'apres_midi',
-            type: 'medecin',
-            type_intervention_id: selectedTypeInterventionId || null,
-            actif: true,
-          }
-        ]);
-      } else {
-        await supabase.from('besoin_effectif').insert({
-          date: editDialog.date,
-          medecin_id: editDialog.medecinId,
-          site_id: selectedSiteId,
-          demi_journee: selectedPeriod,
-          type: 'medecin',
-          type_intervention_id: selectedTypeInterventionId || null,
-          actif: true,
-        });
-      }
-
-      toast({
-        title: 'Succès',
-        description: 'Besoin modifié',
-      });
-
-      setEditDialog(null);
-      setSelectedPeriod('toute_journee');
-      setSelectedSiteId('');
-      setSelectedTypeInterventionId('');
-      fetchData();
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de modifier le besoin',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const days = getDaysInMonth();
@@ -912,69 +827,28 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
       )}
 
       {/* Edit Besoin Dialog */}
-      {editDialog && (
-        <Dialog open={editDialog.open} onOpenChange={(open) => !open && setEditDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Modifier le besoin</DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Période</label>
-                <Select value={selectedPeriod} onValueChange={(v: 'matin' | 'apres_midi' | 'toute_journee') => setSelectedPeriod(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="matin">Matin</SelectItem>
-                    <SelectItem value="apres_midi">Après-midi</SelectItem>
-                    <SelectItem value="toute_journee">Toute la journée</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Site</label>
-                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map(site => (
-                      <SelectItem key={site.id} value={site.id}>{site.nom}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedSiteId && sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire') && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Type d'intervention</label>
-                  <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typesIntervention.map(type => (
-                        <SelectItem key={type.id} value={type.id}>{type.nom}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditDialog(null)}>
-                  Annuler
-                </Button>
-                <Button onClick={handleEditBesoin} disabled={loading}>
-                  Modifier
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+      {editDialog && selectedSiteId && (
+        <EditBesoinMedecinDialog
+          open={editDialog.open}
+          onOpenChange={(open) => !open && setEditDialog(null)}
+          medecinId={editDialog.medecinId}
+          medecinNom={(() => {
+            const medecin = medecins.find(m => m.id === editDialog.medecinId);
+            return medecin ? `${medecin.first_name} ${medecin.name}` : '';
+          })()}
+          date={editDialog.date}
+          initialSiteId={selectedSiteId}
+          initialPeriod={selectedPeriod}
+          initialTypeInterventionId={selectedTypeInterventionId || null}
+          besoinIds={editDialog.besoinIds}
+          onSuccess={() => {
+            setEditDialog(null);
+            setSelectedPeriod('toute_journee');
+            setSelectedSiteId('');
+            setSelectedTypeInterventionId('');
+            fetchData();
+          }}
+        />
       )}
 
       {/* Delete Confirmation Dialog */}
