@@ -434,7 +434,7 @@ export function EditSecretaireAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-accent/50 border-border">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-primary">
             Modifier l'assignation
