@@ -3,11 +3,15 @@ import { fr } from 'date-fns/locale';
 import { DashboardSite } from '@/pages/DashboardPage';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, Stethoscope, AlertCircle, Plus } from 'lucide-react';
+import { User, Stethoscope, AlertCircle, Plus, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
+import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
+import { ReassignMedecinDialog } from './ReassignMedecinDialog';
+import { AddSecretaireToDayDialog } from './AddSecretaireToDayDialog';
+import { ReassignSecretaireDialog } from './ReassignSecretaireDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 
@@ -15,9 +19,10 @@ interface SitesTableViewProps {
   sites: DashboardSite[];
   weekDays: Date[];
   onDayClick?: (siteId: string, date: string) => void;
+  onRefresh?: () => void;
 }
 
-export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewProps) {
+export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: SitesTableViewProps) {
   const [editMedecinDialog, setEditMedecinDialog] = useState<{
     open: boolean;
     medecinId: string;
@@ -46,6 +51,33 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
     secretaireNom: '',
     date: '',
     periode: 'matin',
+  });
+
+  const [addMedecinDialog, setAddMedecinDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+  });
+
+  const [reassignMedecinDialog, setReassignMedecinDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
+  });
+
+  const [addSecretaireDialog, setAddSecretaireDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
+  });
+
+  const [reassignSecretaireDialog, setReassignSecretaireDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
   });
 
   
@@ -298,7 +330,11 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onDayClick?.(site.site_id, dateStr);
+                                  setAddMedecinDialog({
+                                    open: true,
+                                    date: dateStr,
+                                    siteId: site.site_id,
+                                  });
                                 }}
                               >
                                 <Stethoscope className="h-4 w-4 mr-2" />
@@ -307,7 +343,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onDayClick?.(site.site_id, dateStr);
+                                  setReassignMedecinDialog({
+                                    open: true,
+                                    date: dateStr,
+                                    siteId: site.site_id,
+                                    siteName: site.site_nom,
+                                  });
                                 }}
                               >
                                 <Stethoscope className="h-4 w-4 mr-2" />
@@ -430,7 +471,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onDayClick?.(site.site_id, dateStr);
+                                setAddSecretaireDialog({
+                                  open: true,
+                                  date: dateStr,
+                                  siteId: site.site_id,
+                                  siteName: site.site_nom,
+                                });
                               }}
                             >
                               <User className="h-4 w-4 mr-2" />
@@ -439,7 +485,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onDayClick?.(site.site_id, dateStr);
+                                setReassignSecretaireDialog({
+                                  open: true,
+                                  date: dateStr,
+                                  siteId: site.site_id,
+                                  siteName: site.site_nom,
+                                });
                               }}
                             >
                               <Stethoscope className="h-4 w-4 mr-2" />
@@ -469,8 +520,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
       periode={editMedecinDialog.periode}
       onSuccess={() => {
         setEditMedecinDialog({ ...editMedecinDialog, open: false });
-        // Trigger refresh if needed
-        window.location.reload();
+        onRefresh?.();
       }}
     />
 
@@ -483,7 +533,54 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
       date={secretaireActionsDialog.date}
       initialPeriode={secretaireActionsDialog.periode}
       onRefresh={() => {
-        window.location.reload();
+        onRefresh?.();
+      }}
+    />
+
+    <AddMedecinToDayDialog
+      open={addMedecinDialog.open}
+      onOpenChange={(open) => setAddMedecinDialog({ ...addMedecinDialog, open })}
+      date={addMedecinDialog.date}
+      siteId={addMedecinDialog.siteId}
+      onSuccess={() => {
+        setAddMedecinDialog({ open: false, date: '', siteId: '' });
+        onRefresh?.();
+      }}
+    />
+
+    <ReassignMedecinDialog
+      open={reassignMedecinDialog.open}
+      onOpenChange={(open) => setReassignMedecinDialog({ ...reassignMedecinDialog, open })}
+      date={reassignMedecinDialog.date}
+      targetSiteId={reassignMedecinDialog.siteId}
+      targetSiteName={reassignMedecinDialog.siteName}
+      onSuccess={() => {
+        setReassignMedecinDialog({ open: false, date: '', siteId: '', siteName: '' });
+        onRefresh?.();
+      }}
+    />
+
+    <AddSecretaireToDayDialog
+      open={addSecretaireDialog.open}
+      onOpenChange={(open) => setAddSecretaireDialog({ ...addSecretaireDialog, open })}
+      date={addSecretaireDialog.date}
+      siteId={addSecretaireDialog.siteId}
+      siteName={addSecretaireDialog.siteName}
+      onSuccess={() => {
+        setAddSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+        onRefresh?.();
+      }}
+    />
+
+    <ReassignSecretaireDialog
+      open={reassignSecretaireDialog.open}
+      onOpenChange={(open) => setReassignSecretaireDialog({ ...reassignSecretaireDialog, open })}
+      date={reassignSecretaireDialog.date}
+      targetSiteId={reassignSecretaireDialog.siteId}
+      targetSiteName={reassignSecretaireDialog.siteName}
+      onSuccess={() => {
+        setReassignSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+        onRefresh?.();
       }}
     />
   </>

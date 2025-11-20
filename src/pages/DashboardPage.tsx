@@ -1056,6 +1056,7 @@ const DashboardPage = () => {
               onDayClick={(siteId, date) => {
                 console.log('Day clicked:', siteId, date);
               }}
+              onRefresh={fetchDashboardData}
             />
           )}
         </TabsContent>
