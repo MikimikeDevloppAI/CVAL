@@ -365,7 +365,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
   // Group needs by date - no longer needed, we'll show all in one table
   
-  if (!isOpen) return null;
+  if (totalCount === 0) return null;
 
   return (
     <>
@@ -409,137 +409,139 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           </div>
         </div>
 
-        <div className="p-4">
-          {loading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : periodNeeds.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground">
-              Aucun besoin non satisfait pour cette période
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[150px]">Jour</TableHead>
-                    <TableHead className="w-[100px]">Période</TableHead>
-                    <TableHead className="w-[200px]">Site</TableHead>
-                    <TableHead className="w-[250px]">Besoin</TableHead>
-                    <TableHead className="w-[80px] text-center">Manque</TableHead>
-                    <TableHead className="w-[300px]">Assigner</TableHead>
-                    <TableHead className="w-[100px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {periodNeeds.map(need => {
-                    const key = `${need.date}-${need.periode}-${need.site_id}-${need.besoin_operation_id || 'site'}`;
-                    const isAssigning = assigningKey === key;
-                    
-                    return (
-                      <TableRow key={key}>
-                        <TableCell className="text-sm">
-                          {format(new Date(need.date), 'EEE dd MMM', { locale: fr })}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                        </TableCell>
-                        <TableCell className="font-medium text-sm">
-                          {need.site_nom}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {need.besoin_operation_nom ? (
-                            <div className="space-y-0.5">
-                              <div className="font-medium">{need.medecin_nom}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {need.type_intervention_nom} • {need.besoin_operation_nom}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="destructive" className="text-xs">
-                            {need.manque}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={selectedSecretaire[key] || ""}
-                            onValueChange={(value) => {
-                              setSelectedSecretaire(prev => ({ ...prev, [key]: value }));
-                            }}
-                            onOpenChange={(open) => {
-                              if (open && need.suggestions_admin.length === 0 && need.suggestions_not_working.length === 0) {
-                                loadSuggestions(need);
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Sélectionner..." />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                              {loadingSuggestions.has(key) ? (
-                                <div className="flex items-center justify-center p-4">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+        {isOpen && (
+          <div className="p-4">
+            {loading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : periodNeeds.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground">
+                Aucun besoin non satisfait pour cette période
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-[150px]">Jour</TableHead>
+                      <TableHead className="w-[100px]">Période</TableHead>
+                      <TableHead className="w-[200px]">Site</TableHead>
+                      <TableHead className="w-[250px]">Besoin</TableHead>
+                      <TableHead className="w-[80px] text-center">Manque</TableHead>
+                      <TableHead className="w-[300px]">Assigner</TableHead>
+                      <TableHead className="w-[100px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {periodNeeds.map(need => {
+                      const key = `${need.date}-${need.periode}-${need.site_id}-${need.besoin_operation_id || 'site'}`;
+                      const isAssigning = assigningKey === key;
+                      
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className="text-sm">
+                            {format(new Date(need.date), 'EEE dd MMM', { locale: fr })}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">
+                            {need.site_nom}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {need.besoin_operation_nom ? (
+                              <div className="space-y-0.5">
+                                <div className="font-medium">{need.medecin_nom}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {need.type_intervention_nom} • {need.besoin_operation_nom}
                                 </div>
-                              ) : (
-                                <>
-                                  {need.suggestions_admin.length > 0 && (
-                                    <>
-                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-                                        ✓ En administratif
-                                      </div>
-                                      {need.suggestions_admin.map(sug => (
-                                        <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                          {sug.secretaire_nom}
-                                        </SelectItem>
-                                      ))}
-                                    </>
-                                  )}
-                                  {need.suggestions_not_working.length > 0 && (
-                                    <>
-                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
-                                        + Créer créneau
-                                      </div>
-                                      {need.suggestions_not_working.map(sug => (
-                                        <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                          <span className="text-muted-foreground">{sug.secretaire_nom}</span>
-                                        </SelectItem>
-                                      ))}
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          {selectedSecretaire[key] && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleAssign(need)}
-                              disabled={isAssigning}
-                              className="h-8 text-xs"
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="destructive" className="text-xs">
+                              {need.manque}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={selectedSecretaire[key] || ""}
+                              onValueChange={(value) => {
+                                setSelectedSecretaire(prev => ({ ...prev, [key]: value }));
+                              }}
+                              onOpenChange={(open) => {
+                                if (open && need.suggestions_admin.length === 0 && need.suggestions_not_working.length === 0) {
+                                  loadSuggestions(need);
+                                }
+                              }}
                             >
-                              {isAssigning ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                'Assigner'
-                              )}
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Sélectionner..." />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {loadingSuggestions.has(key) ? (
+                                  <div className="flex items-center justify-center p-4">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  </div>
+                                ) : (
+                                  <>
+                                    {need.suggestions_admin.length > 0 && (
+                                      <>
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                                          ✓ En administratif
+                                        </div>
+                                        {need.suggestions_admin.map(sug => (
+                                          <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                            {sug.secretaire_nom}
+                                          </SelectItem>
+                                        ))}
+                                      </>
+                                    )}
+                                    {need.suggestions_not_working.length > 0 && (
+                                      <>
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
+                                          + Créer créneau
+                                        </div>
+                                        {need.suggestions_not_working.map(sug => (
+                                          <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                            <span className="text-muted-foreground">{sug.secretaire_nom}</span>
+                                          </SelectItem>
+                                        ))}
+                                      </>
+                                    )}
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            {selectedSecretaire[key] && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAssign(need)}
+                                disabled={isAssigning}
+                                className="h-8 text-xs"
+                              >
+                                {isAssigning ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  'Assigner'
+                                )}
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       <OptimizationTestDialog
