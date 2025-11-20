@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { User, Stethoscope, AlertCircle, Plus, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
-import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
+import { MedecinActionsDialog } from './MedecinActionsDialog';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
 import { ReassignMedecinDialog } from './ReassignMedecinDialog';
@@ -23,10 +23,11 @@ interface SitesTableViewProps {
 }
 
 export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: SitesTableViewProps) {
-  const [editMedecinDialog, setEditMedecinDialog] = useState<{
+  const [medecinActionsDialog, setMedecinActionsDialog] = useState<{
     open: boolean;
     medecinId: string;
     medecinNom: string;
+    medecinPrenom: string;
     date: string;
     siteId: string;
     periode: 'matin' | 'apres_midi' | 'journee';
@@ -34,6 +35,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
     open: false,
     medecinId: '',
     medecinNom: '',
+    medecinPrenom: '',
     date: '',
     siteId: '',
     periode: 'matin',
@@ -294,10 +296,11 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditMedecinDialog({
+                                      setMedecinActionsDialog({
                                         open: true,
                                         medecinId: m.id,
-                                        medecinNom: m.nom_complet || `${m.prenom || ''} ${m.nom}`.trim(),
+                                        medecinNom: m.nom || '',
+                                        medecinPrenom: m.prenom || '',
                                         date: dateStr,
                                         siteId: site.site_id,
                                         periode: m.isFullDay ? 'journee' : m.isMatinOnly ? 'matin' : 'apres_midi',
@@ -509,17 +512,18 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
       </Table>
     </div>
 
-    {/* Dialog pour éditer l'affectation d'un médecin */}
-    <EditMedecinAssignmentDialog
-      open={editMedecinDialog.open}
-      onOpenChange={(open) => setEditMedecinDialog({ ...editMedecinDialog, open })}
-      medecinId={editMedecinDialog.medecinId}
-      medecinNom={editMedecinDialog.medecinNom}
-      date={editMedecinDialog.date}
-      currentSiteId={editMedecinDialog.siteId}
-      periode={editMedecinDialog.periode}
-      onSuccess={() => {
-        setEditMedecinDialog({ ...editMedecinDialog, open: false });
+    {/* Dialog d'actions pour médecin */}
+    <MedecinActionsDialog
+      open={medecinActionsDialog.open}
+      onOpenChange={(open) => setMedecinActionsDialog({ ...medecinActionsDialog, open })}
+      medecinId={medecinActionsDialog.medecinId}
+      medecinNom={medecinActionsDialog.medecinNom}
+      medecinPrenom={medecinActionsDialog.medecinPrenom}
+      date={medecinActionsDialog.date}
+      siteId={medecinActionsDialog.siteId}
+      periode={medecinActionsDialog.periode}
+      onRefresh={() => {
+        setMedecinActionsDialog({ ...medecinActionsDialog, open: false });
         onRefresh?.();
       }}
     />
