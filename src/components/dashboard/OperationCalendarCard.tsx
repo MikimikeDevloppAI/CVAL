@@ -252,8 +252,9 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                         {assignment.secretaires.first_name} {assignment.secretaires.name}
                       </div>
                     ))}
-                    {assigned.length === 0 && (
+                    {Array.from({ length: Math.max(0, required - assigned.length) }).map((_, idx) => (
                       <div 
+                        key={`empty-${idx}`}
                         className="px-3 py-1.5 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/20 text-xs text-muted-foreground italic cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
                         onClick={() => {
                           setSelectedBesoinForAssign({
@@ -264,9 +265,9 @@ export function OperationCalendarCard({ operation, index, onRefresh }: Operation
                         }}
                         title="Cliquer pour assigner un assistant médical"
                       >
-                        Aucun personnel assigné - Cliquer pour assigner
+                        Non assigné - Cliquer pour assigner
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               );
