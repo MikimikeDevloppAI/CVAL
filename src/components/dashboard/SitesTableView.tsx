@@ -7,7 +7,7 @@ import { User, Stethoscope, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { EditMedecinAssignmentDialog } from './EditMedecinAssignmentDialog';
-import { EditSecretaireAssignmentDialog } from './EditSecretaireAssignmentDialog';
+import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 
 interface SitesTableViewProps {
   sites: DashboardSite[];
@@ -32,24 +32,18 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
     periode: 'matin',
   });
 
-  const [editSecretaireDialog, setEditSecretaireDialog] = useState<{
+  const [secretaireActionsDialog, setSecretaireActionsDialog] = useState<{
     open: boolean;
-    secretaire: {
-      id: string;
-      capacite_id: string;
-      nom: string;
-      periode: 'matin' | 'apres_midi' | 'journee';
-      is_1r: boolean;
-      is_2f: boolean;
-      is_3f: boolean;
-    } | null;
+    secretaireId: string;
+    secretaireNom: string;
     date: string;
-    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
   }>({
     open: false,
-    secretaire: null,
+    secretaireId: '',
+    secretaireNom: '',
     date: '',
-    siteId: '',
+    periode: 'matin',
   });
 
   // Filtrer les jours ouvrés (lundi-vendredi)
@@ -345,19 +339,12 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setEditSecretaireDialog({
+                                    setSecretaireActionsDialog({
                                       open: true,
-                                      secretaire: {
-                                        id: s.id,
-                                        capacite_id: s.id,
-                                        nom: s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim(),
-                                        periode: s.isFullDay ? 'journee' : s.isMatinOnly ? 'matin' : 'apres_midi',
-                                        is_1r: s.is_1r || false,
-                                        is_2f: s.is_2f || false,
-                                        is_3f: s.is_3f || false,
-                                      },
+                                      secretaireId: s.id,
+                                      secretaireNom: s.nom_complet || `${s.prenom || ''} ${s.nom}`.trim(),
                                       date: dateStr,
-                                      siteId: site.site_id,
+                                      periode: s.isFullDay ? 'journee' : s.isMatinOnly ? 'matin' : 'apres_midi',
                                     });
                                   }}
                                   className="text-[10px] truncate hover:underline hover:text-primary cursor-pointer text-left"
@@ -404,21 +391,18 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
       }}
     />
 
-    {/* Dialog pour éditer l'affectation d'un assistant médical */}
-    {editSecretaireDialog.secretaire && (
-      <EditSecretaireAssignmentDialog
-        open={editSecretaireDialog.open}
-        onOpenChange={(open) => setEditSecretaireDialog({ ...editSecretaireDialog, open })}
-        secretaire={editSecretaireDialog.secretaire}
-        date={editSecretaireDialog.date}
-        siteId={editSecretaireDialog.siteId}
-        onSuccess={() => {
-          setEditSecretaireDialog({ ...editSecretaireDialog, open: false });
-          // Trigger refresh if needed
-          window.location.reload();
-        }}
-      />
-    )}
+    {/* Dialog pour les actions sur un assistant médical */}
+    <SecretaireDayActionsDialog
+      open={secretaireActionsDialog.open}
+      onOpenChange={(open) => setSecretaireActionsDialog({ ...secretaireActionsDialog, open })}
+      secretaireId={secretaireActionsDialog.secretaireId}
+      secretaireNom={secretaireActionsDialog.secretaireNom}
+      date={secretaireActionsDialog.date}
+      initialPeriode={secretaireActionsDialog.periode}
+      onRefresh={() => {
+        window.location.reload();
+      }}
+    />
   </>
   );
 }
