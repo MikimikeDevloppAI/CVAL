@@ -402,7 +402,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
   return (
     <>
-      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg mb-6">
+      <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 mb-6">
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent border-b border-border/50">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-primary" />
