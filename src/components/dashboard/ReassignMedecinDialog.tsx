@@ -258,12 +258,12 @@ export function ReassignMedecinDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command className="max-h-[300px]">
                   <CommandInput placeholder="Rechercher..." />
                   <CommandEmpty>Aucun médecin trouvé.</CommandEmpty>
-                  <CommandGroup>
-                    {medecins.map((medecin) => (
+                  <CommandGroup className="overflow-auto">
+                    {Array.from(new Map(medecins.map(m => [m.id, m])).values()).map((medecin) => (
                       <CommandItem
                         key={medecin.id}
                         value={`${medecin.first_name} ${medecin.name}`}
