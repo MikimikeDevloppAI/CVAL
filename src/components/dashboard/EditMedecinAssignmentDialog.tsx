@@ -8,6 +8,7 @@ interface EditMedecinAssignmentDialogProps {
   date: string;
   currentSiteId: string;
   periode: 'matin' | 'apres_midi' | 'journee';
+  besoinIds?: string[];
   onSuccess: () => void;
 }
 
@@ -19,6 +20,7 @@ export function EditMedecinAssignmentDialog({
   date,
   currentSiteId,
   periode,
+  besoinIds,
   onSuccess
 }: EditMedecinAssignmentDialogProps) {
   return (
@@ -30,6 +32,7 @@ export function EditMedecinAssignmentDialog({
       date={date}
       initialSiteId={currentSiteId}
       initialPeriod={periode === 'journee' ? 'toute_journee' : periode}
+      besoinIds={besoinIds}
       onSuccess={onSuccess}
     />
   );
