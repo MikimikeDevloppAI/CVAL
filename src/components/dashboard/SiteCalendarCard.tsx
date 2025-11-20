@@ -71,11 +71,23 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
   const [addSecretaireDate, setAddSecretaireDate] = useState<Date | null>(null);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
 
-  // Filter out Sundays (day 0)
+  // Filter out Sundays (day 0), keep Saturdays only if there's data
   const days = eachDayOfInterval({
     start: parseISO(startDate),
     end: parseISO(endDate)
-  }).filter(day => day.getDay() !== 0);
+  }).filter(day => {
+    const dow = day.getDay();
+    if (dow === 0) return false; // Exclure dimanche
+    
+    // Pour samedi, vérifier s'il y a des données
+    if (dow === 6) {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const dayData = site.days.find(d => d.date === dateStr);
+      return dayData && (dayData.medecins.length > 0 || dayData.secretaires.length > 0);
+    }
+    
+    return true; // Garder lundi-vendredi
+  });
 
   const getDayData = (date: Date): DayData | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
