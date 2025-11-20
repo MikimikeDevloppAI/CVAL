@@ -165,41 +165,26 @@ export const MultiDateDryRunDialog = ({
       for (const [date, secretariesMap] of changesByDate) {
         for (const [secretaire_id, periodesMap] of secretariesMap) {
           for (const [periode, change] of periodesMap) {
-            console.log('Deleting old assignment:', { date, secretaire_id, periode });
-            
-            const { error: deleteError } = await supabase
-              .from('capacite_effective')
-              .delete()
-              .eq('date', date)
-              .eq('secretaire_id', secretaire_id)
-              .eq('demi_journee', periode as 'matin' | 'apres_midi');
-
-            if (deleteError) {
-              console.error('Delete error:', deleteError);
-              throw deleteError;
-            }
-
             if (change.after) {
-              console.log('Inserting new assignment:', change.after);
+              console.log('Updating assignment:', { date, secretaire_id, periode, after: change.after });
               
-              const { error: insertError } = await supabase
+              const { error: updateError } = await supabase
                 .from('capacite_effective')
-                .insert({
-                  secretaire_id: secretaire_id,
+                .update({
                   site_id: change.after.site_id,
-                  date: date,
-                  demi_journee: periode as 'matin' | 'apres_midi',
                   besoin_operation_id: change.after.besoin_operation_id || null,
-                  planning_genere_bloc_operatoire_id: null,
                   is_1r: change.after.is_1r,
                   is_2f: change.after.is_2f,
                   is_3f: change.after.is_3f,
-                  actif: true
-                });
+                })
+                .eq('date', date)
+                .eq('secretaire_id', secretaire_id)
+                .eq('demi_journee', periode as 'matin' | 'apres_midi')
+                .eq('actif', true);
 
-              if (insertError) {
-                console.error('Insert error:', insertError);
-                throw insertError;
+              if (updateError) {
+                console.error('Update error:', updateError);
+                throw updateError;
               }
             }
           }
