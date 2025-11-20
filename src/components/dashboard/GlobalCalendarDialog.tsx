@@ -586,15 +586,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               return (
                                 <HoverCard key={medecinId}>
                                   <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
-                                      <span className="text-sm font-medium">{getPersonName(medecinAbsences[0])}</span>
-                                      <div className="flex items-center gap-2">
-                                        {details.map((d, i) => (
-                                          <Badge key={i} variant="outline" className="text-xs">
-                                            {d.type}
-                                          </Badge>
-                                        ))}
+                                    <div className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 transition-colors">
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-medium">{getPersonName(medecinAbsences[0])}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {medecinAbsences[0].date_debut === medecinAbsences[0].date_fin
+                                            ? format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })
+                                            : `du ${format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })} au ${format(new Date(medecinAbsences[0].date_fin), 'd MMM', { locale: fr })}`
+                                          }
+                                        </span>
                                       </div>
+                                      <Badge variant="outline" className="text-xs">
+                                        {getAbsenceLabel(medecinAbsences[0].type)}
+                                      </Badge>
                                     </div>
                                   </HoverCardTrigger>
                                   <HoverCardContent className="w-80">
@@ -636,15 +640,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               return (
                                 <HoverCard key={secretaireId}>
                                   <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
-                                      <span className="text-sm font-medium">{getPersonName(secretaireAbsences[0])}</span>
-                                      <div className="flex items-center gap-2">
-                                        {details.map((d, i) => (
-                                          <Badge key={i} variant="outline" className="text-xs">
-                                            {d.type}
-                                          </Badge>
-                                        ))}
+                                    <div className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 transition-colors">
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-medium">{getPersonName(secretaireAbsences[0])}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {secretaireAbsences[0].date_debut === secretaireAbsences[0].date_fin
+                                            ? format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })
+                                            : `du ${format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })} au ${format(new Date(secretaireAbsences[0].date_fin), 'd MMM', { locale: fr })}`
+                                          }
+                                        </span>
                                       </div>
+                                      <Badge variant="outline" className="text-xs">
+                                        {getAbsenceLabel(secretaireAbsences[0].type)}
+                                      </Badge>
                                     </div>
                                   </HoverCardTrigger>
                                   <HoverCardContent className="w-80">
