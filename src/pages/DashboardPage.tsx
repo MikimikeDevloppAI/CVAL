@@ -20,7 +20,7 @@ import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalenda
 import { SecretaireStatsDialog } from '@/components/dashboard/SecretaireStatsDialog';
 import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
 import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
-import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanel';
+import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanelCompact';
 import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
 import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
 import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
