@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
 import { EditBesoinMedecinDialog } from '@/components/shared/EditBesoinMedecinDialog';
+import { Edit, Trash2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -63,6 +64,7 @@ interface DaySlot {
   ids: string[];
   color: string;
   typeIntervention?: string;
+  typeInterventionId?: string | null;
 }
 
 export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom }: MedecinMonthCalendarProps) {
@@ -90,6 +92,12 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
 
   // Multiple slots dialog
   const [multipleSlotsOpen, setMultipleSlotsOpen] = useState(false);
+  
+  // Actions dialog state
+  const [actionsSlot, setActionsSlot] = useState<{
+    slot: DaySlot;
+    date: string;
+  } | null>(null);
 
   const SITE_COLORS = [
     'hsl(var(--planning-event-teal))',
@@ -197,6 +205,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
           ids: [matinForSite.id, apresmidiForSite.id],
           color: getSiteColor(siteId),
           typeIntervention: matinForSite.types_intervention?.nom,
+          typeInterventionId: matinForSite.type_intervention_id,
         });
       } else {
         // Lignes séparées
@@ -208,6 +217,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             ids: [matinForSite.id],
             color: getSiteColor(siteId),
             typeIntervention: matinForSite.types_intervention?.nom,
+            typeInterventionId: matinForSite.type_intervention_id,
           });
         }
         if (apresmidiForSite) {
@@ -218,6 +228,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
             ids: [apresmidiForSite.id],
             color: getSiteColor(siteId),
             typeIntervention: apresmidiForSite.types_intervention?.nom,
+            typeInterventionId: apresmidiForSite.type_intervention_id,
           });
         }
       }
@@ -323,15 +334,22 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     setBesoinToDelete(null);
   };
 
-  const handleEditClick = (slot: DaySlot) => {
-    setEditingSlot(slot);
-    
+  const handleSlotClick = (slot: DaySlot) => {
     // Récupérer la date du premier besoin
     const firstBesoin = besoins.find(b => slot.ids.includes(b.id));
     if (firstBesoin) {
-      setEditingDate(firstBesoin.date);
+      setActionsSlot({
+        slot,
+        date: firstBesoin.date
+      });
     }
-    
+  };
+  
+  const handleEditFromActions = () => {
+    if (!actionsSlot) return;
+    setEditingSlot(actionsSlot.slot);
+    setEditingDate(actionsSlot.date);
+    setActionsSlot(null);
     setEditDialogOpen(true);
   };
 
@@ -459,9 +477,9 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                       {slots.map((slot, idx) => (
                         <div
                           key={idx}
-                          onClick={() => handleEditClick(slot)}
+                          onClick={() => handleSlotClick(slot)}
                           className={cn(
-                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer',
+                            'p-2 rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer',
                             slot.periodes.length === 2
                               ? 'border-2 bg-opacity-10'
                               : slot.periodes.includes('matin')
@@ -497,15 +515,6 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
                               ? 'Matin'
                               : 'Après-midi'}
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClick(slot.ids);
-                            }}
-                            className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:scale-110 shadow-lg"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -617,21 +626,56 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         </DialogContent>
       </Dialog>
 
+      {/* Actions Dialog */}
+      {actionsSlot && (
+        <Dialog open={!!actionsSlot} onOpenChange={(open) => !open && setActionsSlot(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Actions</DialogTitle>
+              <DialogDescription>
+                Que souhaitez-vous faire avec ce créneau ?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 py-4">
+              <Button
+                variant="outline"
+                onClick={handleEditFromActions}
+                className="w-full justify-start gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Modifier
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  handleDeleteClick(actionsSlot.slot.ids);
+                  setActionsSlot(null);
+                }}
+                className="w-full justify-start gap-2 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                Supprimer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Edit Besoin Dialog */}
-        {editingSlot && editingDate && (
-          <EditBesoinMedecinDialog
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-            medecinId={medecinId}
-            medecinNom={medecinNom}
-            date={editingDate}
-            initialSiteId={editingSlot.siteId}
-            initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
-            initialTypeInterventionId={editingSlot.typeIntervention || null}
-            besoinIds={editingSlot.ids}
-            onSuccess={handleEditSuccess}
-          />
-        )}
+      {editingSlot && editingDate && (
+        <EditBesoinMedecinDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          medecinId={medecinId}
+          medecinNom={medecinNom}
+          date={editingDate}
+          initialSiteId={editingSlot.siteId}
+          initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
+          initialTypeInterventionId={editingSlot.typeInterventionId || null}
+          besoinIds={editingSlot.ids}
+          onSuccess={handleEditSuccess}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
