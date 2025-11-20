@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
@@ -87,6 +87,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     siteId: string;
     periode: 'matin' | 'apres_midi' | 'journee';
   } | null>(null);
+  const [addBesoinDialog, setAddBesoinDialog] = useState<{
+    open: boolean;
+    medecinId: string;
+    medecinNom: string;
+    medecinPrenom: string;
+    date: string;
+  } | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
+  const [typesIntervention, setTypesIntervention] = useState<{ id: string; nom: string }[]>([]);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -123,6 +134,12 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         .eq('actif', true)
         .order('nom');
 
+      const { data: typesInterventionData } = await supabase
+        .from('types_intervention')
+        .select('id, nom')
+        .eq('actif', true)
+        .order('nom');
+
       const { data: feriesData } = await supabase
         .from('jours_feries')
         .select('date')
@@ -155,6 +172,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       setMedecins(medData || []);
       setSecretaires(secData || []);
       setSites(sitesData || []);
+      setTypesIntervention(typesInterventionData || []);
       setBesoins(besoinsData || []);
       setCapacites(capacitesData || []);
       setAbsences(absencesData || []);
@@ -490,10 +508,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   const showAbsence = absence && !isWeekendDay;
                                   
                                   return (
-                                    <div
+                                     <div
                                       key={day.dateStr}
                                       className={cn(
-                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
+                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center relative group",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
                                         showAbsence && "bg-muted/20",
                                         !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
@@ -532,6 +550,25 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                           })}
                                         </div>
                                       ) : null}
+                                      
+                                      {/* Bouton + pour ajouter un besoin */}
+                                      {!showAbsence && !isWeekendDay && !isHoliday(day.dateStr) && (merged.length === 0 || merged[0].period !== 'toute_journee') && (
+                                        <button
+                                          className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAddBesoinDialog({
+                                              open: true,
+                                              medecinId: medecin.id,
+                                              medecinNom: medecin.name,
+                                              medecinPrenom: medecin.first_name,
+                                              date: day.dateStr
+                                            });
+                                          }}
+                                        >
+                                          <Plus className="h-2.5 w-2.5" />
+                                        </button>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -792,6 +829,145 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Add Besoin Dialog */}
+    {addBesoinDialog && (
+      <Dialog open={addBesoinDialog.open} onOpenChange={(open) => !open && setAddBesoinDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un besoin</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Période</label>
+              <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="matin">Matin</SelectItem>
+                  <SelectItem value="apres_midi">Après-midi</SelectItem>
+                  <SelectItem value="toute_journee">Toute la journée</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Site</label>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map(site => (
+                    <SelectItem key={site.id} value={site.id}>{site.nom}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedSiteId && sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire') && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Type d'intervention</label>
+                <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un type d'intervention" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {typesIntervention.map(type => (
+                      <SelectItem key={type.id} value={type.id}>{type.nom}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddBesoinDialog(null)}>
+                Annuler
+              </Button>
+              <Button onClick={async () => {
+                if (!selectedSiteId) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erreur',
+                    description: 'Veuillez sélectionner un site',
+                  });
+                  return;
+                }
+
+                try {
+                  const isBlocSite = sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire');
+                  
+                  if (selectedPeriod === 'toute_journee') {
+                    // Créer deux besoins pour toute la journée
+                    const { error: errorMatin } = await supabase
+                      .from('besoin_effectif')
+                      .insert({
+                        date: addBesoinDialog!.date,
+                        medecin_id: addBesoinDialog!.medecinId,
+                        site_id: selectedSiteId,
+                        demi_journee: 'matin',
+                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
+                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
+                      });
+
+                    if (errorMatin) throw errorMatin;
+
+                    const { error: errorApresMidi } = await supabase
+                      .from('besoin_effectif')
+                      .insert({
+                        date: addBesoinDialog!.date,
+                        medecin_id: addBesoinDialog!.medecinId,
+                        site_id: selectedSiteId,
+                        demi_journee: 'apres_midi',
+                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
+                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
+                      });
+
+                    if (errorApresMidi) throw errorApresMidi;
+                  } else {
+                    const { error } = await supabase
+                      .from('besoin_effectif')
+                      .insert({
+                        date: addBesoinDialog!.date,
+                        medecin_id: addBesoinDialog!.medecinId,
+                        site_id: selectedSiteId,
+                        demi_journee: selectedPeriod,
+                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
+                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
+                      });
+
+                    if (error) throw error;
+                  }
+
+                  toast({
+                    title: 'Succès',
+                    description: 'Besoin ajouté avec succès',
+                  });
+
+                  setAddBesoinDialog(null);
+                  setSelectedPeriod('toute_journee');
+                  setSelectedSiteId('');
+                  setSelectedTypeInterventionId('');
+                  fetchData();
+                } catch (error) {
+                  console.error('Error adding besoin:', error);
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erreur',
+                    description: 'Impossible d\'ajouter le besoin',
+                  });
+                }
+              }}>
+                Ajouter
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
 
     {medecinActionsDialog && (
       <MedecinActionsDialog
