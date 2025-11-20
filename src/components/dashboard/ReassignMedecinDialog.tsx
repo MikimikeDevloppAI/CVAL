@@ -42,8 +42,9 @@ interface MedecinFromOtherSite {
   name: string;
   current_site_id: string;
   current_site_name: string;
-  current_periode: 'matin' | 'apres_midi';
+  current_periode: 'matin' | 'apres_midi' | 'toute_journee';
   besoin_id: string;
+  besoin_id_apres_midi?: string;
   type_intervention_id?: string;
 }
 
@@ -143,18 +144,69 @@ export function ReassignMedecinDialog({
       .not('medecin_id', 'is', null);
 
     if (besoins) {
-      const medecinsFromOther: MedecinFromOtherSite[] = besoins
-        .filter(b => b.medecins && b.sites)
-        .map(b => ({
-          id: b.medecin_id!,
-          first_name: (b.medecins as any).first_name || '',
-          name: (b.medecins as any).name || '',
-          current_site_id: b.site_id,
-          current_site_name: (b.sites as any).nom,
-          current_periode: b.demi_journee as 'matin' | 'apres_midi',
-          besoin_id: b.id,
-          type_intervention_id: b.type_intervention_id || undefined,
-        }));
+      // Group by medecin + site to detect full day assignments
+      const grouped = new Map<string, {
+        medecin_id: string;
+        site_id: string;
+        first_name: string;
+        name: string;
+        site_nom: string;
+        besoins: typeof besoins;
+      }>();
+
+      besoins.filter(b => b.medecins && b.sites).forEach(b => {
+        const key = `${b.medecin_id}_${b.site_id}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            medecin_id: b.medecin_id!,
+            site_id: b.site_id,
+            first_name: (b.medecins as any).first_name || '',
+            name: (b.medecins as any).name || '',
+            site_nom: (b.sites as any).nom,
+            besoins: [],
+          });
+        }
+        grouped.get(key)!.besoins.push(b);
+      });
+
+      const medecinsFromOther: MedecinFromOtherSite[] = [];
+
+      grouped.forEach(({ medecin_id, site_id, first_name, name, site_nom, besoins: bsns }) => {
+        const hasMatin = bsns.some(b => b.demi_journee === 'matin');
+        const hasApresMidi = bsns.some(b => b.demi_journee === 'apres_midi');
+
+        if (periode === 'journee' && hasMatin && hasApresMidi) {
+          // Both periods exist: show as full day
+          const matinBesoin = bsns.find(b => b.demi_journee === 'matin')!;
+          const apresMidiBesoin = bsns.find(b => b.demi_journee === 'apres_midi')!;
+          
+          medecinsFromOther.push({
+            id: medecin_id,
+            first_name,
+            name,
+            current_site_id: site_id,
+            current_site_name: site_nom,
+            current_periode: 'toute_journee' as any,
+            besoin_id: matinBesoin.id,
+            besoin_id_apres_midi: apresMidiBesoin.id,
+            type_intervention_id: matinBesoin.type_intervention_id || apresMidiBesoin.type_intervention_id || undefined,
+          });
+        } else {
+          // Single period or only one period available: show individual periods
+          bsns.forEach(b => {
+            medecinsFromOther.push({
+              id: medecin_id,
+              first_name,
+              name,
+              current_site_id: site_id,
+              current_site_name: site_nom,
+              current_periode: b.demi_journee as 'matin' | 'apres_midi',
+              besoin_id: b.id,
+              type_intervention_id: b.type_intervention_id || undefined,
+            });
+          });
+        }
+      });
 
       setMedecins(medecinsFromOther);
     }
@@ -184,10 +236,10 @@ export function ReassignMedecinDialog({
       const selectedMedecin = medecins.find(m => m.id === selectedMedecinId);
       if (!selectedMedecin) return;
 
-      // Determine which periods to delete and create
+      // Determine which periods to delete based on current assignment
       const periodsToDelete: ('matin' | 'apres_midi')[] = 
-        periode === 'journee' 
-          ? [selectedMedecin.current_periode]
+        selectedMedecin.current_periode === 'toute_journee'
+          ? ['matin', 'apres_midi']
           : [selectedMedecin.current_periode];
 
       const periodsToCreate: ('matin' | 'apres_midi')[] = 
@@ -315,7 +367,11 @@ export function ReassignMedecinDialog({
                         <div className="flex flex-col">
                           <span>{medecin.first_name} {medecin.name}</span>
                           <span className="text-xs text-muted-foreground">
-                            {medecin.current_site_name} - {medecin.current_periode === 'matin' ? 'Matin' : 'Après-midi'}
+                            {medecin.current_site_name} - {
+                              medecin.current_periode === 'matin' ? 'Matin' : 
+                              medecin.current_periode === 'apres_midi' ? 'Après-midi' :
+                              'Toute la journée'
+                            }
                           </span>
                         </div>
                       </CommandItem>
@@ -331,7 +387,11 @@ export function ReassignMedecinDialog({
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 Actuellement assigné à <Badge variant="secondary">{selectedMedecin.current_site_name}</Badge> 
-                {' '}pour la période <Badge variant="secondary">{selectedMedecin.current_periode === 'matin' ? 'Matin' : 'Après-midi'}</Badge>
+                {' '}pour la période <Badge variant="secondary">
+                  {selectedMedecin.current_periode === 'matin' ? 'Matin' : 
+                   selectedMedecin.current_periode === 'apres_midi' ? 'Après-midi' :
+                   'Toute la journée'}
+                </Badge>
               </AlertDescription>
             </Alert>
           )}
