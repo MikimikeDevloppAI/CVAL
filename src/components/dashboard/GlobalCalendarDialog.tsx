@@ -401,7 +401,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-muted/50"
+                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
                                       )}
                                     >
                                       {showAbsence ? (
@@ -456,7 +456,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-muted/50"
+                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
                                       )}
                                     >
                                       {showAbsence ? (
@@ -507,7 +507,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Absence</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-muted/50 border"></div>
+                    <div className="w-4 h-4 rounded bg-amber-50 border"></div>
                     <span>Aucune assignation</span>
                   </div>
                 </div>
