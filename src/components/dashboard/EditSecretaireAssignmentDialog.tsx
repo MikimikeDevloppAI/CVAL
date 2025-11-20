@@ -434,12 +434,12 @@ export function EditSecretaireAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg bg-accent/50 border-border">
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+          <DialogTitle className="text-primary">
             Modifier l'assignation
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-muted-foreground">
             Assistant médical : {secretaire.nom}
           </DialogDescription>
         </DialogHeader>
@@ -603,7 +603,6 @@ export function EditSecretaireAssignmentDialog({
           <Button
             onClick={handleSubmit}
             disabled={loading || fetchingData || !canSubmit}
-            className="bg-gradient-to-r from-teal-500 to-cyan-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Enregistrer
