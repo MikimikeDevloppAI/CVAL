@@ -175,7 +175,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
     
-    // Commencer par le mois sélectionné
+    // 12 mois précédents (du plus ancien au plus récent)
+    for (let i = 12; i >= 1; i--) {
+      const date = new Date(selectedYear, selectedMonth - i, 1);
+      months.push({
+        value: `${date.getFullYear()}-${date.getMonth()}`,
+        label: format(date, 'MMMM yyyy', { locale: fr }),
+        isCurrent: false
+      });
+    }
+    
+    // Mois sélectionné
     months.push({
       value: `${selectedYear}-${selectedMonth}`,
       label: format(selectedDate, 'MMMM yyyy', { locale: fr }),
@@ -185,16 +195,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     // 12 mois suivants
     for (let i = 1; i <= 12; i++) {
       const date = new Date(selectedYear, selectedMonth + i, 1);
-      months.push({
-        value: `${date.getFullYear()}-${date.getMonth()}`,
-        label: format(date, 'MMMM yyyy', { locale: fr }),
-        isCurrent: false
-      });
-    }
-    
-    // 12 mois précédents à la fin
-    for (let i = 1; i <= 12; i++) {
-      const date = new Date(selectedYear, selectedMonth - i, 1);
       months.push({
         value: `${date.getFullYear()}-${date.getMonth()}`,
         label: format(date, 'MMMM yyyy', { locale: fr }),
