@@ -384,33 +384,39 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     try {
       // Gestion spéciale pour les besoins de fermeture
       if (need.is_fermeture && need.fermeture_type) {
-        // Trouver la capacité effective existante pour ce secrétaire sur ce site/date/période
-        const { data: existingCapacity } = await supabase
+        // Trouver toutes les capacités existantes pour ce secrétaire sur ce site/date
+        const { data: existingCapacities } = await supabase
           .from('capacite_effective')
-          .select('id, is_1r, is_2f, is_3f')
+          .select('id, demi_journee, is_1r, is_2f, is_3f')
           .eq('secretaire_id', secretaireId)
           .eq('date', need.date)
-          .eq('demi_journee', need.periode)
           .eq('site_id', need.site_id)
-          .eq('actif', true)
-          .maybeSingle();
+          .eq('actif', true);
 
-        if (!existingCapacity) {
+        if (!existingCapacities || existingCapacities.length === 0) {
           throw new Error('Aucune capacité trouvée pour cet assistant médical sur ce site');
         }
 
-        // Mettre à jour le flag approprié
-        const updateData: any = {};
-        if (need.fermeture_type === '1r') updateData.is_1r = true;
-        if (need.fermeture_type === '2f') updateData.is_2f = true;
-        if (need.fermeture_type === '3f') updateData.is_3f = true;
+        // Mettre à jour la responsabilité sur toutes les demi-journées où la personne est présente
+        for (const cap of existingCapacities) {
+          const updateData: any = {
+            // On s'assure qu'une seule responsabilité est active
+            is_1r: false,
+            is_2f: false,
+            is_3f: false,
+          };
 
-        const { error: updateError } = await supabase
-          .from('capacite_effective')
-          .update(updateData)
-          .eq('id', existingCapacity.id);
+          if (need.fermeture_type === '1r') updateData.is_1r = true;
+          if (need.fermeture_type === '2f') updateData.is_2f = true;
+          if (need.fermeture_type === '3f') updateData.is_3f = true;
 
-        if (updateError) throw updateError;
+          const { error: updateError } = await supabase
+            .from('capacite_effective')
+            .update(updateData)
+            .eq('id', cap.id);
+
+          if (updateError) throw updateError;
+        }
 
         toast.success(`Responsabilité ${need.fermeture_type.toUpperCase()} assignée avec succès`);
       } else {
@@ -608,7 +614,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                             {format(new Date(need.date), 'EEE dd MMM', { locale: fr })}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                            {need.is_fermeture ? 'Toute la journée' : need.periode === 'matin' ? 'Matin' : 'Après-midi'}
                           </TableCell>
                           <TableCell className="font-medium text-sm">
                             {need.site_nom}
