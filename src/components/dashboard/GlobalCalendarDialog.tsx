@@ -401,6 +401,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        showAbsence && "bg-muted/20",
                                         !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
                                       )}
                                     >
@@ -456,6 +457,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        showAbsence && "bg-muted/20",
                                         !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
                                       )}
                                     >
