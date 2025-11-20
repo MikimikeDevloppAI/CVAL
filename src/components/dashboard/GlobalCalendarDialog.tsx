@@ -343,141 +343,139 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               <div className="text-center py-8">Chargement...</div>
             ) : (
               <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto">
-                  <div className="border rounded-lg overflow-x-auto">
-                    <div className="min-w-max">
-                      <div className="mb-6">
-                        <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
-                          <Badge variant="outline">Médecins</Badge>
-                        </h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <thead className="bg-muted sticky top-0 z-20">
-                              <tr>
-                                <th className="sticky left-0 z-30 bg-muted border-r p-2 text-left min-w-[150px]">
-                                  Médecin
-                                </th>
-                                {days.map(day => (
-                                  <th
-                                    key={day.dateStr}
-                                    className={cn(
-                                      "p-1 text-center min-w-[80px] border-l",
-                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
-                                    )}
-                                  >
-                                    <div className="font-medium">
-                                      {format(day.date, 'EEE', { locale: fr })}
-                                    </div>
-                                    <div className="text-muted-foreground">
-                                      {format(day.date, 'd')}
-                                    </div>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {medecins.map(medecin => (
-                                <tr key={medecin.id} className="border-t hover:bg-muted/30">
-                                  <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium">
-                                    Dr {medecin.first_name} {medecin.name}
-                                  </td>
-                                  {days.map(day => {
-                                    const besoinsDay = getBesoinsForMedecinAndDate(medecin.id, day.dateStr);
-                                    const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
-                                    const merged = mergeAssignments(besoinsDay);
-                                    
-                                    return (
-                                      <td
-                                        key={day.dateStr}
-                                        className={cn(
-                                          "p-1 text-center border-l",
-                                          (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                          !absence && merged.length === 0 && "bg-muted/10"
-                                        )}
-                                      >
-                                        {absence ? (
-                                          <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
-                                            {getAbsenceLabel(absence.type)}
-                                          </div>
-                                        ) : merged.length > 0 ? (
-                                          <div className="space-y-0.5">
-                                            {merged.map((item, idx) => (
-                                              <div
-                                                key={idx}
-                                                className={cn(
-                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                  getColorForPeriod(item.period as any)
-                                                )}
-                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                              >
-                                                {item.siteNom?.substring(0, 8)}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : null}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                <div className="flex-1 overflow-y-auto relative">
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-max">
+                        {/* En-tête des dates - sticky pour tout le calendrier */}
+                        <div className="sticky top-0 z-30 bg-muted border-b">
+                          <div className="flex">
+                            <div className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[150px] flex items-center">
+                              <span className="font-medium text-xs">Personne</span>
+                            </div>
+                            {days.map(day => (
+                              <div
+                                key={day.dateStr}
+                                className={cn(
+                                  "p-1 text-center min-w-[80px] border-l",
+                                  (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                                )}
+                              >
+                                <div className="font-medium text-xs">
+                                  {format(day.date, 'EEE', { locale: fr })}
+                                </div>
+                                <div className="text-muted-foreground text-xs">
+                                  {format(day.date, 'd')}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
-                          <Badge variant="outline">Assistants médicaux</Badge>
-                        </h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <tbody>
-                              {secretaires.map(secretaire => (
-                                <tr key={secretaire.id} className="border-t hover:bg-muted/30">
-                                  <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[150px]">
-                                    {secretaire.first_name} {secretaire.name}
-                                  </td>
-                                  {days.map(day => {
-                                    const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
-                                    const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
-                                    const merged = mergeAssignments(capacitesDay);
-                                    
-                                    return (
-                                      <td
-                                        key={day.dateStr}
-                                        className={cn(
-                                          "p-1 text-center border-l min-w-[80px]",
-                                          (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                          !absence && merged.length === 0 && "bg-muted/10"
-                                        )}
-                                      >
-                                        {absence ? (
-                                          <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
-                                            {getAbsenceLabel(absence.type)}
-                                          </div>
-                                        ) : merged.length > 0 ? (
-                                          <div className="space-y-0.5">
-                                            {merged.map((item, idx) => (
-                                              <div
-                                                key={idx}
-                                                className={cn(
-                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                  getColorForPeriod(item.period as any)
-                                                )}
-                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                              >
-                                                {item.siteNom?.substring(0, 8)}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : null}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        {/* Section Médecins */}
+                        <div className="mb-6">
+                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b">
+                            <Badge variant="outline">Médecins</Badge>
+                          </h4>
+                          <div>
+                            {medecins.map(medecin => (
+                              <div key={medecin.id} className="flex border-b hover:bg-muted/30 min-h-[40px]">
+                                <div className="sticky left-0 z-10 bg-background border-r p-2 min-w-[150px] text-xs font-medium flex items-center">
+                                  Dr {medecin.first_name} {medecin.name}
+                                </div>
+                                {days.map(day => {
+                                  const besoinsDay = getBesoinsForMedecinAndDate(medecin.id, day.dateStr);
+                                  const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                  const merged = mergeAssignments(besoinsDay);
+                                  
+                                  return (
+                                    <div
+                                      key={day.dateStr}
+                                      className={cn(
+                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
+                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        !absence && merged.length === 0 && "bg-muted/10"
+                                      )}
+                                    >
+                                      {absence ? (
+                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                          {getAbsenceLabel(absence.type)}
+                                        </div>
+                                      ) : merged.length > 0 ? (
+                                        <div className="space-y-0.5 w-full">
+                                          {merged.map((item, idx) => (
+                                            <div
+                                              key={idx}
+                                              className={cn(
+                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
+                                                getColorForPeriod(item.period as any)
+                                              )}
+                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                            >
+                                              {item.siteNom?.substring(0, 8)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Section Assistants médicaux */}
+                        <div>
+                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b border-t">
+                            <Badge variant="outline">Assistants médicaux</Badge>
+                          </h4>
+                          <div>
+                            {secretaires.map(secretaire => (
+                              <div key={secretaire.id} className="flex border-b hover:bg-muted/30 min-h-[40px]">
+                                <div className="sticky left-0 z-10 bg-background border-r p-2 min-w-[150px] text-xs font-medium flex items-center">
+                                  {secretaire.first_name} {secretaire.name}
+                                </div>
+                                {days.map(day => {
+                                  const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
+                                  const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                  const merged = mergeAssignments(capacitesDay);
+                                  
+                                  return (
+                                    <div
+                                      key={day.dateStr}
+                                      className={cn(
+                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
+                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        !absence && merged.length === 0 && "bg-muted/10"
+                                      )}
+                                    >
+                                      {absence ? (
+                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                          {getAbsenceLabel(absence.type)}
+                                        </div>
+                                      ) : merged.length > 0 ? (
+                                        <div className="space-y-0.5 w-full">
+                                          {merged.map((item, idx) => (
+                                            <div
+                                              key={idx}
+                                              className={cn(
+                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
+                                                getColorForPeriod(item.period as any)
+                                              )}
+                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                            >
+                                              {item.siteNom?.substring(0, 8)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
