@@ -120,6 +120,11 @@ export function AssignSecretaireOperationDialog({
       );
 
       for (const sec of allSecretaires || []) {
+        // Ne traiter que les assistants médicaux éligibles pour ce besoin
+        if (!eligibleIds.has(sec.id)) {
+          continue;
+        }
+
         // Vérifier si l'assistant médical a une capacité pour cette période
         const capacite = capacites?.find(c => c.secretaire_id === sec.id);
 
@@ -148,7 +153,7 @@ export function AssignSecretaireOperationDialog({
               existing_besoin: capacite.besoins_operations?.nom,
             });
           }
-        } else if (eligibleIds.has(sec.id)) {
+        } else {
           // Assistant médical éligible mais ne travaille pas ce jour
           secretairesList.push({
             id: sec.id,
