@@ -135,16 +135,25 @@ export function EditMedecinAssignmentDialog({
 
       // Filter by the specific demi-journee(s)
       if (selectedPeriode === 'journee') {
-        // For full day, update both periods
-        query = query.in('demi_journee', ['matin', 'apres_midi']);
+        // For full day, update both periods (and potential 'toute_journee' rows)
+        query = query.in('demi_journee', ['matin', 'apres_midi', 'toute_journee']);
       } else {
         // For specific half-day, only update that period
         query = query.eq('demi_journee', selectedPeriode);
       }
 
-      const { error } = await query;
+      const { data, error } = await query.select('id, demi_journee, site_id');
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast({
+          title: 'Aucun créneau trouvé',
+          description: "Aucun besoin effectif actif ne correspond à cette période.",
+          variant: 'destructive',
+        });
+        return;
+      }
 
       toast({
         title: 'Succès',
