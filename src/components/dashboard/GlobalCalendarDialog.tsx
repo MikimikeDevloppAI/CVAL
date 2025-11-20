@@ -139,8 +139,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       const { data: absencesData } = await supabase
         .from('absences')
         .select('id, date_debut, date_fin, demi_journee, medecin_id, secretaire_id, type, motif')
-        .or(`date_debut.lte.${endDate},date_fin.gte.${startDate}`)
-        .eq('statut', 'approuve');
+        .or(`date_debut.lte.${endDate},date_fin.gte.${startDate}`);
 
       setMedecins(medData || []);
       setSecretaires(secData || []);
