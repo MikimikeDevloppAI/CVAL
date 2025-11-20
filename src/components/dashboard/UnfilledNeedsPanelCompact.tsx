@@ -344,18 +344,20 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     setDryRunLoading(true);
     
     try {
-      // Generate all dates between startDate and endDate
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const dates: string[] = [];
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        dates.push(d.toISOString().split('T')[0]);
+      // Get only dates with unfilled needs
+      const datesWithNeeds = Array.from(new Set(
+        periodNeeds.map(need => need.date)
+      )).sort();
+
+      if (datesWithNeeds.length === 0) {
+        toast.info('Aucun besoin non satisfait à optimiser');
+        setDryRunLoading(false);
+        return;
       }
 
-      // Run optimization for all dates in parallel
+      // Run optimization for dates with needs in parallel
       const results = await Promise.all(
-        dates.map(async (date) => {
+        datesWithNeeds.map(async (date) => {
           const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
             body: { date }
           });
