@@ -42,6 +42,9 @@ interface PeriodNeed {
   type_intervention_nom?: string;
   planning_genere_bloc_operatoire_id?: string;
   manque: number;
+  deficit_1r?: number;
+  deficit_2f3f?: number;
+  is_fermeture?: boolean;
   suggestions_admin: SecretaireSuggestion[];
   suggestions_not_working: SecretaireSuggestion[];
 }
@@ -136,6 +139,47 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           suggestions_admin: [],
           suggestions_not_working: []
         });
+      }
+
+      // Fetch fermeture needs (closing sites)
+      const { data: fermetureNeeds, error: fermetureError } = await supabase
+        .from('besoins_fermeture_summary')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .or('deficit_1r.gt.0,deficit_2f3f.gt.0')
+        .order('date', { ascending: true });
+
+      if (fermetureError) throw fermetureError;
+
+      // Convert fermeture needs to period needs (fermeture is always full day)
+      for (const need of fermetureNeeds || []) {
+        if (need.deficit_1r && need.deficit_1r > 0) {
+          needs.push({
+            date: need.date!,
+            periode: 'matin',
+            site_id: need.site_id!,
+            site_nom: need.site_nom!,
+            manque: need.deficit_1r,
+            deficit_1r: need.deficit_1r,
+            is_fermeture: true,
+            suggestions_admin: [],
+            suggestions_not_working: []
+          });
+        }
+        if (need.deficit_2f3f && need.deficit_2f3f > 0) {
+          needs.push({
+            date: need.date!,
+            periode: 'apres_midi',
+            site_id: need.site_id!,
+            site_nom: need.site_nom!,
+            manque: need.deficit_2f3f,
+            deficit_2f3f: need.deficit_2f3f,
+            is_fermeture: true,
+            suggestions_admin: [],
+            suggestions_not_working: []
+          });
+        }
       }
 
       // Sort by date and period
@@ -487,7 +531,19 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                             {need.site_nom}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {need.besoin_operation_nom ? (
+                            {need.is_fermeture ? (
+                              <div className="font-medium">
+                                {need.deficit_1r && need.deficit_1r > 0 ? (
+                                  <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+                                    Responsable fermeture (1R)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">
+                                    Fermeture 2F/3F
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : need.besoin_operation_nom ? (
                               <div className="space-y-0.5">
                                 <div className="font-medium">{need.medecin_nom}</div>
                                 <div className="text-xs text-muted-foreground">
