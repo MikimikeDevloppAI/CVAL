@@ -208,7 +208,7 @@ export function AddMedecinToDayDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-blue-500 to-blue-600 bg-clip-text text-transparent">
+          <DialogTitle className="text-primary">
             Ajouter un médecin
           </DialogTitle>
           <DialogDescription>
@@ -307,7 +307,6 @@ export function AddMedecinToDayDialog({
           <Button
             onClick={handleSubmit}
             disabled={loading || !selectedMedecinId}
-            className="bg-gradient-to-r from-blue-500 to-blue-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Ajouter
