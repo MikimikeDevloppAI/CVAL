@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Plus, Users, Building2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
@@ -110,7 +110,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [typesIntervention, setTypesIntervention] = useState<{ id: string; nom: string }[]>([]);
-  const [viewType, setViewType] = useState<'personne' | 'site'>('personne');
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -430,8 +429,9 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         </DialogHeader>
 
         <Tabs defaultValue="calendar" className="flex flex-col flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
             <TabsTrigger value="calendar">Calendrier</TabsTrigger>
+            <TabsTrigger value="sites">Calendrier par site</TabsTrigger>
             <TabsTrigger value="absences">Absences</TabsTrigger>
           </TabsList>
 
@@ -471,35 +471,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               </Button>
             </div>
 
-            {/* View Type Selector */}
-            <div className="flex items-center justify-center gap-2 mb-4 flex-shrink-0">
-              <Button
-                variant={viewType === 'personne' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewType('personne')}
-                className="gap-2"
-              >
-                <Users className="h-4 w-4" />
-                Par personne
-              </Button>
-              <Button
-                variant={viewType === 'site' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewType('site')}
-                className="gap-2"
-              >
-                <Building2 className="h-4 w-4" />
-                Par site
-              </Button>
-            </div>
-
             {loading ? (
               <div className="text-center py-8">Chargement...</div>
             ) : (
-              <div className="flex flex-col flex-1 overflow-hidden">
-                {viewType === 'personne' ? (
-                  // Vue par personne (existante)
-                  <>
+              <>
                 <div className="border rounded-lg flex-1 overflow-auto">
                   <div className="min-w-max">
                     {/* En-tête des dates - sticky pour tout le calendrier */}
@@ -710,11 +685,51 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <div className="w-4 h-4 rounded bg-amber-50 border"></div>
                     <span>Aucune assignation</span>
                   </div>
-                </div>
-                  </>
-                ) : (
-                  // Vue par site (nouvelle)
-                  <>
+                  </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="sites" className="flex flex-col flex-1 overflow-hidden mt-4">
+            <div className="flex items-center justify-between flex-shrink-0 mb-4 bg-muted/30 rounded-full p-2 border shadow-sm">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handlePrevMonth}
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <Select value={currentMonthValue} onValueChange={handleMonthChange}>
+                <SelectTrigger className="w-[240px] h-9 font-semibold text-base border-0 hover:bg-muted/50 transition-all rounded-full bg-transparent focus:ring-0 focus:ring-offset-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-50 max-h-[300px] overflow-y-auto">
+                  {getAvailableMonths().map(month => (
+                    <SelectItem 
+                      key={month.value} 
+                      value={month.value}
+                      className="font-medium"
+                    >
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleNextMonth}
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8">Chargement...</div>
+            ) : (
+              <>
                   <div className="border rounded-lg flex-1 overflow-auto relative">
                     <table className="w-full border-collapse">
                       <thead className="sticky top-0 z-30 bg-background shadow-sm">
@@ -726,7 +741,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             <th
                               key={day.dateStr}
                               className={cn(
-                                "p-1 text-center min-w-[120px] border-l border-b bg-background",
+                                "p-1 text-center min-w-[120px] border-l border-b",
                                 (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                               )}
                             >
@@ -740,49 +755,51 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                           ))}
                         </tr>
                       </thead>
-
                       <tbody>
-                      {sites.map(site => (
-                        <tr key={site.id} className="border-b hover:bg-muted/30">
-                          <td className="sticky left-0 z-10 bg-background border-r p-2 min-w-[200px] text-xs font-medium">
-                            {formatSiteName(site.nom)}
-                          </td>
-                          {days.map(day => {
-                            const besoinsDay = besoins.filter(b => b.site_id === site.id && b.date === day.dateStr);
-                            const capacitesDay = capacites.filter(c => c.site_id === site.id && c.date === day.dateStr);
-                            const isWeekendDay = isWeekend(day.dateStr);
-                            const isHolidayDay = isHoliday(day.dateStr);
-                            
-                            return (
-                              <td
-                                key={day.dateStr}
-                                className={cn(
-                                  "p-1 border-l min-w-[120px] align-top",
-                                  (isWeekendDay || isHolidayDay) && "bg-muted/20"
-                                )}
-                              >
-                                <div className="space-y-1">
-                                  {/* Médecins */}
-                                  {besoinsDay.length > 0 && (
-                                    <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">Médecins</div>
+                        {sites.map(site => (
+                          <tr key={site.id} className="border-b hover:bg-muted/30">
+                            <td className="sticky left-0 z-20 bg-background border-r p-2 font-medium text-xs">
+                              {site.nom}
+                            </td>
+                            {days.map(day => {
+                              const besoinsDay = besoins.filter(b => 
+                                b.date === day.dateStr && 
+                                b.site_id === site.id
+                              );
+                              const capacitesDay = capacites.filter(c => 
+                                c.date === day.dateStr && 
+                                c.site_id === site.id
+                              );
+
+                              return (
+                                <td
+                                  key={day.dateStr}
+                                  className={cn(
+                                    "p-1 text-center min-w-[120px] border-l align-top",
+                                    (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                                   )}
-                                  {besoinsDay.map(besoin => {
-                                    const medecin = medecins.find(m => m.id === besoin.medecin_id);
-                                    if (!medecin) return null;
-                                    
-                                    const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
-                                    const showAbsence = absence && !isWeekendDay;
-                                    
-                                    return (
-                                      <div
-                                        key={besoin.id}
-                                        className={cn(
-                                          "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
-                                          showAbsence ? "bg-red-100 text-red-800" : "bg-blue-500 text-white"
-                                        )}
-                                        title={showAbsence ? `${medecin.first_name} ${medecin.name} - ${getAbsenceLabel(absence.type)}` : `Dr ${medecin.first_name} ${medecin.name}`}
-                                        onClick={() => {
-                                          if (!showAbsence) {
+                                >
+                                  <div className="space-y-1">
+                                    {/* Médecins */}
+                                    {besoinsDay.length > 0 && (
+                                      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">Médecins</div>
+                                    )}
+                                    {besoinsDay.map(besoin => {
+                                      const medecin = medecins.find(m => m.id === besoin.medecin_id);
+                                      if (!medecin) return null;
+                                      
+                                      const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                      const showAbsence = absence && !isWeekend(day.dateStr);
+                                      
+                                      return (
+                                        <div
+                                          key={besoin.id}
+                                          className={cn(
+                                            "text-[10px] rounded px-1.5 py-1 flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                                            showAbsence ? "bg-red-100 border border-red-300" : "bg-blue-500 text-white"
+                                          )}
+                                          onClick={() => {
+                                            const period = besoin.demi_journee === 'toute_journee' ? 'journee' : besoin.demi_journee;
                                             setMedecinActionsDialog({
                                               open: true,
                                               medecinId: medecin.id,
@@ -790,37 +807,45 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                               medecinPrenom: medecin.first_name,
                                               date: day.dateStr,
                                               siteId: site.id,
-                                              periode: (besoin.demi_journee === 'toute_journee' ? 'journee' : besoin.demi_journee) as 'matin' | 'apres_midi' | 'journee'
+                                              periode: period as 'matin' | 'apres_midi' | 'journee'
                                             });
-                                          }
-                                        }}
-                                      >
-                                        {showAbsence ? getAbsenceLabel(absence.type) : `${medecin.first_name[0]}. ${medecin.name}`}
-                                      </div>
-                                    );
-                                  })}
-                                  
-                                  {/* Secrétaires */}
-                                  {capacitesDay.length > 0 && (
-                                    <div className="text-[9px] font-semibold text-muted-foreground mb-0.5 mt-1">Assistants</div>
-                                  )}
-                                  {capacitesDay.map(capacite => {
-                                    const secretaire = secretaires.find(s => s.id === capacite.secretaire_id);
-                                    if (!secretaire) return null;
+                                          }}
+                                        >
+                                          <span className={showAbsence ? "text-red-800" : ""}>
+                                            {medecin.first_name} {medecin.name}
+                                          </span>
+                                          {besoin.demi_journee !== 'toute_journee' && (
+                                            <Badge variant="outline" className={cn(
+                                              "text-[8px] px-1 py-0 h-4",
+                                              showAbsence ? "border-red-400 bg-red-50" : "border-blue-300 bg-blue-400"
+                                            )}>
+                                              {besoin.demi_journee === 'matin' ? 'M' : 'AM'}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                     
-                                    const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
-                                    const showAbsence = absence && !isWeekendDay;
-                                    
-                                    return (
-                                      <div
-                                        key={capacite.id}
-                                        className={cn(
-                                          "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
-                                          showAbsence ? "bg-red-100 text-red-800" : "bg-green-500 text-white"
-                                        )}
-                                        title={showAbsence ? `${secretaire.first_name} ${secretaire.name} - ${getAbsenceLabel(absence.type)}` : `${secretaire.first_name} ${secretaire.name}`}
-                                        onClick={() => {
-                                          if (!showAbsence) {
+                                    {/* Secrétaires */}
+                                    {capacitesDay.length > 0 && (
+                                      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5 mt-1">Assistants</div>
+                                    )}
+                                    {capacitesDay.map(capacite => {
+                                      const secretaire = secretaires.find(s => s.id === capacite.secretaire_id);
+                                      if (!secretaire) return null;
+                                      
+                                      const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                      const showAbsence = absence && !isWeekend(day.dateStr);
+                                      
+                                      return (
+                                        <div
+                                          key={capacite.id}
+                                          className={cn(
+                                            "text-[10px] rounded px-1.5 py-1 flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                                            showAbsence ? "bg-red-100 border border-red-300" : "bg-green-500 text-white"
+                                          )}
+                                          onClick={() => {
+                                            const period = capacite.demi_journee === 'toute_journee' ? 'journee' : capacite.demi_journee;
                                             setSecretaireActionsDialog({
                                               open: true,
                                               secretaireId: secretaire.id,
@@ -828,22 +853,31 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                               secretairePrenom: secretaire.first_name,
                                               date: day.dateStr,
                                               siteId: site.id,
-                                              periode: (capacite.demi_journee === 'toute_journee' ? 'journee' : capacite.demi_journee) as 'matin' | 'apres_midi' | 'journee',
+                                              periode: period as 'matin' | 'apres_midi' | 'journee',
                                               besoinOperationId: capacite.besoin_operation_id
                                             });
-                                          }
-                                        }}
-                                      >
-                                        {showAbsence ? getAbsenceLabel(absence.type) : `${secretaire.first_name[0]}. ${secretaire.name}`}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
+                                          }}
+                                        >
+                                          <span className={showAbsence ? "text-red-800" : ""}>
+                                            {secretaire.first_name} {secretaire.name}
+                                          </span>
+                                          {capacite.demi_journee !== 'toute_journee' && (
+                                            <Badge variant="outline" className={cn(
+                                              "text-[8px] px-1 py-0 h-4",
+                                              showAbsence ? "border-red-400 bg-red-50" : "border-green-300 bg-green-400"
+                                            )}>
+                                              {capacite.demi_journee === 'matin' ? 'M' : 'AM'}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -862,9 +896,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                       <span>Absence</span>
                     </div>
                   </div>
-                  </>
-                )}
-              </div>
+              </>
             )}
           </TabsContent>
 
