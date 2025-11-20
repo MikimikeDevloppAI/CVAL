@@ -9,7 +9,6 @@ import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths,
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 
 interface GlobalCalendarDialogProps {
   open: boolean;
@@ -594,47 +593,22 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                               
                               return (
-                                <HoverCard key={medecinId}>
-                                  <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
-                                      <div className="flex flex-col gap-1.5">
-                                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(medecinAbsences[0])}</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground font-medium">
-                                            Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
-                                          </span>
-                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                            {nombreJours} jour{nombreJours > 1 ? 's' : ''}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                      <Badge variant="outline" className="text-xs bg-background shadow-sm">
-                                        {getAbsenceLabel(medecinAbsences[0].type)}
+                                <div key={medecinId} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-all group">
+                                  <div className="flex flex-col gap-1.5">
+                                    <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(medecinAbsences[0])}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground font-medium">
+                                        Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                        {nombreJours} jour{nombreJours > 1 ? 's' : ''}
                                       </Badge>
                                     </div>
-                                  </HoverCardTrigger>
-                                  <HoverCardContent className="w-80">
-                                    <div className="space-y-2">
-                                      <h6 className="font-semibold">{getPersonName(medecinAbsences[0])}</h6>
-                                      <div className="text-sm space-y-1">
-                                        {details.map((detail, i) => (
-                                          <div key={i} className="flex items-center justify-between">
-                                            <p className="text-muted-foreground">{detail.dateStr}</p>
-                                            <div className="flex items-center gap-2">
-                                              <Badge variant="outline" className="text-xs">{detail.type}</Badge>
-                                              <Badge 
-                                                variant={detail.statut === 'approuve' ? 'default' : 'secondary'}
-                                                className="text-xs"
-                                              >
-                                                {detail.statut === 'approuve' ? 'Validé' : 'En attente'}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </HoverCardContent>
-                                </HoverCard>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs bg-background shadow-sm">
+                                    {getAbsenceLabel(medecinAbsences[0].type)}
+                                  </Badge>
+                                </div>
                               );
                             })}
                           </div>
@@ -657,47 +631,22 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                               
                               return (
-                                <HoverCard key={secretaireId}>
-                                  <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
-                                      <div className="flex flex-col gap-1.5">
-                                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(secretaireAbsences[0])}</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground font-medium">
-                                            Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
-                                          </span>
-                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                            {nombreJours} jour{nombreJours > 1 ? 's' : ''}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                      <Badge variant="outline" className="text-xs bg-background shadow-sm">
-                                        {getAbsenceLabel(secretaireAbsences[0].type)}
+                                <div key={secretaireId} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-all group">
+                                  <div className="flex flex-col gap-1.5">
+                                    <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(secretaireAbsences[0])}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground font-medium">
+                                        Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                        {nombreJours} jour{nombreJours > 1 ? 's' : ''}
                                       </Badge>
                                     </div>
-                                  </HoverCardTrigger>
-                                  <HoverCardContent className="w-80">
-                                    <div className="space-y-2">
-                                      <h6 className="font-semibold">{getPersonName(secretaireAbsences[0])}</h6>
-                                      <div className="text-sm space-y-1">
-                                        {details.map((detail, i) => (
-                                          <div key={i} className="flex items-center justify-between">
-                                            <p className="text-muted-foreground">{detail.dateStr}</p>
-                                            <div className="flex items-center gap-2">
-                                              <Badge variant="outline" className="text-xs">{detail.type}</Badge>
-                                              <Badge 
-                                                variant={detail.statut === 'approuve' ? 'default' : 'secondary'}
-                                                className="text-xs"
-                                              >
-                                                {detail.statut === 'approuve' ? 'Validé' : 'En attente'}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </HoverCardContent>
-                                </HoverCard>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs bg-background shadow-sm">
+                                    {getAbsenceLabel(secretaireAbsences[0].type)}
+                                  </Badge>
+                                </div>
                               );
                             })}
                           </div>
