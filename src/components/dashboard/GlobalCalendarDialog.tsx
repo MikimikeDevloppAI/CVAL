@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Stethoscope, User } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
@@ -12,6 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
 import { SecretaireActionsDialog } from './SecretaireActionsDialog';
+import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
+import { ReassignMedecinDialog } from './ReassignMedecinDialog';
+import { AddSecretaireToDayDialog } from './AddSecretaireToDayDialog';
+import { ReassignSecretaireDialog } from './ReassignSecretaireDialog';
 
 interface GlobalCalendarDialogProps {
   open: boolean;
@@ -111,22 +116,32 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     periode: 'matin' | 'apres_midi' | 'journee';
     besoinOperationId?: string | null;
   } | null>(null);
-  const [addBesoinDialog, setAddBesoinDialog] = useState<{
-    open: boolean;
-    medecinId: string | undefined;
-    medecinNom: string;
-    medecinPrenom: string;
-    date: string;
-    siteId?: string;
-  } | null>(null);
-  const [addCapaciteDialog, setAddCapaciteDialog] = useState<{
-    open: boolean;
-    secretaireId: string | undefined;
-    secretaireNom: string;
-    secretairePrenom: string;
-    date: string;
-    siteId?: string;
-  } | null>(null);
+  const [addMedecinDialog, setAddMedecinDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+  });
+
+  const [reassignMedecinDialog, setReassignMedecinDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
+  });
+
+  const [addSecretaireDialog, setAddSecretaireDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
+  });
+
+  const [reassignSecretaireDialog, setReassignSecretaireDialog] = useState({
+    open: false,
+    date: '',
+    siteId: '',
+    siteName: '',
+  });
   const [selectedPeriod, setSelectedPeriod] = useState<'matin' | 'apres_midi' | 'toute_journee'>('toute_journee');
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
@@ -683,24 +698,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         </div>
                                       ) : null}
                                       
-                                      {/* Bouton + pour ajouter un besoin */}
-                                      {!showAbsence && !isWeekendDay && !isHoliday(day.dateStr) && (merged.length === 0 || merged[0].period !== 'toute_journee') && (
-                                        <button
-                                          className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setAddBesoinDialog({
-                                              open: true,
-                                              medecinId: medecin.id,
-                                              medecinNom: medecin.name,
-                                              medecinPrenom: medecin.first_name,
-                                              date: day.dateStr
-                                            });
-                                          }}
-                                        >
-                                          <Plus className="h-2.5 w-2.5" />
-                                        </button>
-                                      )}
+                                      {/* Bouton + pour ajouter un besoin - désactivé dans l'onglet Calendrier principal */}
                                     </div>
                                   );
                                 })}
@@ -1003,22 +1001,47 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     </div>
                                     {/* Bouton + pour ajouter un médecin */}
                                     {!isWeekend(day.dateStr) && !isHoliday(day.dateStr) && (
-                                      <button
-                                        className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setAddBesoinDialog({
-                                            open: true,
-                                            medecinId: undefined,
-                                            medecinNom: '',
-                                            medecinPrenom: '',
-                                            date: day.dateStr,
-                                            siteId: site.id
-                                          });
-                                        }}
-                                      >
-                                        <Plus className="h-2.5 w-2.5" />
-                                      </button>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="absolute top-0.5 right-0.5 h-5 w-5 rounded-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56 z-[100]">
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAddMedecinDialog({
+                                                open: true,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                              });
+                                            }}
+                                          >
+                                            <Stethoscope className="h-4 w-4 mr-2" />
+                                            Ajouter un médecin sans créneau
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setReassignMedecinDialog({
+                                                open: true,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                                siteName: site.nom,
+                                              });
+                                            }}
+                                          >
+                                            <Stethoscope className="h-4 w-4 mr-2" />
+                                            Réaffecter depuis un autre site
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     )}
                                   </td>
                                 );
@@ -1139,22 +1162,48 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     </div>
                                     {/* Bouton + pour ajouter un assistant */}
                                     {!isWeekend(day.dateStr) && !isHoliday(day.dateStr) && (
-                                      <button
-                                        className="absolute top-0.5 right-0.5 h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity bg-primary hover:bg-primary/90 text-primary-foreground rounded-sm flex items-center justify-center z-10 cursor-pointer"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setAddCapaciteDialog({
-                                            open: true,
-                                            secretaireId: undefined,
-                                            secretaireNom: '',
-                                            secretairePrenom: '',
-                                            date: day.dateStr,
-                                            siteId: site.id
-                                          });
-                                        }}
-                                      >
-                                        <Plus className="h-2.5 w-2.5" />
-                                      </button>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="absolute top-0.5 right-0.5 h-5 w-5 rounded-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56 z-[100]">
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAddSecretaireDialog({
+                                                open: true,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                                siteName: site.nom,
+                                              });
+                                            }}
+                                          >
+                                            <User className="h-4 w-4 mr-2" />
+                                            Ajouter quelqu'un sans créneau
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setReassignSecretaireDialog({
+                                                open: true,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                                siteName: site.nom,
+                                              });
+                                            }}
+                                          >
+                                            <Stethoscope className="h-4 w-4 mr-2" />
+                                            Réaffecter depuis un autre site
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     )}
                                   </td>
                                 );
@@ -1357,144 +1406,53 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       </DialogContent>
     </Dialog>
 
-    {/* Add Besoin Dialog */}
-    {addBesoinDialog && (
-      <Dialog open={addBesoinDialog.open} onOpenChange={(open) => !open && setAddBesoinDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter un besoin</DialogTitle>
-          </DialogHeader>
+    {/* Dialogs */}
+    <AddMedecinToDayDialog
+      open={addMedecinDialog.open}
+      onOpenChange={(open) => setAddMedecinDialog({ ...addMedecinDialog, open })}
+      date={addMedecinDialog.date}
+      siteId={addMedecinDialog.siteId}
+      onSuccess={() => {
+        setAddMedecinDialog({ open: false, date: '', siteId: '' });
+        fetchData();
+      }}
+    />
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Période</label>
-              <Select value={selectedPeriod} onValueChange={(v: any) => setSelectedPeriod(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="matin">Matin</SelectItem>
-                  <SelectItem value="apres_midi">Après-midi</SelectItem>
-                  <SelectItem value="toute_journee">Toute la journée</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+    <ReassignMedecinDialog
+      open={reassignMedecinDialog.open}
+      onOpenChange={(open) => setReassignMedecinDialog({ ...reassignMedecinDialog, open })}
+      date={reassignMedecinDialog.date}
+      targetSiteId={reassignMedecinDialog.siteId}
+      targetSiteName={reassignMedecinDialog.siteName}
+      onSuccess={() => {
+        setReassignMedecinDialog({ open: false, date: '', siteId: '', siteName: '' });
+        fetchData();
+      }}
+    />
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Site</label>
-              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map(site => (
-                    <SelectItem key={site.id} value={site.id}>{site.nom}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+    <AddSecretaireToDayDialog
+      open={addSecretaireDialog.open}
+      onOpenChange={(open) => setAddSecretaireDialog({ ...addSecretaireDialog, open })}
+      date={addSecretaireDialog.date}
+      siteId={addSecretaireDialog.siteId}
+      siteName={addSecretaireDialog.siteName}
+      onSuccess={() => {
+        setAddSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+        fetchData();
+      }}
+    />
 
-            {selectedSiteId && sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire') && (
-              <div>
-                <label className="text-sm font-medium mb-2 block">Type d'intervention</label>
-                <Select value={selectedTypeInterventionId} onValueChange={setSelectedTypeInterventionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un type d'intervention" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {typesIntervention.map(type => (
-                      <SelectItem key={type.id} value={type.id}>{type.nom}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddBesoinDialog(null)}>
-                Annuler
-              </Button>
-              <Button onClick={async () => {
-                if (!selectedSiteId) {
-                  toast({
-                    variant: 'destructive',
-                    title: 'Erreur',
-                    description: 'Veuillez sélectionner un site',
-                  });
-                  return;
-                }
-
-                try {
-                  const isBlocSite = sites.find(s => s.id === selectedSiteId)?.nom.includes('Bloc opératoire');
-                  
-                  if (selectedPeriod === 'toute_journee') {
-                    // Créer deux besoins pour toute la journée
-                    const { error: errorMatin } = await supabase
-                      .from('besoin_effectif')
-                      .insert({
-                        date: addBesoinDialog!.date,
-                        medecin_id: addBesoinDialog!.medecinId,
-                        site_id: selectedSiteId,
-                        demi_journee: 'matin',
-                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
-                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
-                      });
-
-                    if (errorMatin) throw errorMatin;
-
-                    const { error: errorApresMidi } = await supabase
-                      .from('besoin_effectif')
-                      .insert({
-                        date: addBesoinDialog!.date,
-                        medecin_id: addBesoinDialog!.medecinId,
-                        site_id: selectedSiteId,
-                        demi_journee: 'apres_midi',
-                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
-                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
-                      });
-
-                    if (errorApresMidi) throw errorApresMidi;
-                  } else {
-                    const { error } = await supabase
-                      .from('besoin_effectif')
-                      .insert({
-                        date: addBesoinDialog!.date,
-                        medecin_id: addBesoinDialog!.medecinId,
-                        site_id: selectedSiteId,
-                        demi_journee: selectedPeriod,
-                        type: isBlocSite ? 'bloc_operatoire' : 'medecin',
-                        type_intervention_id: isBlocSite ? selectedTypeInterventionId : null,
-                      });
-
-                    if (error) throw error;
-                  }
-
-                  toast({
-                    title: 'Succès',
-                    description: 'Besoin ajouté avec succès',
-                  });
-
-                  setAddBesoinDialog(null);
-                  setSelectedPeriod('toute_journee');
-                  setSelectedSiteId('');
-                  setSelectedTypeInterventionId('');
-                  fetchData();
-                } catch (error) {
-                  console.error('Error adding besoin:', error);
-                  toast({
-                    variant: 'destructive',
-                    title: 'Erreur',
-                    description: 'Impossible d\'ajouter le besoin',
-                  });
-                }
-              }}>
-                Ajouter
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    )}
+    <ReassignSecretaireDialog
+      open={reassignSecretaireDialog.open}
+      onOpenChange={(open) => setReassignSecretaireDialog({ ...reassignSecretaireDialog, open })}
+      date={reassignSecretaireDialog.date}
+      targetSiteId={reassignSecretaireDialog.siteId}
+      targetSiteName={reassignSecretaireDialog.siteName}
+      onSuccess={() => {
+        setReassignSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+        fetchData();
+      }}
+    />
 
     {medecinActionsDialog && (
       <MedecinActionsDialog
