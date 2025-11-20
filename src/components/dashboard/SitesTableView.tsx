@@ -383,15 +383,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                     const dayData = getDayData(site, date);
                     const dateStr = format(date, 'yyyy-MM-dd');
 
-                    if (!dayData) {
-                      return (
-                        <TableCell key={dateStr} className="text-center text-muted-foreground text-xs">
-                          -
-                        </TableCell>
-                      );
-                    }
-
-                    const secretaires = dayData.secretaires
+                    const secretaires = (dayData?.secretaires || [])
                       .map(s => ({
                         ...s,
                         isMatinOnly: s.matin && !s.apres_midi,
@@ -407,8 +399,8 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                         return a.nom_complet_lower.localeCompare(b.nom_complet_lower, 'fr');
                       });
 
-                    const hasDeficit = dayData.status_matin === 'non_satisfait' || 
-                                      dayData.status_apres_midi === 'non_satisfait';
+                    const hasDeficit = dayData?.status_matin === 'non_satisfait' || 
+                                      dayData?.status_apres_midi === 'non_satisfait';
 
                     return (
                       <TableCell
