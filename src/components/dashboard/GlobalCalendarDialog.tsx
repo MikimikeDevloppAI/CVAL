@@ -357,6 +357,18 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     return formatSiteName(siteName);
   };
 
+  // Helper pour réaffecter le site si c'est une opération gastro
+  const getEffectiveSiteId = (originalSiteId: string, salleName?: string | null): string => {
+    // Si la salle est "Bloc Gastroentérologie", retourner le site Vieille ville Gastro
+    if (salleName && salleName.toLowerCase().includes('gastro')) {
+      const gastroSite = sites.find(s => s.nom.toLowerCase().includes('vieille') && s.nom.toLowerCase().includes('gastro'));
+      if (gastroSite) {
+        return gastroSite.id;
+      }
+    }
+    return originalSiteId;
+  };
+
   const mergeAssignments = (assignments: (BesoinEffectif | CapaciteEffective)[]) => {
     const bySite: Record<string, { 
       matin: boolean; 
@@ -883,10 +895,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                 <div className="text-xs font-medium text-muted-foreground pl-4">Médecins</div>
                               </td>
                               {days.map(day => {
-                                const besoinsDay = besoins.filter(b => 
-                                  b.date === day.dateStr && 
-                                  b.site_id === site.id
-                                );
+                                const besoinsDay = besoins.filter(b => {
+                                  if (b.date !== day.dateStr) return false;
+                                  
+                                  // Récupérer le nom de la salle
+                                  let salleName: string | null = null;
+                                  if (b.planning_genere_bloc_operatoire && b.planning_genere_bloc_operatoire.length > 0) {
+                                    salleName = b.planning_genere_bloc_operatoire[0].salles_operation?.name || null;
+                                  }
+                                  
+                                  // Comparer avec le site effectif (réaffecté si gastro)
+                                  const effectiveSiteId = getEffectiveSiteId(b.site_id, salleName);
+                                  return effectiveSiteId === site.id;
+                                });
                                 
                                 // Grouper par médecin et tracker leurs périodes
                                 const medecinsPeriodes = new Map<string, { matin: boolean; apresMidi: boolean; nom: string; prenom: string }>();
@@ -985,10 +1006,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                 <div className="text-xs font-medium text-muted-foreground pl-4">Assistants</div>
                               </td>
                               {days.map(day => {
-                                const capacitesDay = capacites.filter(c => 
-                                  c.date === day.dateStr && 
-                                  c.site_id === site.id
-                                );
+                                const capacitesDay = capacites.filter(c => {
+                                  if (c.date !== day.dateStr) return false;
+                                  
+                                  // Récupérer le nom de la salle
+                                  let salleName: string | null = null;
+                                  if (c.planning_genere_bloc_operatoire) {
+                                    salleName = c.planning_genere_bloc_operatoire.salles_operation?.name || null;
+                                  }
+                                  
+                                  // Comparer avec le site effectif (réaffecté si gastro)
+                                  const effectiveSiteId = getEffectiveSiteId(c.site_id, salleName);
+                                  return effectiveSiteId === site.id;
+                                });
                                 
                                 // Grouper par secrétaire et tracker leurs périodes
                                 const secretairesPeriodes = new Map<string, { matin: boolean; apresMidi: boolean; nom: string; prenom: string; besoinOperationId?: string | null }>();
