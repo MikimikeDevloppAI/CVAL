@@ -405,7 +405,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       )}
                                     >
                                       {showAbsence ? (
-                                        <div className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
                                           {getAbsenceLabel(absence.type)}
                                         </div>
                                       ) : merged.length > 0 ? (
@@ -460,7 +460,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       )}
                                     >
                                       {showAbsence ? (
-                                        <div className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
                                           {getAbsenceLabel(absence.type)}
                                         </div>
                                       ) : merged.length > 0 ? (
@@ -503,7 +503,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Après-midi</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-muted border"></div>
+                    <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
                     <span>Absence</span>
                   </div>
                   <div className="flex items-center gap-2">
