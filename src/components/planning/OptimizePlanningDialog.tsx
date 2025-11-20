@@ -137,10 +137,6 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
           .in('statut', ['approuve', 'en_attente']);
 
         if (absError) throw absError;
-        console.log('[LOAD] Absences chargées:', absData?.length, 'absences');
-        console.log('[LOAD] Absences pour Lois Lambelet:', absData?.filter(a => 
-          secData.find(s => s.id === a.secretaire_id && s.name?.includes('Lambelet'))
-        ));
         setAbsences(absData || []);
       }
 
@@ -329,21 +325,11 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       }
     });
 
-    console.log(`[${secretary.name}] Semaine ${format(week.weekStart, 'dd/MM')}:`, {
-      weekDays: weekDays.length,
-      unavailableDays: unavailableDays.size,
-      unavailableDaysList: Array.from(unavailableDays),
-      pourcentage: secretary.pourcentage_temps
-    });
-
     // Formula: taux_activité * (5 - jours_indisponibles)
     const joursDisponibles = Math.max(0, 5 - unavailableDays.size);
     const joursRequis = Math.max(0, Math.round((secretary.pourcentage_temps / 100) * joursDisponibles));
-
-    console.log(`[${secretary.name}] Calcul: ${secretary.pourcentage_temps}% * (5 - ${unavailableDays.size}) = ${secretary.pourcentage_temps / 100} * ${joursDisponibles} = ${joursRequis}`);
     
     if (joursDisponibles === 0) {
-      console.log(`[${secretary.name}] Aucun jour disponible → retour 0`);
       return 0;
     }
 
@@ -381,15 +367,12 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         }
       }
       
-      console.log(`[${secretary.name}] Sélection partielle - jours déjà travaillés: ${daysAlreadyWorked}`);
       // Suggest: max(0, min(joursRequis - daysAlreadyWorked, joursDisponibles))
       const result = Math.max(0, Math.min(joursRequis - daysAlreadyWorked, joursDisponibles));
-      console.log(`[${secretary.name}] Résultat partiel: max(0, min(${joursRequis} - ${daysAlreadyWorked}, ${joursDisponibles})) = ${result}`);
       return result;
     }
     
     // Full week selection: return joursRequis
-    console.log(`[${secretary.name}] Sélection complète → retour ${joursRequis}`);
     return joursRequis;
   };
 
@@ -513,8 +496,6 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         .map(d => format(d, 'yyyy-MM-dd'))
         .sort();
 
-      console.log('🚀 Lancement optimisation MILP v2 pour:', dates);
-
       // Prepare secretary assignments by combining all weeks
       const allAssignments = new Map<string, number>();
       
@@ -530,12 +511,8 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         jours_requis: days
       }));
 
-      console.log('📊 Secretary assignments:', secretaryAssignmentsArray);
-
       const weekStart = dates[0];
       const weekEnd = dates[dates.length - 1];
-
-      console.log('📅 Optimizing flexible secretaries for week:', weekStart, 'to', weekEnd);
 
       const { data: flexData, error: flexError } = await supabase.functions.invoke('optimize-planning-milp-flexible', {
         body: { 
@@ -548,8 +525,6 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
       if (flexError) {
         console.error('Error optimizing flexible secretaries:', flexError);
-      } else {
-        console.log('✅ Flexible secretaries optimized:', flexData);
       }
 
       const { data, error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
@@ -565,12 +540,9 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         });
         
         // Rafraîchir les vues matérialisées
-        console.log('🔄 Rafraîchissement des vues matérialisées...');
         const { error: refreshError } = await supabase.functions.invoke('refresh-besoins-view');
         if (refreshError) {
           console.error('⚠️ Erreur lors du refresh des vues:', refreshError);
-        } else {
-          console.log('✅ Vues matérialisées rafraîchies');
         }
         
         onOpenChange(false);
