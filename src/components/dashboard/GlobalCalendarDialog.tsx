@@ -774,16 +774,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               siteIndex > 0 && "border-t-2 border-border"
                             )}>
                               <td 
-                                colSpan={days.length + 1} 
-                                className="sticky left-0 z-20 bg-muted/50 p-2"
+                                className="sticky left-0 z-30 bg-muted/50 p-2 border-r min-w-[200px]"
                               >
                                 <div className="text-sm font-semibold">{site.nom}</div>
                               </td>
+                              <td colSpan={days.length} className="bg-muted/50"></td>
                             </tr>
                             
                             {/* Ligne Médecins */}
                             <tr key={`${site.id}-medecins`} className="border-b hover:bg-muted/30">
-                              <td className="sticky left-0 z-20 bg-background border-r p-2">
+                              <td className="sticky left-0 z-20 bg-background border-r p-2 min-w-[200px]">
                                 <div className="text-xs font-medium text-muted-foreground pl-4">Médecins</div>
                               </td>
                               {days.map(day => {
@@ -864,7 +864,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             
                             {/* Ligne Assistants */}
                             <tr key={`${site.id}-assistants`} className="border-b hover:bg-muted/30">
-                              <td className="sticky left-0 z-20 bg-background border-r p-2">
+                              <td className="sticky left-0 z-20 bg-background border-r p-2 min-w-[200px]">
                                 <div className="text-xs font-medium text-muted-foreground pl-4">Assistants</div>
                               </td>
                               {days.map(day => {
