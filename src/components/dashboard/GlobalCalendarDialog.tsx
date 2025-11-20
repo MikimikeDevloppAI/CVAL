@@ -171,21 +171,20 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   const getAvailableMonths = () => {
     const months = [];
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
+    const selectedDate = currentDate;
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
     
-    // Commencer par le mois actuel, puis ajouter les suivants et les précédents
-    // Mois actuel
+    // Commencer par le mois sélectionné
     months.push({
-      value: `${currentYear}-${currentMonth}`,
-      label: format(today, 'MMMM yyyy', { locale: fr }),
+      value: `${selectedYear}-${selectedMonth}`,
+      label: format(selectedDate, 'MMMM yyyy', { locale: fr }),
       isCurrent: true
     });
     
     // 12 mois suivants
     for (let i = 1; i <= 12; i++) {
-      const date = new Date(currentYear, currentMonth + i, 1);
+      const date = new Date(selectedYear, selectedMonth + i, 1);
       months.push({
         value: `${date.getFullYear()}-${date.getMonth()}`,
         label: format(date, 'MMMM yyyy', { locale: fr }),
@@ -193,18 +192,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       });
     }
     
-    // 12 mois précédents (en ordre inversé pour les ajouter avant)
-    const previousMonths = [];
+    // 12 mois précédents à la fin
     for (let i = 1; i <= 12; i++) {
-      const date = new Date(currentYear, currentMonth - i, 1);
-      previousMonths.unshift({
+      const date = new Date(selectedYear, selectedMonth - i, 1);
+      months.push({
         value: `${date.getFullYear()}-${date.getMonth()}`,
         label: format(date, 'MMMM yyyy', { locale: fr }),
         isCurrent: false
       });
     }
     
-    return [...previousMonths, ...months];
+    return months;
   };
 
   const currentMonthValue = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
@@ -389,17 +387,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
           </TabsList>
 
           <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-4">
-            <div className="flex items-center justify-center gap-3 flex-shrink-0 mb-6">
+            <div className="flex items-center justify-between flex-shrink-0 mb-6 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="icon"
                 onClick={handlePrevMonth}
-                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
               >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <Select value={currentMonthValue} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[240px] h-11 font-semibold text-base border-2 hover:border-primary transition-all shadow-sm hover:shadow-md rounded-lg bg-background">
+                <SelectTrigger className="w-[240px] h-9 font-semibold text-base border-0 hover:bg-muted/50 transition-all rounded-full bg-transparent focus:ring-0 focus:ring-offset-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-50 max-h-[300px] overflow-y-auto">
@@ -415,10 +413,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                 </SelectContent>
               </Select>
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="icon"
                 onClick={handleNextMonth}
-                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
               >
                 <ChevronRight className="h-5 w-5" />
               </Button>
@@ -596,17 +594,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
           </TabsContent>
 
           <TabsContent value="absences" className="flex flex-col flex-1 overflow-hidden mt-4">
-            <div className="flex items-center justify-center gap-3 flex-shrink-0 mb-6">
+            <div className="flex items-center justify-between flex-shrink-0 mb-6 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="icon"
                 onClick={handlePrevMonth}
-                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
               >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <Select value={currentMonthValue} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[240px] h-11 font-semibold text-base border-2 hover:border-primary transition-all shadow-sm hover:shadow-md rounded-lg bg-background">
+                <SelectTrigger className="w-[240px] h-9 font-semibold text-base border-0 hover:bg-muted/50 transition-all rounded-full bg-transparent focus:ring-0 focus:ring-offset-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-50 max-h-[300px] overflow-y-auto">
@@ -622,10 +620,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                 </SelectContent>
               </Select>
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="icon"
                 onClick={handleNextMonth}
-                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+                className="h-9 w-9 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
               >
                 <ChevronRight className="h-5 w-5" />
               </Button>
