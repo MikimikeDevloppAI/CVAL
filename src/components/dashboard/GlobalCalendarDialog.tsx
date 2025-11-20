@@ -784,7 +784,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             {/* Ligne Médecins */}
                             <tr key={`${site.id}-medecins`} className="border-b hover:bg-muted/30">
                               <td className="sticky left-0 z-20 bg-background border-r p-2">
-                                <div className="text-xs font-medium text-muted-foreground pl-4">👨‍⚕️ Médecins</div>
+                                <div className="text-xs font-medium text-muted-foreground pl-4">Médecins</div>
                               </td>
                               {days.map(day => {
                                 const besoinsDay = besoins.filter(b => 
@@ -828,16 +828,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         const absence = getAbsenceForPersonAndDate(medecinId, day.dateStr, 'medecin');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
-                                        const periode = info.matin && info.apresMidi ? '📅' : info.matin ? '🌅' : '🌆';
                                         const periodeLabel = info.matin && info.apresMidi ? 'Journée complète' : info.matin ? 'Matin' : 'Après-midi';
                                         const periodeValue = info.matin && info.apresMidi ? 'journee' : info.matin ? 'matin' : 'apres_midi';
+                                        const bgColor = info.matin && info.apresMidi ? 'bg-green-500' : info.matin ? 'bg-blue-500' : 'bg-yellow-500';
                                         
                                         return (
                                           <div
                                             key={medecinId}
                                             className={cn(
-                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center gap-0.5",
-                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : "bg-blue-500"
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : bgColor
                                             )}
                                             title={`${info.prenom} ${info.nom} - ${periodeLabel}`}
                                             onClick={() => {
@@ -852,8 +852,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                               });
                                             }}
                                           >
-                                            <span>{periode}</span>
-                                            <span>{info.prenom} {info.nom}</span>
+                                            {info.prenom} {info.nom}
                                           </div>
                                         );
                                       })}
@@ -866,7 +865,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             {/* Ligne Assistants */}
                             <tr key={`${site.id}-assistants`} className="border-b hover:bg-muted/30">
                               <td className="sticky left-0 z-20 bg-background border-r p-2">
-                                <div className="text-xs font-medium text-muted-foreground pl-4">🩺 Assistants</div>
+                                <div className="text-xs font-medium text-muted-foreground pl-4">Assistants</div>
                               </td>
                               {days.map(day => {
                                 const capacitesDay = capacites.filter(c => 
@@ -915,16 +914,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         const absence = getAbsenceForPersonAndDate(secretaireId, day.dateStr, 'secretaire');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
-                                        const periode = info.matin && info.apresMidi ? '📅' : info.matin ? '🌅' : '🌆';
                                         const periodeLabel = info.matin && info.apresMidi ? 'Journée complète' : info.matin ? 'Matin' : 'Après-midi';
                                         const periodeValue = info.matin && info.apresMidi ? 'journee' : info.matin ? 'matin' : 'apres_midi';
+                                        const bgColor = info.matin && info.apresMidi ? 'bg-green-500' : info.matin ? 'bg-blue-500' : 'bg-yellow-500';
                                         
                                         return (
                                           <div
                                             key={secretaireId}
                                             className={cn(
-                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center gap-0.5",
-                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : "bg-green-500"
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : bgColor
                                             )}
                                             title={`${info.prenom} ${info.nom} - ${periodeLabel}`}
                                             onClick={() => {
@@ -940,8 +939,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                               });
                                             }}
                                           >
-                                            <span>{periode}</span>
-                                            <span>{info.prenom} {info.nom}</span>
+                                            {info.prenom} {info.nom}
                                           </div>
                                         );
                                       })}
