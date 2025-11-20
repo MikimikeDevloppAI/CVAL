@@ -60,14 +60,17 @@ export function AddMedecinToDayDialog({
   useEffect(() => {
     if (open) {
       fetchMedecins();
+      setSelectedMedecinId('');
+      setPeriode('matin');
     }
   }, [open]);
 
   useEffect(() => {
-    if (periode) {
+    if (periode && open) {
+      setSelectedMedecinId(''); // Reset selection when period changes
       fetchMedecins();
     }
-  }, [periode]);
+  }, [periode, open]);
 
   useEffect(() => {
     if (selectedMedecinId) {
@@ -85,22 +88,31 @@ export function AddMedecinToDayDialog({
       .order('name');
 
     if (data) {
-      // Fetch existing assignments for ALL periods for this date
+      // Détermine les périodes à vérifier selon la sélection
+      const periodsToCheck: ('matin' | 'apres_midi')[] = periode === 'journee' 
+        ? ['matin', 'apres_midi'] 
+        : [periode as 'matin' | 'apres_midi'];
+
+      // Fetch existing assignments for the selected period(s)
       const { data: besoinsData } = await supabase
         .from('besoin_effectif')
         .select('medecin_id, demi_journee')
         .eq('date', date)
-        .eq('type', 'medecin');
+        .eq('type', 'medecin')
+        .in('demi_journee', periodsToCheck);
 
-      const { data: capacitesData } = await supabase
-        .from('capacite_effective')
-        .select('secretaire_id, demi_journee')
-        .eq('date', date);
-
-      // Filter to only include medecins who don't have besoin_effectif for ANY period
+      // Filter to only include medecins who are available for the selected period
       const medecinsFiltered = data.filter(med => {
-        const hasAnyBesoin = besoinsData?.some(b => b.medecin_id === med.id);
-        return !hasAnyBesoin;
+        if (periode === 'journee') {
+          // Pour journée complète, le médecin ne doit avoir aucune affectation (ni matin ni après-midi)
+          const hasMatin = besoinsData?.some(b => b.medecin_id === med.id && b.demi_journee === 'matin');
+          const hasApresMidi = besoinsData?.some(b => b.medecin_id === med.id && b.demi_journee === 'apres_midi');
+          return !hasMatin && !hasApresMidi;
+        } else {
+          // Pour une demi-journée spécifique, vérifier seulement cette période
+          const hasPeriod = besoinsData?.some(b => b.medecin_id === med.id && b.demi_journee === periode);
+          return !hasPeriod;
+        }
       });
 
       setMedecins(medecinsFiltered.map(m => ({
@@ -205,67 +217,7 @@ export function AddMedecinToDayDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Médecin</Label>
-            <Popover open={comboOpen} onOpenChange={setComboOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={comboOpen}
-                  className="w-full justify-between"
-                >
-                  {selectedMedecin
-                    ? `${selectedMedecin.first_name} ${selectedMedecin.name}`
-                    : "Sélectionner un médecin..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
-                <Command>
-                  <CommandInput placeholder="Rechercher un médecin..." />
-                  <CommandEmpty>Aucun médecin trouvé.</CommandEmpty>
-                  <CommandGroup className="max-h-[300px] overflow-y-auto">
-                    {medecins.map((medecin) => (
-                      <CommandItem
-                        key={medecin.id}
-                        value={`${medecin.first_name} ${medecin.name}`}
-                        onSelect={() => {
-                          setSelectedMedecinId(medecin.id);
-                          setComboOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4 flex-shrink-0",
-                            selectedMedecinId === medecin.id ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="truncate">{medecin.first_name} {medecin.name}</span>
-                          {medecin.existing_assignment && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {medecin.existing_assignment}
-                            </span>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {existingAssignment && existingAssignment.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Ce médecin a déjà une assignation pour cette période. Veuillez choisir une autre période.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
+          {/* Période d'abord */}
           <div className="space-y-2">
             <Label>Période</Label>
             <RadioGroup value={periode} onValueChange={(v: any) => setPeriode(v)}>
@@ -288,6 +240,63 @@ export function AddMedecinToDayDialog({
                 </Label>
               </div>
             </RadioGroup>
+          </div>
+
+          {/* Médecin ensuite */}
+          <div className="space-y-2">
+            <Label>Médecin disponible pour cette période</Label>
+            <Popover open={comboOpen} onOpenChange={setComboOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={comboOpen}
+                  className="w-full justify-between"
+                >
+                  {selectedMedecin
+                    ? `${selectedMedecin.first_name} ${selectedMedecin.name}`
+                    : "Sélectionner un médecin..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 z-50" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                <Command>
+                  <CommandInput placeholder="Rechercher un médecin..." />
+                  <CommandEmpty>Aucun médecin disponible pour cette période.</CommandEmpty>
+                  <CommandGroup className="max-h-[300px] overflow-y-auto">
+                    {medecins.map((medecin) => (
+                      <CommandItem
+                        key={medecin.id}
+                        value={`${medecin.first_name} ${medecin.name}`}
+                        onSelect={() => {
+                          setSelectedMedecinId(medecin.id);
+                          setComboOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 flex-shrink-0",
+                            selectedMedecinId === medecin.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate">{medecin.first_name} {medecin.name}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {existingAssignment && existingAssignment.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Ce médecin a déjà une assignation pour cette période. Veuillez choisir une autre période.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
 
