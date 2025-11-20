@@ -9,6 +9,7 @@ import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths,
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface GlobalCalendarDialogProps {
   open: boolean;
@@ -162,6 +163,31 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
+  
+  const handleMonthChange = (value: string) => {
+    const [year, month] = value.split('-').map(Number);
+    setCurrentDate(new Date(year, month, 1));
+  };
+
+  const getAvailableMonths = () => {
+    const months = [];
+    const startYear = 2024;
+    const endYear = 2026;
+    
+    for (let year = startYear; year <= endYear; year++) {
+      for (let month = 0; month < 12; month++) {
+        const date = new Date(year, month, 1);
+        months.push({
+          value: `${year}-${month}`,
+          label: format(date, 'MMMM yyyy', { locale: fr })
+        });
+      }
+    }
+    
+    return months;
+  };
+
+  const currentMonthValue = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
 
   const getDaysInMonth = () => {
     const start = startOfMonth(currentDate);
@@ -347,9 +373,18 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               <Button variant="outline" size="sm" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h3 className="text-lg font-semibold">
-                {format(currentDate, 'MMMM yyyy', { locale: fr })}
-              </h3>
+              <Select value={currentMonthValue} onValueChange={handleMonthChange}>
+                <SelectTrigger className="w-[200px] font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableMonths().map(month => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button variant="outline" size="sm" onClick={handleNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -531,9 +566,18 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               <Button variant="outline" size="sm" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h3 className="text-lg font-semibold">
-                {format(currentDate, 'MMMM yyyy', { locale: fr })}
-              </h3>
+              <Select value={currentMonthValue} onValueChange={handleMonthChange}>
+                <SelectTrigger className="w-[200px] font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableMonths().map(month => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button variant="outline" size="sm" onClick={handleNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
