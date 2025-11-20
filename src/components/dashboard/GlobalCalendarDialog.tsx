@@ -307,7 +307,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     formatted = formatted
       .replace(/Bloc opératoire/gi, 'Bloc')
       .replace(/Angiologie/gi, 'Angio')
-      .replace(/Dermatologie/gi, 'Dermato');
+      .replace(/Dermatologie/gi, 'Dermato')
+      .replace(/Vieille ville/gi, 'Gastro');
     
     return formatted;
   };
