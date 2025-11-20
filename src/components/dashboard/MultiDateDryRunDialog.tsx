@@ -130,6 +130,8 @@ export const MultiDateDryRunDialog = ({
   };
 
   const handleApply = async () => {
+    console.log('handleApply called, selectedChanges:', selectedChanges.size);
+    
     if (selectedChanges.size === 0) {
       toast.error('Veuillez sélectionner au moins un changement');
       return;
@@ -158,18 +160,29 @@ export const MultiDateDryRunDialog = ({
         });
       });
 
+      console.log('Processing changes for', changesByDate.size, 'dates');
+
       for (const [date, secretariesMap] of changesByDate) {
         for (const [secretaire_id, periodesMap] of secretariesMap) {
           for (const [periode, change] of periodesMap) {
-            await supabase
+            console.log('Deleting old assignment:', { date, secretaire_id, periode });
+            
+            const { error: deleteError } = await supabase
               .from('capacite_effective')
               .delete()
               .eq('date', date)
               .eq('secretaire_id', secretaire_id)
               .eq('demi_journee', periode as 'matin' | 'apres_midi');
 
+            if (deleteError) {
+              console.error('Delete error:', deleteError);
+              throw deleteError;
+            }
+
             if (change.after) {
-              await supabase
+              console.log('Inserting new assignment:', change.after);
+              
+              const { error: insertError } = await supabase
                 .from('capacite_effective')
                 .insert({
                   secretaire_id: secretaire_id,
@@ -183,11 +196,17 @@ export const MultiDateDryRunDialog = ({
                   is_3f: change.after.is_3f,
                   actif: true
                 });
+
+              if (insertError) {
+                console.error('Insert error:', insertError);
+                throw insertError;
+              }
             }
           }
         }
       }
 
+      console.log('Refreshing besoins view...');
       await supabase.functions.invoke('refresh-besoins-view');
 
       toast.success(`${selectedChanges.size} changement(s) appliqué(s)`);
@@ -198,9 +217,9 @@ export const MultiDateDryRunDialog = ({
       
       onOpenChange(false);
       setSelectedChanges(new Set());
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error applying changes:', error);
-      toast.error("Erreur lors de l'application des changements");
+      toast.error(`Erreur: ${error.message || "Impossible d'appliquer les changements"}`);
     } finally {
       setApplying(false);
     }
