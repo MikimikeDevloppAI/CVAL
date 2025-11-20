@@ -976,19 +976,39 @@ const DashboardPage = () => {
 
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
-        {/* View Mode Tabs */}
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent mb-6">
-          Planning hebdomadaire
-        </h2>
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
-          <div className="flex justify-center mb-6">
-            <TabsList>
-              <TabsTrigger value="site">Sites</TabsTrigger>
-              <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
-              <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
-              <TabsTrigger value="medecin">Médecins</TabsTrigger>
-            </TabsList>
+        {/* View Mode Navigation Buttons */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
+            Planning hebdomadaire
+          </h2>
+          
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'secretaire' ? 'default' : 'outline'}
+              onClick={() => setViewMode('secretaire')}
+              className="gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              Calendrier
+            </Button>
+            <Button
+              variant={viewMode === 'site' ? 'default' : 'outline'}
+              onClick={() => setViewMode('site')}
+              className="gap-2"
+            >
+              <Building className="h-4 w-4" />
+              Calendrier par site
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setAbsencesPopupOpen(true)}
+              className="gap-2"
+            >
+              <CalendarX className="h-4 w-4" />
+              Absences
+            </Button>
           </div>
+        </div>
 
         {/* Week Selector */}
         <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 shadow-lg mb-6">
@@ -1044,137 +1064,54 @@ const DashboardPage = () => {
         )}
 
         {/* Sites Calendar Grid */}
-        <TabsContent value="site">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <SitesTableView
-              sites={dashboardSites}
-              weekDays={weekDays}
-              onDayClick={(siteId, date) => {
-                console.log('Day clicked:', siteId, date);
-              }}
-              onRefresh={fetchDashboardData}
-            />
-          )}
-        </TabsContent>
+        {viewMode === 'site' && (
+          <div>
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <SitesTableView
+                sites={dashboardSites}
+                weekDays={weekDays}
+                onDayClick={(siteId, date) => {
+                  console.log('Day clicked:', siteId, date);
+                }}
+                onRefresh={fetchDashboardData}
+              />
+            )}
+          </div>
+        )}
 
         {/* Secretaires Calendar Grid */}
-        <TabsContent value="secretaire">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              <div className="flex justify-end mb-4">
-                <SecretaireStatsDialog secretaires={dashboardSecretaires} />
+        {viewMode === 'secretaire' && (
+          <div>
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {dashboardSecretaires.map((secretaire, index) => (
-                  <SecretaireCalendarCard
-                    key={secretaire.id}
-                    secretaire={secretaire}
-                    days={secretaire.days}
-                    startDate={startDate}
-                    index={index}
-                    onDayClick={() => fetchDashboardData()}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        {/* Medecins Calendar Grid */}
-        <TabsContent value="medecin">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {dashboardMedecins.map((medecin, index) => (
-                <MedecinCalendarCard
-                  key={medecin.id}
-                  medecin={medecin}
-                  days={medecin.days}
-                  startDate={startDate}
-                  index={index}
-                  onRefresh={fetchDashboardData}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Bloc Operatoire Calendar Grid */}
-        <TabsContent value="bloc">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              {/* Regular Operations */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {/* Add Operation Card */}
-                <div 
-                  onClick={() => setAddOperationDialogOpen(true)}
-                  className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
-                >
-                  <div className="rounded-full bg-primary/10 p-3">
-                    <Plus className="h-6 w-6 text-primary" />
-                  </div>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Ajouter une opération
-                  </span>
+            ) : (
+              <>
+                <div className="flex justify-end mb-4">
+                  <SecretaireStatsDialog secretaires={dashboardSecretaires} />
                 </div>
-
-                {/* Non-Gastro Operations */}
-                {dashboardOperations
-                  .filter(op => op.salle_nom !== "Bloc Gastroentérologie")
-                  .map((operation, index) => (
-                    <OperationCalendarCard
-                      key={operation.id}
-                      operation={operation}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {dashboardSecretaires.map((secretaire, index) => (
+                    <SecretaireCalendarCard
+                      key={secretaire.id}
+                      secretaire={secretaire}
+                      days={secretaire.days}
+                      startDate={startDate}
                       index={index}
-                      onRefresh={fetchDashboardData}
+                      onDayClick={() => fetchDashboardData()}
                     />
                   ))}
-              </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
-              {/* Gastro Bloc Operations Section */}
-              {dashboardOperations.some(op => op.salle_nom === "Bloc Gastroentérologie") && (
-                <>
-                  <div className="mt-8 mb-4 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-border" />
-                    <h3 className="text-lg font-semibold text-foreground">
-                      Bloc Gastroentérologie
-                    </h3>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {dashboardOperations
-                      .filter(op => op.salle_nom === "Bloc Gastroentérologie")
-                      .map((operation, index) => (
-                        <OperationCalendarCard
-                          key={operation.id}
-                          operation={operation}
-                          index={index}
-                          onRefresh={fetchDashboardData}
-                        />
-                      ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
       </div>
 
       <MedecinsPopup
