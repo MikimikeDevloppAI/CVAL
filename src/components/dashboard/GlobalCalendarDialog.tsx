@@ -534,13 +534,13 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       <DialogContent className="max-w-[98vw] max-h-[95vh] flex flex-col overflow-hidden z-50">
 
         <Tabs defaultValue="calendar" className="flex flex-col flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
-            <TabsTrigger value="calendar">Calendrier</TabsTrigger>
-            <TabsTrigger value="sites">Calendrier par site</TabsTrigger>
-            <TabsTrigger value="absences">Absences</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0 h-9">
+            <TabsTrigger value="calendar" className="h-7 text-sm">Calendrier</TabsTrigger>
+            <TabsTrigger value="sites" className="h-7 text-sm">Calendrier par site</TabsTrigger>
+            <TabsTrigger value="absences" className="h-7 text-sm">Absences</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-4">
+          <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-2">
             <div className="flex items-center justify-between flex-shrink-0 mb-4 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
                 variant="ghost" 
@@ -801,7 +801,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             )}
           </TabsContent>
 
-          <TabsContent value="sites" className="flex flex-col flex-1 overflow-hidden mt-4">
+          <TabsContent value="sites" className="flex flex-col flex-1 overflow-hidden mt-2">
             <div className="flex items-center justify-between flex-shrink-0 mb-4 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
                 variant="ghost" 
@@ -1141,7 +1141,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             )}
           </TabsContent>
 
-          <TabsContent value="absences" className="flex flex-col flex-1 overflow-hidden mt-4">
+          <TabsContent value="absences" className="flex flex-col flex-1 overflow-hidden mt-2">
             <div className="flex items-center justify-between flex-shrink-0 mb-6 bg-muted/30 rounded-full p-2 border shadow-sm">
               <Button 
                 variant="ghost" 
