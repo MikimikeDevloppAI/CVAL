@@ -11,17 +11,26 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { DateRange } from 'react-day-picker';
 
 const absenceSchema = z.object({
   profile_type: z.enum(['medecin', 'secretaire']),
   person_id: z.string().min(1, 'La sélection d\'une personne est requise'),
   type: z.enum(['conges', 'maladie', 'formation', 'autre']),
-  dates: z.array(z.date()).min(1, 'Sélectionnez au moins une date'),
+  dateRange: z.object({
+    from: z.date({ message: "Veuillez sélectionner une date de début" }),
+    to: z.date().optional(),
+  }).refine((data) => {
+    if (data.to && data.from) {
+      return data.to >= data.from;
+    }
+    return true;
+  }, { message: "La date de fin doit être après la date de début" }),
   demi_journee: z.enum(['toute_journee', 'matin', 'apres_midi']).default('toute_journee'),
   motif: z.string().optional(),
 });
@@ -45,15 +54,10 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
       profile_type: absence?.type_personne || 'medecin',
       person_id: absence?.medecin_id || absence?.secretaire_id || '',
       type: absence?.type || 'conges',
-      dates: absence?.date_debut ? (() => {
-        const dates = [];
-        const start = new Date(absence.date_debut);
-        const end = new Date(absence.date_fin);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          dates.push(new Date(d));
-        }
-        return dates;
-      })() : [],
+      dateRange: absence?.date_debut ? {
+        from: new Date(absence.date_debut),
+        to: absence.date_fin ? new Date(absence.date_fin) : undefined,
+      } : { from: undefined, to: undefined },
       demi_journee: absence?.demi_journee || 'toute_journee',
       motif: absence?.motif || '',
     },
@@ -88,16 +92,18 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
   const onSubmit = async (data: AbsenceFormData) => {
     setLoading(true);
     try {
-      // Trier les dates pour avoir date_debut et date_fin
-      const sortedDates = [...data.dates].sort((a, b) => a.getTime() - b.getTime());
+      // Calculer toutes les dates de la plage
+      const dates = data.dateRange.to 
+        ? eachDayOfInterval({ start: data.dateRange.from, end: data.dateRange.to })
+        : [data.dateRange.from];
       
       const absenceData = {
         type_personne: data.profile_type,
         medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
         secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
         type: data.type,
-        date_debut: format(sortedDates[0], 'yyyy-MM-dd'),
-        date_fin: format(sortedDates[sortedDates.length - 1], 'yyyy-MM-dd'),
+        date_debut: format(dates[0], 'yyyy-MM-dd'),
+        date_fin: format(dates[dates.length - 1], 'yyyy-MM-dd'),
         demi_journee: data.demi_journee,
         motif: data.motif || null,
         statut: 'approuve' as const,
@@ -118,7 +124,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         });
       } else {
         // Création - une absence par date sélectionnée
-        const absences = sortedDates.map(date => ({
+        const absences = dates.map(date => ({
           type_personne: data.profile_type,
           medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
           secretaire_id: data.profile_type === 'secretaire' ? data.person_id : null,
@@ -236,7 +242,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         {/* Dates */}
         <FormField
           control={form.control}
-          name="dates"
+          name="dateRange"
           render={({ field }) => (
             <FormItem className="flex flex-col">
               <FormLabel>Dates d'absence</FormLabel>
@@ -247,13 +253,20 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                       variant="outline"
                       className={cn(
                         "w-full pl-3 text-left font-normal",
-                        !field.value?.length && "text-muted-foreground"
+                        !field.value?.from && "text-muted-foreground"
                       )}
                     >
-                      {field.value?.length ? (
-                        `${field.value.length} date${field.value.length > 1 ? 's' : ''} sélectionnée${field.value.length > 1 ? 's' : ''}`
+                      {field.value?.from ? (
+                        field.value.to ? (
+                          <>
+                            Du {format(field.value.from, 'dd MMM yyyy', { locale: fr })} au{' '}
+                            {format(field.value.to, 'dd MMM yyyy', { locale: fr })}
+                          </>
+                        ) : (
+                          format(field.value.from, 'dd MMM yyyy', { locale: fr })
+                        )
                       ) : (
-                        <span>Sélectionner des dates</span>
+                        <span>Sélectionner une période</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -261,11 +274,12 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
-                    mode="multiple"
-                    selected={field.value}
+                    mode="range"
+                    selected={field.value as DateRange}
                     onSelect={field.onChange}
                     className="pointer-events-auto"
                     locale={fr}
+                    numberOfMonths={2}
                   />
                 </PopoverContent>
               </Popover>
