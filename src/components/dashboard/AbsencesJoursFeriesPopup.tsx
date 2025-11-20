@@ -544,13 +544,13 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                     {filteredJoursFeries.map((jourFerie, idx) => (
                       <div
                         key={jourFerie.id}
-                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-emerald-200/50 dark:border-emerald-800/50 shadow-lg hover:shadow-xl hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400/70 dark:hover:border-emerald-600/70 group"
+                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-primary/20 dark:border-primary/30 shadow-lg hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 dark:hover:border-primary/50 group"
                         style={{ animationDelay: `${idx * 50}ms` }}
                       >
                         <div className="p-5">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-lg font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              <h4 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
                                 {jourFerie.nom}
                               </h4>
                             </div>
@@ -564,7 +564,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                                     setSelectedJourFerie(jourFerie);
                                     setIsJourFerieDialogOpen(true);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-500/10 hover:text-emerald-600"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10 hover:text-primary"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -581,8 +581,8 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
                           </div>
                           
                           <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                              <Calendar className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                              <Calendar className="w-3 h-3 text-primary" />
                             </div>
                             <div className="flex-1">
                               <p className="text-xs font-medium text-muted-foreground mb-0.5">Date</p>
