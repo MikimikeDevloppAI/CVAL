@@ -10,6 +10,7 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MedecinActionsDialog } from './MedecinActionsDialog';
 
 interface GlobalCalendarDialogProps {
   open: boolean;
@@ -77,6 +78,15 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(false);
   const [joursFeries, setJoursFeries] = useState<string[]>([]);
+  const [medecinActionsDialog, setMedecinActionsDialog] = useState<{
+    open: boolean;
+    medecinId: string;
+    medecinNom: string;
+    medecinPrenom: string;
+    date: string;
+    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
+  } | null>(null);
   const { toast } = useToast();
 
   const formatDate = (d: Date) => {
@@ -269,11 +279,22 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       }
     });
 
-    return Object.entries(bySite).map(([siteId, data]) => ({
-      siteId,
-      siteNom: data.siteNom,
-      period: data.matin && data.apresMidi ? 'toute_journee' : data.matin ? 'matin' : 'apres_midi'
-    }));
+    // Convert to array and split into separate entries for matin and apres_midi, ensuring matin comes first
+    const result: { siteId: string; siteNom: string; period: 'matin' | 'apres_midi' | 'toute_journee' }[] = [];
+    
+    Object.entries(bySite).forEach(([siteId, data]) => {
+      if (data.matin && data.apresMidi) {
+        // If both, add matin first, then après-midi
+        result.push({ siteId, siteNom: data.siteNom, period: 'matin' });
+        result.push({ siteId, siteNom: data.siteNom, period: 'apres_midi' });
+      } else if (data.matin) {
+        result.push({ siteId, siteNom: data.siteNom, period: 'matin' });
+      } else if (data.apresMidi) {
+        result.push({ siteId, siteNom: data.siteNom, period: 'apres_midi' });
+      }
+    });
+    
+    return result;
   };
 
   const getColorForPeriod = (period: 'matin' | 'apres_midi' | 'toute_journee') => {
@@ -374,6 +395,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   const days = getDaysInMonth();
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden z-50">
         <DialogHeader>
@@ -485,20 +507,33 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
                                           {getAbsenceLabel(absence.type)}
                                         </div>
-                                      ) : merged.length > 0 ? (
+                                       ) : merged.length > 0 ? (
                                         <div className="space-y-0.5 w-full">
-                                          {merged.map((item, idx) => (
-                                            <div
-                                              key={idx}
-                                              className={cn(
-                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                getColorForPeriod(item.period as any)
-                                              )}
-                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                            >
-                                              {formatSiteName(item.siteNom || '')?.substring(0, 8)}
-                                            </div>
-                                          ))}
+                                          {merged.map((item, idx) => {
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className={cn(
+                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                                  getColorForPeriod(item.period as any)
+                                                )}
+                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                                onClick={() => {
+                                                  setMedecinActionsDialog({
+                                                    open: true,
+                                                    medecinId: medecin.id,
+                                                    medecinNom: medecin.name,
+                                                    medecinPrenom: medecin.first_name,
+                                                    date: day.dateStr,
+                                                    siteId: item.siteId,
+                                                    periode: item.period as 'matin' | 'apres_midi' | 'journee'
+                                                  });
+                                                }}
+                                              >
+                                                {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       ) : null}
                                     </div>
@@ -761,5 +796,24 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {medecinActionsDialog && (
+      <MedecinActionsDialog
+        open={medecinActionsDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMedecinActionsDialog(null);
+          }
+        }}
+        medecinId={medecinActionsDialog.medecinId}
+        medecinNom={medecinActionsDialog.medecinNom}
+        medecinPrenom={medecinActionsDialog.medecinPrenom}
+        date={medecinActionsDialog.date}
+        siteId={medecinActionsDialog.siteId}
+        periode={medecinActionsDialog.periode}
+        onRefresh={fetchData}
+      />
+    )}
+  </>
   );
 }
