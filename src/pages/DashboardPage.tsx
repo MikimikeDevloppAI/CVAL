@@ -1117,30 +1117,61 @@ const DashboardPage = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {/* Add Operation Card */}
-              <div 
-                onClick={() => setAddOperationDialogOpen(true)}
-                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
-              >
-                <div className="rounded-full bg-primary/10 p-3">
-                  <Plus className="h-6 w-6 text-primary" />
+            <>
+              {/* Regular Operations */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {/* Add Operation Card */}
+                <div 
+                  onClick={() => setAddOperationDialogOpen(true)}
+                  className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
+                >
+                  <div className="rounded-full bg-primary/10 p-3">
+                    <Plus className="h-6 w-6 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Ajouter une opération
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">
-                  Ajouter une opération
-                </span>
+
+                {/* Non-Gastro Operations */}
+                {dashboardOperations
+                  .filter(op => op.salle_nom !== "Bloc Gastroentérologie")
+                  .map((operation, index) => (
+                    <OperationCalendarCard
+                      key={operation.id}
+                      operation={operation}
+                      index={index}
+                      onRefresh={fetchDashboardData}
+                    />
+                  ))}
               </div>
 
-              {/* Existing Operations */}
-              {dashboardOperations.map((operation, index) => (
-                <OperationCalendarCard
-                  key={operation.id}
-                  operation={operation}
-                  index={index}
-                  onRefresh={fetchDashboardData}
-                />
-              ))}
-            </div>
+              {/* Gastro Bloc Operations Section */}
+              {dashboardOperations.some(op => op.salle_nom === "Bloc Gastroentérologie") && (
+                <>
+                  <div className="mt-8 mb-4 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Bloc Gastroentérologie
+                    </h3>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {dashboardOperations
+                      .filter(op => op.salle_nom === "Bloc Gastroentérologie")
+                      .map((operation, index) => (
+                        <OperationCalendarCard
+                          key={operation.id}
+                          operation={operation}
+                          index={index}
+                          onRefresh={fetchDashboardData}
+                        />
+                      ))}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
