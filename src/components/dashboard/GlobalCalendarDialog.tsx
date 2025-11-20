@@ -44,6 +44,12 @@ interface BesoinEffectif {
   sites?: {
     nom: string;
   };
+  planning_genere_bloc_operatoire?: Array<{
+    salle_assignee: string | null;
+    salles_operation?: {
+      name: string;
+    } | null;
+  }>;
 }
 
 interface CapaciteEffective {
@@ -56,6 +62,12 @@ interface CapaciteEffective {
   sites?: {
     nom: string;
   };
+  planning_genere_bloc_operatoire?: {
+    salle_assignee: string | null;
+    salles_operation?: {
+      name: string;
+    } | null;
+  } | null;
 }
 
 interface Absence {
@@ -162,7 +174,18 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
       const { data: besoinsData } = await supabase
         .from('besoin_effectif')
-        .select('id, date, medecin_id, site_id, demi_journee, sites(nom)')
+        .select(`
+          id, 
+          date, 
+          medecin_id, 
+          site_id, 
+          demi_journee, 
+          sites(nom),
+          planning_genere_bloc_operatoire(
+            salle_assignee,
+            salles_operation:salle_assignee(name)
+          )
+        `)
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('actif', true)
@@ -170,7 +193,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
       const { data: capacitesData } = await supabase
         .from('capacite_effective')
-        .select('id, date, secretaire_id, site_id, demi_journee, besoin_operation_id, sites(nom)')
+        .select(`
+          id, 
+          date, 
+          secretaire_id, 
+          site_id, 
+          demi_journee, 
+          besoin_operation_id, 
+          sites(nom),
+          planning_genere_bloc_operatoire:planning_genere_bloc_operatoire_id(
+            salle_assignee,
+            salles_operation:salle_assignee(name)
+          )
+        `)
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('actif', true)
@@ -306,21 +341,59 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     // Appliquer les abréviations
     formatted = formatted
       .replace(/Vieille ville.*/gi, 'Gastro')
-      .replace(/Bloc opératoire/gi, 'Bloc')
       .replace(/Angiologie/gi, 'Angio')
       .replace(/Dermatologie/gi, 'Dermato');
     
     return formatted;
   };
 
+  const formatSiteNameWithSalle = (siteName: string, salleName?: string | null): string => {
+    // Si la salle est "Bloc Gastroentérologie", afficher "Gastro" au lieu de "Bloc"
+    if (salleName && salleName.toLowerCase().includes('gastro')) {
+      return 'Gastro';
+    }
+    
+    // Sinon, appliquer la logique normale
+    return formatSiteName(siteName);
+  };
+
   const mergeAssignments = (assignments: (BesoinEffectif | CapaciteEffective)[]) => {
-    const bySite: Record<string, { matin: boolean; apresMidi: boolean; siteNom: string }> = {};
+    const bySite: Record<string, { 
+      matin: boolean; 
+      apresMidi: boolean; 
+      siteNom: string;
+      salleName?: string | null;
+    }> = {};
     
     assignments.forEach(a => {
       const siteNom = a.sites?.nom || '';
-      if (!bySite[a.site_id]) {
-        bySite[a.site_id] = { matin: false, apresMidi: false, siteNom };
+      
+      // Récupérer le nom de la salle si elle existe
+      let salleName: string | null = null;
+      if ('planning_genere_bloc_operatoire' in a) {
+        const besoin = a as BesoinEffectif;
+        // Pour les médecins, planning_genere_bloc_operatoire est un array
+        if (besoin.planning_genere_bloc_operatoire && besoin.planning_genere_bloc_operatoire.length > 0) {
+          const bloc = besoin.planning_genere_bloc_operatoire[0];
+          salleName = bloc.salles_operation?.name || null;
+        }
+      } else if ('planning_genere_bloc_operatoire_id' in a) {
+        const capacite = a as CapaciteEffective;
+        // Pour les secrétaires, planning_genere_bloc_operatoire est un objet
+        if (capacite.planning_genere_bloc_operatoire) {
+          salleName = capacite.planning_genere_bloc_operatoire.salles_operation?.name || null;
+        }
       }
+      
+      if (!bySite[a.site_id]) {
+        bySite[a.site_id] = { matin: false, apresMidi: false, siteNom, salleName };
+      }
+      
+      // Si on a une salle, la mettre à jour
+      if (salleName && !bySite[a.site_id].salleName) {
+        bySite[a.site_id].salleName = salleName;
+      }
+      
       if (a.demi_journee === 'toute_journee') {
         bySite[a.site_id].matin = true;
         bySite[a.site_id].apresMidi = true;
@@ -335,6 +408,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     const result = Object.entries(bySite).map(([siteId, data]) => ({
       siteId,
       siteNom: data.siteNom,
+      salleName: data.salleName,
       period: (data.matin && data.apresMidi) ? 'toute_journee' : data.matin ? 'matin' : 'apres_midi'
     }));
     
@@ -584,7 +658,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                                   });
                                                 }}
                                               >
-                                                {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                                {formatSiteNameWithSalle(item.siteNom || '', item.salleName)?.substring(0, 8)}
                                               </div>
                                             );
                                           })}
@@ -676,7 +750,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                                   });
                                                 }}
                                               >
-                                                {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                                {formatSiteNameWithSalle(item.siteNom || '', item.salleName)?.substring(0, 8)}
                                               </div>
                                             );
                                           })}
