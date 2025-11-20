@@ -1558,7 +1558,12 @@ export type Database = {
       statut_absence: "en_attente" | "approuve" | "refuse"
       statut_horaire: "disponible" | "absent" | "bloc_operatoire"
       statut_planning: "planifie" | "confirme" | "absent" | "annule"
-      type_absence: "conges" | "maladie" | "formation" | "autre"
+      type_absence:
+        | "conges"
+        | "maladie"
+        | "formation"
+        | "autre"
+        | "conge_maternite"
       type_alternance:
         | "hebdomadaire"
         | "une_sur_deux"
@@ -1714,7 +1719,13 @@ export const Constants = {
       statut_absence: ["en_attente", "approuve", "refuse"],
       statut_horaire: ["disponible", "absent", "bloc_operatoire"],
       statut_planning: ["planifie", "confirme", "absent", "annule"],
-      type_absence: ["conges", "maladie", "formation", "autre"],
+      type_absence: [
+        "conges",
+        "maladie",
+        "formation",
+        "autre",
+        "conge_maternite",
+      ],
       type_alternance: [
         "hebdomadaire",
         "une_sur_deux",

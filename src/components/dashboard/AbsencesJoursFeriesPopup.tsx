@@ -353,6 +353,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
       conges: 'Congé',
       maladie: 'Maladie',
       formation: 'Formation',
+      conge_maternite: 'Congé maternité',
       autre: 'Autre',
     };
     return labels[type] || type;

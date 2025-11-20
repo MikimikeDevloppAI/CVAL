@@ -21,7 +21,7 @@ import type { DateRange } from 'react-day-picker';
 const absenceSchema = z.object({
   profile_type: z.enum(['medecin', 'secretaire']),
   person_id: z.string().min(1, 'La sélection d\'une personne est requise'),
-  type: z.enum(['conges', 'maladie', 'formation', 'autre']),
+  type: z.enum(['conges', 'maladie', 'formation', 'conge_maternite', 'autre']),
   dateRange: z.object({
     from: z.date({ message: "Veuillez sélectionner une date de début" }),
     to: z.date().optional(),
@@ -232,6 +232,7 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
                   <SelectItem value="conges">Congé</SelectItem>
                   <SelectItem value="maladie">Maladie</SelectItem>
                   <SelectItem value="formation">Formation</SelectItem>
+                  <SelectItem value="conge_maternite">Congé maternité</SelectItem>
                   <SelectItem value="autre">Autre</SelectItem>
                 </SelectContent>
               </Select>
