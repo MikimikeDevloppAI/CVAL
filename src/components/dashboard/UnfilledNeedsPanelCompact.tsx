@@ -66,7 +66,6 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   const [dryRunResult, setDryRunResult] = useState<any>(null);
   const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
   const [dryRunLoading, setDryRunLoading] = useState(false);
-  const [dryRunDate, setDryRunDate] = useState<string>('');
 
   useEffect(() => {
     // Fetch data when date range changes, regardless of isOpen state
@@ -341,13 +340,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     }
   };
 
-  const handleDryRunOptimization = async (date: string) => {
+  const handleDryRunOptimization = async () => {
     setDryRunLoading(true);
-    setDryRunDate(date);
     
     try {
       const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
-        body: { date }
+        body: { 
+          startDate,
+          endDate
+        }
       });
 
       if (error) throw error;
@@ -362,15 +363,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     }
   };
 
-  // Group needs by date
-  const needsByDate = periodNeeds.reduce((acc, need) => {
-    if (!acc[need.date]) {
-      acc[need.date] = [];
-    }
-    acc[need.date].push(need);
-    return acc;
-  }, {} as Record<string, PeriodNeed[]>);
-
+  // Group needs by date - no longer needed, we'll show all in one table
+  
   if (!isOpen) return null;
 
   return (
@@ -384,14 +378,35 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
               {totalCount}
             </Badge>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsOpen(false)}
-            className="h-8 w-8 p-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleDryRunOptimization}
+              disabled={dryRunLoading}
+              className="gap-2 h-8 text-xs"
+            >
+              {dryRunLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Optimisation...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3" />
+                  Optimiser la semaine
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-4">
@@ -399,152 +414,129 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : periodNeeds.length === 0 ? (
+            <div className="text-center p-8 text-muted-foreground">
+              Aucun besoin non satisfait pour cette période
+            </div>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(needsByDate).map(([date, needs]) => (
-                <div key={date} className="space-y-2">
-                  <div className="flex items-center justify-between bg-gradient-to-r from-primary/5 to-transparent p-2 rounded-lg border border-primary/10">
-                    <div className="text-sm font-semibold">
-                      {format(new Date(date), 'EEEE dd MMMM yyyy', { locale: fr })}
-                    </div>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleDryRunOptimization(date)}
-                      disabled={dryRunLoading && dryRunDate === date}
-                      className="gap-2 h-8 text-xs"
-                    >
-                      {dryRunLoading && dryRunDate === date ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Analyse...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3 w-3" />
-                          Optimiser
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50">
-                          <TableHead className="w-[100px]">Période</TableHead>
-                          <TableHead className="w-[200px]">Site</TableHead>
-                          <TableHead className="w-[250px]">Besoin</TableHead>
-                          <TableHead className="w-[80px] text-center">Manque</TableHead>
-                          <TableHead className="w-[300px]">Assigner</TableHead>
-                          <TableHead className="w-[100px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {needs.map(need => {
-                          const key = `${need.date}-${need.periode}-${need.site_id}-${need.besoin_operation_id || 'site'}`;
-                          const isAssigning = assigningKey === key;
-                          
-                          return (
-                            <TableRow key={key}>
-                              <TableCell className="text-sm">
-                                {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                              </TableCell>
-                              <TableCell className="font-medium text-sm">
-                                {need.site_nom}
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {need.besoin_operation_nom ? (
-                                  <div className="space-y-0.5">
-                                    <div className="font-medium">{need.medecin_nom}</div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {need.type_intervention_nom} • {need.besoin_operation_nom}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="destructive" className="text-xs">
-                                  {need.manque}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={selectedSecretaire[key] || ""}
-                                  onValueChange={(value) => {
-                                    setSelectedSecretaire(prev => ({ ...prev, [key]: value }));
-                                  }}
-                                  onOpenChange={(open) => {
-                                    if (open && need.suggestions_admin.length === 0 && need.suggestions_not_working.length === 0) {
-                                      loadSuggestions(need);
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder="Sélectionner..." />
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-[300px]">
-                                    {loadingSuggestions.has(key) ? (
-                                      <div className="flex items-center justify-center p-4">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-[150px]">Jour</TableHead>
+                    <TableHead className="w-[100px]">Période</TableHead>
+                    <TableHead className="w-[200px]">Site</TableHead>
+                    <TableHead className="w-[250px]">Besoin</TableHead>
+                    <TableHead className="w-[80px] text-center">Manque</TableHead>
+                    <TableHead className="w-[300px]">Assigner</TableHead>
+                    <TableHead className="w-[100px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {periodNeeds.map(need => {
+                    const key = `${need.date}-${need.periode}-${need.site_id}-${need.besoin_operation_id || 'site'}`;
+                    const isAssigning = assigningKey === key;
+                    
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="text-sm">
+                          {format(new Date(need.date), 'EEE dd MMM', { locale: fr })}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">
+                          {need.site_nom}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {need.besoin_operation_nom ? (
+                            <div className="space-y-0.5">
+                              <div className="font-medium">{need.medecin_nom}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {need.type_intervention_nom} • {need.besoin_operation_nom}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="destructive" className="text-xs">
+                            {need.manque}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={selectedSecretaire[key] || ""}
+                            onValueChange={(value) => {
+                              setSelectedSecretaire(prev => ({ ...prev, [key]: value }));
+                            }}
+                            onOpenChange={(open) => {
+                              if (open && need.suggestions_admin.length === 0 && need.suggestions_not_working.length === 0) {
+                                loadSuggestions(need);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Sélectionner..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {loadingSuggestions.has(key) ? (
+                                <div className="flex items-center justify-center p-4">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                              ) : (
+                                <>
+                                  {need.suggestions_admin.length > 0 && (
+                                    <>
+                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                                        ✓ En administratif
                                       </div>
-                                    ) : (
-                                      <>
-                                        {need.suggestions_admin.length > 0 && (
-                                          <>
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-                                              ✓ En administratif
-                                            </div>
-                                            {need.suggestions_admin.map(sug => (
-                                              <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                                {sug.secretaire_nom}
-                                              </SelectItem>
-                                            ))}
-                                          </>
-                                        )}
-                                        {need.suggestions_not_working.length > 0 && (
-                                          <>
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
-                                              + Créer créneau
-                                            </div>
-                                            {need.suggestions_not_working.map(sug => (
-                                              <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
-                                                <span className="text-muted-foreground">{sug.secretaire_nom}</span>
-                                              </SelectItem>
-                                            ))}
-                                          </>
-                                        )}
-                                      </>
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                {selectedSecretaire[key] && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleAssign(need)}
-                                    disabled={isAssigning}
-                                    className="h-8 text-xs"
-                                  >
-                                    {isAssigning ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      'Assigner'
-                                    )}
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ))}
+                                      {need.suggestions_admin.map(sug => (
+                                        <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                          {sug.secretaire_nom}
+                                        </SelectItem>
+                                      ))}
+                                    </>
+                                  )}
+                                  {need.suggestions_not_working.length > 0 && (
+                                    <>
+                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
+                                        + Créer créneau
+                                      </div>
+                                      {need.suggestions_not_working.map(sug => (
+                                        <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
+                                          <span className="text-muted-foreground">{sug.secretaire_nom}</span>
+                                        </SelectItem>
+                                      ))}
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          {selectedSecretaire[key] && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleAssign(need)}
+                              disabled={isAssigning}
+                              className="h-8 text-xs"
+                            >
+                              {isAssigning ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                'Assigner'
+                              )}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
@@ -560,7 +552,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       <DryRunOptimizationDialog
         open={dryRunDialogOpen}
         onOpenChange={setDryRunDialogOpen}
-        date={dryRunDate}
+        date={startDate}
         result={dryRunResult}
         isLoading={dryRunLoading}
         onApply={() => {
