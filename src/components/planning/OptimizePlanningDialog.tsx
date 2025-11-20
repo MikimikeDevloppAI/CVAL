@@ -137,6 +137,10 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
           .in('statut', ['approuve', 'en_attente']);
 
         if (absError) throw absError;
+        console.log('[LOAD] Absences chargées:', absData?.length, 'absences');
+        console.log('[LOAD] Absences pour Lois Lambelet:', absData?.filter(a => 
+          secData.find(s => s.id === a.secretaire_id && s.name?.includes('Lambelet'))
+        ));
         setAbsences(absData || []);
       }
 
@@ -308,6 +312,16 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     // Add absences to unavailable days (will not double-count if already a holiday)
     const secAbsences = absences.filter(a => a.secretaire_id === secretary.id);
     
+    if (secretary.name?.includes('Lambelet')) {
+      console.log(`[${secretary.name}] Absences trouvées:`, secAbsences.length);
+      console.log(`[${secretary.name}] Détail absences:`, secAbsences.map(a => ({
+        debut: a.date_debut,
+        fin: a.date_fin,
+        demi_journee: a.demi_journee,
+        type: typeof a.demi_journee
+      })));
+    }
+    
     weekDays.forEach(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
       
@@ -315,11 +329,29 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         const absStart = new Date(absence.date_debut);
         const absEnd = new Date(absence.date_fin);
         
-        if (isWithinInterval(day, { start: absStart, end: absEnd })) {
+        const isWithin = isWithinInterval(day, { start: absStart, end: absEnd });
+        
+        if (secretary.name?.includes('Lambelet')) {
+          console.log(`[${secretary.name}] Test absence pour ${dateStr}:`, {
+            absence_debut: absence.date_debut,
+            absence_fin: absence.date_fin,
+            demi_journee: absence.demi_journee,
+            demi_journee_value: String(absence.demi_journee),
+            demi_journee_null: absence.demi_journee === null,
+            demi_journee_undefined: absence.demi_journee === undefined,
+            isWithin,
+            condition: !absence.demi_journee || absence.demi_journee === 'toute_journee'
+          });
+        }
+        
+        if (isWithin) {
           // Check if it's a full day absence or toute_journee
           if (!absence.demi_journee || absence.demi_journee === 'toute_journee') {
             // Full day absence - add to set (no double counting)
             unavailableDays.add(dateStr);
+            if (secretary.name?.includes('Lambelet')) {
+              console.log(`[${secretary.name}] ✓ Jour ${dateStr} marqué indisponible`);
+            }
             break;
           }
         }
