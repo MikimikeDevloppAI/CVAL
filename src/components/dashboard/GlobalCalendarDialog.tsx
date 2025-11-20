@@ -305,10 +305,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     
     // Appliquer les abréviations
     formatted = formatted
+      .replace(/Vieille ville.*/gi, 'Gastro')
       .replace(/Bloc opératoire/gi, 'Bloc')
       .replace(/Angiologie/gi, 'Angio')
-      .replace(/Dermatologie/gi, 'Dermato')
-      .replace(/Vieille ville/gi, 'Gastro');
+      .replace(/Dermatologie/gi, 'Dermato');
     
     return formatted;
   };
