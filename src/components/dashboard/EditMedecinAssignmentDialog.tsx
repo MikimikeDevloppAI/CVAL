@@ -130,8 +130,8 @@ export function EditMedecinAssignmentDialog({
         .update(updateData)
         .eq('medecin_id', medecinId)
         .eq('date', date)
-        .eq('site_id', currentSiteId)
-        .eq('type', 'medecin');
+        .eq('type', 'medecin')
+        .eq('actif', true);
 
       // Filter by the specific demi-journee(s)
       if (selectedPeriode === 'journee') {
