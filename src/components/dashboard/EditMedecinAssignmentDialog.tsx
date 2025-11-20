@@ -55,6 +55,7 @@ export function EditMedecinAssignmentDialog({
   const [selectedSiteId, setSelectedSiteId] = useState(currentSiteId);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
+  const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | 'journee'>(periode);
   const [loading, setLoading] = useState(false);
 
   const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
@@ -65,8 +66,9 @@ export function EditMedecinAssignmentDialog({
       fetchTypesIntervention();
       setSelectedSiteId(currentSiteId);
       setSelectedTypeInterventionId('');
+      setSelectedPeriode(periode);
     }
-  }, [open, currentSiteId]);
+  }, [open, currentSiteId, periode]);
 
   const fetchSites = async () => {
     const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
@@ -132,12 +134,12 @@ export function EditMedecinAssignmentDialog({
         .eq('type', 'medecin');
 
       // Filter by the specific demi-journee(s)
-      if (periode === 'journee') {
+      if (selectedPeriode === 'journee') {
         // For full day, update both periods
         query = query.in('demi_journee', ['matin', 'apres_midi']);
       } else {
         // For specific half-day, only update that period
-        query = query.eq('demi_journee', periode);
+        query = query.eq('demi_journee', selectedPeriode);
       }
 
       const { error } = await query;
@@ -176,6 +178,23 @@ export function EditMedecinAssignmentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Afficher le sélecteur de période seulement si la période d'origine est 'journee' */}
+          {periode === 'journee' && (
+            <div className="space-y-2">
+              <Label>Période à réaffecter</Label>
+              <Select value={selectedPeriode} onValueChange={(value: 'matin' | 'apres_midi' | 'journee') => setSelectedPeriode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="journee">Toute la journée</SelectItem>
+                  <SelectItem value="matin">Matin seulement</SelectItem>
+                  <SelectItem value="apres_midi">Après-midi seulement</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Nouveau site</Label>
             <Select 
