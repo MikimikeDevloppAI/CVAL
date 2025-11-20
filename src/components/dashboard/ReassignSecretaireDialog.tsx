@@ -133,6 +133,15 @@ export function ReassignSecretaireDialog({
   };
 
   const fetchSecretairesFromOtherSites = async () => {
+    // Check if the target site is "Administratif"
+    const { data: siteData } = await supabase
+      .from('sites')
+      .select('nom')
+      .eq('id', targetSiteId)
+      .single();
+    
+    const isAdministratif = siteData?.nom === 'Administratif';
+
     // Determine which periods to fetch based on selected periode
     const periodsToFetch: ('matin' | 'apres_midi')[] = 
       periode === 'journee' 
@@ -163,13 +172,21 @@ export function ReassignSecretaireDialog({
       // Check compatibility with target site
       const secretaireIds = [...new Set(capacites.map(c => c.secretaire_id).filter(Boolean))];
       
-      const { data: compatibilityData } = await supabase
-        .from('secretaires_sites')
-        .select('secretaire_id')
-        .eq('site_id', targetSiteId)
-        .in('secretaire_id', secretaireIds as string[]);
+      let compatibleIds: Set<string>;
+      
+      if (isAdministratif) {
+        // For Administratif, all secretaires are compatible
+        compatibleIds = new Set(secretaireIds as string[]);
+      } else {
+        // For other sites, check secretaires_sites
+        const { data: compatibilityData } = await supabase
+          .from('secretaires_sites')
+          .select('secretaire_id')
+          .eq('site_id', targetSiteId)
+          .in('secretaire_id', secretaireIds as string[]);
 
-      const compatibleIds = new Set(compatibilityData?.map(c => c.secretaire_id) || []);
+        compatibleIds = new Set(compatibilityData?.map(c => c.secretaire_id) || []);
+      }
 
       // Group by secretaire + site to detect full day assignments
       const grouped = new Map<string, {
