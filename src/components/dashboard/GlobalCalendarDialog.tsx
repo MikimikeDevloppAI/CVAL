@@ -295,11 +295,21 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   };
 
   const formatSiteName = (siteName: string) => {
-    if (siteName.startsWith('Clinique La Vallée')) {
-      const parts = siteName.split(' - ');
-      return parts.length > 1 ? parts[1] : siteName;
+    let formatted = siteName;
+    
+    // Retirer le préfixe "Clinique La Vallée" si présent
+    if (formatted.startsWith('Clinique La Vallée')) {
+      const parts = formatted.split(' - ');
+      formatted = parts.length > 1 ? parts[1] : formatted;
     }
-    return siteName;
+    
+    // Appliquer les abréviations
+    formatted = formatted
+      .replace(/Bloc opératoire/gi, 'Bloc')
+      .replace(/Angiologie/gi, 'Angio')
+      .replace(/Dermatologie/gi, 'Dermato');
+    
+    return formatted;
   };
 
   const mergeAssignments = (assignments: (BesoinEffectif | CapaciteEffective)[]) => {
