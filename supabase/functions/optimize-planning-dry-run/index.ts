@@ -340,7 +340,7 @@ serve(async (req) => {
     const currentWeekScores = new Map<string, {score: number, count_1r: number, count_2f: number, count_3f: number}>();
     
     // Get the week start/end for this date
-    const targetDate = new Date(date);
+    const targetDate = new Date(dates[0]);
     const dayOfWeek = targetDate.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(targetDate);

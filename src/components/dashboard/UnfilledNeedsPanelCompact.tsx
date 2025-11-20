@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { OptimizationTestDialog } from './OptimizationTestDialog';
-import { DryRunOptimizationDialog } from './DryRunOptimizationDialog';
+import { MultiDateDryRunDialog } from './MultiDateDryRunDialog';
 
 const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
@@ -344,16 +344,47 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     setDryRunLoading(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
-        body: { 
-          startDate,
-          endDate
-        }
-      });
+      // Generate all dates between startDate and endDate
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const dates: string[] = [];
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(d.toISOString().split('T')[0]);
+      }
 
-      if (error) throw error;
+      // Run optimization for all dates in parallel
+      const results = await Promise.all(
+        dates.map(async (date) => {
+          const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
+            body: { date }
+          });
 
-      setDryRunResult(data);
+          if (error) {
+            console.error(`Error for date ${date}:`, error);
+            return { date, error, success: false };
+          }
+
+          return { date, ...data };
+        })
+      );
+
+      // Filter successful results
+      const successfulResults = results.filter(r => r.success !== false);
+      
+      if (successfulResults.length === 0) {
+        throw new Error('Aucune optimisation réussie');
+      }
+
+      // Combine all results
+      const combinedResult = {
+        success: true,
+        dates: successfulResults.map(r => r.date),
+        results: successfulResults,
+        totalImprovements: successfulResults.reduce((sum, r) => sum + (r.improvement?.unmet_diff || 0), 0)
+      };
+
+      setDryRunResult(combinedResult);
       setDryRunDialogOpen(true);
     } catch (error) {
       console.error('Error running dry run optimization:', error);
@@ -551,13 +582,12 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
         result={testResult}
       />
 
-      <DryRunOptimizationDialog
+      <MultiDateDryRunDialog
         open={dryRunDialogOpen}
         onOpenChange={setDryRunDialogOpen}
-        date={startDate}
         result={dryRunResult}
         isLoading={dryRunLoading}
-        onApply={() => {
+        onRefresh={() => {
           fetchUnfilledNeeds();
           onRefresh?.();
         }}
