@@ -69,10 +69,16 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   const [dryRunDate, setDryRunDate] = useState<string>('');
 
   useEffect(() => {
-    if (isOpen) {
-      fetchUnfilledNeeds();
+    // Fetch data when date range changes, regardless of isOpen state
+    fetchUnfilledNeeds();
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    // Open automatically when there are unfilled needs
+    if (totalCount > 0 && !isOpen) {
+      setIsOpen(true);
     }
-  }, [startDate, endDate, isOpen]);
+  }, [totalCount]);
 
   const fetchUnfilledNeeds = async () => {
     try {
