@@ -735,13 +735,13 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                       <thead className="sticky top-0 z-30 bg-background shadow-sm">
                         <tr>
                           <th className="sticky left-0 z-40 bg-background border-r border-b p-2 min-w-[200px] text-left">
-                            <span className="font-medium text-xs">Site</span>
+                            <span className="font-medium text-xs">Site / Type</span>
                           </th>
                           {days.map(day => (
                             <th
                               key={day.dateStr}
                               className={cn(
-                                "p-1 text-center min-w-[120px] border-l border-b",
+                                "p-1 text-center min-w-[100px] border-l border-b",
                                 (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                               )}
                             >
@@ -757,126 +757,128 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                       </thead>
                       <tbody>
                         {sites.map(site => (
-                          <tr key={site.id} className="border-b hover:bg-muted/30">
-                            <td className="sticky left-0 z-20 bg-background border-r p-2 font-medium text-xs">
-                              {site.nom}
-                            </td>
-                            {days.map(day => {
-                              const besoinsDay = besoins.filter(b => 
-                                b.date === day.dateStr && 
-                                b.site_id === site.id
-                              );
-                              const capacitesDay = capacites.filter(c => 
-                                c.date === day.dateStr && 
-                                c.site_id === site.id
-                              );
+                          <>
+                            {/* Ligne Médecins */}
+                            <tr key={`${site.id}-medecins`} className="border-b hover:bg-muted/30">
+                              <td className="sticky left-0 z-20 bg-background border-r p-2">
+                                <div className="text-xs font-medium">{site.nom}</div>
+                                <div className="text-[10px] text-muted-foreground">Médecins</div>
+                              </td>
+                              {days.map(day => {
+                                const besoinsDay = besoins.filter(b => 
+                                  b.date === day.dateStr && 
+                                  b.site_id === site.id
+                                );
+                                const merged = mergeAssignments(besoinsDay);
 
-                              return (
-                                <td
-                                  key={day.dateStr}
-                                  className={cn(
-                                    "p-1 text-center min-w-[120px] border-l align-top",
-                                    (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
-                                  )}
-                                >
-                                  <div className="space-y-1">
-                                    {/* Médecins */}
-                                    {besoinsDay.length > 0 && (
-                                      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">Médecins</div>
+                                return (
+                                  <td
+                                    key={day.dateStr}
+                                    className={cn(
+                                      "p-1 text-center min-w-[100px] border-l align-top",
+                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                                     )}
-                                    {besoinsDay.map(besoin => {
-                                      const medecin = medecins.find(m => m.id === besoin.medecin_id);
-                                      if (!medecin) return null;
-                                      
-                                      const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
-                                      const showAbsence = absence && !isWeekend(day.dateStr);
-                                      
-                                      return (
-                                        <div
-                                          key={besoin.id}
-                                          className={cn(
-                                            "text-[10px] rounded px-1.5 py-1 flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                                            showAbsence ? "bg-red-100 border border-red-300" : "bg-blue-500 text-white"
-                                          )}
-                                          onClick={() => {
-                                            const period = besoin.demi_journee === 'toute_journee' ? 'journee' : besoin.demi_journee;
-                                            setMedecinActionsDialog({
-                                              open: true,
-                                              medecinId: medecin.id,
-                                              medecinNom: medecin.name,
-                                              medecinPrenom: medecin.first_name,
-                                              date: day.dateStr,
-                                              siteId: site.id,
-                                              periode: period as 'matin' | 'apres_midi' | 'journee'
-                                            });
-                                          }}
-                                        >
-                                          <span className={showAbsence ? "text-red-800" : ""}>
+                                  >
+                                    <div className="space-y-0.5">
+                                      {merged.map((item, idx) => {
+                                        const besoin = besoinsDay.find(b => b.demi_journee === item.period);
+                                        const medecin = besoin ? medecins.find(m => m.id === besoin.medecin_id) : null;
+                                        if (!medecin) return null;
+
+                                        const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                        const showAbsence = absence && !isWeekend(day.dateStr);
+
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={cn(
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : getColorForPeriod(item.period as any)
+                                            )}
+                                            title={`${medecin.first_name} ${medecin.name} - ${getPeriodLabel(item.period as any)}`}
+                                            onClick={() => {
+                                              setMedecinActionsDialog({
+                                                open: true,
+                                                medecinId: medecin.id,
+                                                medecinNom: medecin.name,
+                                                medecinPrenom: medecin.first_name,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                                periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee'
+                                              });
+                                            }}
+                                          >
                                             {medecin.first_name} {medecin.name}
-                                          </span>
-                                          {besoin.demi_journee !== 'toute_journee' && (
-                                            <Badge variant="outline" className={cn(
-                                              "text-[8px] px-1 py-0 h-4",
-                                              showAbsence ? "border-red-400 bg-red-50" : "border-blue-300 bg-blue-400"
-                                            )}>
-                                              {besoin.demi_journee === 'matin' ? 'M' : 'AM'}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                    
-                                    {/* Secrétaires */}
-                                    {capacitesDay.length > 0 && (
-                                      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5 mt-1">Assistants</div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                            
+                            {/* Ligne Assistants */}
+                            <tr key={`${site.id}-assistants`} className="border-b hover:bg-muted/30">
+                              <td className="sticky left-0 z-20 bg-background border-r border-t p-2">
+                                <div className="text-xs font-medium text-transparent select-none">-</div>
+                                <div className="text-[10px] text-muted-foreground">Assistants</div>
+                              </td>
+                              {days.map(day => {
+                                const capacitesDay = capacites.filter(c => 
+                                  c.date === day.dateStr && 
+                                  c.site_id === site.id
+                                );
+                                const merged = mergeAssignments(capacitesDay);
+
+                                return (
+                                  <td
+                                    key={day.dateStr}
+                                    className={cn(
+                                      "p-1 text-center min-w-[100px] border-l border-t align-top",
+                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                                     )}
-                                    {capacitesDay.map(capacite => {
-                                      const secretaire = secretaires.find(s => s.id === capacite.secretaire_id);
-                                      if (!secretaire) return null;
-                                      
-                                      const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
-                                      const showAbsence = absence && !isWeekend(day.dateStr);
-                                      
-                                      return (
-                                        <div
-                                          key={capacite.id}
-                                          className={cn(
-                                            "text-[10px] rounded px-1.5 py-1 flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                                            showAbsence ? "bg-red-100 border border-red-300" : "bg-green-500 text-white"
-                                          )}
-                                          onClick={() => {
-                                            const period = capacite.demi_journee === 'toute_journee' ? 'journee' : capacite.demi_journee;
-                                            setSecretaireActionsDialog({
-                                              open: true,
-                                              secretaireId: secretaire.id,
-                                              secretaireNom: secretaire.name,
-                                              secretairePrenom: secretaire.first_name,
-                                              date: day.dateStr,
-                                              siteId: site.id,
-                                              periode: period as 'matin' | 'apres_midi' | 'journee',
-                                              besoinOperationId: capacite.besoin_operation_id
-                                            });
-                                          }}
-                                        >
-                                          <span className={showAbsence ? "text-red-800" : ""}>
+                                  >
+                                    <div className="space-y-0.5">
+                                      {merged.map((item, idx) => {
+                                        const capacite = capacitesDay.find(c => c.demi_journee === item.period);
+                                        const secretaire = capacite ? secretaires.find(s => s.id === capacite.secretaire_id) : null;
+                                        if (!secretaire) return null;
+
+                                        const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                        const showAbsence = absence && !isWeekend(day.dateStr);
+
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={cn(
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : getColorForPeriod(item.period as any)
+                                            )}
+                                            title={`${secretaire.first_name} ${secretaire.name} - ${getPeriodLabel(item.period as any)}`}
+                                            onClick={() => {
+                                              setSecretaireActionsDialog({
+                                                open: true,
+                                                secretaireId: secretaire.id,
+                                                secretaireNom: secretaire.name,
+                                                secretairePrenom: secretaire.first_name,
+                                                date: day.dateStr,
+                                                siteId: site.id,
+                                                periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee',
+                                                besoinOperationId: capacite?.besoin_operation_id
+                                              });
+                                            }}
+                                          >
                                             {secretaire.first_name} {secretaire.name}
-                                          </span>
-                                          {capacite.demi_journee !== 'toute_journee' && (
-                                            <Badge variant="outline" className={cn(
-                                              "text-[8px] px-1 py-0 h-4",
-                                              showAbsence ? "border-red-400 bg-red-50" : "border-green-300 bg-green-400"
-                                            )}>
-                                              {capacite.demi_journee === 'matin' ? 'M' : 'AM'}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                          </tr>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </>
                         ))}
                       </tbody>
                     </table>
@@ -884,12 +886,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                   
                   <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-blue-500"></div>
-                      <span>Médecin</span>
+                      <div className="w-4 h-4 rounded bg-green-500"></div>
+                      <span>Journée entière</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-green-500"></div>
-                      <span>Assistant médical</span>
+                      <div className="w-4 h-4 rounded bg-blue-500"></div>
+                      <span>Matin</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-yellow-500"></div>
+                      <span>Après-midi</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
