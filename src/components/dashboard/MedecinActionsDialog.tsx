@@ -49,50 +49,27 @@ export function MedecinActionsDialog({
   const [deleting, setDeleting] = useState(false);
   const [selectedPeriode, setSelectedPeriode] = useState<'matin' | 'apres_midi' | 'journee'>(periode);
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
-  const [actionType, setActionType] = useState<'reassign' | 'delete' | null>(null);
-  const [reassignBesoinIds, setReassignBesoinIds] = useState<string[]>([]);
 
   const handleActionClick = (action: 'reassign' | 'delete') => {
-    setActionType(action);
-    if (periode === 'journee') {
-      // Si c'est une journée complète, demander quelle période modifier
-      setShowPeriodSelector(true);
-    } else {
-      // Si c'est une demi-journée, utiliser directement cette période
-      setSelectedPeriode(periode);
-      if (action === 'reassign') {
-        setReassignOpen(true);
+    if (action === 'reassign') {
+      // Pour la modification, ouvrir directement le dialogue sans sélection de période
+      setReassignOpen(true);
+    } else if (action === 'delete') {
+      // Pour la suppression, demander la période uniquement si c'est une journée complète
+      if (periode === 'journee') {
+        setShowPeriodSelector(true);
       } else {
+        setSelectedPeriode(periode);
         setDeleteConfirmOpen(true);
       }
     }
   };
 
-  const handlePeriodSelected = async (selectedPeriod: 'matin' | 'apres_midi' | 'journee') => {
+  const handlePeriodSelected = (selectedPeriod: 'matin' | 'apres_midi' | 'journee') => {
     setSelectedPeriode(selectedPeriod);
     setShowPeriodSelector(false);
-    
-    if (actionType === 'reassign') {
-      // Fetch besoin IDs for the selected period
-      const demiJournees: ('matin' | 'apres_midi')[] = selectedPeriod === 'journee' 
-        ? ['matin', 'apres_midi'] 
-        : [selectedPeriod as 'matin' | 'apres_midi'];
-      
-      const { data: besoins } = await supabase
-        .from('besoin_effectif')
-        .select('id')
-        .eq('medecin_id', medecinId)
-        .eq('date', date)
-        .eq('site_id', siteId)
-        .eq('type', 'medecin')
-        .eq('actif', true)
-        .in('demi_journee', demiJournees);
-      
-      setReassignBesoinIds(besoins?.map(b => b.id) || []);
-      setReassignOpen(true);
-    } else if (actionType === 'delete') {
-      setDeleteConfirmOpen(true);
-    }
+    // Le sélecteur de période est maintenant uniquement utilisé pour la suppression
+    setDeleteConfirmOpen(true);
   };
 
   const handleDelete = async () => {
@@ -190,7 +167,7 @@ export function MedecinActionsDialog({
 
           <div className="space-y-3 py-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Quelle période souhaitez-vous {actionType === 'reassign' ? 'réaffecter' : 'supprimer'} ?
+              Quelle période souhaitez-vous supprimer ?
             </p>
             <Button
               variant="outline"
@@ -224,8 +201,7 @@ export function MedecinActionsDialog({
         medecinNom={nomComplet}
         date={date}
         currentSiteId={siteId}
-        periode={selectedPeriode}
-        besoinIds={reassignBesoinIds}
+        periode={periode}
         onSuccess={onRefresh}
       />
 
