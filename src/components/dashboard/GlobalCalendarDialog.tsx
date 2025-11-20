@@ -226,9 +226,9 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   };
 
   const getColorForPeriod = (period: 'matin' | 'apres_midi' | 'toute_journee') => {
-    if (period === 'toute_journee') return 'bg-primary';
+    if (period === 'toute_journee') return 'bg-green-500';
     if (period === 'matin') return 'bg-blue-500';
-    return 'bg-orange-500';
+    return 'bg-yellow-500';
   };
 
   const getPeriodLabel = (period: 'matin' | 'apres_midi' | 'toute_journee') => {
@@ -343,38 +343,40 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               <div className="text-center py-8">Chargement...</div>
             ) : (
               <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto relative">
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <div className="min-w-max">
-                        {/* En-tête des dates - sticky pour tout le calendrier */}
-                        <div className="sticky top-0 z-30 bg-muted border-b">
-                          <div className="flex">
-                            <div className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[150px] flex items-center">
-                              <span className="font-medium text-xs">Personne</span>
-                            </div>
-                            {days.map(day => (
-                              <div
-                                key={day.dateStr}
-                                className={cn(
-                                  "p-1 text-center min-w-[80px] border-l",
-                                  (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
-                                )}
-                              >
-                                <div className="font-medium text-xs">
-                                  {format(day.date, 'EEE', { locale: fr })}
-                                </div>
-                                <div className="text-muted-foreground text-xs">
-                                  {format(day.date, 'd')}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                <div className="border rounded-lg overflow-hidden flex flex-col flex-1">
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* En-tête des dates - sticky pour tout le calendrier */}
+                    <div className="sticky top-0 z-30 bg-muted border-b overflow-x-auto scrollbar-gutter-stable" style={{ scrollbarGutter: 'stable' }}>
+                      <div className="flex min-w-max">
+                        <div className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[150px] flex items-center">
+                          <span className="font-medium text-xs">Personne</span>
                         </div>
+                        {days.map(day => (
+                          <div
+                            key={day.dateStr}
+                            className={cn(
+                              "p-1 text-center min-w-[80px] border-l",
+                              (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                            )}
+                          >
+                            <div className="font-medium text-xs">
+                              {format(day.date, 'EEE', { locale: fr })}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {format(day.date, 'd')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Contenu scrollable */}
+                    <div className="flex-1 overflow-y-auto overflow-x-auto">
+                      <div className="min-w-max">{/* En-tête des dates - sticky pour tout le calendrier */}
 
                         {/* Section Médecins */}
                         <div className="mb-6">
-                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b">
+                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b sticky left-0 z-20">
                             <Badge variant="outline">Médecins</Badge>
                           </h4>
                           <div>
@@ -394,7 +396,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !absence && merged.length === 0 && "bg-muted/10"
+                                        !absence && merged.length === 0 && "bg-muted/30"
                                       )}
                                     >
                                       {absence ? (
@@ -427,7 +429,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
                         {/* Section Assistants médicaux */}
                         <div>
-                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b border-t">
+                          <h4 className="font-semibold text-sm mb-0 flex items-center gap-2 px-2 py-2 bg-background border-b border-t sticky left-0 z-20">
                             <Badge variant="outline">Assistants médicaux</Badge>
                           </h4>
                           <div>
@@ -447,7 +449,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !absence && merged.length === 0 && "bg-muted/10"
+                                        !absence && merged.length === 0 && "bg-muted/30"
                                       )}
                                     >
                                       {absence ? (
@@ -484,7 +486,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
                 <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-primary"></div>
+                    <div className="w-4 h-4 rounded bg-green-500"></div>
                     <span>Journée complète</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -492,7 +494,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Matin</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-orange-500"></div>
+                    <div className="w-4 h-4 rounded bg-yellow-500"></div>
                     <span>Après-midi</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -500,7 +502,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Absence</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-muted/10 border"></div>
+                    <div className="w-4 h-4 rounded bg-muted/30 border"></div>
                     <span>Aucune assignation</span>
                   </div>
                 </div>
