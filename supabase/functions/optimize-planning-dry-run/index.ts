@@ -278,6 +278,139 @@ function calculateChanges(before: any[], after: any[]): any[] {
   return changes;
 }
 
+// Calculate individual secretary changes with full details
+function calculateIndividualChanges(
+  date: string,
+  beforeAssignments: any[],
+  afterAssignments: any[],
+  dryRunRecords: any[],
+  secretaires: any[],
+  sites: any[],
+  besoinsOperations: any[],
+  typesIntervention: any[]
+): any[] {
+  const individualChanges: any[] = [];
+  
+  // Create maps for quick lookup
+  const beforeMap = new Map<string, any>();
+  beforeAssignments.forEach(assign => {
+    assign.secretaires.forEach((sec: any) => {
+      const key = `${sec.secretaire_id || sec.id}_${assign.periode}`;
+      beforeMap.set(key, {
+        secretaire_id: sec.secretaire_id || sec.id,
+        periode: assign.periode,
+        site_id: assign.site_id,
+        site_nom: assign.site_nom,
+        type: assign.type_assignation || assign.type || 'site',
+        besoin_operation_id: sec.besoin_operation_id,
+        planning_genere_bloc_id: sec.planning_genere_bloc_id,
+        is_1r: sec.is_1r || false,
+        is_2f: sec.is_2f || false,
+        is_3f: sec.is_3f || false
+      });
+    });
+  });
+  
+  const afterMap = new Map<string, any>();
+  afterAssignments.forEach(assign => {
+    assign.secretaires.forEach((sec: any) => {
+      const key = `${sec.secretaire_id || sec.id}_${assign.periode}`;
+      afterMap.set(key, {
+        secretaire_id: sec.secretaire_id || sec.id,
+        periode: assign.periode,
+        site_id: assign.site_id,
+        site_nom: assign.site_nom,
+        type: assign.type_assignation || assign.type || 'site',
+        besoin_operation_id: sec.besoin_operation_id,
+        planning_genere_bloc_id: sec.planning_genere_bloc_id,
+        is_1r: sec.is_1r || false,
+        is_2f: sec.is_2f || false,
+        is_3f: sec.is_3f || false
+      });
+    });
+  });
+  
+  // Find all secretaries involved
+  const allSecretaryIds = new Set<string>();
+  beforeMap.forEach((_, key) => {
+    const [secId] = key.split('_');
+    allSecretaryIds.add(secId);
+  });
+  afterMap.forEach((_, key) => {
+    const [secId] = key.split('_');
+    allSecretaryIds.add(secId);
+  });
+  
+  // For each secretary, compare before and after for each period
+  allSecretaryIds.forEach(secId => {
+    const secretaire = secretaires.find(s => s.id === secId);
+    if (!secretaire) return;
+    
+    ['matin', 'apres_midi'].forEach(periode => {
+      const key = `${secId}_${periode}`;
+      const before = beforeMap.get(key);
+      const after = afterMap.get(key);
+      
+      // Skip if no change
+      if (before && after && 
+          before.site_id === after.site_id &&
+          before.besoin_operation_id === after.besoin_operation_id &&
+          before.planning_genere_bloc_id === after.planning_genere_bloc_id &&
+          before.is_1r === after.is_1r &&
+          before.is_2f === after.is_2f &&
+          before.is_3f === after.is_3f) {
+        return;
+      }
+      
+      // Skip if both are null/undefined (no assignment before or after)
+      if (!before && !after) return;
+      
+      // Get besoin operation names
+      let beforeBesoinNom = null;
+      let afterBesoinNom = null;
+      
+      if (before?.besoin_operation_id) {
+        const besoin = besoinsOperations.find(b => b.id === before.besoin_operation_id);
+        beforeBesoinNom = besoin?.nom || null;
+      }
+      
+      if (after?.besoin_operation_id) {
+        const besoin = besoinsOperations.find(b => b.id === after.besoin_operation_id);
+        afterBesoinNom = besoin?.nom || null;
+      }
+      
+      individualChanges.push({
+        date,
+        secretaire_id: secId,
+        secretaire_nom: `${secretaire.first_name} ${secretaire.name}`,
+        periode,
+        before: before ? {
+          site_id: before.site_id,
+          site_nom: before.site_nom,
+          type: before.type,
+          besoin_operation_id: before.besoin_operation_id,
+          besoin_operation_nom: beforeBesoinNom,
+          is_1r: before.is_1r,
+          is_2f: before.is_2f,
+          is_3f: before.is_3f
+        } : null,
+        after: after ? {
+          site_id: after.site_id,
+          site_nom: after.site_nom,
+          type: after.type,
+          besoin_operation_id: after.besoin_operation_id,
+          besoin_operation_nom: afterBesoinNom,
+          is_1r: after.is_1r,
+          is_2f: after.is_2f,
+          is_3f: after.is_3f
+        } : null
+      });
+    });
+  });
+  
+  return individualChanges;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1095,6 +1228,20 @@ serve(async (req) => {
     
     console.log(`✅ Responsabilités de fermeture mises à jour`);
     
+    // Calculate individual changes with full details (after dryRunRecords is complete)
+    const individualChanges = calculateIndividualChanges(
+      dates[0],
+      beforeAssignments,
+      afterAssignments,
+      dryRunRecords,
+      week_data.secretaires,
+      week_data.sites,
+      besoinsOpsData || [],
+      typesInterventionData || []
+    );
+    
+    console.log(`  CHANGEMENTS INDIVIDUELS: ${individualChanges.length} modifications de secrétaires`);
+    
     // Clear existing dry_run data for this date (always, even if no new changes)
     console.log(`🗑️  Suppression des anciennes propositions dry-run pour le ${date}...`);
     await supabase
@@ -1127,6 +1274,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
+          date: dates[0],
           message: `Amélioration : ${beforeUnsatisfied - afterUnsatisfied} besoin(s) satisfait(s) en plus`,
           before: {
             total_unmet: beforeUnsatisfied,
@@ -1142,7 +1290,8 @@ serve(async (req) => {
             unmet_diff: afterUnsatisfied - beforeUnsatisfied,
             assignment_changes: changes.length,
             score_improvement: solution.result || 0
-          }
+          },
+          individual_changes: individualChanges
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

@@ -5,11 +5,38 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Check, X, AlertCircle } from 'lucide-react';
+import { Loader2, Check, X, AlertCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+interface IndividualChange {
+  date: string;
+  secretaire_id: string;
+  secretaire_nom: string;
+  periode: 'matin' | 'apres_midi';
+  before: {
+    site_id: string;
+    site_nom: string;
+    type: string;
+    besoin_operation_id?: string;
+    besoin_operation_nom?: string;
+    is_1r: boolean;
+    is_2f: boolean;
+    is_3f: boolean;
+  } | null;
+  after: {
+    site_id: string;
+    site_nom: string;
+    type: string;
+    besoin_operation_id?: string;
+    besoin_operation_nom?: string;
+    is_1r: boolean;
+    is_2f: boolean;
+    is_3f: boolean;
+  } | null;
+}
 
 interface SingleDayResult {
   success: boolean;
@@ -28,6 +55,7 @@ interface SingleDayResult {
     assignment_changes: number;
     score_improvement: number;
   };
+  individual_changes: IndividualChange[];
 }
 
 interface MultiDateResult {
@@ -52,98 +80,109 @@ export const MultiDateDryRunDialog = ({
   isLoading,
   onRefresh
 }: MultiDateDryRunDialogProps) => {
-  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const [selectedChanges, setSelectedChanges] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
 
-  const handleToggleDate = (date: string) => {
-    const newSelected = new Set(selectedDates);
-    if (newSelected.has(date)) {
-      newSelected.delete(date);
+  const handleToggleChange = (changeId: string) => {
+    const newSelected = new Set(selectedChanges);
+    if (newSelected.has(changeId)) {
+      newSelected.delete(changeId);
     } else {
-      newSelected.add(date);
+      newSelected.add(changeId);
     }
-    setSelectedDates(newSelected);
+    setSelectedChanges(newSelected);
   };
 
   const handleSelectAll = () => {
     if (!result) return;
     
-    if (selectedDates.size === result.results.length) {
-      setSelectedDates(new Set());
+    const allChangeIds = result.results.flatMap(dayResult =>
+      dayResult.individual_changes.map(change =>
+        `${change.date}_${change.secretaire_id}_${change.periode}`
+      )
+    );
+
+    if (selectedChanges.size === allChangeIds.length) {
+      setSelectedChanges(new Set());
     } else {
-      setSelectedDates(new Set(result.results.map(r => r.date)));
+      setSelectedChanges(new Set(allChangeIds));
     }
   };
 
   const handleApply = async () => {
-    if (selectedDates.size === 0) {
-      toast.error('Veuillez sélectionner au moins une date');
+    if (selectedChanges.size === 0) {
+      toast.error('Veuillez sélectionner au moins un changement');
       return;
     }
 
     setApplying(true);
 
     try {
-      // Apply changes for each selected date
-      for (const date of Array.from(selectedDates)) {
-        // Fetch dry run data for this date
-        const { data: dryRunData, error: fetchError } = await supabase
-          .from('capacite_effective_dry_run')
-          .select('*')
-          .eq('date', date);
+      // Group selected changes by date and secretary
+      const changesByDate = new Map<string, Map<string, Map<string, IndividualChange>>>();
+      
+      result?.results.forEach(dayResult => {
+        dayResult.individual_changes.forEach(change => {
+          const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
+          if (!selectedChanges.has(changeId)) return;
 
-        if (fetchError) throw fetchError;
+          if (!changesByDate.has(change.date)) {
+            changesByDate.set(change.date, new Map());
+          }
+          const dateMap = changesByDate.get(change.date)!;
+          
+          if (!dateMap.has(change.secretaire_id)) {
+            dateMap.set(change.secretaire_id, new Map());
+          }
+          const secMap = dateMap.get(change.secretaire_id)!;
+          secMap.set(change.periode, change);
+        });
+      });
 
-        if (dryRunData && dryRunData.length > 0) {
-          // Delete existing capacities for this date
-          const { error: deleteError } = await supabase
-            .from('capacite_effective')
-            .delete()
-            .eq('date', date);
+      // Apply changes for each date
+      for (const [date, secretariesMap] of changesByDate) {
+        for (const [secretaire_id, periodesMap] of secretariesMap) {
+          for (const [periode, change] of periodesMap) {
+            // Delete existing capacity
+            await supabase
+              .from('capacite_effective')
+              .delete()
+              .eq('date', date)
+              .eq('secretaire_id', secretaire_id)
+              .eq('demi_journee', periode as 'matin' | 'apres_midi');
 
-          if (deleteError) throw deleteError;
-
-          // Insert new capacities from dry run
-          const newCapacities = dryRunData.map(dr => ({
-            secretaire_id: dr.secretaire_id,
-            site_id: dr.site_id,
-            date: dr.date,
-            demi_journee: dr.demi_journee,
-            besoin_operation_id: dr.besoin_operation_id,
-            planning_genere_bloc_operatoire_id: dr.planning_genere_bloc_operatoire_id,
-            is_1r: dr.is_1r,
-            is_2f: dr.is_2f,
-            is_3f: dr.is_3f,
-            actif: dr.actif
-          }));
-
-          const { error: insertError } = await supabase
-            .from('capacite_effective')
-            .insert(newCapacities);
-
-          if (insertError) throw insertError;
-
-          // Delete dry run data for this date
-          const { error: deleteDryRunError } = await supabase
-            .from('capacite_effective_dry_run')
-            .delete()
-            .eq('date', date);
-
-          if (deleteDryRunError) throw deleteDryRunError;
+            // Insert new capacity if there's an "after" state
+            if (change.after) {
+              await supabase
+                .from('capacite_effective')
+                .insert({
+                  secretaire_id: secretaire_id,
+                  site_id: change.after.site_id,
+                  date: date,
+                  demi_journee: periode as 'matin' | 'apres_midi',
+                  besoin_operation_id: change.after.besoin_operation_id || null,
+                  planning_genere_bloc_operatoire_id: null,
+                  is_1r: change.after.is_1r,
+                  is_2f: change.after.is_2f,
+                  is_3f: change.after.is_3f,
+                  actif: true
+                });
+            }
+          }
         }
       }
 
       // Refresh materialized views
       await supabase.functions.invoke('refresh-besoins-view');
 
-      toast.success(`Optimisations appliquées pour ${selectedDates.size} date(s)`);
+      toast.success(`${selectedChanges.size} changement(s) appliqué(s)`);
       
       if (onRefresh) {
         onRefresh();
       }
       
       onOpenChange(false);
-      setSelectedDates(new Set());
+      setSelectedChanges(new Set());
     } catch (error) {
       console.error('Error applying changes:', error);
       toast.error("Erreur lors de l'application des changements");
@@ -154,23 +193,23 @@ export const MultiDateDryRunDialog = ({
 
   const getStatusBadge = (improvement: number) => {
     if (improvement > 0) {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">+{improvement} amélioration(s)</Badge>;
+      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">+{improvement}</Badge>;
     } else if (improvement === 0) {
-      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Identique</Badge>;
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">≈</Badge>;
     } else {
-      return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{improvement} dégradation(s)</Badge>;
+      return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{improvement}</Badge>;
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span>Résultats de simulation multi-dates</span>
+            <span>Changements proposés par l'optimisation</span>
             {result && (
               <Badge variant="outline" className="ml-2">
-                {result.results.length} date(s)
+                {result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)} changement(s)
               </Badge>
             )}
           </DialogTitle>
@@ -190,75 +229,100 @@ export const MultiDateDryRunDialog = ({
                 <AlertDescription>
                   <div className="flex items-center justify-between">
                     <span>
-                      Total des améliorations : <strong>{result.totalImprovements}</strong> besoins satisfaits supplémentaires
+                      Total : <strong>{result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}</strong> amélioration(s)
                     </span>
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={handleSelectAll}
                     >
-                      {selectedDates.size === result.results.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                      {selectedChanges.size === result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)
+                        ? 'Tout désélectionner'
+                        : 'Tout sélectionner'}
                     </Button>
                   </div>
                 </AlertDescription>
               </Alert>
 
-              {/* Results by date */}
-              <div className="space-y-3">
-                {result.results.map((dayResult) => (
-                  <Card key={dayResult.date} className="p-4">
-                    <div className="flex items-start gap-4">
-                      <Checkbox
-                        checked={selectedDates.has(dayResult.date)}
-                        onCheckedChange={() => handleToggleDate(dayResult.date)}
-                        className="mt-1"
-                      />
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium">
-                            {format(new Date(dayResult.date), 'EEEE dd MMMM yyyy', { locale: fr })}
-                          </h4>
-                          {getStatusBadge(dayResult.improvement.unmet_diff)}
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <div className="text-muted-foreground">Avant</div>
-                            <div className="font-medium">
-                              {dayResult.before.total_unmet} besoin(s) non satisfait(s)
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-muted-foreground">Après</div>
-                            <div className="font-medium text-green-700">
-                              {dayResult.after.total_unmet} besoin(s) non satisfait(s)
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-muted-foreground">Changements</div>
-                            <div className="font-medium">
-                              {dayResult.improvement.assignment_changes} affectation(s)
-                            </div>
-                          </div>
-                        </div>
-
-                        {dayResult.improvement.score_improvement !== 0 && (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            Score : {dayResult.improvement.score_improvement > 0 ? '+' : ''}{dayResult.improvement.score_improvement}
-                          </div>
-                        )}
-                      </div>
+              {/* Changes by date */}
+              {result.results.map((dayResult) => (
+                <Card key={dayResult.date} className="p-4">
+                  <div className="mb-4 pb-3 border-b flex items-center justify-between">
+                    <h4 className="font-semibold text-base">
+                      {format(new Date(dayResult.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                    </h4>
+                    <div className="flex items-center gap-3">
+                      {getStatusBadge(dayResult.improvement.unmet_diff)}
+                      <span className="text-sm text-muted-foreground">
+                        {dayResult.individual_changes?.length || 0} changement(s)
+                      </span>
                     </div>
-                  </Card>
-                ))}
-              </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(dayResult.individual_changes || []).map((change) => {
+                      const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
+                      return (
+                        <div 
+                          key={changeId}
+                          className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedChanges.has(changeId)}
+                            onCheckedChange={() => handleToggleChange(changeId)}
+                            className="mt-0.5"
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">{change.secretaire_nom}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {change.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                              </Badge>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 text-sm">
+                              {change.before && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <span>{change.before.type === 'site' ? change.before.site_nom : change.before.besoin_operation_nom}</span>
+                                  {(change.before.is_1r || change.before.is_2f || change.before.is_3f) && (
+                                    <span className="text-xs">
+                                      [{[change.before.is_1r && '1R', change.before.is_2f && '2F', change.before.is_3f && '3F'].filter(Boolean).join(', ')}]
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {change.before && change.after && (
+                                <ArrowRight className="h-3 w-3 text-primary flex-shrink-0" />
+                              )}
+                              
+                              {change.after && (
+                                <div className="flex items-center gap-1 font-medium">
+                                  <span>{change.after.type === 'site' ? change.after.site_nom : change.after.besoin_operation_nom}</span>
+                                  {(change.after.is_1r || change.after.is_2f || change.after.is_3f) && (
+                                    <Badge variant="secondary" className="text-xs h-5">
+                                      {[change.after.is_1r && '1R', change.after.is_2f && '2F', change.after.is_3f && '3F'].filter(Boolean).join(', ')}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {!change.after && change.before && (
+                                <span className="text-red-600 font-medium">Retrait</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              ))}
             </>
           ) : (
             <div className="text-center p-8 text-muted-foreground">
-              Aucun résultat disponible
+              Aucun changement proposé
             </div>
           )}
         </div>
@@ -266,7 +330,7 @@ export const MultiDateDryRunDialog = ({
         <DialogFooter className="border-t pt-4">
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
-              {selectedDates.size} date(s) sélectionnée(s)
+              {selectedChanges.size} changement(s) sélectionné(s)
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -274,7 +338,7 @@ export const MultiDateDryRunDialog = ({
               </Button>
               <Button 
                 onClick={handleApply}
-                disabled={selectedDates.size === 0 || applying}
+                disabled={selectedChanges.size === 0 || applying}
               >
                 {applying ? (
                   <>
@@ -284,7 +348,7 @@ export const MultiDateDryRunDialog = ({
                 ) : (
                   <>
                     <Check className="mr-2 h-4 w-4" />
-                    Appliquer ({selectedDates.size})
+                    Appliquer ({selectedChanges.size})
                   </>
                 )}
               </Button>
