@@ -279,7 +279,7 @@ function calculateChanges(before: any[], after: any[]): any[] {
 }
 
 // Calculate individual secretary changes with full details
-function calculateIndividualChanges(
+async function calculateIndividualChanges(
   date: string,
   beforeAssignments: any[],
   afterAssignments: any[],
@@ -287,42 +287,101 @@ function calculateIndividualChanges(
   secretaires: any[],
   sites: any[],
   besoinsOperations: any[],
-  typesIntervention: any[]
-): any[] {
+  typesIntervention: any[],
+  supabase: any
+): Promise<any[]> {
   const individualChanges: any[] = [];
   
-  // Create maps for quick lookup
-  const beforeMap = new Map<string, any>();
-  beforeAssignments.forEach(assign => {
-    assign.secretaires.forEach((sec: any) => {
-      const key = `${sec.secretaire_id || sec.id}_${assign.periode}`;
-      beforeMap.set(key, {
-        secretaire_id: sec.secretaire_id || sec.id,
-        periode: assign.periode,
-        site_id: assign.site_id,
-        site_nom: assign.site_nom,
-        type: assign.type_assignation || assign.type || 'site',
-        besoin_operation_id: sec.besoin_operation_id,
-        planning_genere_bloc_id: sec.planning_genere_bloc_id,
-        is_1r: sec.is_1r || false,
-        is_2f: sec.is_2f || false,
-        is_3f: sec.is_3f || false
-      });
-    });
-  });
+  // Get actual capacite_effective for this date to get the real "before" state
+  const { data: capacitesData, error } = await supabase
+    .from('capacite_effective')
+    .select('*')
+    .eq('date', date)
+    .eq('actif', true);
   
+  if (error) {
+    console.error('Error fetching capacite_effective:', error);
+    return [];
+  }
+  
+  // Get planning_genere_bloc_operatoire for details
+  const { data: planningBlocData } = await supabase
+    .from('planning_genere_bloc_operatoire')
+    .select('*')
+    .eq('date', date);
+  
+  const planningBlocMap = new Map(planningBlocData?.map((p: any) => [p.id, p]) || []);
+  
+  // Create beforeMap from actual capacite_effective
+  const beforeMap = new Map<string, any>();
+  for (const cap of capacitesData || []) {
+    if (!cap.secretaire_id) continue;
+    
+    const key = `${cap.secretaire_id}_${cap.demi_journee}`;
+    const site = sites.find(s => s.id === cap.site_id);
+    
+    // Get operation details if applicable
+    let besoin_operation_nom = null;
+    let type_intervention_nom = null;
+    if (cap.besoin_operation_id) {
+      const besoinOp = besoinsOperations.find(b => b.id === cap.besoin_operation_id);
+      besoin_operation_nom = besoinOp?.nom || null;
+    }
+    if (cap.planning_genere_bloc_operatoire_id) {
+      const planning: any = planningBlocMap.get(cap.planning_genere_bloc_operatoire_id);
+      if (planning?.type_intervention_id) {
+        const typeIntervention = typesIntervention.find(t => t.id === planning.type_intervention_id);
+        type_intervention_nom = typeIntervention?.nom || null;
+      }
+    }
+    
+    beforeMap.set(key, {
+      secretaire_id: cap.secretaire_id,
+      periode: cap.demi_journee,
+      site_id: cap.site_id,
+      site_nom: site?.nom || 'Site inconnu',
+      type: cap.besoin_operation_id ? 'bloc_operatoire' : 'site',
+      besoin_operation_id: cap.besoin_operation_id,
+      besoin_operation_nom,
+      type_intervention_nom,
+      planning_genere_bloc_id: cap.planning_genere_bloc_operatoire_id,
+      is_1r: cap.is_1r || false,
+      is_2f: cap.is_2f || false,
+      is_3f: cap.is_3f || false
+    });
+  }
+  
+  // Create afterMap from afterAssignments
   const afterMap = new Map<string, any>();
   afterAssignments.forEach(assign => {
     assign.secretaires.forEach((sec: any) => {
       const key = `${sec.secretaire_id || sec.id}_${assign.periode}`;
+      
+      // Get operation details if applicable
+      let besoin_operation_nom = assign.besoin_operation_nom || null;
+      let type_intervention_nom = assign.type_intervention_nom || null;
+      
+      if (assign.type === 'bloc_operatoire') {
+        if (!besoin_operation_nom && assign.besoin_operation_id) {
+          const besoinOp = besoinsOperations.find(b => b.id === assign.besoin_operation_id);
+          besoin_operation_nom = besoinOp?.nom || null;
+        }
+        if (!type_intervention_nom && assign.type_intervention_id) {
+          const typeIntervention = typesIntervention.find(t => t.id === assign.type_intervention_id);
+          type_intervention_nom = typeIntervention?.nom || null;
+        }
+      }
+      
       afterMap.set(key, {
         secretaire_id: sec.secretaire_id || sec.id,
         periode: assign.periode,
         site_id: assign.site_id,
         site_nom: assign.site_nom,
-        type: assign.type_assignation || assign.type || 'site',
-        besoin_operation_id: sec.besoin_operation_id,
-        planning_genere_bloc_id: sec.planning_genere_bloc_id,
+        type: assign.type || 'site',
+        besoin_operation_id: assign.besoin_operation_id || null,
+        besoin_operation_nom,
+        type_intervention_nom,
+        planning_genere_bloc_id: assign.bloc_operation_id || null,
         is_1r: sec.is_1r || false,
         is_2f: sec.is_2f || false,
         is_3f: sec.is_3f || false
@@ -365,20 +424,6 @@ function calculateIndividualChanges(
       // Skip if both are null/undefined (no assignment before or after)
       if (!before && !after) return;
       
-      // Get besoin operation names
-      let beforeBesoinNom = null;
-      let afterBesoinNom = null;
-      
-      if (before?.besoin_operation_id) {
-        const besoin = besoinsOperations.find(b => b.id === before.besoin_operation_id);
-        beforeBesoinNom = besoin?.nom || null;
-      }
-      
-      if (after?.besoin_operation_id) {
-        const besoin = besoinsOperations.find(b => b.id === after.besoin_operation_id);
-        afterBesoinNom = besoin?.nom || null;
-      }
-      
       individualChanges.push({
         date,
         secretaire_id: secId,
@@ -389,7 +434,8 @@ function calculateIndividualChanges(
           site_nom: before.site_nom,
           type: before.type,
           besoin_operation_id: before.besoin_operation_id,
-          besoin_operation_nom: beforeBesoinNom,
+          besoin_operation_nom: before.besoin_operation_nom,
+          type_intervention_nom: before.type_intervention_nom,
           is_1r: before.is_1r,
           is_2f: before.is_2f,
           is_3f: before.is_3f
@@ -399,7 +445,8 @@ function calculateIndividualChanges(
           site_nom: after.site_nom,
           type: after.type,
           besoin_operation_id: after.besoin_operation_id,
-          besoin_operation_nom: afterBesoinNom,
+          besoin_operation_nom: after.besoin_operation_nom,
+          type_intervention_nom: after.type_intervention_nom,
           is_1r: after.is_1r,
           is_2f: after.is_2f,
           is_3f: after.is_3f
@@ -1229,7 +1276,7 @@ serve(async (req) => {
     console.log(`✅ Responsabilités de fermeture mises à jour`);
     
     // Calculate individual changes with full details (after dryRunRecords is complete)
-    const individualChanges = calculateIndividualChanges(
+    const individualChanges = await calculateIndividualChanges(
       dates[0],
       beforeAssignments,
       afterAssignments,
@@ -1237,7 +1284,8 @@ serve(async (req) => {
       week_data.secretaires,
       week_data.sites,
       besoinsOpsData || [],
-      typesInterventionData || []
+      typesInterventionData || [],
+      supabase
     );
     
     console.log(`  CHANGEMENTS INDIVIDUELS: ${individualChanges.length} modifications de secrétaires`);
