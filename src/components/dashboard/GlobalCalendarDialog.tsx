@@ -791,24 +791,29 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   b.date === day.dateStr && 
                                   b.site_id === site.id
                                 );
-                                const merged = mergeAssignments(besoinsDay);
                                 
-                                // Debug first day of first site
-                                if (day.dateStr === days[0]?.dateStr && site.id === sites[0]?.id) {
-                                  console.log('Premier jour, premier site:', {
-                                    siteId: site.id,
-                                    siteNom: site.nom,
-                                    dateStr: day.dateStr,
-                                    besoinsTotal: besoins.length,
-                                    besoinsDay: besoinsDay.length,
-                                    merged: merged.length,
-                                    sampleBesoins: besoins.slice(0, 3).map(b => ({
-                                      date: b.date,
-                                      site_id: b.site_id,
-                                      medecin_id: b.medecin_id
-                                    }))
-                                  });
-                                }
+                                // Grouper par médecin et tracker leurs périodes
+                                const medecinsPeriodes = new Map<string, { matin: boolean; apresMidi: boolean; nom: string; prenom: string }>();
+                                besoinsDay.forEach(besoin => {
+                                  if (besoin.medecin_id) {
+                                    const medecin = medecins.find(m => m.id === besoin.medecin_id);
+                                    if (medecin) {
+                                      const existing = medecinsPeriodes.get(besoin.medecin_id) || { 
+                                        matin: false, 
+                                        apresMidi: false, 
+                                        nom: medecin.name,
+                                        prenom: medecin.first_name
+                                      };
+                                      if (besoin.demi_journee === 'matin' || besoin.demi_journee === 'toute_journee') {
+                                        existing.matin = true;
+                                      }
+                                      if (besoin.demi_journee === 'apres_midi' || besoin.demi_journee === 'toute_journee') {
+                                        existing.apresMidi = true;
+                                      }
+                                      medecinsPeriodes.set(besoin.medecin_id, existing);
+                                    }
+                                  }
+                                });
 
                                 return (
                                   <td
@@ -819,35 +824,36 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     )}
                                   >
                                     <div className="space-y-0.5">
-                                      {merged.map((item, idx) => {
-                                        const besoin = besoinsDay.find(b => b.demi_journee === item.period);
-                                        const medecin = besoin ? medecins.find(m => m.id === besoin.medecin_id) : null;
-                                        if (!medecin) return null;
-
-                                        const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                      {Array.from(medecinsPeriodes.entries()).map(([medecinId, info]) => {
+                                        const absence = getAbsenceForPersonAndDate(medecinId, day.dateStr, 'medecin');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
+                                        const periode = info.matin && info.apresMidi ? '📅' : info.matin ? '🌅' : '🌆';
+                                        const periodeLabel = info.matin && info.apresMidi ? 'Journée complète' : info.matin ? 'Matin' : 'Après-midi';
+                                        const periodeValue = info.matin && info.apresMidi ? 'journee' : info.matin ? 'matin' : 'apres_midi';
+                                        
                                         return (
                                           <div
-                                            key={idx}
+                                            key={medecinId}
                                             className={cn(
-                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
-                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : getColorForPeriod(item.period as any)
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center gap-0.5",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : "bg-blue-500"
                                             )}
-                                            title={`${medecin.first_name} ${medecin.name} - ${getPeriodLabel(item.period as any)}`}
+                                            title={`${info.prenom} ${info.nom} - ${periodeLabel}`}
                                             onClick={() => {
                                               setMedecinActionsDialog({
                                                 open: true,
-                                                medecinId: medecin.id,
-                                                medecinNom: medecin.name,
-                                                medecinPrenom: medecin.first_name,
+                                                medecinId: medecinId,
+                                                medecinNom: info.nom,
+                                                medecinPrenom: info.prenom,
                                                 date: day.dateStr,
                                                 siteId: site.id,
-                                                periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee'
+                                                periode: periodeValue as 'matin' | 'apres_midi' | 'journee'
                                               });
                                             }}
                                           >
-                                            {medecin.first_name} {medecin.name}
+                                            <span>{periode}</span>
+                                            <span>{info.prenom} {info.nom}</span>
                                           </div>
                                         );
                                       })}
@@ -867,7 +873,34 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   c.date === day.dateStr && 
                                   c.site_id === site.id
                                 );
-                                const merged = mergeAssignments(capacitesDay);
+                                
+                                // Grouper par secrétaire et tracker leurs périodes
+                                const secretairesPeriodes = new Map<string, { matin: boolean; apresMidi: boolean; nom: string; prenom: string; besoinOperationId?: string | null }>();
+                                capacitesDay.forEach(capacite => {
+                                  if (capacite.secretaire_id) {
+                                    const secretaire = secretaires.find(s => s.id === capacite.secretaire_id);
+                                    if (secretaire) {
+                                      const existing = secretairesPeriodes.get(capacite.secretaire_id) || { 
+                                        matin: false, 
+                                        apresMidi: false, 
+                                        nom: secretaire.name,
+                                        prenom: secretaire.first_name,
+                                        besoinOperationId: capacite.besoin_operation_id
+                                      };
+                                      if (capacite.demi_journee === 'matin' || capacite.demi_journee === 'toute_journee') {
+                                        existing.matin = true;
+                                      }
+                                      if (capacite.demi_journee === 'apres_midi' || capacite.demi_journee === 'toute_journee') {
+                                        existing.apresMidi = true;
+                                      }
+                                      // Keep first besoin_operation_id found
+                                      if (!existing.besoinOperationId && capacite.besoin_operation_id) {
+                                        existing.besoinOperationId = capacite.besoin_operation_id;
+                                      }
+                                      secretairesPeriodes.set(capacite.secretaire_id, existing);
+                                    }
+                                  }
+                                });
 
                                 return (
                                   <td
@@ -878,36 +911,37 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     )}
                                   >
                                     <div className="space-y-0.5">
-                                      {merged.map((item, idx) => {
-                                        const capacite = capacitesDay.find(c => c.demi_journee === item.period);
-                                        const secretaire = capacite ? secretaires.find(s => s.id === capacite.secretaire_id) : null;
-                                        if (!secretaire) return null;
-
-                                        const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                      {Array.from(secretairesPeriodes.entries()).map(([secretaireId, info]) => {
+                                        const absence = getAbsenceForPersonAndDate(secretaireId, day.dateStr, 'secretaire');
                                         const showAbsence = absence && !isWeekend(day.dateStr);
 
+                                        const periode = info.matin && info.apresMidi ? '📅' : info.matin ? '🌅' : '🌆';
+                                        const periodeLabel = info.matin && info.apresMidi ? 'Journée complète' : info.matin ? 'Matin' : 'Après-midi';
+                                        const periodeValue = info.matin && info.apresMidi ? 'journee' : info.matin ? 'matin' : 'apres_midi';
+                                        
                                         return (
                                           <div
-                                            key={idx}
+                                            key={secretaireId}
                                             className={cn(
-                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
-                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : getColorForPeriod(item.period as any)
+                                              "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center gap-0.5",
+                                              showAbsence ? "bg-red-100 !text-red-800 border border-red-300" : "bg-green-500"
                                             )}
-                                            title={`${secretaire.first_name} ${secretaire.name} - ${getPeriodLabel(item.period as any)}`}
+                                            title={`${info.prenom} ${info.nom} - ${periodeLabel}`}
                                             onClick={() => {
                                               setSecretaireActionsDialog({
                                                 open: true,
-                                                secretaireId: secretaire.id,
-                                                secretaireNom: secretaire.name,
-                                                secretairePrenom: secretaire.first_name,
+                                                secretaireId: secretaireId,
+                                                secretaireNom: info.nom,
+                                                secretairePrenom: info.prenom,
                                                 date: day.dateStr,
                                                 siteId: site.id,
-                                                periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee',
-                                                besoinOperationId: capacite?.besoin_operation_id
+                                                periode: periodeValue as 'matin' | 'apres_midi' | 'journee',
+                                                besoinOperationId: info.besoinOperationId
                                               });
                                             }}
                                           >
-                                            {secretaire.first_name} {secretaire.name}
+                                            <span>{periode}</span>
+                                            <span>{info.prenom} {info.nom}</span>
                                           </div>
                                         );
                                       })}
