@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameWeek } from 'date-fns';
+import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -94,28 +94,24 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch médecins actifs
       const { data: medData } = await supabase
         .from('medecins')
         .select('id, first_name, name')
         .eq('actif', true)
         .order('first_name');
 
-      // Fetch secrétaires actifs
       const { data: secData } = await supabase
         .from('secretaires')
         .select('id, first_name, name')
         .eq('actif', true)
         .order('first_name');
 
-      // Fetch sites
       const { data: sitesData } = await supabase
         .from('sites')
         .select('id, nom')
         .eq('actif', true)
         .order('nom');
 
-      // Fetch jours fériés
       const { data: feriesData } = await supabase
         .from('jours_feries')
         .select('date')
@@ -124,7 +120,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       const startDate = formatDate(startOfMonth(currentDate));
       const endDate = formatDate(endOfMonth(currentDate));
 
-      // Fetch besoins effectifs (médecins)
       const { data: besoinsData } = await supabase
         .from('besoin_effectif')
         .select('id, date, medecin_id, site_id, demi_journee, sites(nom)')
@@ -133,7 +128,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         .eq('actif', true)
         .not('medecin_id', 'is', null);
 
-      // Fetch capacités effectives (secrétaires)
       const { data: capacitesData } = await supabase
         .from('capacite_effective')
         .select('id, date, secretaire_id, site_id, demi_journee, sites(nom)')
@@ -142,7 +136,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         .eq('actif', true)
         .not('secretaire_id', 'is', null);
 
-      // Fetch absences
       const { data: absencesData } = await supabase
         .from('absences')
         .select('id, date_debut, date_fin, demi_journee, medecin_id, secretaire_id, type, motif')
@@ -168,13 +161,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     }
   };
 
-  const handlePrevMonth = () => {
-    setCurrentDate(prev => subMonths(prev, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(prev => addMonths(prev, 1));
-  };
+  const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
+  const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
 
   const getDaysInMonth = () => {
     const start = startOfMonth(currentDate);
@@ -255,11 +243,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     return day === 0 || day === 6;
   };
 
-  const isHoliday = (dateStr: string) => {
-    return joursFeries.includes(dateStr);
-  };
+  const isHoliday = (dateStr: string) => joursFeries.includes(dateStr);
 
-  // Vue absences par semaine
   const getWeeksInMonth = () => {
     const start = startOfMonth(currentDate);
     const end = endOfMonth(currentDate);
@@ -280,10 +265,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     const weekStartStr = formatDate(weekStart);
     const weekEndStr = formatDate(weekEnd);
 
-    const weekAbsences = absences.filter(a => {
-      return a.date_debut <= weekEndStr && a.date_fin >= weekStartStr;
-    });
-
+    const weekAbsences = absences.filter(a => a.date_debut <= weekEndStr && a.date_fin >= weekStartStr);
     const medecinAbsences = weekAbsences.filter(a => a.medecin_id);
     const secretaireAbsences = weekAbsences.filter(a => a.secretaire_id);
 
@@ -333,20 +315,19 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-2xl">Calendrier Global</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="calendar" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="calendar" className="flex flex-col flex-1 overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="calendar">Calendrier</TabsTrigger>
             <TabsTrigger value="absences">Absences</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="calendar" className="space-y-4">
-            {/* Navigation mois */}
-            <div className="flex items-center justify-between">
+          <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-4">
+            <div className="flex items-center justify-between flex-shrink-0 mb-4">
               <Button variant="outline" size="sm" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -361,151 +342,149 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             {loading ? (
               <div className="text-center py-8">Chargement...</div>
             ) : (
-              <div className="space-y-6">
-                {/* En-tête des jours (sticky) */}
-                <div className="border rounded-lg overflow-x-auto">
-                  <div className="min-w-max">
-                    {/* Section Médecins */}
-                    <div className="mb-6">
-                      <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
-                        <Badge variant="outline">Médecins</Badge>
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead className="bg-muted sticky top-0 z-20">
-                            <tr>
-                              <th className="sticky left-0 z-30 bg-muted border-r p-2 text-left min-w-[150px]">
-                                Médecin
-                              </th>
-                              {days.map(day => (
-                                <th
-                                  key={day.dateStr}
-                                  className={cn(
-                                    "p-1 text-center min-w-[80px] border-l",
-                                    (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
-                                  )}
-                                >
-                                  <div className="font-medium">
-                                    {format(day.date, 'EEE', { locale: fr })}
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    {format(day.date, 'd')}
-                                  </div>
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
+                  <div className="border rounded-lg overflow-x-auto">
+                    <div className="min-w-max">
+                      <div className="mb-6">
+                        <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
+                          <Badge variant="outline">Médecins</Badge>
+                        </h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs border-collapse">
+                            <thead className="bg-muted sticky top-0 z-20">
+                              <tr>
+                                <th className="sticky left-0 z-30 bg-muted border-r p-2 text-left min-w-[150px]">
+                                  Médecin
                                 </th>
+                                {days.map(day => (
+                                  <th
+                                    key={day.dateStr}
+                                    className={cn(
+                                      "p-1 text-center min-w-[80px] border-l",
+                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                                    )}
+                                  >
+                                    <div className="font-medium">
+                                      {format(day.date, 'EEE', { locale: fr })}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      {format(day.date, 'd')}
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {medecins.map(medecin => (
+                                <tr key={medecin.id} className="border-t hover:bg-muted/30">
+                                  <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium">
+                                    Dr {medecin.first_name} {medecin.name}
+                                  </td>
+                                  {days.map(day => {
+                                    const besoinsDay = getBesoinsForMedecinAndDate(medecin.id, day.dateStr);
+                                    const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
+                                    const merged = mergeAssignments(besoinsDay);
+                                    
+                                    return (
+                                      <td
+                                        key={day.dateStr}
+                                        className={cn(
+                                          "p-1 text-center border-l",
+                                          (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                          !absence && merged.length === 0 && "bg-muted/10"
+                                        )}
+                                      >
+                                        {absence ? (
+                                          <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                            {getAbsenceLabel(absence.type)}
+                                          </div>
+                                        ) : merged.length > 0 ? (
+                                          <div className="space-y-0.5">
+                                            {merged.map((item, idx) => (
+                                              <div
+                                                key={idx}
+                                                className={cn(
+                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate",
+                                                  getColorForPeriod(item.period as any)
+                                                )}
+                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                              >
+                                                {item.siteNom?.substring(0, 8)}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {medecins.map(medecin => (
-                              <tr key={medecin.id} className="border-t hover:bg-muted/30">
-                                <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium">
-                                  Dr {medecin.first_name} {medecin.name}
-                                </td>
-                                {days.map(day => {
-                                  const besoinsDay = getBesoinsForMedecinAndDate(medecin.id, day.dateStr);
-                                  const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
-                                  const merged = mergeAssignments(besoinsDay);
-                                  
-                                  return (
-                                    <td
-                                      key={day.dateStr}
-                                      className={cn(
-                                        "p-1 text-center border-l",
-                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !absence && merged.length === 0 && "bg-muted/10"
-                                      )}
-                                    >
-                                      {absence ? (
-                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
-                                          {getAbsenceLabel(absence.type)}
-                                        </div>
-                                      ) : merged.length > 0 ? (
-                                        <div className="space-y-0.5">
-                                          {merged.map((item, idx) => (
-                                            <div
-                                              key={idx}
-                                              className={cn(
-                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                getColorForPeriod(item.period as any)
-                                              )}
-                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                            >
-                                              {item.siteNom?.substring(0, 8)}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : null}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Section Assistants médicaux */}
-                    <div>
-                      <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
-                        <Badge variant="outline">Assistants médicaux</Badge>
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <tbody>
-                            {secretaires.map(secretaire => (
-                              <tr key={secretaire.id} className="border-t hover:bg-muted/30">
-                                <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[150px]">
-                                  {secretaire.first_name} {secretaire.name}
-                                </td>
-                                {days.map(day => {
-                                  const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
-                                  const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
-                                  const merged = mergeAssignments(capacitesDay);
-                                  
-                                  return (
-                                    <td
-                                      key={day.dateStr}
-                                      className={cn(
-                                        "p-1 text-center border-l min-w-[80px]",
-                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !absence && merged.length === 0 && "bg-muted/10"
-                                      )}
-                                    >
-                                      {absence ? (
-                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
-                                          {getAbsenceLabel(absence.type)}
-                                        </div>
-                                      ) : merged.length > 0 ? (
-                                        <div className="space-y-0.5">
-                                          {merged.map((item, idx) => (
-                                            <div
-                                              key={idx}
-                                              className={cn(
-                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                getColorForPeriod(item.period as any)
-                                              )}
-                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                            >
-                                              {item.siteNom?.substring(0, 8)}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : null}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div>
+                        <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 px-2">
+                          <Badge variant="outline">Assistants médicaux</Badge>
+                        </h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs border-collapse">
+                            <tbody>
+                              {secretaires.map(secretaire => (
+                                <tr key={secretaire.id} className="border-t hover:bg-muted/30">
+                                  <td className="sticky left-0 z-10 bg-background border-r p-2 font-medium min-w-[150px]">
+                                    {secretaire.first_name} {secretaire.name}
+                                  </td>
+                                  {days.map(day => {
+                                    const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
+                                    const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                    const merged = mergeAssignments(capacitesDay);
+                                    
+                                    return (
+                                      <td
+                                        key={day.dateStr}
+                                        className={cn(
+                                          "p-1 text-center border-l min-w-[80px]",
+                                          (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                          !absence && merged.length === 0 && "bg-muted/10"
+                                        )}
+                                      >
+                                        {absence ? (
+                                          <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                            {getAbsenceLabel(absence.type)}
+                                          </div>
+                                        ) : merged.length > 0 ? (
+                                          <div className="space-y-0.5">
+                                            {merged.map((item, idx) => (
+                                              <div
+                                                key={idx}
+                                                className={cn(
+                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate",
+                                                  getColorForPeriod(item.period as any)
+                                                )}
+                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                              >
+                                                {item.siteNom?.substring(0, 8)}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Légende */}
-                <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-4 text-xs flex-shrink-0 pt-4 border-t mt-4">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded bg-primary"></div>
                     <span>Journée complète</span>
@@ -531,9 +510,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             )}
           </TabsContent>
 
-          <TabsContent value="absences" className="space-y-4">
-            {/* Navigation mois */}
-            <div className="flex items-center justify-between">
+          <TabsContent value="absences" className="flex flex-col flex-1 overflow-hidden mt-4">
+            <div className="flex items-center justify-between flex-shrink-0 mb-4">
               <Button variant="outline" size="sm" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -548,7 +526,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             {loading ? (
               <div className="text-center py-8">Chargement...</div>
             ) : (
-              <div className="space-y-3">
+              <div className="flex-1 overflow-y-auto space-y-3">
                 {getWeeksInMonth().map((weekStart, idx) => {
                   const weekData = getAbsencesForWeek(weekStart);
                   const weekEnd = endOfWeek(weekStart, { locale: fr });
@@ -573,7 +551,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                         </div>
                       </div>
 
-                      {/* Médecins absents */}
                       {weekData.medecins.length > 0 && (
                         <div>
                           <h5 className="text-sm font-medium mb-2">Médecins</h5>
@@ -583,7 +560,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                 <HoverCardTrigger asChild>
                                   <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
                                     <span className="text-sm">{getPersonName(absence)}</span>
-                                    <Badge variant="outline">{absence.type}</Badge>
+                                    <Badge variant="outline">{getAbsenceLabel(absence.type)}</Badge>
                                   </div>
                                 </HoverCardTrigger>
                                 <HoverCardContent className="w-80">
@@ -609,7 +586,6 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                         </div>
                       )}
 
-                      {/* Assistants absents */}
                       {weekData.secretaires.length > 0 && (
                         <div>
                           <h5 className="text-sm font-medium mb-2">Assistants médicaux</h5>
@@ -619,7 +595,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                 <HoverCardTrigger asChild>
                                   <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
                                     <span className="text-sm">{getPersonName(absence)}</span>
-                                    <Badge variant="outline">{absence.type}</Badge>
+                                    <Badge variant="outline">{getAbsenceLabel(absence.type)}</Badge>
                                   </div>
                                 </HoverCardTrigger>
                                 <HoverCardContent className="w-80">
