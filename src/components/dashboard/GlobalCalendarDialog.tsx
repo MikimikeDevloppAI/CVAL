@@ -59,11 +59,12 @@ interface Absence {
   id: string;
   date_debut: string;
   date_fin: string;
-  demi_journee: 'matin' | 'apres_midi' | 'toute_journee';
+  demi_journee: 'matin' | 'apres_midi' | 'toute_journee' | null;
   medecin_id: string | null;
   secretaire_id: string | null;
   type: string;
   motif?: string;
+  statut?: string;
 }
 
 export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialogProps) {
@@ -267,34 +268,34 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     return weeks;
   };
 
-  const getAbsencesForWeek = (weekStart: Date) => {
+  const getAbsencesGroupedByPersonForWeek = (weekStart: Date) => {
     const weekEnd = endOfWeek(weekStart, { locale: fr });
     const weekStartStr = formatDate(weekStart);
     const weekEndStr = formatDate(weekEnd);
 
     const weekAbsences = absences.filter(a => a.date_debut <= weekEndStr && a.date_fin >= weekStartStr);
-    const medecinAbsences = weekAbsences.filter(a => a.medecin_id);
-    const secretaireAbsences = weekAbsences.filter(a => a.secretaire_id);
-
-    return {
-      medecins: medecinAbsences,
-      secretaires: secretaireAbsences,
-      totalMedecins: medecinAbsences.length,
-      totalSecretaires: secretaireAbsences.length
-    };
-  };
-
-  const getAbsenceDetails = (absence: Absence) => {
-    const days = eachDayOfInterval({
-      start: new Date(absence.date_debut),
-      end: new Date(absence.date_fin)
+    
+    // Grouper par personne
+    const grouped: Record<string, Absence[]> = {};
+    
+    weekAbsences.forEach(absence => {
+      const key = absence.medecin_id || absence.secretaire_id || 'unknown';
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(absence);
     });
 
-    return days.map(d => {
-      const dateStr = formatDate(d);
-      let periodLabel = '';
+    return grouped;
+  };
+
+  const getAbsenceDetails = (absences: Absence[]) => {
+    return absences.map(absence => {
+      const dateDebut = new Date(absence.date_debut);
+      const dateFin = new Date(absence.date_fin);
       
-      if (absence.demi_journee === 'toute_journee') {
+      let periodLabel = '';
+      if (absence.demi_journee === 'toute_journee' || !absence.demi_journee) {
         periodLabel = 'Journée complète';
       } else if (absence.demi_journee === 'matin') {
         periodLabel = 'Matin';
@@ -302,7 +303,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         periodLabel = 'Après-midi';
       }
 
-      return `${format(d, 'EEEE d MMMM', { locale: fr })} (${periodLabel})`;
+      const isSameDay = absence.date_debut === absence.date_fin;
+      const dateStr = isSameDay 
+        ? `${format(dateDebut, 'd MMM', { locale: fr })} (${periodLabel})`
+        : `${format(dateDebut, 'd MMM', { locale: fr })} - ${format(dateFin, 'd MMM', { locale: fr })} (${periodLabel})`;
+
+      return {
+        dateStr,
+        type: getAbsenceLabel(absence.type),
+        statut: absence.statut
+      };
     });
   };
 
@@ -535,10 +545,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             ) : (
               <div className="flex-1 overflow-y-auto space-y-3">
                 {getWeeksInMonth().map((weekStart, idx) => {
-                  const weekData = getAbsencesForWeek(weekStart);
+                  const grouped = getAbsencesGroupedByPersonForWeek(weekStart);
                   const weekEnd = endOfWeek(weekStart, { locale: fr });
                   
-                  if (weekData.totalMedecins === 0 && weekData.totalSecretaires === 0) {
+                  const medecinKeys = Object.keys(grouped).filter(key => 
+                    grouped[key].some(a => a.medecin_id === key)
+                  );
+                  const secretaireKeys = Object.keys(grouped).filter(key => 
+                    grouped[key].some(a => a.secretaire_id === key)
+                  );
+                  
+                  if (medecinKeys.length === 0 && secretaireKeys.length === 0) {
                     return null;
                   }
 
@@ -550,80 +567,110 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                         </h4>
                         <div className="flex items-center gap-3 text-sm">
                           <Badge variant="destructive">
-                            {weekData.totalMedecins} médecin{weekData.totalMedecins > 1 ? 's' : ''}
+                            {medecinKeys.length} médecin{medecinKeys.length > 1 ? 's' : ''}
                           </Badge>
                           <Badge variant="destructive">
-                            {weekData.totalSecretaires} assistant{weekData.totalSecretaires > 1 ? 's' : ''}
+                            {secretaireKeys.length} assistant{secretaireKeys.length > 1 ? 's' : ''}
                           </Badge>
                         </div>
                       </div>
 
-                      {weekData.medecins.length > 0 && (
+                      {medecinKeys.length > 0 && (
                         <div>
                           <h5 className="text-sm font-medium mb-2">Médecins</h5>
                           <div className="space-y-2">
-                            {weekData.medecins.map(absence => (
-                              <HoverCard key={absence.id}>
-                                <HoverCardTrigger asChild>
-                                  <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
-                                    <span className="text-sm">{getPersonName(absence)}</span>
-                                    <Badge variant="outline">{getAbsenceLabel(absence.type)}</Badge>
-                                  </div>
-                                </HoverCardTrigger>
-                                <HoverCardContent className="w-80">
-                                  <div className="space-y-2">
-                                    <h6 className="font-semibold">{getPersonName(absence)}</h6>
-                                    <div className="text-sm space-y-1">
-                                      <p className="font-medium">Dates d'absence:</p>
-                                      {getAbsenceDetails(absence).map((detail, i) => (
-                                        <p key={i} className="text-muted-foreground">• {detail}</p>
-                                      ))}
-                                    </div>
-                                    {absence.motif && (
-                                      <div className="text-sm">
-                                        <p className="font-medium">Motif:</p>
-                                        <p className="text-muted-foreground">{absence.motif}</p>
+                            {medecinKeys.map(medecinId => {
+                              const medecinAbsences = grouped[medecinId];
+                              const details = getAbsenceDetails(medecinAbsences);
+                              
+                              return (
+                                <HoverCard key={medecinId}>
+                                  <HoverCardTrigger asChild>
+                                    <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
+                                      <span className="text-sm font-medium">{getPersonName(medecinAbsences[0])}</span>
+                                      <div className="flex items-center gap-2">
+                                        {details.map((d, i) => (
+                                          <Badge key={i} variant="outline" className="text-xs">
+                                            {d.type}
+                                          </Badge>
+                                        ))}
                                       </div>
-                                    )}
-                                  </div>
-                                </HoverCardContent>
-                              </HoverCard>
-                            ))}
+                                    </div>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent className="w-80">
+                                    <div className="space-y-2">
+                                      <h6 className="font-semibold">{getPersonName(medecinAbsences[0])}</h6>
+                                      <div className="text-sm space-y-1">
+                                        {details.map((detail, i) => (
+                                          <div key={i} className="flex items-center justify-between">
+                                            <p className="text-muted-foreground">{detail.dateStr}</p>
+                                            <div className="flex items-center gap-2">
+                                              <Badge variant="outline" className="text-xs">{detail.type}</Badge>
+                                              <Badge 
+                                                variant={detail.statut === 'approuve' ? 'default' : 'secondary'}
+                                                className="text-xs"
+                                              >
+                                                {detail.statut === 'approuve' ? 'Validé' : 'En attente'}
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </HoverCardContent>
+                                </HoverCard>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
 
-                      {weekData.secretaires.length > 0 && (
+                      {secretaireKeys.length > 0 && (
                         <div>
                           <h5 className="text-sm font-medium mb-2">Assistants médicaux</h5>
                           <div className="space-y-2">
-                            {weekData.secretaires.map(absence => (
-                              <HoverCard key={absence.id}>
-                                <HoverCardTrigger asChild>
-                                  <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
-                                    <span className="text-sm">{getPersonName(absence)}</span>
-                                    <Badge variant="outline">{getAbsenceLabel(absence.type)}</Badge>
-                                  </div>
-                                </HoverCardTrigger>
-                                <HoverCardContent className="w-80">
-                                  <div className="space-y-2">
-                                    <h6 className="font-semibold">{getPersonName(absence)}</h6>
-                                    <div className="text-sm space-y-1">
-                                      <p className="font-medium">Dates d'absence:</p>
-                                      {getAbsenceDetails(absence).map((detail, i) => (
-                                        <p key={i} className="text-muted-foreground">• {detail}</p>
-                                      ))}
-                                    </div>
-                                    {absence.motif && (
-                                      <div className="text-sm">
-                                        <p className="font-medium">Motif:</p>
-                                        <p className="text-muted-foreground">{absence.motif}</p>
+                            {secretaireKeys.map(secretaireId => {
+                              const secretaireAbsences = grouped[secretaireId];
+                              const details = getAbsenceDetails(secretaireAbsences);
+                              
+                              return (
+                                <HoverCard key={secretaireId}>
+                                  <HoverCardTrigger asChild>
+                                    <div className="flex items-center justify-between p-2 bg-red-50 rounded cursor-pointer hover:bg-red-100 transition-colors">
+                                      <span className="text-sm font-medium">{getPersonName(secretaireAbsences[0])}</span>
+                                      <div className="flex items-center gap-2">
+                                        {details.map((d, i) => (
+                                          <Badge key={i} variant="outline" className="text-xs">
+                                            {d.type}
+                                          </Badge>
+                                        ))}
                                       </div>
-                                    )}
-                                  </div>
-                                </HoverCardContent>
-                              </HoverCard>
-                            ))}
+                                    </div>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent className="w-80">
+                                    <div className="space-y-2">
+                                      <h6 className="font-semibold">{getPersonName(secretaireAbsences[0])}</h6>
+                                      <div className="text-sm space-y-1">
+                                        {details.map((detail, i) => (
+                                          <div key={i} className="flex items-center justify-between">
+                                            <p className="text-muted-foreground">{detail.dateStr}</p>
+                                            <div className="flex items-center gap-2">
+                                              <Badge variant="outline" className="text-xs">{detail.type}</Badge>
+                                              <Badge 
+                                                variant={detail.statut === 'approuve' ? 'default' : 'secondary'}
+                                                className="text-xs"
+                                              >
+                                                {detail.statut === 'approuve' ? 'Validé' : 'En attente'}
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </HoverCardContent>
+                                </HoverCard>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -632,8 +679,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                 })}
 
                 {getWeeksInMonth().every(week => {
-                  const data = getAbsencesForWeek(week);
-                  return data.totalMedecins === 0 && data.totalSecretaires === 0;
+                  const grouped = getAbsencesGroupedByPersonForWeek(week);
+                  return Object.keys(grouped).length === 0;
                 }) && (
                   <div className="text-center py-8 text-muted-foreground">
                     Aucune absence ce mois-ci
