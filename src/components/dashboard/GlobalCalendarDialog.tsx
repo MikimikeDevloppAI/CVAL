@@ -175,16 +175,36 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
     
-    // Générer 12 mois avant et 12 mois après le mois actuel
-    for (let i = -12; i <= 12; i++) {
+    // Commencer par le mois actuel, puis ajouter les suivants et les précédents
+    // Mois actuel
+    months.push({
+      value: `${currentYear}-${currentMonth}`,
+      label: format(today, 'MMMM yyyy', { locale: fr }),
+      isCurrent: true
+    });
+    
+    // 12 mois suivants
+    for (let i = 1; i <= 12; i++) {
       const date = new Date(currentYear, currentMonth + i, 1);
       months.push({
         value: `${date.getFullYear()}-${date.getMonth()}`,
-        label: format(date, 'MMMM yyyy', { locale: fr })
+        label: format(date, 'MMMM yyyy', { locale: fr }),
+        isCurrent: false
       });
     }
     
-    return months;
+    // 12 mois précédents (en ordre inversé pour les ajouter avant)
+    const previousMonths = [];
+    for (let i = 1; i <= 12; i++) {
+      const date = new Date(currentYear, currentMonth - i, 1);
+      previousMonths.unshift({
+        value: `${date.getFullYear()}-${date.getMonth()}`,
+        label: format(date, 'MMMM yyyy', { locale: fr }),
+        isCurrent: false
+      });
+    }
+    
+    return [...previousMonths, ...months];
   };
 
   const currentMonthValue = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
@@ -357,7 +377,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden z-50">
         <DialogHeader>
           <DialogTitle className="text-2xl">Calendrier Global</DialogTitle>
         </DialogHeader>
@@ -369,24 +389,38 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
           </TabsList>
 
           <TabsContent value="calendar" className="flex flex-col flex-1 overflow-hidden mt-4">
-            <div className="flex items-center justify-between flex-shrink-0 mb-4">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
+            <div className="flex items-center justify-center gap-3 flex-shrink-0 mb-6">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handlePrevMonth}
+                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+              >
+                <ChevronLeft className="h-5 w-5" />
               </Button>
               <Select value={currentMonthValue} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[200px] font-semibold">
+                <SelectTrigger className="w-[240px] h-11 font-semibold text-base border-2 hover:border-primary transition-all shadow-sm hover:shadow-md rounded-lg bg-background">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-50 max-h-[300px] overflow-y-auto">
                   {getAvailableMonths().map(month => (
-                    <SelectItem key={month.value} value={month.value}>
+                    <SelectItem 
+                      key={month.value} 
+                      value={month.value}
+                      className="font-medium"
+                    >
                       {month.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={handleNextMonth}>
-                <ChevronRight className="h-4 w-4" />
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handleNextMonth}
+                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+              >
+                <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
 
@@ -562,24 +596,38 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
           </TabsContent>
 
           <TabsContent value="absences" className="flex flex-col flex-1 overflow-hidden mt-4">
-            <div className="flex items-center justify-between flex-shrink-0 mb-4">
-              <Button variant="outline" size="sm" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
+            <div className="flex items-center justify-center gap-3 flex-shrink-0 mb-6">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handlePrevMonth}
+                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+              >
+                <ChevronLeft className="h-5 w-5" />
               </Button>
               <Select value={currentMonthValue} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[200px] font-semibold">
+                <SelectTrigger className="w-[240px] h-11 font-semibold text-base border-2 hover:border-primary transition-all shadow-sm hover:shadow-md rounded-lg bg-background">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-50 max-h-[300px] overflow-y-auto">
                   {getAvailableMonths().map(month => (
-                    <SelectItem key={month.value} value={month.value}>
+                    <SelectItem 
+                      key={month.value} 
+                      value={month.value}
+                      className="font-medium"
+                    >
                       {month.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={handleNextMonth}>
-                <ChevronRight className="h-4 w-4" />
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handleNextMonth}
+                className="h-10 w-10 rounded-full hover:bg-primary hover:text-primary-foreground transition-all shadow-sm hover:shadow-md"
+              >
+                <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
 
