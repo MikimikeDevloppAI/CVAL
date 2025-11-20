@@ -718,16 +718,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                   <div className="border rounded-lg flex-1 overflow-auto">
                     <div className="min-w-max">
                       {/* En-tête des dates */}
-                      <div className="sticky top-0 z-30 bg-muted border-b">
+                      <div className="sticky top-0 z-30 bg-background border-b shadow-sm">
                         <div className="flex">
-                          <div className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[200px] flex items-center">
+                          <div className="sticky left-0 z-40 bg-background border-r p-2 min-w-[200px] flex items-center">
                             <span className="font-medium text-xs">Site</span>
                           </div>
                           {days.map(day => (
                             <div
                               key={day.dateStr}
                               className={cn(
-                                "p-1 text-center min-w-[120px] border-l",
+                                "p-1 text-center min-w-[120px] border-l bg-background",
                                 (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
                               )}
                             >
