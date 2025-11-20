@@ -447,10 +447,8 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                           
                           return (
                             <TableRow key={key}>
-                              <TableCell>
-                                <Badge variant="secondary" className="text-xs">
-                                  {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                                </Badge>
+                              <TableCell className="text-sm">
+                                {need.periode === 'matin' ? 'Matin' : 'Après-midi'}
                               </TableCell>
                               <TableCell className="font-medium text-sm">
                                 {need.site_nom}
