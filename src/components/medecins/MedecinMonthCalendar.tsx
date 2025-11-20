@@ -9,10 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { AddMultipleCreneauxDialog } from './AddMultipleCreneauxDialog';
-import { EditBesoinMedecinDialog } from '@/components/shared/EditBesoinMedecinDialog';
-import { Edit, Trash2 } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { MedecinActionsDialog } from '@/components/dashboard/MedecinActionsDialog';
 import {
   Select,
   SelectContent,
@@ -20,16 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 interface MedecinMonthCalendarProps {
@@ -75,6 +62,7 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [sites, setSites] = useState<Site[]>([]);
   const [typesIntervention, setTypesIntervention] = useState<TypeIntervention[]>([]);
   const [loading, setLoading] = useState(false);
+  const [medecinPrenom, setMedecinPrenom] = useState<string>('');
 
   // Add dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -83,27 +71,16 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
   const [selectedTypeInterventionId, setSelectedTypeInterventionId] = useState<string>('');
   const [selectedPeriode, setSelectedPeriode] = useState<'toute_journee' | 'matin' | 'apres_midi' | null>(null);
 
-  // Edit dialog states
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingSlot, setEditingSlot] = useState<DaySlot | null>(null);
-  const [editingDate, setEditingDate] = useState<string>('');
-
-  // Delete dialog states
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [besoinToDelete, setBesoinToDelete] = useState<string | null>(null);
-
   // Multiple slots dialog
   const [multipleSlotsOpen, setMultipleSlotsOpen] = useState(false);
   
   // Actions dialog state
-  const [actionsSlot, setActionsSlot] = useState<{
-    slot: DaySlot;
+  const [medecinActionsDialog, setMedecinActionsDialog] = useState<{
+    open: boolean;
     date: string;
-  } | null>(null);
-  
-  // Period selector for delete
-  const [showPeriodSelectorForDelete, setShowPeriodSelectorForDelete] = useState(false);
-  const [selectedPeriodForDelete, setSelectedPeriodForDelete] = useState<'matin' | 'apres_midi' | 'journee'>('matin');
+    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
+  }>({ open: false, date: '', siteId: '', periode: 'matin' });
 
   const SITE_COLORS = [
     'hsl(var(--planning-event-teal))',
@@ -318,89 +295,17 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
     }
   };
 
-  const handleDeleteClick = (besoinIds: string[]) => {
-    if (!actionsSlot) return;
-    
-    // Si c'est une journée complète, demander quelle période supprimer
-    if (actionsSlot.slot.periodes.length === 2) {
-      setShowPeriodSelectorForDelete(true);
-      // Garder actionsSlot pour l'utiliser dans handlePeriodSelectedForDelete
-    } else {
-      // Sinon supprimer directement
-      setBesoinToDelete(besoinIds.join(','));
-      setDeleteDialogOpen(true);
-      setActionsSlot(null);
-    }
-  };
-  
-  const handlePeriodSelectedForDelete = (periode: 'matin' | 'apres_midi' | 'journee') => {
-    if (!actionsSlot) return;
-    
-    setSelectedPeriodForDelete(periode);
-    setShowPeriodSelectorForDelete(false);
-    
-    // Filtrer les IDs selon la période sélectionnée
-    const besoinsToDelete = besoins.filter(b => {
-      if (!actionsSlot.slot.ids.includes(b.id)) return false;
-      
-      if (periode === 'journee') {
-        return true; // Supprimer tout
-      } else {
-        return b.demi_journee === periode;
-      }
-    });
-    
-    setBesoinToDelete(besoinsToDelete.map(b => b.id).join(','));
-    setDeleteDialogOpen(true);
-    setActionsSlot(null);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!besoinToDelete) return;
-
-    setLoading(true);
-    const ids = besoinToDelete.split(',');
-
-    for (const id of ids) {
-      await supabase.from('besoin_effectif').delete().eq('id', id);
-    }
-
-    toast.success('Créneau supprimé');
-    fetchBesoins();
-    setLoading(false);
-    setDeleteDialogOpen(false);
-    setBesoinToDelete(null);
-  };
-
   const handleSlotClick = (slot: DaySlot) => {
-    // Récupérer la date du premier besoin
     const firstBesoin = besoins.find(b => slot.ids.includes(b.id));
     if (firstBesoin) {
-      setActionsSlot({
-        slot,
-        date: firstBesoin.date
+      const periode = slot.periodes.length === 2 ? 'journee' : slot.periodes[0];
+      setMedecinActionsDialog({
+        open: true,
+        date: firstBesoin.date,
+        siteId: slot.siteId,
+        periode
       });
     }
-  };
-  
-  const handleEditFromActions = () => {
-    if (!actionsSlot) return;
-    setEditingSlot(actionsSlot.slot);
-    setEditingDate(actionsSlot.date);
-    setActionsSlot(null);
-    setEditDialogOpen(true);
-  };
-  
-  const handleDeleteFromActions = () => {
-    if (!actionsSlot) return;
-    handleDeleteClick(actionsSlot.slot.ids);
-  };
-
-  const handleEditSuccess = () => {
-    fetchBesoins();
-    setEditDialogOpen(false);
-    setEditingSlot(null);
-    setEditingDate('');
   };
 
   // Générer les jours du mois avec padding
@@ -669,116 +574,18 @@ export function MedecinMonthCalendar({ open, onOpenChange, medecinId, medecinNom
         </DialogContent>
       </Dialog>
 
-      {/* Actions Dialog */}
-      {actionsSlot && (
-        <Dialog open={!!actionsSlot} onOpenChange={(open) => !open && setActionsSlot(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Actions</DialogTitle>
-              <DialogDescription>
-                Que souhaitez-vous faire avec ce créneau ?
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3 py-4">
-              <Button
-                variant="outline"
-                onClick={handleEditFromActions}
-                className="w-full justify-start gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Modifier
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDeleteFromActions}
-                className="w-full justify-start gap-2 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-                Supprimer
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Edit Besoin Dialog */}
-      {editingSlot && editingDate && (
-        <EditBesoinMedecinDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          medecinId={medecinId}
-          medecinNom={medecinNom}
-          date={editingDate}
-          initialSiteId={editingSlot.siteId}
-          initialPeriod={editingSlot.periodes.length === 2 ? 'toute_journee' : editingSlot.periodes[0]}
-          initialTypeInterventionId={editingSlot.typeInterventionId || null}
-          besoinIds={editingSlot.ids}
-          onSuccess={handleEditSuccess}
-        />
-      )}
-
-      {/* Period Selector for Delete */}
-      <Dialog open={showPeriodSelectorForDelete} onOpenChange={setShowPeriodSelectorForDelete}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Sélectionner la période à supprimer</DialogTitle>
-            <DialogDescription>
-              Ce créneau couvre toute la journée. Quelle période souhaitez-vous supprimer ?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <RadioGroup 
-              value={selectedPeriodForDelete} 
-              onValueChange={(v: any) => setSelectedPeriodForDelete(v)}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="matin" id="delete-matin" />
-                <Label htmlFor="delete-matin" className="font-normal cursor-pointer">
-                  Matin uniquement
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apres_midi" id="delete-apres-midi" />
-                <Label htmlFor="delete-apres-midi" className="font-normal cursor-pointer">
-                  Après-midi uniquement
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="journee" id="delete-journee" />
-                <Label htmlFor="delete-journee" className="font-normal cursor-pointer">
-                  Toute la journée
-                </Label>
-              </div>
-            </RadioGroup>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowPeriodSelectorForDelete(false)}>
-                Annuler
-              </Button>
-              <Button onClick={() => handlePeriodSelectedForDelete(selectedPeriodForDelete)}>
-                Continuer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-            <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce créneau ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Medecin Actions Dialog */}
+      <MedecinActionsDialog
+        open={medecinActionsDialog.open}
+        onOpenChange={(open) => setMedecinActionsDialog(prev => ({ ...prev, open }))}
+        medecinId={medecinId}
+        medecinNom={medecinNom}
+        medecinPrenom={medecinPrenom}
+        date={medecinActionsDialog.date}
+        siteId={medecinActionsDialog.siteId}
+        periode={medecinActionsDialog.periode}
+        onRefresh={fetchBesoins}
+      />
 
       {/* Multiple Slots Dialog */}
       <AddMultipleCreneauxDialog
