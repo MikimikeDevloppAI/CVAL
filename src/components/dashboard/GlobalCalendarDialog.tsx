@@ -498,13 +498,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             key={day.dateStr}
                             className={cn(
                               "p-1 text-center min-w-[80px] border-l",
-                              (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                              isWeekend(day.dateStr) && "bg-muted/50",
+                              isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                             )}
                           >
                             <div className="font-medium text-xs">
                               {format(day.date, 'EEE', { locale: fr })}
                             </div>
-                            <div className="text-muted-foreground text-xs">
+                            <div className={cn(
+                              "text-muted-foreground text-xs",
+                              isHoliday(day.dateStr) && "text-red-600 dark:text-red-400 font-semibold"
+                            )}>
                               {format(day.date, 'd')}
                             </div>
                           </div>
