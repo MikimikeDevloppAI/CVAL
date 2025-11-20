@@ -171,17 +171,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   const getAvailableMonths = () => {
     const months = [];
-    const startYear = 2024;
-    const endYear = 2026;
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
     
-    for (let year = startYear; year <= endYear; year++) {
-      for (let month = 0; month < 12; month++) {
-        const date = new Date(year, month, 1);
-        months.push({
-          value: `${year}-${month}`,
-          label: format(date, 'MMMM yyyy', { locale: fr })
-        });
-      }
+    // Générer 12 mois avant et 12 mois après le mois actuel
+    for (let i = -12; i <= 12; i++) {
+      const date = new Date(currentYear, currentMonth + i, 1);
+      months.push({
+        value: `${date.getFullYear()}-${date.getMonth()}`,
+        label: format(date, 'MMMM yyyy', { locale: fr })
+      });
     }
     
     return months;
