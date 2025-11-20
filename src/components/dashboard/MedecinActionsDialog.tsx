@@ -54,6 +54,8 @@ export function MedecinActionsDialog({
     if (action === 'reassign') {
       // Pour la modification, ouvrir directement le dialogue sans sélection de période
       setReassignOpen(true);
+      // Fermer le dialogue d'actions pour éviter un double fond
+      onOpenChange(false);
     } else if (action === 'delete') {
       // Pour la suppression, demander la période uniquement si c'est une journée complète
       if (periode === 'journee') {
