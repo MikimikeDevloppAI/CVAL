@@ -166,8 +166,8 @@ serve(async (req) => {
               },
               type: {
                 type: 'string',
-                enum: ['conges', 'maladie', 'formation', 'autre'],
-                description: 'Type d\'absence: "conges", "maladie", "formation", ou "autre"'
+                enum: ['conges', 'maladie', 'formation', 'autre', 'conge_maternite'],
+                description: 'Type d\'absence: "conges", "maladie", "formation", "autre", ou "conge_maternite"'
               },
               motif: {
                 type: 'string',
