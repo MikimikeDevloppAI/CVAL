@@ -586,15 +586,27 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const medecinAbsences = grouped[medecinId];
                               const details = getAbsenceDetails(medecinAbsences);
                               
+                              // Calculer la période totale et le nombre de jours
+                              const dateDebuts = medecinAbsences.map(a => new Date(a.date_debut));
+                              const dateFins = medecinAbsences.map(a => new Date(a.date_fin));
+                              const minDate = new Date(Math.min(...dateDebuts.map(d => d.getTime())));
+                              const maxDate = new Date(Math.max(...dateFins.map(d => d.getTime())));
+                              const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              
                               return (
                                 <HoverCard key={medecinId}>
                                   <HoverCardTrigger asChild>
                                     <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
                                       <div className="flex flex-col gap-1.5">
                                         <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(medecinAbsences[0])}</span>
-                                        <span className="text-xs text-muted-foreground font-medium">
-                                          Du {format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })} au {format(new Date(medecinAbsences[0].date_fin), 'd MMM', { locale: fr })}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground font-medium">
+                                            Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
+                                          </span>
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                            {nombreJours} jour{nombreJours > 1 ? 's' : ''}
+                                          </Badge>
+                                        </div>
                                       </div>
                                       <Badge variant="outline" className="text-xs bg-background shadow-sm">
                                         {getAbsenceLabel(medecinAbsences[0].type)}
@@ -637,15 +649,27 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const secretaireAbsences = grouped[secretaireId];
                               const details = getAbsenceDetails(secretaireAbsences);
                               
+                              // Calculer la période totale et le nombre de jours
+                              const dateDebuts = secretaireAbsences.map(a => new Date(a.date_debut));
+                              const dateFins = secretaireAbsences.map(a => new Date(a.date_fin));
+                              const minDate = new Date(Math.min(...dateDebuts.map(d => d.getTime())));
+                              const maxDate = new Date(Math.max(...dateFins.map(d => d.getTime())));
+                              const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              
                               return (
                                 <HoverCard key={secretaireId}>
                                   <HoverCardTrigger asChild>
                                     <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
                                       <div className="flex flex-col gap-1.5">
                                         <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(secretaireAbsences[0])}</span>
-                                        <span className="text-xs text-muted-foreground font-medium">
-                                          Du {format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })} au {format(new Date(secretaireAbsences[0].date_fin), 'd MMM', { locale: fr })}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground font-medium">
+                                            Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
+                                          </span>
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                            {nombreJours} jour{nombreJours > 1 ? 's' : ''}
+                                          </Badge>
+                                        </div>
                                       </div>
                                       <Badge variant="outline" className="text-xs bg-background shadow-sm">
                                         {getAbsenceLabel(secretaireAbsences[0].type)}
