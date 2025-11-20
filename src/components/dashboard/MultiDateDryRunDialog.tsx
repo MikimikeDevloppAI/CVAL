@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Check, X, AlertCircle, ArrowRight } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Loader2, Check, AlertCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -93,6 +93,26 @@ export const MultiDateDryRunDialog = ({
     setSelectedChanges(newSelected);
   };
 
+  const handleSelectAllForDate = (date: string) => {
+    const dayResult = result?.results.find(r => r.date === date);
+    if (!dayResult) return;
+
+    const dateChangeIds = dayResult.individual_changes.map(change =>
+      `${change.date}_${change.secretaire_id}_${change.periode}`
+    );
+
+    const allSelected = dateChangeIds.every(id => selectedChanges.has(id));
+    const newSelected = new Set(selectedChanges);
+
+    if (allSelected) {
+      dateChangeIds.forEach(id => newSelected.delete(id));
+    } else {
+      dateChangeIds.forEach(id => newSelected.add(id));
+    }
+
+    setSelectedChanges(newSelected);
+  };
+
   const handleSelectAll = () => {
     if (!result) return;
     
@@ -118,7 +138,6 @@ export const MultiDateDryRunDialog = ({
     setApplying(true);
 
     try {
-      // Group selected changes by date and secretary
       const changesByDate = new Map<string, Map<string, Map<string, IndividualChange>>>();
       
       result?.results.forEach(dayResult => {
@@ -139,11 +158,9 @@ export const MultiDateDryRunDialog = ({
         });
       });
 
-      // Apply changes for each date
       for (const [date, secretariesMap] of changesByDate) {
         for (const [secretaire_id, periodesMap] of secretariesMap) {
           for (const [periode, change] of periodesMap) {
-            // Delete existing capacity
             await supabase
               .from('capacite_effective')
               .delete()
@@ -151,7 +168,6 @@ export const MultiDateDryRunDialog = ({
               .eq('secretaire_id', secretaire_id)
               .eq('demi_journee', periode as 'matin' | 'apres_midi');
 
-            // Insert new capacity if there's an "after" state
             if (change.after) {
               await supabase
                 .from('capacite_effective')
@@ -172,7 +188,6 @@ export const MultiDateDryRunDialog = ({
         }
       }
 
-      // Refresh materialized views
       await supabase.functions.invoke('refresh-besoins-view');
 
       toast.success(`${selectedChanges.size} changement(s) appliqué(s)`);
@@ -191,46 +206,66 @@ export const MultiDateDryRunDialog = ({
     }
   };
 
-  const getStatusBadge = (improvement: number) => {
-    if (improvement > 0) {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">+{improvement}</Badge>;
-    } else if (improvement === 0) {
-      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">≈</Badge>;
-    } else {
-      return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{improvement}</Badge>;
-    }
+  const formatAssignment = (assignment: IndividualChange['before'] | IndividualChange['after']) => {
+    if (!assignment) return '-';
+    
+    const badges = [];
+    if (assignment.is_1r) badges.push('1R');
+    if (assignment.is_2f) badges.push('2F');
+    if (assignment.is_3f) badges.push('3F');
+    
+    const location = assignment.type === 'site' 
+      ? assignment.site_nom 
+      : assignment.besoin_operation_nom;
+    
+    return badges.length > 0 
+      ? `${location} [${badges.join(', ')}]`
+      : location;
+  };
+
+  const getDateSelectedCount = (date: string) => {
+    const dayResult = result?.results.find(r => r.date === date);
+    if (!dayResult) return 0;
+
+    const dateChangeIds = dayResult.individual_changes.map(change =>
+      `${change.date}_${change.secretaire_id}_${change.periode}`
+    );
+
+    return dateChangeIds.filter(id => selectedChanges.has(id)).length;
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span>Changements proposés par l'optimisation</span>
+            <span>Optimisation proposée</span>
             {result && (
               <Badge variant="outline" className="ml-2">
-                {result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)} changement(s)
+                {result.results.reduce((sum, r) => sum + (r.individual_changes?.length || 0), 0)} changement(s) sur {result.results.length} jour(s)
               </Badge>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center p-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-3 text-sm text-muted-foreground">Analyse en cours...</span>
             </div>
           ) : result && result.results.length > 0 ? (
-            <>
+            <div className="space-y-6">
               {/* Summary */}
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="flex items-center justify-between">
-                    <span>
-                      Total : <strong>{result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}</strong> amélioration(s)
-                    </span>
+                    <div>
+                      Amélioration totale : <strong className={result.totalImprovements > 0 ? 'text-green-600' : 'text-red-600'}>
+                        {result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}
+                      </strong> besoin(s) satisfait(s)
+                    </div>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -245,81 +280,90 @@ export const MultiDateDryRunDialog = ({
               </Alert>
 
               {/* Changes by date */}
-              {result.results.map((dayResult) => (
-                <Card key={dayResult.date} className="p-4">
-                  <div className="mb-4 pb-3 border-b flex items-center justify-between">
-                    <h4 className="font-semibold text-base">
-                      {format(new Date(dayResult.date), 'EEEE dd MMMM yyyy', { locale: fr })}
-                    </h4>
-                    <div className="flex items-center gap-3">
-                      {getStatusBadge(dayResult.improvement.unmet_diff)}
+              {result.results.map((dayResult) => {
+                const selectedCount = getDateSelectedCount(dayResult.date);
+                const totalCount = dayResult.individual_changes?.length || 0;
+                
+                return (
+                  <div key={dayResult.date} className="border rounded-lg overflow-hidden">
+                    <div className="bg-muted/30 p-4 flex items-center justify-between border-b">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedCount === totalCount && totalCount > 0}
+                          onCheckedChange={() => handleSelectAllForDate(dayResult.date)}
+                        />
+                        <div>
+                          <h4 className="font-semibold">
+                            {format(new Date(dayResult.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {dayResult.before.total_unmet} → {dayResult.after.total_unmet} besoins non satisfaits
+                            <Badge 
+                              variant="outline" 
+                              className={`ml-2 ${dayResult.improvement.unmet_diff > 0 ? 'bg-green-50 text-green-700 border-green-200' : dayResult.improvement.unmet_diff < 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                            >
+                              {dayResult.improvement.unmet_diff > 0 ? '+' : ''}{dayResult.improvement.unmet_diff}
+                            </Badge>
+                          </p>
+                        </div>
+                      </div>
                       <span className="text-sm text-muted-foreground">
-                        {dayResult.individual_changes?.length || 0} changement(s)
+                        {selectedCount}/{totalCount} sélectionné(s)
                       </span>
                     </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    {(dayResult.individual_changes || []).map((change) => {
-                      const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
-                      return (
-                        <div 
-                          key={changeId}
-                          className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors"
-                        >
-                          <Checkbox
-                            checked={selectedChanges.has(changeId)}
-                            onCheckedChange={() => handleToggleChange(changeId)}
-                            className="mt-0.5"
-                          />
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium">{change.secretaire_nom}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {change.periode === 'matin' ? 'Matin' : 'Après-midi'}
-                              </Badge>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-sm">
-                              {change.before && (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <span>{change.before.type === 'site' ? change.before.site_nom : change.before.besoin_operation_nom}</span>
-                                  {(change.before.is_1r || change.before.is_2f || change.before.is_3f) && (
-                                    <span className="text-xs">
-                                      [{[change.before.is_1r && '1R', change.before.is_2f && '2F', change.before.is_3f && '3F'].filter(Boolean).join(', ')}]
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {change.before && change.after && (
-                                <ArrowRight className="h-3 w-3 text-primary flex-shrink-0" />
-                              )}
-                              
-                              {change.after && (
-                                <div className="flex items-center gap-1 font-medium">
-                                  <span>{change.after.type === 'site' ? change.after.site_nom : change.after.besoin_operation_nom}</span>
-                                  {(change.after.is_1r || change.after.is_2f || change.after.is_3f) && (
-                                    <Badge variant="secondary" className="text-xs h-5">
-                                      {[change.after.is_1r && '1R', change.after.is_2f && '2F', change.after.is_3f && '3F'].filter(Boolean).join(', ')}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {!change.after && change.before && (
-                                <span className="text-red-600 font-medium">Retrait</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Secrétaire</TableHead>
+                          <TableHead>Période</TableHead>
+                          <TableHead>Avant</TableHead>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Après</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(dayResult.individual_changes || []).map((change) => {
+                          const changeId = `${change.date}_${change.secretaire_id}_${change.periode}`;
+                          return (
+                            <TableRow key={changeId}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedChanges.has(changeId)}
+                                  onCheckedChange={() => handleToggleChange(changeId)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{change.secretaire_nom}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {change.periode === 'matin' ? 'Matin' : 'Après-midi'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {formatAssignment(change.before)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <ArrowRight className="h-4 w-4 text-primary mx-auto" />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {change.after ? (
+                                  <span className="text-green-700">
+                                    {formatAssignment(change.after)}
+                                  </span>
+                                ) : (
+                                  <span className="text-red-600">Retrait</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
-                </Card>
-              ))}
-            </>
+                );
+              })}
+            </div>
           ) : (
             <div className="text-center p-8 text-muted-foreground">
               Aucun changement proposé
