@@ -49,6 +49,7 @@ interface AddSecretaireToDayDialogProps {
   date: string;
   siteId: string;
   siteName: string;
+  besoinOperationId?: string;
   onSuccess: () => void;
 }
 
@@ -58,6 +59,7 @@ export function AddSecretaireToDayDialog({
   date,
   siteId,
   siteName,
+  besoinOperationId,
   onSuccess,
 }: AddSecretaireToDayDialogProps) {
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
@@ -104,7 +106,22 @@ export function AddSecretaireToDayDialog({
 
     // Fetch secretaires
     let secData;
-    if (isAdministratif) {
+    
+    // If we have a besoinOperationId, filter by qualification
+    if (besoinOperationId) {
+      const { data } = await supabase
+        .from('secretaires')
+        .select(`
+          id, 
+          first_name, 
+          name,
+          secretaires_besoins_operations!inner(besoin_operation_id)
+        `)
+        .eq('actif', true)
+        .eq('secretaires_besoins_operations.besoin_operation_id', besoinOperationId)
+        .order('name');
+      secData = data;
+    } else if (isAdministratif) {
       // For Administratif, fetch all active secretaires
       const { data } = await supabase
         .from('secretaires')
