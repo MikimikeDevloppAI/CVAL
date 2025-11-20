@@ -279,22 +279,12 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       }
     });
 
-    // Convert to array and split into separate entries for matin and apres_midi, ensuring matin comes first
-    const result: { siteId: string; siteNom: string; period: 'matin' | 'apres_midi' | 'toute_journee' }[] = [];
-    
-    Object.entries(bySite).forEach(([siteId, data]) => {
-      if (data.matin && data.apresMidi) {
-        // If both, add matin first, then après-midi
-        result.push({ siteId, siteNom: data.siteNom, period: 'matin' });
-        result.push({ siteId, siteNom: data.siteNom, period: 'apres_midi' });
-      } else if (data.matin) {
-        result.push({ siteId, siteNom: data.siteNom, period: 'matin' });
-      } else if (data.apresMidi) {
-        result.push({ siteId, siteNom: data.siteNom, period: 'apres_midi' });
-      }
-    });
-    
-    return result;
+    // Convert to array - if both matin and après-midi for same site, merge into toute_journee
+    return Object.entries(bySite).map(([siteId, data]) => ({
+      siteId,
+      siteNom: data.siteNom,
+      period: (data.matin && data.apresMidi) ? 'toute_journee' : data.matin ? 'matin' : 'apres_midi'
+    }));
   };
 
   const getColorForPeriod = (period: 'matin' | 'apres_midi' | 'toute_journee') => {
@@ -526,7 +516,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                                     medecinPrenom: medecin.first_name,
                                                     date: day.dateStr,
                                                     siteId: item.siteId,
-                                                    periode: item.period as 'matin' | 'apres_midi' | 'journee'
+                                                    periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee'
                                                   });
                                                 }}
                                               >
