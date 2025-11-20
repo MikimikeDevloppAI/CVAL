@@ -952,6 +952,29 @@ export function GlobalMedecinCalendarView({ open, onOpenChange }: GlobalMedecinC
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      {editDialog && (
+        <EditBesoinMedecinDialog
+          open={editDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditDialog(null);
+            }
+          }}
+          besoinIds={editDialog.besoinIds}
+          medecinId={editDialog.medecinId}
+          medecinNom={medecins.find(m => m.id === editDialog.medecinId)?.first_name + ' ' + medecins.find(m => m.id === editDialog.medecinId)?.name || ''}
+          date={editDialog.date}
+          initialSiteId={selectedSiteId}
+          initialPeriod={selectedPeriod}
+          initialTypeInterventionId={selectedTypeInterventionId}
+          onSuccess={() => {
+            setEditDialog(null);
+            fetchData();
+          }}
+        />
+      )}
     </>
   );
 }
