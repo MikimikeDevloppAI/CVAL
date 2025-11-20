@@ -319,7 +319,6 @@ export function ExchangeSecretaireDialog({
           <Button
             onClick={handleExchange}
             disabled={!selectedSecretaireId || exchanging}
-            className="bg-gradient-to-r from-cyan-500 to-teal-600"
           >
             {exchanging ? (
               <>
