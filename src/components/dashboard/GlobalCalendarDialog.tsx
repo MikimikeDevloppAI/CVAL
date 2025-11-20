@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
+import { SecretaireActionsDialog } from './SecretaireActionsDialog';
 
 interface GlobalCalendarDialogProps {
   open: boolean;
@@ -51,6 +52,7 @@ interface CapaciteEffective {
   secretaire_id: string;
   site_id: string;
   demi_journee: 'toute_journee' | 'matin' | 'apres_midi';
+  besoin_operation_id?: string | null;
   sites?: {
     nom: string;
   };
@@ -86,6 +88,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     date: string;
     siteId: string;
     periode: 'matin' | 'apres_midi' | 'journee';
+  } | null>(null);
+  const [secretaireActionsDialog, setSecretaireActionsDialog] = useState<{
+    open: boolean;
+    secretaireId: string;
+    secretaireNom: string;
+    secretairePrenom: string;
+    date: string;
+    siteId: string;
+    periode: 'matin' | 'apres_midi' | 'journee';
+    besoinOperationId?: string | null;
   } | null>(null);
   const [addBesoinDialog, setAddBesoinDialog] = useState<{
     open: boolean;
@@ -158,7 +170,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
       const { data: capacitesData } = await supabase
         .from('capacite_effective')
-        .select('id, date, secretaire_id, site_id, demi_journee, sites(nom)')
+        .select('id, date, secretaire_id, site_id, demi_journee, besoin_operation_id, sites(nom)')
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('actif', true)
@@ -611,18 +623,34 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                         </div>
                                       ) : merged.length > 0 ? (
                                         <div className="space-y-0.5 w-full">
-                                          {merged.map((item, idx) => (
-                                            <div
-                                              key={idx}
-                                              className={cn(
-                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                                getColorForPeriod(item.period as any)
-                                              )}
-                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                            >
-                                              {formatSiteName(item.siteNom || '')?.substring(0, 8)}
-                                            </div>
-                                          ))}
+                                          {merged.map((item, idx) => {
+                                            // Find the original capacite to get besoinOperationId
+                                            const originalCapacite = capacitesDay.find(c => c.site_id === item.siteId);
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className={cn(
+                                                  "rounded px-1 py-0.5 text-white text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity",
+                                                  getColorForPeriod(item.period as any)
+                                                )}
+                                                title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                                onClick={() => {
+                                                  setSecretaireActionsDialog({
+                                                    open: true,
+                                                    secretaireId: secretaire.id,
+                                                    secretaireNom: secretaire.name,
+                                                    secretairePrenom: secretaire.first_name,
+                                                    date: day.dateStr,
+                                                    siteId: item.siteId,
+                                                    periode: (item.period === 'toute_journee' ? 'journee' : item.period) as 'matin' | 'apres_midi' | 'journee',
+                                                    besoinOperationId: (originalCapacite as any)?.besoin_operation_id || null
+                                                  });
+                                                }}
+                                              >
+                                                {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       ) : null}
                                     </div>
@@ -983,6 +1011,24 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
         date={medecinActionsDialog.date}
         siteId={medecinActionsDialog.siteId}
         periode={medecinActionsDialog.periode}
+        onRefresh={fetchData}
+      />
+    )}
+
+    {secretaireActionsDialog && (
+      <SecretaireActionsDialog
+        open={secretaireActionsDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSecretaireActionsDialog(null);
+          }
+        }}
+        secretaireId={secretaireActionsDialog.secretaireId}
+        secretaireNom={`${secretaireActionsDialog.secretairePrenom} ${secretaireActionsDialog.secretaireNom}`}
+        date={secretaireActionsDialog.date}
+        siteId={secretaireActionsDialog.siteId}
+        periode={secretaireActionsDialog.periode}
+        besoinOperationId={secretaireActionsDialog.besoinOperationId}
         onRefresh={fetchData}
       />
     )}
