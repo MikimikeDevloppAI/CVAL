@@ -288,7 +288,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
       'conges': 'Congés',
       'maladie': 'Maladie',
       'formation': 'Formation',
-      'autre': 'Autre'
+      'autre': 'Autre',
+      'conge_maternite': 'Maternité'
     };
     return labels[type] || type;
   };
