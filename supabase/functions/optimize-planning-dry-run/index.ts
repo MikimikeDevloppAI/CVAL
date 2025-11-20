@@ -424,6 +424,10 @@ async function calculateIndividualChanges(
       // Skip if both are null/undefined (no assignment before or after)
       if (!before && !after) return;
       
+      // CRITICAL: Skip if it's a removal (before exists but after doesn't)
+      // We never want to show "retrait" in the UI
+      if (before && !after) return;
+      
       individualChanges.push({
         date,
         secretaire_id: secId,
