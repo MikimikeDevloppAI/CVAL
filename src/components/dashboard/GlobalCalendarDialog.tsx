@@ -392,6 +392,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   const besoinsDay = getBesoinsForMedecinAndDate(medecin.id, day.dateStr);
                                   const absence = getAbsenceForPersonAndDate(medecin.id, day.dateStr, 'medecin');
                                   const merged = mergeAssignments(besoinsDay);
+                                  const isWeekendDay = isWeekend(day.dateStr);
+                                  const showAbsence = absence && !isWeekendDay;
                                   
                                   return (
                                     <div
@@ -399,11 +401,11 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
                                         (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        !absence && merged.length === 0 && "bg-muted/30"
+                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-muted/50"
                                       )}
                                     >
-                                      {absence ? (
-                                        <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                      {showAbsence ? (
+                                        <div className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
                                           {getAbsenceLabel(absence.type)}
                                         </div>
                                       ) : merged.length > 0 ? (
@@ -441,43 +443,45 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                             <div className="sticky left-0 z-10 bg-background border-r p-2 min-w-[150px] text-xs font-medium flex items-center">
                               {secretaire.first_name} {secretaire.name}
                             </div>
-                            {days.map(day => {
-                              const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
-                              const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
-                              const merged = mergeAssignments(capacitesDay);
-                              
-                              return (
-                                <div
-                                  key={day.dateStr}
-                                  className={cn(
-                                    "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
-                                    (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                    !absence && merged.length === 0 && "bg-muted/30"
-                                  )}
-                                >
-                                  {absence ? (
-                                    <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
-                                      {getAbsenceLabel(absence.type)}
-                                    </div>
-                                  ) : merged.length > 0 ? (
-                                    <div className="space-y-0.5 w-full">
-                                      {merged.map((item, idx) => (
-                                        <div
-                                          key={idx}
-                                          className={cn(
-                                            "rounded px-1 py-0.5 text-white text-[10px] truncate",
-                                            getColorForPeriod(item.period as any)
-                                          )}
-                                          title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
-                                        >
-                                          {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                {days.map(day => {
+                                  const capacitesDay = getCapacitesForSecretaireAndDate(secretaire.id, day.dateStr);
+                                  const absence = getAbsenceForPersonAndDate(secretaire.id, day.dateStr, 'secretaire');
+                                  const merged = mergeAssignments(capacitesDay);
+                                  const isWeekendDay = isWeekend(day.dateStr);
+                                  const showAbsence = absence && !isWeekendDay;
+                                  
+                                  return (
+                                    <div
+                                      key={day.dateStr}
+                                      className={cn(
+                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
+                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-muted/50"
+                                      )}
+                                    >
+                                      {showAbsence ? (
+                                        <div className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
+                                          {getAbsenceLabel(absence.type)}
                                         </div>
-                                      ))}
+                                      ) : merged.length > 0 ? (
+                                        <div className="space-y-0.5 w-full">
+                                          {merged.map((item, idx) => (
+                                            <div
+                                              key={idx}
+                                              className={cn(
+                                                "rounded px-1 py-0.5 text-white text-[10px] truncate",
+                                                getColorForPeriod(item.period as any)
+                                              )}
+                                              title={`${item.siteNom} - ${getPeriodLabel(item.period as any)}`}
+                                            >
+                                              {formatSiteName(item.siteNom || '')?.substring(0, 8)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
                                     </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
+                                  );
+                                })}
                           </div>
                         ))}
                       </div>
@@ -499,11 +503,11 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     <span>Après-midi</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
+                    <div className="w-4 h-4 rounded bg-muted border"></div>
                     <span>Absence</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-muted/30 border"></div>
+                    <div className="w-4 h-4 rounded bg-muted/50 border"></div>
                     <span>Aucune assignation</span>
                   </div>
                 </div>
