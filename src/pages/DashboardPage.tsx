@@ -11,7 +11,7 @@ import { SecretairesPopup } from '@/components/dashboard/secretaires/Secretaires
 import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
 import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, BarChart3, Plus, Building, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, Calendar, BarChart3, Plus, Building, FileText } from 'lucide-react';
 import { WeekSelector } from '@/components/shared/WeekSelector';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
 import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
@@ -25,6 +25,7 @@ import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
 import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
 import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
 import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
+import { GlobalCalendarDialog } from '@/components/dashboard/GlobalCalendarDialog';
 import { toast } from 'sonner';
 
 export interface PersonnePresence {
@@ -144,6 +145,7 @@ const DashboardPage = () => {
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
   const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
+  const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
   const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
   const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
   const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
@@ -946,11 +948,10 @@ const DashboardPage = () => {
           gradient="from-violet-500 to-purple-500"
         />
         <QuickActionButton
-          label="Statistiques"
-          icon={<BarChart3 className="h-6 w-6" />}
+          label="Calendrier global"
+          icon={<Calendar className="h-6 w-6" />}
+          onClick={() => setGlobalCalendarOpen(true)}
           gradient="from-blue-500 to-purple-500"
-          subtitle="À venir prochainement"
-          disabled
         />
         <QuickActionButton
           label="Planifier"
@@ -1194,6 +1195,11 @@ const DashboardPage = () => {
         open={unfilledNeedsSummaryOpen}
         onOpenChange={setUnfilledNeedsSummaryOpen}
         onRefresh={handleRefreshAll}
+      />
+
+      <GlobalCalendarDialog
+        open={globalCalendarOpen}
+        onOpenChange={setGlobalCalendarOpen}
       />
     </div>
   );
