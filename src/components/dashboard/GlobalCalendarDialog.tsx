@@ -530,14 +530,15 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   const isWeekendDay = isWeekend(day.dateStr);
                                   const showAbsence = absence && !isWeekendDay;
                                   
-                                  return (
+                                   return (
                                      <div
                                       key={day.dateStr}
                                       className={cn(
                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center relative group",
-                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
+                                        isWeekend(day.dateStr) && "bg-muted/20",
+                                        isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20",
                                         showAbsence && "bg-muted/20",
-                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
+                                        !showAbsence && merged.length === 0 && !isWeekendDay && !isHoliday(day.dateStr) && "bg-amber-50"
                                       )}
                                     >
                                       {showAbsence ? (
@@ -618,16 +619,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                   const isWeekendDay = isWeekend(day.dateStr);
                                   const showAbsence = absence && !isWeekendDay;
                                   
-                                  return (
-                                    <div
-                                      key={day.dateStr}
-                                      className={cn(
-                                        "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
-                                        (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/20",
-                                        showAbsence && "bg-muted/20",
-                                        !showAbsence && merged.length === 0 && !isWeekendDay && "bg-amber-50"
-                                      )}
-                                    >
+                                   return (
+                                     <div
+                                       key={day.dateStr}
+                                       className={cn(
+                                         "p-1 text-center border-l min-w-[80px] flex items-center justify-center",
+                                         isWeekend(day.dateStr) && "bg-muted/20",
+                                         isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20",
+                                         showAbsence && "bg-muted/20",
+                                         !showAbsence && merged.length === 0 && !isWeekendDay && !isHoliday(day.dateStr) && "bg-amber-50"
+                                       )}
+                                     >
                                       {showAbsence ? (
                                         <div className="bg-red-100 text-red-800 rounded px-1 py-0.5 text-[10px]" title={absence.motif || ''}>
                                           {getAbsenceLabel(absence.type)}
@@ -752,13 +754,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               key={day.dateStr}
                               className={cn(
                                 "p-1 text-center min-w-[100px] border-l border-b",
-                                (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                                isWeekend(day.dateStr) && "bg-muted/50",
+                                isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                               )}
                             >
                               <div className="font-medium text-xs">
                                 {format(day.date, 'EEE', { locale: fr })}
                               </div>
-                              <div className="text-muted-foreground text-xs">
+                              <div className={cn(
+                                "text-muted-foreground text-xs",
+                                isHoliday(day.dateStr) && "text-red-600 dark:text-red-400 font-semibold"
+                              )}>
                                 {format(day.date, 'd')}
                               </div>
                             </th>
@@ -820,7 +826,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     key={day.dateStr}
                                     className={cn(
                                       "p-1 text-center min-w-[100px] border-l align-top",
-                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                                      isWeekend(day.dateStr) && "bg-muted/50",
+                                      isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                                     )}
                                   >
                                     <div className="space-y-0.5">
@@ -926,7 +933,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                                     key={day.dateStr}
                                     className={cn(
                                       "p-1 text-center min-w-[100px] border-l border-t align-top",
-                                      (isWeekend(day.dateStr) || isHoliday(day.dateStr)) && "bg-muted/50"
+                                      isWeekend(day.dateStr) && "bg-muted/50",
+                                      isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                                     )}
                                   >
                                     <div className="space-y-0.5">
