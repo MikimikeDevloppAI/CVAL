@@ -280,11 +280,17 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
     });
 
     // Convert to array - if both matin and après-midi for same site, merge into toute_journee
-    return Object.entries(bySite).map(([siteId, data]) => ({
+    const result = Object.entries(bySite).map(([siteId, data]) => ({
       siteId,
       siteNom: data.siteNom,
       period: (data.matin && data.apresMidi) ? 'toute_journee' : data.matin ? 'matin' : 'apres_midi'
     }));
+    
+    // Sort: matin first, then apres_midi, then toute_journee
+    return result.sort((a, b) => {
+      const order = { 'matin': 1, 'apres_midi': 2, 'toute_journee': 3 };
+      return order[a.period] - order[b.period];
+    });
   };
 
   const getColorForPeriod = (period: 'matin' | 'apres_midi' | 'toute_journee') => {
