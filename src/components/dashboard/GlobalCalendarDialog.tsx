@@ -543,7 +543,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
             {loading ? (
               <div className="text-center py-8">Chargement...</div>
             ) : (
-              <div className="flex-1 overflow-y-auto space-y-3">
+              <div className="flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {getWeeksInMonth().map((weekStart, idx) => {
                   const grouped = getAbsencesGroupedByPersonForWeek(weekStart);
                   const weekEnd = endOfWeek(weekStart, { locale: fr });
@@ -560,24 +561,26 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                   }
 
                   return (
-                    <div key={idx} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">
-                          Semaine du {format(weekStart, 'd MMM', { locale: fr })} au {format(weekEnd, 'd MMM', { locale: fr })}
+                    <div key={idx} className="border rounded-lg p-4 space-y-4 shadow-sm hover:shadow-md transition-shadow bg-card">
+                      <div className="flex items-center justify-between pb-3 border-b">
+                        <h4 className="font-semibold text-base">
+                          Du {format(weekStart, 'd MMM', { locale: fr })} au {format(weekEnd, 'd MMM', { locale: fr })}
                         </h4>
-                        <div className="flex items-center gap-3 text-sm">
-                          <Badge variant="destructive">
-                            {medecinKeys.length} médecin{medecinKeys.length > 1 ? 's' : ''}
+                        <div className="flex items-center gap-2 text-sm">
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <span className="font-semibold">{medecinKeys.length}</span>
+                            <span>médecin{medecinKeys.length > 1 ? 's' : ''}</span>
                           </Badge>
-                          <Badge variant="destructive">
-                            {secretaireKeys.length} assistant{secretaireKeys.length > 1 ? 's' : ''}
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <span className="font-semibold">{secretaireKeys.length}</span>
+                            <span>assistant{secretaireKeys.length > 1 ? 's' : ''}</span>
                           </Badge>
                         </div>
                       </div>
 
                       {medecinKeys.length > 0 && (
                         <div>
-                          <h5 className="text-sm font-medium mb-2">Médecins</h5>
+                          <h5 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Médecins</h5>
                           <div className="space-y-2">
                             {medecinKeys.map(medecinId => {
                               const medecinAbsences = grouped[medecinId];
@@ -586,17 +589,14 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               return (
                                 <HoverCard key={medecinId}>
                                   <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 transition-colors">
-                                      <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-medium">{getPersonName(medecinAbsences[0])}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {medecinAbsences[0].date_debut === medecinAbsences[0].date_fin
-                                            ? format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })
-                                            : `du ${format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })} au ${format(new Date(medecinAbsences[0].date_fin), 'd MMM', { locale: fr })}`
-                                          }
+                                    <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
+                                      <div className="flex flex-col gap-1.5">
+                                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(medecinAbsences[0])}</span>
+                                        <span className="text-xs text-muted-foreground font-medium">
+                                          Du {format(new Date(medecinAbsences[0].date_debut), 'd MMM', { locale: fr })} au {format(new Date(medecinAbsences[0].date_fin), 'd MMM', { locale: fr })}
                                         </span>
                                       </div>
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className="text-xs bg-background shadow-sm">
                                         {getAbsenceLabel(medecinAbsences[0].type)}
                                       </Badge>
                                     </div>
@@ -631,7 +631,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
                       {secretaireKeys.length > 0 && (
                         <div>
-                          <h5 className="text-sm font-medium mb-2">Assistants médicaux</h5>
+                          <h5 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Assistants médicaux</h5>
                           <div className="space-y-2">
                             {secretaireKeys.map(secretaireId => {
                               const secretaireAbsences = grouped[secretaireId];
@@ -640,17 +640,14 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               return (
                                 <HoverCard key={secretaireId}>
                                   <HoverCardTrigger asChild>
-                                    <div className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 transition-colors">
-                                      <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-medium">{getPersonName(secretaireAbsences[0])}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {secretaireAbsences[0].date_debut === secretaireAbsences[0].date_fin
-                                            ? format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })
-                                            : `du ${format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })} au ${format(new Date(secretaireAbsences[0].date_fin), 'd MMM', { locale: fr })}`
-                                          }
+                                    <div className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group">
+                                      <div className="flex flex-col gap-1.5">
+                                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(secretaireAbsences[0])}</span>
+                                        <span className="text-xs text-muted-foreground font-medium">
+                                          Du {format(new Date(secretaireAbsences[0].date_debut), 'd MMM', { locale: fr })} au {format(new Date(secretaireAbsences[0].date_fin), 'd MMM', { locale: fr })}
                                         </span>
                                       </div>
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className="text-xs bg-background shadow-sm">
                                         {getAbsenceLabel(secretaireAbsences[0].type)}
                                       </Badge>
                                     </div>
@@ -685,6 +682,7 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                     </div>
                   );
                 })}
+                </div>
 
                 {getWeeksInMonth().every(week => {
                   const grouped = getAbsencesGroupedByPersonForWeek(week);
