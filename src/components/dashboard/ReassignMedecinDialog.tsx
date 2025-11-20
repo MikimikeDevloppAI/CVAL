@@ -80,10 +80,15 @@ export function ReassignMedecinDialog({
 
   useEffect(() => {
     if (open) {
-      fetchMedecinsFromOtherSites();
       checkIfBlocOperatoire();
     }
   }, [open, targetSiteId]);
+
+  useEffect(() => {
+    if (open && periode) {
+      fetchMedecinsFromOtherSites();
+    }
+  }, [open, targetSiteId, periode]);
 
   useEffect(() => {
     if (isBlocOperatoire && open) {
@@ -114,6 +119,12 @@ export function ReassignMedecinDialog({
   };
 
   const fetchMedecinsFromOtherSites = async () => {
+    // Determine which periods to fetch based on selected periode
+    const periodsToFetch: ('matin' | 'apres_midi')[] = 
+      periode === 'journee' 
+        ? ['matin', 'apres_midi']
+        : [periode as 'matin' | 'apres_midi'];
+
     const { data: besoins } = await supabase
       .from('besoin_effectif')
       .select(`
@@ -128,6 +139,7 @@ export function ReassignMedecinDialog({
       .eq('date', date)
       .eq('type', 'medecin')
       .neq('site_id', targetSiteId)
+      .in('demi_journee', periodsToFetch)
       .not('medecin_id', 'is', null);
 
     if (besoins) {
@@ -241,7 +253,29 @@ export function ReassignMedecinDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Médecin selection */}
+          {/* Période selection - FIRST */}
+          <div className="space-y-2">
+            <Label>Période souhaitée *</Label>
+            <RadioGroup value={periode} onValueChange={(value: any) => {
+              setPeriode(value);
+              setSelectedMedecinId(''); // Reset selection when period changes
+            }}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="matin" id="matin" />
+                <Label htmlFor="matin" className="font-normal cursor-pointer">Matin</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="apres_midi" id="apres_midi" />
+                <Label htmlFor="apres_midi" className="font-normal cursor-pointer">Après-midi</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="journee" id="journee" />
+                <Label htmlFor="journee" className="font-normal cursor-pointer">Toute la journée</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Médecin selection - SECOND */}
           <div className="space-y-2">
             <Label>Médecin à réaffecter</Label>
             <Popover open={comboOpen} onOpenChange={setComboOpen}>
@@ -301,25 +335,6 @@ export function ReassignMedecinDialog({
               </AlertDescription>
             </Alert>
           )}
-
-          {/* Période selection */}
-          <div className="space-y-2">
-            <Label>Nouvelle période</Label>
-            <RadioGroup value={periode} onValueChange={(value: any) => setPeriode(value)}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="matin" id="matin" />
-                <Label htmlFor="matin" className="font-normal cursor-pointer">Matin</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apres_midi" id="apres_midi" />
-                <Label htmlFor="apres_midi" className="font-normal cursor-pointer">Après-midi</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="journee" id="journee" />
-                <Label htmlFor="journee" className="font-normal cursor-pointer">Toute la journée</Label>
-              </div>
-            </RadioGroup>
-          </div>
 
           {/* Type d'intervention (only for Bloc opératoire) */}
           {isBlocOperatoire && (
