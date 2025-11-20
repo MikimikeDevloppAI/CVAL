@@ -298,7 +298,7 @@ export function ReassignMedecinDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Réaffecter un médecin</DialogTitle>
+          <DialogTitle className="text-primary">Réaffecter un médecin</DialogTitle>
           <DialogDescription>
             Réaffecter un médecin depuis un autre site vers {targetSiteName}
           </DialogDescription>
