@@ -45,6 +45,7 @@ interface PeriodNeed {
   deficit_1r?: number;
   deficit_2f3f?: number;
   is_fermeture?: boolean;
+  fermeture_type?: '1r' | '2f' | '3f';
   suggestions_admin: SecretaireSuggestion[];
   suggestions_not_working: SecretaireSuggestion[];
 }
@@ -163,6 +164,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             manque: need.deficit_1r,
             deficit_1r: need.deficit_1r,
             is_fermeture: true,
+            fermeture_type: '1r',
             suggestions_admin: [],
             suggestions_not_working: []
           });
@@ -176,6 +178,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             manque: need.deficit_2f3f,
             deficit_2f3f: need.deficit_2f3f,
             is_fermeture: true,
+            fermeture_type: '2f',
             suggestions_admin: [],
             suggestions_not_working: []
           });
@@ -210,17 +213,54 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       const admin: SecretaireSuggestion[] = [];
       const notWorking: SecretaireSuggestion[] = [];
 
-      // Get already assigned secretaires for this period
-      const { data: alreadyAssigned } = await supabase
-        .from('capacite_effective')
-        .select('secretaire_id')
-        .eq('date', need.date)
-        .eq('demi_journee', need.periode)
-        .eq('actif', true);
+      // Gestion spéciale pour les besoins de fermeture
+      if (need.is_fermeture && need.fermeture_type) {
+        // Récupérer UNIQUEMENT les secrétaires déjà assignés sur CE site pour cette date/période
+        const { data: capacites } = await supabase
+          .from('capacite_effective')
+          .select(`
+            id,
+            secretaire_id,
+            is_1r,
+            is_2f,
+            is_3f,
+            secretaires!inner(id, first_name, name, actif)
+          `)
+          .eq('date', need.date)
+          .eq('demi_journee', need.periode)
+          .eq('site_id', need.site_id)
+          .eq('actif', true);
+        
+        for (const cap of capacites || []) {
+          const sec = (cap as any).secretaires;
+          if (!sec || !sec.actif) continue;
+          
+          // Vérifier si la personne a déjà cette responsabilité
+          const hasResponsibility = 
+            (need.fermeture_type === '1r' && cap.is_1r) ||
+            (need.fermeture_type === '2f' && cap.is_2f) ||
+            (need.fermeture_type === '3f' && cap.is_3f);
+          
+          // Ne pas afficher ceux qui ont déjà la responsabilité demandée
+          if (hasResponsibility) continue;
+          
+          const suggestion: SecretaireSuggestion = {
+            secretaire_id: sec.id,
+            secretaire_nom: `${sec.first_name} ${sec.name}`.trim()
+          };
+          
+          admin.push(suggestion);
+        }
+      } else if (need.besoin_operation_id) {
+        // Get already assigned secretaires for this period
+        const { data: alreadyAssigned } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id')
+          .eq('date', need.date)
+          .eq('demi_journee', need.periode)
+          .eq('actif', true);
 
-      const assignedIds = new Set(alreadyAssigned?.map(a => a.secretaire_id) || []);
-
-      if (need.besoin_operation_id) {
+        const assignedIds = new Set(alreadyAssigned?.map(a => a.secretaire_id) || []);
         // Bloc operatoire - filter by competency
         const { data: secretaires } = await supabase
           .from('secretaires')
@@ -258,6 +298,16 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           }
         }
       } else {
+        // Get already assigned secretaires for this period
+        const { data: alreadyAssigned } = await supabase
+          .from('capacite_effective')
+          .select('secretaire_id')
+          .eq('date', need.date)
+          .eq('demi_journee', need.periode)
+          .eq('actif', true);
+
+        const assignedIds = new Set(alreadyAssigned?.map(a => a.secretaire_id) || []);
+
         // Site need - filter by site preference or admin
         const { data: secretaires } = await supabase
           .from('secretaires')
@@ -332,46 +382,79 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     setAssigningKey(key);
 
     try {
-      // Check if secretaire already has a capacity for this period
-      const { data: existingCapacity } = await supabase
-        .from('capacite_effective')
-        .select('id, site_id')
-        .eq('secretaire_id', secretaireId)
-        .eq('date', need.date)
-        .eq('demi_journee', need.periode)
-        .eq('actif', true)
-        .maybeSingle();
+      // Gestion spéciale pour les besoins de fermeture
+      if (need.is_fermeture && need.fermeture_type) {
+        // Trouver la capacité effective existante pour ce secrétaire sur ce site/date/période
+        const { data: existingCapacity } = await supabase
+          .from('capacite_effective')
+          .select('id, is_1r, is_2f, is_3f')
+          .eq('secretaire_id', secretaireId)
+          .eq('date', need.date)
+          .eq('demi_journee', need.periode)
+          .eq('site_id', need.site_id)
+          .eq('actif', true)
+          .maybeSingle();
 
-      if (existingCapacity) {
-        // Update existing capacity
+        if (!existingCapacity) {
+          throw new Error('Aucune capacité trouvée pour cet assistant médical sur ce site');
+        }
+
+        // Mettre à jour le flag approprié
+        const updateData: any = {};
+        if (need.fermeture_type === '1r') updateData.is_1r = true;
+        if (need.fermeture_type === '2f') updateData.is_2f = true;
+        if (need.fermeture_type === '3f') updateData.is_3f = true;
+
         const { error: updateError } = await supabase
           .from('capacite_effective')
-          .update({
-            site_id: need.site_id,
-            besoin_operation_id: need.besoin_operation_id || null,
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null
-          })
+          .update(updateData)
           .eq('id', existingCapacity.id);
 
         if (updateError) throw updateError;
+
+        toast.success(`Responsabilité ${need.fermeture_type.toUpperCase()} assignée avec succès`);
       } else {
-        // Create new capacity
-        const { error: insertError } = await supabase
+        // Check if secretaire already has a capacity for this period
+        const { data: existingCapacity } = await supabase
           .from('capacite_effective')
-          .insert({
-            secretaire_id: secretaireId,
-            date: need.date,
-            demi_journee: need.periode,
-            site_id: need.site_id,
-            besoin_operation_id: need.besoin_operation_id || null,
-            planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
-            actif: true
-          });
+          .select('id, site_id')
+          .eq('secretaire_id', secretaireId)
+          .eq('date', need.date)
+          .eq('demi_journee', need.periode)
+          .eq('actif', true)
+          .maybeSingle();
 
-        if (insertError) throw insertError;
+        if (existingCapacity) {
+          // Update existing capacity
+          const { error: updateError } = await supabase
+            .from('capacite_effective')
+            .update({
+              site_id: need.site_id,
+              besoin_operation_id: need.besoin_operation_id || null,
+              planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null
+            })
+            .eq('id', existingCapacity.id);
+
+          if (updateError) throw updateError;
+        } else {
+          // Create new capacity
+          const { error: insertError } = await supabase
+            .from('capacite_effective')
+            .insert({
+              secretaire_id: secretaireId,
+              date: need.date,
+              demi_journee: need.periode,
+              site_id: need.site_id,
+              besoin_operation_id: need.besoin_operation_id || null,
+              planning_genere_bloc_operatoire_id: need.planning_genere_bloc_operatoire_id || null,
+              actif: true
+            });
+
+          if (insertError) throw insertError;
+        }
+
+        toast.success('Assistant médical assigné avec succès');
       }
-
-      toast.success('Assistant médical assigné avec succès');
       setSelectedSecretaire(prev => {
         const newState = { ...prev };
         delete newState[key];
