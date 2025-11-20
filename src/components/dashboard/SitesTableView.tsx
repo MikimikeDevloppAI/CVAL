@@ -46,10 +46,21 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
     periode: 'matin',
   });
 
-  // Filtrer les jours ouvrés (lundi-vendredi)
+  // Filtrer les dimanches et garder les samedis seulement s'il y a des besoins
   const weekdaysOnly = weekDays.filter(d => {
     const dow = d.getDay();
-    return dow !== 0 && dow !== 6;
+    if (dow === 0) return false; // Exclure dimanche
+    
+    // Pour samedi, vérifier s'il y a des données
+    if (dow === 6) {
+      const dateStr = format(d, 'yyyy-MM-dd');
+      return sites.some(site => {
+        const dayData = site.days.find(day => day.date === dateStr);
+        return dayData && (dayData.medecins.length > 0 || dayData.secretaires.length > 0);
+      });
+    }
+    
+    return true; // Garder lundi-vendredi
   });
 
   const getDayData = (site: DashboardSite, date: Date) => {
@@ -149,10 +160,10 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
-            <TableHead className="sticky left-0 z-20 bg-background min-w-[200px] border-r">
+            <TableHead className="sticky left-0 z-20 bg-background min-w-[150px] border-r">
               Site
             </TableHead>
-            <TableHead className="sticky left-[200px] z-20 bg-background min-w-[120px] border-r text-center">
+            <TableHead className="sticky left-[150px] z-20 bg-background min-w-[100px] border-r text-center">
               Type
             </TableHead>
             {weekdaysOnly.map(date => (
@@ -188,7 +199,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                     >
                       <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
-                    <TableCell className="sticky left-[200px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
+                    <TableCell className="sticky left-[150px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
                       <div className="flex items-center gap-1">
                         <Stethoscope className="h-3 w-3" />
                         <span>Médecins</span>
@@ -280,7 +291,7 @@ export function SitesTableView({ sites, weekDays, onDayClick }: SitesTableViewPr
                       <span className="font-semibold text-sm">{site.site_nom}</span>
                     </TableCell>
                   )}
-                  <TableCell className="sticky left-[200px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
+                  <TableCell className="sticky left-[150px] z-10 bg-background text-xs font-medium text-muted-foreground border-r py-2">
                     <div className="flex items-center gap-1">
                       <User className="h-3 w-3" />
                       <span>Assistants médicaux</span>
