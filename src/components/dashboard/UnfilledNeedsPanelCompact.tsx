@@ -667,7 +667,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                                     {need.suggestions_admin.length > 0 && (
                                       <>
                                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-                                          ✓ En administratif
+                                          {need.is_fermeture ? '✓ Présent sur le site' : '✓ En administratif'}
                                         </div>
                                         {need.suggestions_admin.map(sug => (
                                           <SelectItem key={sug.secretaire_id} value={sug.secretaire_id}>
