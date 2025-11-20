@@ -749,16 +749,16 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               <>
                   <div className="border rounded-lg flex-1 overflow-auto relative">
                     <table className="w-full border-collapse">
-                      <thead className="sticky top-0 z-30 bg-background shadow-sm">
+                      <thead className="sticky top-0 z-30 bg-muted shadow-sm border-b">
                         <tr>
-                          <th className="sticky left-0 z-40 bg-background border-r border-b p-2 min-w-[200px] text-left">
+                          <th className="sticky left-0 z-40 bg-muted border-r p-2 min-w-[200px] text-left">
                             <span className="font-medium text-xs">Site / Type</span>
                           </th>
                           {days.map(day => (
                             <th
                               key={day.dateStr}
                               className={cn(
-                                "p-1 text-center min-w-[100px] border-l border-b",
+                                "p-1 text-center min-w-[100px] border-l",
                                 isWeekend(day.dateStr) && "bg-muted/50",
                                 isHoliday(day.dateStr) && "bg-red-50 dark:bg-red-950/20"
                               )}
