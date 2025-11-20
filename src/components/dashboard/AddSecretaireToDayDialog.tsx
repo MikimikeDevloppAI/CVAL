@@ -270,7 +270,7 @@ export function AddSecretaireToDayDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+          <DialogTitle>
             Ajouter un assistant médical
           </DialogTitle>
           <DialogDescription>
@@ -422,7 +422,6 @@ export function AddSecretaireToDayDialog({
           <Button
             onClick={handleSubmit}
             disabled={loading || !selectedSecretaireId}
-            className="bg-gradient-to-r from-teal-500 to-cyan-600"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Ajouter
