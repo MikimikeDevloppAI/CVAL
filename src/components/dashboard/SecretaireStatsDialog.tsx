@@ -66,20 +66,20 @@ const renderCustomLabel = (props: any) => {
 export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProps) => {
   // Calculer les statistiques pour chaque secrétaire
   const stats: SecretaireStats[] = secretaires.map(secretaire => {
-    let count_1r = 0;
-    let count_2f = 0;
-    let count_3f = 0;
+    const jours1RSet = new Set<string>();
+    const jours2FSet = new Set<string>();
+    const jours3FSet = new Set<string>();
     const joursEsplanadeSet = new Set<string>();
     const joursPortEnTruieSet = new Set<string>();
     let admin_demi_journees = 0;
     let changements_site = 0;
 
     secretaire.days.forEach(day => {
-      // Compter les rôles 1R/2F/3F et jours Esplanade
+      // Compter les jours avec des rôles 1R/2F/3F
       [...day.matin, ...day.apres_midi].forEach(assignment => {
-        if (assignment.is_1r) count_1r++;
-        if (assignment.is_2f) count_2f++;
-        if (assignment.is_3f) count_3f++;
+        if (assignment.is_1r) jours1RSet.add(day.date);
+        if (assignment.is_2f) jours2FSet.add(day.date);
+        if (assignment.is_3f) jours3FSet.add(day.date);
 
         if (assignment.site_nom?.toLowerCase().includes('esplanade')) {
           joursEsplanadeSet.add(day.date);
@@ -118,9 +118,9 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
     return {
       id: secretaire.id,
       nom_complet: secretaire.nom_complet,
-      count_1r,
-      count_2f,
-      count_3f,
+      count_1r: jours1RSet.size,
+      count_2f: jours2FSet.size,
+      count_3f: jours3FSet.size,
       jours_esplanade: joursEsplanadeSet.size,
       admin_demi_journees,
       changements_site,
@@ -133,15 +133,15 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
     .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0 || stat.jours_esplanade > 0 || stat.admin_demi_journees > 0 || stat.changements_site > 0 || stat.port_en_truie_jours > 0)
     .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet));
 
-  // Données pour le graphique des responsabilités (diviser 1R et 2F par 2 pour compter en journées)
+  // Données pour le graphique des responsabilités (nombre de jours)
   const responsibilitiesData = sortedStats
     .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0)
     .map(stat => ({
       nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''), // Initiales
       fullName: stat.nom_complet,
-      '1R': stat.count_1r / 2,
-      '2F': stat.count_2f / 2,
-      '3F': stat.count_3f / 2,
+      '1R': stat.count_1r,
+      '2F': stat.count_2f,
+      '3F': stat.count_3f,
     }));
 
   // Données pour le graphique Esplanade
