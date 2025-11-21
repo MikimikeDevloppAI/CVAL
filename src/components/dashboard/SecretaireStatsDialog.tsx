@@ -43,6 +43,7 @@ interface SecretaireStats {
   jours_esplanade: number;
   admin_demi_journees: number;
   changements_site: number;
+  port_en_truie_jours: number;
 }
 
 // Custom label qui ne s'affiche que si la valeur > 0
@@ -69,6 +70,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
     let count_2f = 0;
     let count_3f = 0;
     const joursEsplanadeSet = new Set<string>();
+    const joursPortEnTruieSet = new Set<string>();
     let admin_demi_journees = 0;
     let changements_site = 0;
 
@@ -83,6 +85,13 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
           joursEsplanadeSet.add(day.date);
         }
       });
+
+      // Compter les jours à Port-en-Truie (au moins une assignation matin OU après-midi)
+      const hasPortEnTruieMatin = day.matin.some(a => a.site_nom?.toLowerCase().includes('port'));
+      const hasPortEnTruieAM = day.apres_midi.some(a => a.site_nom?.toLowerCase().includes('port'));
+      if (hasPortEnTruieMatin || hasPortEnTruieAM) {
+        joursPortEnTruieSet.add(day.date);
+      }
 
       // Compter les demi-journées administratives
       const isMatinAdmin = day.matin.some(a => a.site_nom?.toLowerCase().includes('administratif'));
@@ -114,13 +123,14 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
       count_3f,
       jours_esplanade: joursEsplanadeSet.size,
       admin_demi_journees,
-      changements_site
+      changements_site,
+      port_en_truie_jours: joursPortEnTruieSet.size
     };
   });
 
   // Filtrer seulement les secrétaires avec des données et trier par nom
   const sortedStats = stats
-    .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0 || stat.jours_esplanade > 0 || stat.admin_demi_journees > 0 || stat.changements_site > 0)
+    .filter(stat => stat.count_1r > 0 || stat.count_2f > 0 || stat.count_3f > 0 || stat.jours_esplanade > 0 || stat.admin_demi_journees > 0 || stat.changements_site > 0 || stat.port_en_truie_jours > 0)
     .sort((a, b) => a.nom_complet.localeCompare(b.nom_complet));
 
   // Données pour le graphique des responsabilités (diviser 1R et 2F par 2 pour compter en journées)
@@ -159,6 +169,15 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
       nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''),
       fullName: stat.nom_complet,
       'Changements': stat.changements_site,
+    }));
+
+  // Données pour le graphique Port-en-Truie
+  const portEnTruieData = sortedStats
+    .filter(stat => stat.port_en_truie_jours > 0)
+    .map(stat => ({
+      nom: stat.nom_complet.split(' ').map(n => n.charAt(0)).join(''),
+      fullName: stat.nom_complet,
+      'Jours': stat.port_en_truie_jours,
     }));
 
   return (
@@ -351,6 +370,49 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                       }}
                     />
                     <Bar dataKey="Changements" fill="url(#gradientChangements)" name="Changements de site" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Graphique Port-en-Truie */}
+          {portEnTruieData.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-indigo-400 bg-clip-text text-transparent">
+                Nombre de jours à Port-en-Truie
+              </h3>
+              <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={portEnTruieData} margin={{ top: 30, right: 40, left: 20, bottom: 60 }}>
+                    <defs>
+                      <linearGradient id="gradientPortEnTruie" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.6}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis 
+                      dataKey="nom" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                      stroke="hsl(var(--border))"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return item?.fullName || value;
+                      }}
+                    />
+                    <Bar dataKey="Jours" fill="url(#gradientPortEnTruie)" name="Jours à Port-en-Truie" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
