@@ -205,7 +205,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
               Type
             </TableHead>
             {weekdaysOnly.map(date => (
-              <TableHead key={format(date, 'yyyy-MM-dd')} className="text-center min-w-[150px]">
+              <TableHead key={format(date, 'yyyy-MM-dd')} className="text-center min-w-[150px] border-l-2">
                 <div className="flex flex-col items-center">
                   <span className="text-xs font-medium text-muted-foreground">
                     {format(date, 'EEE', { locale: fr })}
@@ -251,7 +251,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                         return (
                           <TableCell
                             key={dateStr}
-                            className="p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group"
+                            className="p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group border-l-2"
                             onClick={() => onDayClick?.(site.site_id, dateStr)}
                           >
                             <div className="space-y-1">
@@ -327,8 +327,8 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                         <TableCell
                           key={dateStr}
                           className={cn(
-                            "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group",
-                            hasDeficit && "border-l-2 border-l-destructive"
+                            "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group border-l-2",
+                            hasDeficit && "border-l-destructive"
                           )}
                           onClick={() => onDayClick?.(site.site_id, dateStr)}
                         >
@@ -455,8 +455,8 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh }: Sites
                       <TableCell
                         key={dateStr}
                         className={cn(
-                          "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group",
-                          hasDeficit && "border-l-2 border-l-destructive"
+                          "p-2 cursor-pointer hover:bg-accent/50 transition-colors align-top relative group border-l-2",
+                          hasDeficit && "border-l-destructive"
                         )}
                         onClick={() => onDayClick?.(site.site_id, dateStr)}
                       >
