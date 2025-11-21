@@ -247,6 +247,49 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
             </div>
           </div>
 
+          {/* Graphique Port-en-Truie */}
+          {portEnTruieData.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-indigo-400 bg-clip-text text-transparent">
+                Nombre de jours à Port-en-Truie
+              </h3>
+              <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={portEnTruieData} margin={{ top: 30, right: 40, left: 20, bottom: 60 }}>
+                    <defs>
+                      <linearGradient id="gradientPortEnTruie" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.6}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis 
+                      dataKey="nom" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                      stroke="hsl(var(--border))"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                      labelFormatter={(value, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return item?.fullName || value;
+                      }}
+                    />
+                    <Bar dataKey="Jours" fill="url(#gradientPortEnTruie)" name="Jours à Port-en-Truie" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           {/* Graphique Centre Esplanade */}
           {esplanadeData.length > 0 && (
             <div className="space-y-4">
@@ -376,48 +419,6 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
             </div>
           )}
 
-          {/* Graphique Port-en-Truie */}
-          {portEnTruieData.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-indigo-400 bg-clip-text text-transparent">
-                Nombre de jours à Port-en-Truie
-              </h3>
-              <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={portEnTruieData} margin={{ top: 30, right: 40, left: 20, bottom: 60 }}>
-                    <defs>
-                      <linearGradient id="gradientPortEnTruie" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9}/>
-                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.6}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
-                    <XAxis 
-                      dataKey="nom" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-                      stroke="hsl(var(--border))"
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--popover))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                      }}
-                      labelFormatter={(value, payload) => {
-                        const item = payload?.[0]?.payload;
-                        return item?.fullName || value;
-                      }}
-                    />
-                    <Bar dataKey="Jours" fill="url(#gradientPortEnTruie)" name="Jours à Port-en-Truie" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
