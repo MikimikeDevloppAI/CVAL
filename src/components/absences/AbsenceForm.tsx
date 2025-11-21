@@ -97,6 +97,26 @@ export function AbsenceForm({ absence, onSuccess }: AbsenceFormProps) {
         ? eachDayOfInterval({ start: data.dateRange.from, end: data.dateRange.to })
         : [data.dateRange.from];
       
+      // Nettoyer les capacités dry_run pour éviter les conflits de contraintes FK
+      if (data.profile_type === 'secretaire') {
+        const dateStrings = dates.map(d => format(d, 'yyyy-MM-dd'));
+        
+        // Supprimer les capacités dry_run qui référencent les capacités effectives de ces dates
+        const { data: capacitesToClean } = await supabase
+          .from('capacite_effective')
+          .select('id')
+          .eq('secretaire_id', data.person_id)
+          .in('date', dateStrings);
+        
+        if (capacitesToClean && capacitesToClean.length > 0) {
+          const capaciteIds = capacitesToClean.map(c => c.id);
+          await supabase
+            .from('capacite_effective_dry_run')
+            .delete()
+            .in('capacite_effective_id', capaciteIds);
+        }
+      }
+      
       const absenceData = {
         type_personne: data.profile_type,
         medecin_id: data.profile_type === 'medecin' ? data.person_id : null,
