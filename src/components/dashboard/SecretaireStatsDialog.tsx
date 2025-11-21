@@ -86,9 +86,9 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
         }
       });
 
-      // Compter les jours à Port-en-Truie (au moins une assignation matin OU après-midi)
-      const hasPortEnTruieMatin = day.matin.some(a => a.site_nom?.toLowerCase().includes('port'));
-      const hasPortEnTruieAM = day.apres_midi.some(a => a.site_nom?.toLowerCase().includes('port'));
+      // Compter les jours à Porrentruy (au moins une assignation matin OU après-midi)
+      const hasPortEnTruieMatin = day.matin.some(a => a.site_nom?.toLowerCase().includes('porrentruy'));
+      const hasPortEnTruieAM = day.apres_midi.some(a => a.site_nom?.toLowerCase().includes('porrentruy'));
       if (hasPortEnTruieMatin || hasPortEnTruieAM) {
         joursPortEnTruieSet.add(day.date);
       }
@@ -251,7 +251,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
           {portEnTruieData.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-indigo-400 bg-clip-text text-transparent">
-                Nombre de jours à Port-en-Truie
+                Nombre de jours à Porrentruy
               </h3>
               <div className="h-[380px] w-full bg-gradient-to-br from-card/50 to-card/30 rounded-xl p-6 border border-border/50 shadow-lg flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
@@ -283,7 +283,7 @@ export const SecretaireStatsDialog = ({ secretaires }: SecretaireStatsDialogProp
                         return item?.fullName || value;
                       }}
                     />
-                    <Bar dataKey="Jours" fill="url(#gradientPortEnTruie)" name="Jours à Port-en-Truie" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                    <Bar dataKey="Jours" fill="url(#gradientPortEnTruie)" name="Jours à Porrentruy" radius={[8, 8, 0, 0]} label={{ position: 'top', fill: 'hsl(var(--foreground))', fontSize: 12 }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
