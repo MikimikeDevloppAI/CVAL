@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { OptimizationTestDialog } from './OptimizationTestDialog';
 import { MultiDateDryRunDialog } from './MultiDateDryRunDialog';
+import { refreshBesoinsViews } from '@/lib/refreshBesoins';
 
 const BLOC_OPERATOIRE_SITE_ID = '86f1047f-c4ff-441f-a064-42ee2f8ef37a';
 
@@ -71,6 +72,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   const [dryRunResult, setDryRunResult] = useState<any>(null);
   const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
   const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [refreshingViews, setRefreshingViews] = useState(false);
 
   useEffect(() => {
     // Fetch data when date range changes, regardless of isOpen state
@@ -533,6 +535,21 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     }
   };
 
+  const handleRefreshViews = async () => {
+    setRefreshingViews(true);
+    try {
+      await refreshBesoinsViews();
+      toast.success('Vues matérialisées rafraîchies avec succès');
+      await fetchUnfilledNeeds();
+      onRefresh?.();
+    } catch (error) {
+      console.error('Error refreshing views:', error);
+      toast.error('Erreur lors du rafraîchissement des vues');
+    } finally {
+      setRefreshingViews(false);
+    }
+  };
+
   // Group needs by date - no longer needed, we'll show all in one table
   
   if (totalCount === 0) return null;
@@ -549,6 +566,20 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshViews}
+              disabled={refreshingViews}
+              className="gap-2 h-8 text-xs"
+              title="Rafraîchir les vues matérialisées"
+            >
+              {refreshingViews ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+            </Button>
             <Button
               variant="default"
               size="sm"
