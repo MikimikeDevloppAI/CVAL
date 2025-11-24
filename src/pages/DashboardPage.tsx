@@ -984,18 +984,18 @@ const DashboardPage = () => {
           </h2>
           
           {/* Color Legend - aligned right */}
-          <div className="inline-flex items-center gap-4 px-4 py-2 bg-white dark:bg-card backdrop-blur-sm border border-border/30 rounded-lg text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Matin</span>
+          <div className="inline-flex items-center gap-6 px-6 py-3 bg-gradient-to-br from-background via-card to-card/50 backdrop-blur-xl border-2 border-primary/20 rounded-xl shadow-lg text-sm font-medium text-foreground">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-blue-500 shadow-md shadow-blue-500/50 ring-2 ring-blue-500/20"></div>
+              <span className="font-semibold">Matin</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span>Après-midi</span>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-yellow-500 shadow-md shadow-yellow-500/50 ring-2 ring-yellow-500/20"></div>
+              <span className="font-semibold">Après-midi</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Journée</span>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-green-500 shadow-md shadow-green-500/50 ring-2 ring-green-500/20"></div>
+              <span className="font-semibold">Journée</span>
             </div>
           </div>
         </div>
