@@ -1272,32 +1272,37 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                   }
 
                   return (
-                    <div key={idx} className="border rounded-lg p-4 space-y-4 shadow-sm hover:shadow-md transition-shadow bg-card">
-                      <div className="flex items-center justify-between pb-3 border-b">
-                        <h4 className="font-semibold text-base">
+                    <div key={idx} className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card">
+                      {/* Header de la semaine */}
+                      <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b">
+                        <h4 className="font-semibold text-sm">
                           Du {format(weekStart, 'd MMM', { locale: fr })} au {format(weekEnd, 'd MMM', { locale: fr })}
                         </h4>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <span className="font-semibold">{medecinKeys.length}</span>
-                            <span>médecin{medecinKeys.length > 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-2 text-xs">
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                            {medecinKeys.length} méd.
                           </Badge>
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <span className="font-semibold">{secretaireKeys.length}</span>
-                            <span>assistant{secretaireKeys.length > 1 ? 's' : ''}</span>
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                            {secretaireKeys.length} assist.
                           </Badge>
                         </div>
                       </div>
 
-                      {medecinKeys.length > 0 && (
-                        <div>
-                          <h5 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Médecins</h5>
-                          <div className="space-y-2">
-                            {medecinKeys.map(medecinId => {
+                      {/* Tableau des absences */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-muted/30 border-b">
+                            <tr>
+                              <th className="py-2 px-3 text-left font-semibold">Type</th>
+                              <th className="py-2 px-3 text-left font-semibold">Nom</th>
+                              <th className="py-2 px-3 text-left font-semibold">Période</th>
+                              <th className="py-2 px-3 text-left font-semibold">Durée</th>
+                              <th className="py-2 px-3 text-left font-semibold">Motif</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {medecinKeys.map((medecinId, index) => {
                               const medecinAbsences = grouped[medecinId];
-                              const details = getAbsenceDetails(medecinAbsences);
-                              
-                              // Calculer la période totale et le nombre de jours
                               const dateDebuts = medecinAbsences.map(a => new Date(a.date_debut));
                               const dateFins = medecinAbsences.map(a => new Date(a.date_fin));
                               const minDate = new Date(Math.min(...dateDebuts.map(d => d.getTime())));
@@ -1305,37 +1310,29 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                               
                               return (
-                                <div key={medecinId} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-all group">
-                                  <div className="flex flex-col gap-1.5">
-                                    <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(medecinAbsences[0])}</span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground font-medium">
-                                        Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
-                                      </span>
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                        {nombreJours} jour{nombreJours > 1 ? 's' : ''}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <Badge variant="outline" className="text-xs bg-background shadow-sm">
-                                    {getAbsenceLabel(medecinAbsences[0].type)}
-                                  </Badge>
-                                </div>
+                                <tr key={medecinId} className={`border-b hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Médecin</Badge>
+                                  </td>
+                                  <td className="py-2 px-3 font-medium">{getPersonName(medecinAbsences[0])}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">
+                                    {format(minDate, 'd MMM', { locale: fr })} - {format(maxDate, 'd MMM', { locale: fr })}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {nombreJours}j
+                                    </Badge>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+                                      {getAbsenceLabel(medecinAbsences[0].type)}
+                                    </Badge>
+                                  </td>
+                                </tr>
                               );
                             })}
-                          </div>
-                        </div>
-                      )}
-
-                      {secretaireKeys.length > 0 && (
-                        <div>
-                          <h5 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Assistants médicaux</h5>
-                          <div className="space-y-2">
-                            {secretaireKeys.map(secretaireId => {
+                            {secretaireKeys.map((secretaireId, index) => {
                               const secretaireAbsences = grouped[secretaireId];
-                              const details = getAbsenceDetails(secretaireAbsences);
-                              
-                              // Calculer la période totale et le nombre de jours
                               const dateDebuts = secretaireAbsences.map(a => new Date(a.date_debut));
                               const dateFins = secretaireAbsences.map(a => new Date(a.date_fin));
                               const minDate = new Date(Math.min(...dateDebuts.map(d => d.getTime())));
@@ -1343,27 +1340,30 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
                               const nombreJours = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                               
                               return (
-                                <div key={secretaireId} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-all group">
-                                  <div className="flex flex-col gap-1.5">
-                                    <span className="text-sm font-semibold group-hover:text-primary transition-colors">{getPersonName(secretaireAbsences[0])}</span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground font-medium">
-                                        Du {format(minDate, 'd MMM', { locale: fr })} au {format(maxDate, 'd MMM', { locale: fr })}
-                                      </span>
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                        {nombreJours} jour{nombreJours > 1 ? 's' : ''}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <Badge variant="outline" className="text-xs bg-background shadow-sm">
-                                    {getAbsenceLabel(secretaireAbsences[0].type)}
-                                  </Badge>
-                                </div>
+                                <tr key={secretaireId} className={`border-b hover:bg-muted/30 transition-colors ${(medecinKeys.length + index) % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Assistant</Badge>
+                                  </td>
+                                  <td className="py-2 px-3 font-medium">{getPersonName(secretaireAbsences[0])}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">
+                                    {format(minDate, 'd MMM', { locale: fr })} - {format(maxDate, 'd MMM', { locale: fr })}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {nombreJours}j
+                                    </Badge>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+                                      {getAbsenceLabel(secretaireAbsences[0].type)}
+                                    </Badge>
+                                  </td>
+                                </tr>
                               );
                             })}
-                          </div>
-                        </div>
-                      )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   );
                 })}
