@@ -977,9 +977,28 @@ const DashboardPage = () => {
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
         {/* View Mode Tabs */}
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent mb-6">
-          Planning hebdomadaire
-        </h2>
+        {/* Planning hebdomadaire Title + Color Legend */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
+            Planning hebdomadaire
+          </h2>
+          
+          {/* Color Legend - aligned right */}
+          <div className="inline-flex items-center gap-4 px-4 py-2 bg-white dark:bg-card backdrop-blur-sm border border-border/30 rounded-lg text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span>Matin</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <span>Après-midi</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>Journée</span>
+            </div>
+          </div>
+        </div>
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
           <div className="flex justify-center mb-6">
             <TabsList>
@@ -1016,23 +1035,6 @@ const DashboardPage = () => {
           </Button>
         </div>
 
-        {/* Color Legend */}
-        <div className="flex items-center justify-center mb-6">
-          <div className="inline-flex items-center gap-4 px-4 py-2 bg-white dark:bg-card backdrop-blur-sm border border-border/30 rounded-lg text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Matin</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span>Après-midi</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Journée</span>
-            </div>
-          </div>
-        </div>
 
         {/* Unfilled Needs Panel */}
         {!loading && (
