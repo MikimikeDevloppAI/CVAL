@@ -528,7 +528,10 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
       }
 
       const { data, error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
-        body: { dates }
+        body: { 
+          dates,
+          useWeeklyOptimization: true  // 🆕 Active l'optimisation hebdomadaire globale
+        }
       });
 
       if (error) throw error;

@@ -282,5 +282,7 @@ export interface WeekContext {
   needs_by_date: Map<string, SiteNeed[]>;
   capacities_by_date: Map<string, CapaciteEffective[]>;
   closing_sites_by_date: Map<string, Set<string>>;
+  sites_needing_1r: Map<string, Set<string>>;  // 🆕 Sites avec une seule période
+  sites_needing_2f: Map<string, Set<string>>;  // 🆕 Sites avec deux périodes (total < 3)
   sites_needing_3f: Map<string, Set<string>>;
 }
