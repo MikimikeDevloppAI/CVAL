@@ -462,6 +462,10 @@ export function buildWeeklyMILPModel(
   // ============================================================
   logger.info(`\n🔐 Création des contraintes fermeture 1R/2F...`);
   
+  // Collecter toutes les variables de rôles créées (pour section 6)
+  const roleVars1RBySecAndDate = new Map<string, Map<string, string[]>>(); // sec_id -> date -> [role_1r_var_names]
+  const roleVars2FBySecAndDate = new Map<string, Map<string, string[]>>(); // sec_id -> date -> [role_2f_var_names]
+  
   for (const date of weekContext.dates) {
     // Skip samedi
     const dateObj = new Date(date + 'T00:00:00Z');
@@ -546,6 +550,15 @@ export function buildWeeklyMILPModel(
             
             roleVars1R.push({ secId, varName: var1R });
             roleVars2F.push({ secId, varName: var2F });
+            
+            // 🆕 Collecter pour section 6
+            if (!roleVars1RBySecAndDate.has(secId)) roleVars1RBySecAndDate.set(secId, new Map());
+            if (!roleVars1RBySecAndDate.get(secId)!.has(date)) roleVars1RBySecAndDate.get(secId)!.set(date, []);
+            roleVars1RBySecAndDate.get(secId)!.get(date)!.push(var1R);
+            
+            if (!roleVars2FBySecAndDate.has(secId)) roleVars2FBySecAndDate.set(secId, new Map());
+            if (!roleVars2FBySecAndDate.get(secId)!.has(date)) roleVars2FBySecAndDate.get(secId)!.set(date, []);
+            roleVars2FBySecAndDate.get(secId)!.get(date)!.push(var2F);
           }
           
           // D. Contrainte: Exactement 1 personne en 1R
@@ -616,6 +629,16 @@ export function buildWeeklyMILPModel(
             
             roleVars1R.push({ secId: combo.secretaire_id, varName: var1R });
             roleVars2F.push({ secId: combo.secretaire_id, varName: var2F });
+            
+            // 🆕 Collecter pour section 6
+            const secId = combo.secretaire_id;
+            if (!roleVars1RBySecAndDate.has(secId)) roleVars1RBySecAndDate.set(secId, new Map());
+            if (!roleVars1RBySecAndDate.get(secId)!.has(date)) roleVars1RBySecAndDate.get(secId)!.set(date, []);
+            roleVars1RBySecAndDate.get(secId)!.get(date)!.push(var1R);
+            
+            if (!roleVars2FBySecAndDate.has(secId)) roleVars2FBySecAndDate.set(secId, new Map());
+            if (!roleVars2FBySecAndDate.get(secId)!.has(date)) roleVars2FBySecAndDate.get(secId)!.set(date, []);
+            roleVars2FBySecAndDate.get(secId)!.get(date)!.push(var2F);
           }
           
           // Exactement 1 personne en 1R
@@ -935,80 +958,54 @@ export function buildWeeklyMILPModel(
       model.binaries[has2F_all_date] = 1;
     }
     
-    // ===== C. LIER BINAIRES AUX COMBOS =====
+    // ===== C. LIER BINAIRES AUX VARIABLES DE RÔLES (section 4) =====
     for (const date of weekContext.dates) {
-      const dateCombos = secCombos.filter(c => c.date === date);
-      
       const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
       const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
       
-      // Identifier les combos 1R (une seule période avec closing)
-      const combos1R = dateCombos.filter(c => {
-        if (c.needMatin?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needMatin.site_id)) {
-          return true;
-        }
-        if (c.needAM?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needAM.site_id)) {
-          return true;
-        }
-        return false;
-      });
+      // Récupérer les variables de rôles créées dans la section 4
+      const roleVars1R = roleVars1RBySecAndDate.get(sec.id)?.get(date) || [];
+      const roleVars2F = roleVars2FBySecAndDate.get(sec.id)?.get(date) || [];
       
-      const combos2F = dateCombos.filter(c => {
-        if (c.needMatin?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needMatin.site_id)) {
-          return true;
-        }
-        if (c.needAM?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needAM.site_id)) {
-          return true;
-        }
-        return false;
-      });
-      
-      const combos3F = dateCombos.filter(c => {
-        if (c.needMatin?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) {
-          return true;
-        }
-        if (c.needAM?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id)) {
-          return true;
-        }
-        return false;
-      });
-      
-      // Contrainte 1R
-      if (combos1R.length > 0) {
+      // 🆕 CONTRAINTE 1R: has_1r_all_date = 1 si AU MOINS une variable role_1r_* est active
+      if (roleVars1R.length > 0) {
+        // has_1r_all_date <= sum(roleVars1R)
         const constraint1R_upper = `has1r_all_upper_${sec.id}_${date}`;
         model.constraints[constraint1R_upper] = { max: 0 };
         model.variables[has1R_all_date][constraint1R_upper] = 1;
         
-        for (const combo of combos1R) {
-          model.variables[combo.varName][constraint1R_upper] = -1;
+        for (const roleVar of roleVars1R) {
+          model.variables[roleVar][constraint1R_upper] = -1;
         }
         
+        // has_1r_all_date >= (1/n) * sum(roleVars1R) pour forcer à 1 si au moins un actif
         const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
         model.constraints[constraint1R_lower] = { min: 0 };
-        model.variables[has1R_all_date][constraint1R_lower] = -combos1R.length;
+        model.variables[has1R_all_date][constraint1R_lower] = -roleVars1R.length;
         
-        for (const combo of combos1R) {
-          model.variables[combo.varName][constraint1R_lower] = 1;
+        for (const roleVar of roleVars1R) {
+          model.variables[roleVar][constraint1R_lower] = 1;
         }
       }
       
-      // Contrainte 2F/3F
-      const combos2F3F = [...combos2F, ...combos3F];
-      if (combos2F3F.length > 0) {
+      // 🆕 CONTRAINTE 2F: has_2f_all_date = 1 si AU MOINS une variable role_2f_* est active
+      if (roleVars2F.length > 0) {
+        // has_2f_all_date <= sum(roleVars2F)
         const constraint2F_upper = `has2f_all_upper_${sec.id}_${date}`;
         model.constraints[constraint2F_upper] = { max: 0 };
         model.variables[has2F_all_date][constraint2F_upper] = 1;
         
-        for (const combo of combos2F3F) {
-          model.variables[combo.varName][constraint2F_upper] = -1;
+        for (const roleVar of roleVars2F) {
+          model.variables[roleVar][constraint2F_upper] = -1;
         }
         
+        // has_2f_all_date >= (1/n) * sum(roleVars2F)
         const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
         model.constraints[constraint2F_lower] = { min: 0 };
-        model.variables[has2F_all_date][constraint2F_lower] = -combos2F3F.length;
+        model.variables[has2F_all_date][constraint2F_lower] = -roleVars2F.length;
         
-        for (const combo of combos2F3F) {
-          model.variables[combo.varName][constraint2F_lower] = 1;
+        for (const roleVar of roleVars2F) {
+          model.variables[roleVar][constraint2F_lower] = 1;
         }
       }
     }
