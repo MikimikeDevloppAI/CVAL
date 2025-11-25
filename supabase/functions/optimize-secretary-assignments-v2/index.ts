@@ -979,22 +979,26 @@ serve(async (req) => {
       
       let weekResults;
       
-      if (useWeeklyOptimization) {
-        // Optimisation globale hebdomadaire - toujours utilisée si demandée
-        logger.info(`\n🎯 Utilisation de l'optimisation GLOBALE HEBDOMADAIRE (${weekDates.length} jours)`);
-        weekResults = await optimizeSingleWeekGlobal(
-          weekDates,
-          supabase,
-          previousWeeksHistory
-        );
-      } else {
-        // Ancien algorithme jour par jour (uniquement si explicitement demandé)
-        logger.info(`\n📅 Utilisation de l'algorithme JOUR PAR JOUR (2 passes)`);
-        weekResults = await optimizeSingleWeek(
-          weekDates,
-          supabase,
-          previousWeeksHistory
-        );
+        const useGlobalWeekly = useWeeklyOptimization && weekDates.length <= 5;
+        if (useGlobalWeekly) {
+          // 🆕 Nouvelle optimisation globale hebdomadaire (semaine limitée pour éviter le dépassement CPU)
+          logger.info(`\n🎯 Utilisation de l'optimisation GLOBALE HEBDOMADAIRE (jours=${weekDates.length})`);
+          weekResults = await optimizeSingleWeekGlobal(
+            weekDates,
+            supabase,
+            previousWeeksHistory
+          );
+        } else {
+          if (useWeeklyOptimization && !useGlobalWeekly) {
+            logger.info(`\n⚠️ Semaine trop chargée (${weekDates.length} jours), bascule sur l'algorithme JOUR PAR JOUR (2 passes) pour respecter les limites CPU`);
+          }
+          // Ancien algorithme jour par jour
+          logger.info(`\n📅 Utilisation de l'algorithme JOUR PAR JOUR (2 passes)`);
+          weekResults = await optimizeSingleWeek(
+            weekDates,
+            supabase,
+            previousWeeksHistory
+          );
       }
       
       allResults.push(weekResults);
