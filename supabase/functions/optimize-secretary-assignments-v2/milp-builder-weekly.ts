@@ -982,10 +982,10 @@ export function buildWeeklyMILPModel(
         const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
         const M1 = roleVars1R.length;
         model.constraints[constraint1R_lower] = { max: 0 };
-        model.variables[has1R_all_date][constraint1R_lower] = M1;
+        model.variables[has1R_all_date][constraint1R_lower] = -M1;
         
         for (const roleVar of roleVars1R) {
-          model.variables[roleVar][constraint1R_lower] = -1;
+          model.variables[roleVar][constraint1R_lower] = 1;
         }
       }
       
@@ -1004,10 +1004,10 @@ export function buildWeeklyMILPModel(
         const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
         const M2 = roleVars2F.length;
         model.constraints[constraint2F_lower] = { max: 0 };
-        model.variables[has2F_all_date][constraint2F_lower] = M2;
+        model.variables[has2F_all_date][constraint2F_lower] = -M2;
         
         for (const roleVar of roleVars2F) {
-          model.variables[roleVar][constraint2F_lower] = -1;
+          model.variables[roleVar][constraint2F_lower] = 1;
         }
       }
     }
