@@ -978,10 +978,11 @@ export function buildWeeklyMILPModel(
           model.variables[roleVar][constraint1R_upper] = -1;
         }
         
-        // has_1r_all_date >= (1/n) * sum(roleVars1R) pour forcer à 1 si au moins un actif
+        // Big-M: sum(roleVars1R) - M * has_1r <= 0 → sum(roleVars1R) <= M * has_1r
         const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
-        model.constraints[constraint1R_lower] = { min: 0 };
-        model.variables[has1R_all_date][constraint1R_lower] = roleVars1R.length;
+        const M1 = roleVars1R.length;
+        model.constraints[constraint1R_lower] = { max: 0 };
+        model.variables[has1R_all_date][constraint1R_lower] = M1;
         
         for (const roleVar of roleVars1R) {
           model.variables[roleVar][constraint1R_lower] = -1;
@@ -999,10 +1000,11 @@ export function buildWeeklyMILPModel(
           model.variables[roleVar][constraint2F_upper] = -1;
         }
         
-        // has_2f_all_date >= (1/n) * sum(roleVars2F)
+        // Big-M: sum(roleVars2F) - M * has_2f <= 0 → sum(roleVars2F) <= M * has_2f
         const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
-        model.constraints[constraint2F_lower] = { min: 0 };
-        model.variables[has2F_all_date][constraint2F_lower] = roleVars2F.length;
+        const M2 = roleVars2F.length;
+        model.constraints[constraint2F_lower] = { max: 0 };
+        model.variables[has2F_all_date][constraint2F_lower] = M2;
         
         for (const roleVar of roleVars2F) {
           model.variables[roleVar][constraint2F_lower] = -1;
