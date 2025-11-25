@@ -921,9 +921,9 @@ export function buildWeeklyMILPModel(
   // TODO: Implémenter contraintes flexibles globales
   
   // ============================================================
-  // 6. PÉNALITÉS CLOSING V3 - PÉNALITÉS CUMULATIVES SIMPLIFIÉES
+  // 6. PÉNALITÉS CLOSING V3 - TOUS LES SECRÉTAIRES
   // ============================================================
-  logger.info(`\n🔧 Création des pénalités closing V3 pour tous les secrétaires (cumulatives)...`);
+  logger.info(`\n🔧 Création des pénalités closing V3 pour tous les secrétaires...`);
   
   for (const sec of secretaires) {
     logger.info(`  👤 ${sec.first_name} ${sec.name} - calcul pénalités closing`);
@@ -957,22 +957,21 @@ export function buildWeeklyMILPModel(
       }
     }
     
-    // ===== B. INDICATEURS DE PALIERS AVEC PÉNALITÉS CUMULATIVES =====
-    const M1 = 100;
-    
-    // Tier 1: score > 22 → pénalité -200
+    // ===== F. INDICATEURS DE PALIERS (Big-M) =====
+    // Tier 1: score > 22
     const ind_tier1 = `ind_tier1_${sec.id}`;
-    model.variables[ind_tier1] = { score_total: -200 }; // Pénalité directe cumulative
+    model.variables[ind_tier1] = { score_total: 0 };
     model.binaries[ind_tier1] = 1;
     
+    const M1 = 100;
     const constraint_tier1 = `tier1_threshold_${sec.id}`;
     model.constraints[constraint_tier1] = { max: 22 };
     model.variables[scoreClosing_all_var][constraint_tier1] = 1;
     model.variables[ind_tier1][constraint_tier1] = -M1;
     
-    // Tier 2: score > 29 → pénalité additionnelle -300 (cumul -500 avec tier1)
+    // Tier 2: score > 29
     const ind_tier2 = `ind_tier2_${sec.id}`;
-    model.variables[ind_tier2] = { score_total: -300 }; // Pénalité directe cumulative
+    model.variables[ind_tier2] = { score_total: 0 };
     model.binaries[ind_tier2] = 1;
     
     const constraint_tier2 = `tier2_threshold_${sec.id}`;
@@ -980,9 +979,9 @@ export function buildWeeklyMILPModel(
     model.variables[scoreClosing_all_var][constraint_tier2] = 1;
     model.variables[ind_tier2][constraint_tier2] = -M1;
     
-    // Tier 3: score > 31 → pénalité additionnelle -600 (cumul -1100 avec tier1+tier2)
+    // Tier 3: score > 31
     const ind_tier3 = `ind_tier3_${sec.id}`;
-    model.variables[ind_tier3] = { score_total: -600 }; // Pénalité directe cumulative
+    model.variables[ind_tier3] = { score_total: 0 };
     model.binaries[ind_tier3] = 1;
     
     const constraint_tier3 = `tier3_threshold_${sec.id}`;
@@ -990,9 +989,9 @@ export function buildWeeklyMILPModel(
     model.variables[scoreClosing_all_var][constraint_tier3] = 1;
     model.variables[ind_tier3][constraint_tier3] = -M1;
     
-    // Tier 4: score > 35 → pénalité additionnelle -8900 (cumul -10000 avec tier1+tier2+tier3)
+    // Tier 4: score > 35
     const ind_tier4 = `ind_tier4_${sec.id}`;
-    model.variables[ind_tier4] = { score_total: -8900 }; // Pénalité directe cumulative
+    model.variables[ind_tier4] = { score_total: 0 };
     model.binaries[ind_tier4] = 1;
     
     const constraint_tier4 = `tier4_threshold_${sec.id}`;
@@ -1000,10 +999,81 @@ export function buildWeeklyMILPModel(
     model.variables[scoreClosing_all_var][constraint_tier4] = 1;
     model.variables[ind_tier4][constraint_tier4] = -M1;
     
-    logger.info(`    ✅ Pénalités closing cumulatives configurées (4 paliers)`);
+    // ===== G. INDICATEURS EXCLUSIFS POUR PÉNALITÉS NON CUMULATIVES =====
+    // ind_only_tier1 = tier1 AND NOT tier2 (score ∈ (22, 29])
+    const ind_only_tier1 = `ind_only_tier1_${sec.id}`;
+    model.variables[ind_only_tier1] = { score_total: -200 }; // Pénalité -200
+    model.binaries[ind_only_tier1] = 1;
+    
+    // ind_only_tier1 <= ind_tier1
+    const c_ot1_1 = `ot1_1_${sec.id}`;
+    model.constraints[c_ot1_1] = { max: 0 };
+    model.variables[ind_only_tier1][c_ot1_1] = 1;
+    model.variables[ind_tier1][c_ot1_1] = -1;
+    
+    // ind_only_tier1 <= 1 - ind_tier2
+    const c_ot1_2 = `ot1_2_${sec.id}`;
+    model.constraints[c_ot1_2] = { max: 1 };
+    model.variables[ind_only_tier1][c_ot1_2] = 1;
+    model.variables[ind_tier2][c_ot1_2] = 1;
+    
+    // ind_only_tier1 >= ind_tier1 - ind_tier2
+    const c_ot1_3 = `ot1_3_${sec.id}`;
+    model.constraints[c_ot1_3] = { min: 0 };
+    model.variables[ind_only_tier1][c_ot1_3] = -1;
+    model.variables[ind_tier1][c_ot1_3] = 1;
+    model.variables[ind_tier2][c_ot1_3] = -1;
+    
+    // ind_only_tier2 = tier2 AND NOT tier3 (score ∈ (29, 31])
+    const ind_only_tier2 = `ind_only_tier2_${sec.id}`;
+    model.variables[ind_only_tier2] = { score_total: -500 }; // Pénalité -500
+    model.binaries[ind_only_tier2] = 1;
+    
+    const c_ot2_1 = `ot2_1_${sec.id}`;
+    model.constraints[c_ot2_1] = { max: 0 };
+    model.variables[ind_only_tier2][c_ot2_1] = 1;
+    model.variables[ind_tier2][c_ot2_1] = -1;
+    
+    const c_ot2_2 = `ot2_2_${sec.id}`;
+    model.constraints[c_ot2_2] = { max: 1 };
+    model.variables[ind_only_tier2][c_ot2_2] = 1;
+    model.variables[ind_tier3][c_ot2_2] = 1;
+    
+    const c_ot2_3 = `ot2_3_${sec.id}`;
+    model.constraints[c_ot2_3] = { min: 0 };
+    model.variables[ind_only_tier2][c_ot2_3] = -1;
+    model.variables[ind_tier2][c_ot2_3] = 1;
+    model.variables[ind_tier3][c_ot2_3] = -1;
+    
+    // ind_only_tier3 = tier3 AND NOT tier4 (score ∈ (31, 35])
+    const ind_only_tier3 = `ind_only_tier3_${sec.id}`;
+    model.variables[ind_only_tier3] = { score_total: -1100 }; // Pénalité -1100
+    model.binaries[ind_only_tier3] = 1;
+    
+    const c_ot3_1 = `ot3_1_${sec.id}`;
+    model.constraints[c_ot3_1] = { max: 0 };
+    model.variables[ind_only_tier3][c_ot3_1] = 1;
+    model.variables[ind_tier3][c_ot3_1] = -1;
+    
+    const c_ot3_2 = `ot3_2_${sec.id}`;
+    model.constraints[c_ot3_2] = { max: 1 };
+    model.variables[ind_only_tier3][c_ot3_2] = 1;
+    model.variables[ind_tier4][c_ot3_2] = 1;
+    
+    const c_ot3_3 = `ot3_3_${sec.id}`;
+    model.constraints[c_ot3_3] = { min: 0 };
+    model.variables[ind_only_tier3][c_ot3_3] = -1;
+    model.variables[ind_tier3][c_ot3_3] = 1;
+    model.variables[ind_tier4][c_ot3_3] = -1;
+    
+    // Tier 4: score > 35 (pénalité -10000)
+    // Pas besoin d'indicateur exclusif, ind_tier4 suffit
+    model.variables[ind_tier4].score_total = -10000;
+    
+    logger.info(`    ✅ Pénalités closing V3 configurées`);
   }
   
-  logger.info(`  ✅ Pénalités closing créées pour tous les secrétaires (variables réduites de ~50%)`);
+  logger.info(`  ✅ Pénalités closing V3 créées pour tous les secrétaires`);
   
   // ============================================================
   // 7. PÉNALITÉS PORRENTRUY V3 (PAR JOUR)
