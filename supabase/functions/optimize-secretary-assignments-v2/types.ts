@@ -6,6 +6,7 @@ export interface SiteNeed {
   nombre_max: number; // Hard constraint
   medecins_ids: string[];
   type: 'site' | 'bloc_operatoire';
+  site_fermeture?: boolean;
   bloc_operation_id?: string;
   besoin_operation_id?: string;
   type_intervention_id?: string; // Pour exceptions (Gastro)

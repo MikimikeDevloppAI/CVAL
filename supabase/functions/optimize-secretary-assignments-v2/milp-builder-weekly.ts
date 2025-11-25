@@ -387,7 +387,7 @@ export function buildWeeklyMILPModel(
   logger.info(`  ✅ Contraintes de capacité créées`);
   
   // ============================================================
-  // 4. PÉNALITÉ COMBINÉE CLOSING + PORRENTRUY
+  // 4. PÉNALITÉ COMBINÉE CLOSING + PORRENTRUY (FULL MILP)
   // ============================================================
   logger.info(`\n🔧 Création des pénalités combinées closing + Porrentruy...`);
   
@@ -406,33 +406,201 @@ export function buildWeeklyMILPModel(
     
     logger.info(`  👤 ${sec.first_name} ${sec.name} - a Porrentruy en pref 2/3/4`);
     
-    // Variables pour compter les jours 1R, 2F/3F, et Porrentruy
-    // Note: Pour V4 complet, ces variables devraient être liées aux combos
-    // Pour l'instant, on crée des variables indicatrices simples
-    
-    // Compter combien de jours avec closing et Porrentruy dans les combos
     const secCombos = allCombos.filter(c => c.secretaire_id === sec.id);
     
-    // Pour chaque secrétaire, créer variables de comptage
-    const closingDaysVar = `closing_days_${sec.id}`;
-    const porrentruyDaysVar = `porrentruy_days_${sec.id}`;
-    const comboActivatedVar = `combo_penalty_${sec.id}`;
+    // ===== A. VARIABLES DE COMPTAGE JOURS =====
+    const days1R_var = `days_1r_${sec.id}`;
+    const days2F_var = `days_2f_${sec.id}`;
+    const daysPorr_var = `days_porr_${sec.id}`;
     
-    model.variables[closingDaysVar] = { score_total: 0 };
-    model.variables[porrentruyDaysVar] = { score_total: 0 };
-    model.variables[comboActivatedVar] = { score_total: -500 }; // Pénalité si activé
-    model.binaries[comboActivatedVar] = 1;
+    model.variables[days1R_var] = { score_total: 0 };
+    model.variables[days2F_var] = { score_total: 0 };
+    model.variables[daysPorr_var] = { score_total: 0 };
+    model.ints[days1R_var] = 1;
+    model.ints[days2F_var] = 1;
+    model.ints[daysPorr_var] = 1;
     
-    // Note: Pour une implémentation complète, il faudrait:
-    // 1. Lier closingDaysVar aux combos assignés avec closing roles
-    // 2. Lier porrentruyDaysVar aux combos assignés à Porrentruy
-    // 3. Utiliser Big-M pour activer comboActivatedVar si les deux conditions sont remplies
+    // ===== B. VARIABLES BINAIRES PAR JOUR =====
+    for (const date of weekContext.dates) {
+      const dateCombos = secCombos.filter(c => c.date === date);
+      
+      // Binaire: ce jour a un combo avec 1R
+      const has1R_date = `has_1r_${sec.id}_${date}`;
+      model.variables[has1R_date] = { score_total: 0 };
+      model.binaries[has1R_date] = 1;
+      
+      // Binaire: ce jour a un combo avec 2F/3F
+      const has2F_date = `has_2f_${sec.id}_${date}`;
+      model.variables[has2F_date] = { score_total: 0 };
+      model.binaries[has2F_date] = 1;
+      
+      // Binaire: ce jour a un combo avec Porrentruy
+      const hasPorr_date = `has_porr_${sec.id}_${date}`;
+      model.variables[hasPorr_date] = { score_total: 0 };
+      model.binaries[hasPorr_date] = 1;
+      
+      // ===== C. LIER BINAIRES AUX COMBOS =====
+      const combos1R = dateCombos.filter(c => 
+        (c.needMatin?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) ||
+        (c.needAM?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id))
+      );
+      
+      const combos2F = dateCombos.filter(c => 
+        (c.needMatin?.site_fermeture && !weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) ||
+        (c.needAM?.site_fermeture && !weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id))
+      );
+      
+      const combosPorr = dateCombos.filter(c => 
+        PORRENTRUY_SITES.includes(c.needMatin?.site_id || '') ||
+        PORRENTRUY_SITES.includes(c.needAM?.site_id || '')
+      );
+      
+      // Contrainte 1R: has1R_date <= somme(combos 1R)
+      if (combos1R.length > 0) {
+        const constraint1R_upper = `has1r_upper_${sec.id}_${date}`;
+        model.constraints[constraint1R_upper] = { max: 0 };
+        model.variables[has1R_date][constraint1R_upper] = 1;
+        
+        for (const combo of combos1R) {
+          model.variables[combo.varName][constraint1R_upper] = -1;
+        }
+        
+        // Contrainte: has1R_date >= (1/M) × somme
+        const constraint1R_lower = `has1r_lower_${sec.id}_${date}`;
+        model.constraints[constraint1R_lower] = { min: 0 };
+        model.variables[has1R_date][constraint1R_lower] = -combos1R.length;
+        
+        for (const combo of combos1R) {
+          model.variables[combo.varName][constraint1R_lower] = 1;
+        }
+      }
+      
+      // Contrainte 2F (même logique)
+      if (combos2F.length > 0) {
+        const constraint2F_upper = `has2f_upper_${sec.id}_${date}`;
+        model.constraints[constraint2F_upper] = { max: 0 };
+        model.variables[has2F_date][constraint2F_upper] = 1;
+        
+        for (const combo of combos2F) {
+          model.variables[combo.varName][constraint2F_upper] = -1;
+        }
+        
+        const constraint2F_lower = `has2f_lower_${sec.id}_${date}`;
+        model.constraints[constraint2F_lower] = { min: 0 };
+        model.variables[has2F_date][constraint2F_lower] = -combos2F.length;
+        
+        for (const combo of combos2F) {
+          model.variables[combo.varName][constraint2F_lower] = 1;
+        }
+      }
+      
+      // Contrainte Porrentruy
+      if (combosPorr.length > 0) {
+        const constraintPorr_upper = `has_porr_upper_${sec.id}_${date}`;
+        model.constraints[constraintPorr_upper] = { max: 0 };
+        model.variables[hasPorr_date][constraintPorr_upper] = 1;
+        
+        for (const combo of combosPorr) {
+          model.variables[combo.varName][constraintPorr_upper] = -1;
+        }
+        
+        const constraintPorr_lower = `has_porr_lower_${sec.id}_${date}`;
+        model.constraints[constraintPorr_lower] = { min: 0 };
+        model.variables[hasPorr_date][constraintPorr_lower] = -combosPorr.length;
+        
+        for (const combo of combosPorr) {
+          model.variables[combo.varName][constraintPorr_lower] = 1;
+        }
+      }
+    }
     
-    // Pour V3, on simplifie: on compte après l'optimisation et on applique la pénalité en post-traitement
-    logger.info(`    ✅ Variables de pénalité combo créées`);
+    // ===== D. SOMMER LES JOURS =====
+    const constraint_sum_1r = `sum_days_1r_${sec.id}`;
+    model.constraints[constraint_sum_1r] = { equal: 0 };
+    model.variables[days1R_var][constraint_sum_1r] = 1;
+    
+    for (const date of weekContext.dates) {
+      model.variables[`has_1r_${sec.id}_${date}`][constraint_sum_1r] = -1;
+    }
+    
+    const constraint_sum_2f = `sum_days_2f_${sec.id}`;
+    model.constraints[constraint_sum_2f] = { equal: 0 };
+    model.variables[days2F_var][constraint_sum_2f] = 1;
+    
+    for (const date of weekContext.dates) {
+      model.variables[`has_2f_${sec.id}_${date}`][constraint_sum_2f] = -1;
+    }
+    
+    const constraint_sum_porr = `sum_days_porr_${sec.id}`;
+    model.constraints[constraint_sum_porr] = { equal: 0 };
+    model.variables[daysPorr_var][constraint_sum_porr] = 1;
+    
+    for (const date of weekContext.dates) {
+      model.variables[`has_porr_${sec.id}_${date}`][constraint_sum_porr] = -1;
+    }
+    
+    // ===== E. CALCULER SCORE CLOSING =====
+    const scoreClosing_var = `score_closing_${sec.id}`;
+    model.variables[scoreClosing_var] = { score_total: 0 };
+    model.ints[scoreClosing_var] = 1;
+    
+    const constraint_closing = `calc_closing_${sec.id}`;
+    model.constraints[constraint_closing] = { equal: 0 };
+    model.variables[scoreClosing_var][constraint_closing] = 1;
+    model.variables[days1R_var][constraint_closing] = -10;
+    model.variables[days2F_var][constraint_closing] = -12;
+    
+    // ===== F. ACTIVER PÉNALITÉ COMBO avec Big-M =====
+    const comboPenalty_var = `combo_penalty_${sec.id}`;
+    model.variables[comboPenalty_var] = { score_total: -500 };
+    model.binaries[comboPenalty_var] = 1;
+    
+    // Indicateur 1: scoreClosing > 22
+    const ind_closing = `ind_closing_${sec.id}`;
+    model.variables[ind_closing] = { score_total: 0 };
+    model.binaries[ind_closing] = 1;
+    
+    const M_closing = 100;
+    const constraint_closing_threshold = `closing_threshold_${sec.id}`;
+    model.constraints[constraint_closing_threshold] = { min: -22 };
+    model.variables[scoreClosing_var][constraint_closing_threshold] = 1;
+    model.variables[ind_closing][constraint_closing_threshold] = -M_closing;
+    
+    // Indicateur 2: daysPorr > 1
+    const ind_porr = `ind_porr_${sec.id}`;
+    model.variables[ind_porr] = { score_total: 0 };
+    model.binaries[ind_porr] = 1;
+    
+    const M_porr = 10;
+    const constraint_porr_threshold = `porr_threshold_${sec.id}`;
+    model.constraints[constraint_porr_threshold] = { min: -1 };
+    model.variables[daysPorr_var][constraint_porr_threshold] = 1;
+    model.variables[ind_porr][constraint_porr_threshold] = -M_porr;
+    
+    // comboPenalty = AND(ind_closing, ind_porr)
+    // comboPenalty <= ind_closing
+    const constraint_and_1 = `combo_and_1_${sec.id}`;
+    model.constraints[constraint_and_1] = { max: 0 };
+    model.variables[comboPenalty_var][constraint_and_1] = 1;
+    model.variables[ind_closing][constraint_and_1] = -1;
+    
+    // comboPenalty <= ind_porr
+    const constraint_and_2 = `combo_and_2_${sec.id}`;
+    model.constraints[constraint_and_2] = { max: 0 };
+    model.variables[comboPenalty_var][constraint_and_2] = 1;
+    model.variables[ind_porr][constraint_and_2] = -1;
+    
+    // comboPenalty >= ind_closing + ind_porr - 1
+    const constraint_and_3 = `combo_and_3_${sec.id}`;
+    model.constraints[constraint_and_3] = { min: -1 };
+    model.variables[comboPenalty_var][constraint_and_3] = -1;
+    model.variables[ind_closing][constraint_and_3] = 1;
+    model.variables[ind_porr][constraint_and_3] = 1;
+    
+    logger.info(`    ✅ Pénalité combo complète avec Big-M`);
   }
   
-  logger.info(`  ✅ Pénalités combinées configurées (application en post-traitement)`);
+  logger.info(`  ✅ Pénalités combinées configurées avec contraintes MILP complètes`);
   
   // ============================================================
   // 5. CONTRAINTES SECRÉTAIRES FLEXIBLES

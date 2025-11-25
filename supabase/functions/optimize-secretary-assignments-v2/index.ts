@@ -4,9 +4,11 @@ import solver from 'https://esm.sh/javascript-lp-solver@0.4.24';
 
 import type { SiteNeed, WeekData } from './types.ts';
 import { ADMIN_SITE_ID, ESPLANADE_OPHTALMOLOGIE_SITE_ID } from './types.ts';
-import { loadWeekData, getCurrentWeekAssignments } from './data-loader.ts';
+import { loadWeekData, getCurrentWeekAssignments, prepareWeekContext } from './data-loader.ts';
 import { buildMILPModelSoft } from './milp-builder.ts';
+import { buildWeeklyMILPModel } from './milp-builder-weekly.ts';
 import { writeAssignments } from './result-writer.ts';
+import { writeWeeklyAssignments } from './result-writer-weekly.ts';
 
 // ============================================================
 // LOGGER SYSTEM
@@ -826,13 +828,112 @@ async function optimizeSingleWeek(
   };
 }
 
+// ============================================================
+// OPTIMISATION GLOBALE HEBDOMADAIRE (NOUVEAU)
+// ============================================================
+async function optimizeSingleWeekGlobal(
+  dates: string[],
+  supabase: any,
+  previousWeeksHistory?: {
+    closing1R2FHistory: Map<string, number>;
+    esplanadeHistory: Map<string, number>;
+  }
+): Promise<any> {
+  const sortedDates = dates.sort();
+  logger.info(`\n${'='.repeat(80)}`);
+  logger.info(`🚀 OPTIMISATION GLOBALE HEBDOMADAIRE: ${sortedDates[0]} → ${sortedDates[sortedDates.length - 1]}`);
+  logger.info(`${'='.repeat(80)}\n`);
+  
+  // 1. Charger données semaine
+  const weekData = await loadWeekData(sortedDates, supabase);
+  
+  // 2. Préparer contexte global
+  const weekContext = prepareWeekContext(sortedDates, weekData);
+  
+  // 3. Construire modèle MILP global
+  logger.info(`\n🔨 Construction du modèle MILP global...`);
+  const model = buildWeeklyMILPModel(
+    weekContext,
+    weekData,
+    {
+      closing1R2F: previousWeeksHistory?.closing1R2FHistory || new Map(),
+      esplanade: previousWeeksHistory?.esplanadeHistory || new Map()
+    }
+  );
+  
+  logger.info(`  ✅ Modèle construit`);
+  logger.info(`  📊 Variables: ${Object.keys(model.variables).length}`);
+  logger.info(`  📊 Binaires: ${Object.keys(model.binaries || {}).length}`);
+  logger.info(`  📊 Contraintes: ${Object.keys(model.constraints).length}`);
+  
+  // 4. Résoudre
+  logger.info(`\n⚡ Résolution MILP...`);
+  const startTime = Date.now();
+  const solution = solver.Solve(model);
+  const endTime = Date.now();
+  
+  const executionTime = ((endTime - startTime) / 1000).toFixed(2);
+  logger.info(`  ✅ Résolu en ${executionTime}s`);
+  logger.info(`  📊 Score total: ${solution.result || 0}`);
+  logger.info(`  📊 Feasible: ${solution.feasible !== false ? 'Oui' : 'Non'}`);
+  
+  if (solution.feasible === false) {
+    logger.error(`  ❌ Solution infaisable!`);
+    return {
+      success: false,
+      dates: sortedDates,
+      error: 'Solution infaisable',
+      executionTime
+    };
+  }
+  
+  // 5. Écrire résultats
+  logger.info(`\n💾 Écriture des résultats...`);
+  const assignmentCount = await writeWeeklyAssignments(
+    solution,
+    weekContext,
+    weekData,
+    supabase
+  );
+  
+  // 6. Refresh materialized views
+  logger.info(`\n♻️ Rafraîchissement des vues matérialisées...`);
+  try {
+    const { error: refreshError } = await supabase.rpc('refresh_all_besoins_summaries');
+    if (refreshError) {
+      logger.error(`  ⚠️ Erreur refresh: ${refreshError.message}`);
+    } else {
+      logger.info(`  ✅ Vues rafraîchies`);
+    }
+  } catch (e) {
+    logger.error(`  ⚠️ Erreur refresh: ${e}`);
+  }
+  
+  logger.info(`\n${'='.repeat(80)}`);
+  logger.info(`✅ OPTIMISATION GLOBALE TERMINÉE`);
+  logger.info(`  📅 Dates: ${sortedDates.join(', ')}`);
+  logger.info(`  ✅ ${assignmentCount} assignations`);
+  logger.info(`  ⏱️ ${executionTime}s`);
+  logger.info(`  📊 Score: ${solution.result || 0}`);
+  logger.info(`${'='.repeat(80)}\n`);
+  
+  return {
+    success: true,
+    dates: sortedDates,
+    assignments: assignmentCount,
+    score: solution.result || 0,
+    executionTime,
+    feasible: solution.feasible !== false
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { dates, logLevel, focus } = await req.json();
+    const { dates, logLevel, focus, useWeeklyOptimization } = await req.json();
     
     logger.setLevel(logLevel || 'info');
     
@@ -876,7 +977,26 @@ serve(async (req) => {
       // 🆕 Charger l'historique des 2 semaines précédentes
       const previousWeeksHistory = await loadPreviousWeeksHistory(weekStart, supabase);
       
-      const weekResults = await optimizeSingleWeek(weekDates, supabase, previousWeeksHistory);
+      let weekResults;
+      
+      if (useWeeklyOptimization) {
+        // 🆕 Nouvelle optimisation globale hebdomadaire
+        logger.info(`\n🎯 Utilisation de l'optimisation GLOBALE HEBDOMADAIRE`);
+        weekResults = await optimizeSingleWeekGlobal(
+          weekDates,
+          supabase,
+          previousWeeksHistory
+        );
+      } else {
+        // Ancien algorithme jour par jour
+        logger.info(`\n📅 Utilisation de l'algorithme JOUR PAR JOUR (2 passes)`);
+        weekResults = await optimizeSingleWeek(
+          weekDates,
+          supabase,
+          previousWeeksHistory
+        );
+      }
+      
       allResults.push(weekResults);
     }
     
