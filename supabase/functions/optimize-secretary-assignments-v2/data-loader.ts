@@ -336,12 +336,16 @@ export function prepareWeekContext(
   const needs_by_date = new Map<string, any[]>();
   const capacities_by_date = new Map<string, any[]>();
   const closing_sites_by_date = new Map<string, Set<string>>();
+  const sites_needing_1r = new Map<string, Set<string>>();  // 🆕
+  const sites_needing_2f = new Map<string, Set<string>>();  // 🆕
   const sites_needing_3f = new Map<string, Set<string>>();
   
   for (const date of dates) {
     needs_by_date.set(date, []);
     capacities_by_date.set(date, []);
     closing_sites_by_date.set(date, new Set());
+    sites_needing_1r.set(date, new Set());  // 🆕
+    sites_needing_2f.set(date, new Set());  // 🆕
     sites_needing_3f.set(date, new Set());
   }
   
@@ -424,17 +428,35 @@ export function prepareWeekContext(
     capacities.push(cap);
   }
   
-  // Déterminer sites needing 3F (sites fermeture avec >= 3 besoins)
+  // Déterminer sites needing 1R/2F/3F basé sur besoin secrétaire (nombre_suggere)
   for (const [date, closingSites] of closing_sites_by_date.entries()) {
     const needs = needs_by_date.get(date) || [];
     
     for (const siteId of closingSites) {
-      const siteNeedsCount = needs.filter(
+      const siteNeeds = needs.filter(
         n => n.site_id === siteId && n.type === 'site'
-      ).length;
+      );
       
-      if (siteNeedsCount >= 3) {
+      // Calculer besoins par période (seulement si nombre_suggere > 0)
+      const besoinsSecretairesMatin = siteNeeds
+        .filter(n => n.periode === 'matin')
+        .reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+        
+      const besoinsSecretairesAM = siteNeeds
+        .filter(n => n.periode === 'apres_midi')
+        .reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+      
+      const totalBesoins = besoinsSecretairesMatin + besoinsSecretairesAM;
+      const hasMatin = besoinsSecretairesMatin > 0;
+      const hasAM = besoinsSecretairesAM > 0;
+      
+      // Déterminer le type de closing
+      if (totalBesoins >= 3) {
         sites_needing_3f.get(date)!.add(siteId);
+      } else if (hasMatin && hasAM) {
+        sites_needing_2f.get(date)!.add(siteId);
+      } else if (hasMatin || hasAM) {
+        sites_needing_1r.get(date)!.add(siteId);
       }
     }
   }
@@ -443,12 +465,17 @@ export function prepareWeekContext(
   console.log(`  📊 Besoins: ${Array.from(needs_by_date.values()).reduce((sum, n) => sum + n.length, 0)} total`);
   console.log(`  📊 Capacités: ${Array.from(capacities_by_date.values()).reduce((sum, c) => sum + c.length, 0)} total`);
   console.log(`  📊 Sites fermeture: ${Array.from(closing_sites_by_date.values()).reduce((sum, s) => sum + s.size, 0)} total`);
+  console.log(`  📊 Sites 1R: ${Array.from(sites_needing_1r.values()).reduce((sum, s) => sum + s.size, 0)} total`);
+  console.log(`  📊 Sites 2F: ${Array.from(sites_needing_2f.values()).reduce((sum, s) => sum + s.size, 0)} total`);
+  console.log(`  📊 Sites 3F: ${Array.from(sites_needing_3f.values()).reduce((sum, s) => sum + s.size, 0)} total`);
   
   return {
     dates,
     needs_by_date,
     capacities_by_date,
     closing_sites_by_date,
+    sites_needing_1r,  // 🆕
+    sites_needing_2f,  // 🆕
     sites_needing_3f
   };
 }

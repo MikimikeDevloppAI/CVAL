@@ -440,15 +440,38 @@ export function buildWeeklyMILPModel(
       model.binaries[hasPorr_date] = 1;
       
       // ===== C. LIER BINAIRES AUX COMBOS =====
-      const combos1R = dateCombos.filter(c => 
-        (c.needMatin?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) ||
-        (c.needAM?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id))
-      );
+      // Identifier les combos 1R (une seule période avec closing)
+      const combos1R = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
       
-      const combos2F = dateCombos.filter(c => 
-        (c.needMatin?.site_fermeture && !weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) ||
-        (c.needAM?.site_fermeture && !weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id))
-      );
+      // Identifier les combos 2F (deux périodes, besoin total < 3)
+      const combos2F = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
+      
+      // Identifier les combos 3F (besoin total ≥ 3)
+      const combos3F = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
       
       const combosPorr = dateCombos.filter(c => 
         PORRENTRUY_SITES.includes(c.needMatin?.site_id || '') ||
@@ -475,21 +498,22 @@ export function buildWeeklyMILPModel(
         }
       }
       
-      // Contrainte 2F (même logique)
-      if (combos2F.length > 0) {
+      // Contrainte 2F/3F (même logique, on combine 2F et 3F)
+      const combos2F3F = [...combos2F, ...combos3F];
+      if (combos2F3F.length > 0) {
         const constraint2F_upper = `has2f_upper_${sec.id}_${date}`;
         model.constraints[constraint2F_upper] = { max: 0 };
         model.variables[has2F_date][constraint2F_upper] = 1;
         
-        for (const combo of combos2F) {
+        for (const combo of combos2F3F) {
           model.variables[combo.varName][constraint2F_upper] = -1;
         }
         
         const constraint2F_lower = `has2f_lower_${sec.id}_${date}`;
         model.constraints[constraint2F_lower] = { min: 0 };
-        model.variables[has2F_date][constraint2F_lower] = -combos2F.length;
+        model.variables[has2F_date][constraint2F_lower] = -combos2F3F.length;
         
-        for (const combo of combos2F) {
+        for (const combo of combos2F3F) {
           model.variables[combo.varName][constraint2F_lower] = 1;
         }
       }
