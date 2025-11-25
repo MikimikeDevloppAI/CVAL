@@ -28,6 +28,10 @@ import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { AIAssistantDialog } from '@/components/assistant/AIAssistantDialog';
 import { UserHelpSheet } from '@/components/assistant/UserHelpSheet';
+import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
+import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
+import { format, startOfWeek, endOfWeek, addWeeks } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const planningItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -45,6 +49,61 @@ export const Sidebar = () => {
   const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
   const { isAdmin } = useIsAdmin();
+  const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
+  const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
+  const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
+
+  const fetchUnfilledNeedsCount = async () => {
+    setUnfilledNeedsLoading(true);
+    try {
+      const today = new Date();
+      let total = 0;
+
+      for (let i = 0; i < 4; i++) {
+        const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
+        const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
+        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
+          supabase
+            .from('besoins_sites_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_bloc_operatoire_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0),
+          supabase
+            .from('besoins_fermeture_summary')
+            .select('deficit')
+            .gte('date', weekStartStr)
+            .lte('date', weekEndStr)
+            .gt('deficit', 0)
+        ]);
+
+        if (sitesResult.error) throw sitesResult.error;
+        if (blocResult.error) throw blocResult.error;
+        if (fermetureResult.error) throw fermetureResult.error;
+
+        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
+        total += sitesDeficit + blocDeficit + fermetureDeficit;
+      }
+
+      setUnfilledNeedsCount(total);
+    } catch (error) {
+      console.error('Error fetching unfilled needs count:', error);
+      setUnfilledNeedsCount(0);
+    } finally {
+      setUnfilledNeedsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -62,6 +121,7 @@ export const Sidebar = () => {
     };
 
     fetchProfile();
+    fetchUnfilledNeedsCount();
   }, [user]);
 
   // All items visible when user has planning access
@@ -245,6 +305,12 @@ export const Sidebar = () => {
             <HelpCircle className="h-5 w-5" />
           </Button>
           
+          <UnfilledNeedsBadge
+            count={unfilledNeedsCount}
+            onClick={() => setUnfilledNeedsSummaryOpen(true)}
+            isLoading={unfilledNeedsLoading}
+          />
+          
           <div className="flex-1" />
           
           <Button
@@ -263,6 +329,11 @@ export const Sidebar = () => {
       <UserHelpSheet 
         open={helpSheetOpen} 
         onOpenChange={setHelpSheetOpen} 
+      />
+      <UnfilledNeedsSummaryDialog
+        open={unfilledNeedsSummaryOpen}
+        onOpenChange={setUnfilledNeedsSummaryOpen}
+        onRefresh={fetchUnfilledNeedsCount}
       />
     </div>
   );

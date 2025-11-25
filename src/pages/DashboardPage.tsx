@@ -23,8 +23,6 @@ import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarC
 import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanelCompact';
 import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
 import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
-import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
-import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
 import { GlobalCalendarDialog } from '@/components/dashboard/GlobalCalendarDialog';
 import { toast } from 'sonner';
 
@@ -146,9 +144,6 @@ const DashboardPage = () => {
   const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
   const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
   const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
-  const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
-  const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
-  const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
   const [stats, setStats] = useState({
     activeSites: 0,
     totalSecretary: 0,
@@ -167,59 +162,6 @@ const DashboardPage = () => {
     if (assigne >= besoin) return 'satisfait';
     if (assigne >= Math.floor(besoin)) return 'partiel';
     return 'non_satisfait';
-  };
-
-  const fetchUnfilledNeedsCount = async () => {
-    setUnfilledNeedsLoading(true);
-    try {
-      const today = new Date();
-      let total = 0;
-
-      // Calcule exactement comme dans le dialogue: somme par semaine (4 semaines)
-      for (let i = 0; i < 4; i++) {
-        const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
-        const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
-        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
-        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
-
-        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
-          supabase
-            .from('besoins_sites_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_bloc_operatoire_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_fermeture_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0)
-        ]);
-
-        if (sitesResult.error) throw sitesResult.error;
-        if (blocResult.error) throw blocResult.error;
-        if (fermetureResult.error) throw fermetureResult.error;
-
-        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        total += sitesDeficit + blocDeficit + fermetureDeficit;
-      }
-
-      setUnfilledNeedsCount(total);
-    } catch (error) {
-      console.error('Error fetching unfilled needs count:', error);
-      setUnfilledNeedsCount(0);
-    } finally {
-      setUnfilledNeedsLoading(false);
-    }
   };
 
   const fetchDashboardData = async () => {
@@ -838,7 +780,6 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    fetchUnfilledNeedsCount();
   }, [currentWeek]);
 
   // Real-time updates
@@ -902,18 +843,10 @@ const DashboardPage = () => {
 
   const handleRefreshAll = () => {
     fetchDashboardData();
-    fetchUnfilledNeedsCount();
   };
 
   return (
     <div className="w-full space-y-6">
-      {/* Unfilled Needs Badge */}
-      <UnfilledNeedsBadge
-        count={unfilledNeedsCount}
-        onClick={() => setUnfilledNeedsSummaryOpen(true)}
-        isLoading={unfilledNeedsLoading}
-      />
-
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <QuickActionButton
@@ -1197,10 +1130,7 @@ const DashboardPage = () => {
       <AbsencesJoursFeriesPopup
         open={absencesPopupOpen}
         onOpenChange={setAbsencesPopupOpen}
-        onAbsenceChange={() => {
-          fetchDashboardData();
-          fetchUnfilledNeedsCount();
-        }}
+        onAbsenceChange={fetchDashboardData}
       />
 
       <SitesPopup 
@@ -1223,12 +1153,6 @@ const DashboardPage = () => {
       <GeneratePdfDialog
         open={generatePdfDialogOpen}
         onOpenChange={setGeneratePdfDialogOpen}
-      />
-
-      <UnfilledNeedsSummaryDialog
-        open={unfilledNeedsSummaryOpen}
-        onOpenChange={setUnfilledNeedsSummaryOpen}
-        onRefresh={handleRefreshAll}
       />
 
       <GlobalCalendarDialog
