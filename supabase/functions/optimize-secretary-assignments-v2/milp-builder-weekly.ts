@@ -73,6 +73,29 @@ export function buildWeeklyMILPModel(
   let totalExcluded = 0;
   
   // ============================================================
+  // PRÉ-CALCUL: Identifier les sites de fermeture avec journée complète
+  // ============================================================
+  const closingFullDaySites = new Map<string, Set<string>>(); // date -> Set<site_id>
+  
+  for (const date of weekContext.dates) {
+    const needs = weekContext.needs_by_date.get(date) || [];
+    const closingSites = weekContext.closing_sites_by_date.get(date) || new Set();
+    
+    closingFullDaySites.set(date, new Set());
+    
+    for (const siteId of closingSites) {
+      const siteNeeds = needs.filter(n => n.site_id === siteId && n.type === 'site');
+      const besoinsM = siteNeeds.filter(n => n.periode === 'matin').reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+      const besoinsAM = siteNeeds.filter(n => n.periode === 'apres_midi').reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+      
+      if (besoinsM > 0 && besoinsAM > 0) {
+        closingFullDaySites.get(date)!.add(siteId);
+        logger.info(`  🔐 Site fermeture journée complète: ${siteId} (${date})`);
+      }
+    }
+  }
+  
+  // ============================================================
   // 1. GÉNÉRER TOUTES LES VARIABLES POUR LA SEMAINE
   // ============================================================
   for (const date of weekContext.dates) {
@@ -158,6 +181,25 @@ export function buildWeeklyMILPModel(
       // Generate all combos
       for (const needM of eligibleMatin) {
         for (const needA of eligibleAM) {
+          // 🔐 EXCLUSION: Sites de fermeture avec journée complète - interdire half-day
+          const closingFullDay = closingFullDaySites.get(date);
+          
+          // Si matin est un site fermeture full-day mais après-midi est différent → EXCLURE
+          if (needM && closingFullDay?.has(needM.site_id) && needM.type === 'site') {
+            if (!needA || needA.site_id !== needM.site_id) {
+              totalExcluded++;
+              continue; // Exclure ce combo half-day
+            }
+          }
+          
+          // Si après-midi est un site fermeture full-day mais matin est différent → EXCLURE
+          if (needA && closingFullDay?.has(needA.site_id) && needA.type === 'site') {
+            if (!needM || needM.site_id !== needA.site_id) {
+              totalExcluded++;
+              continue; // Exclure ce combo half-day
+            }
+          }
+          
           // Règles d'exclusion basées sur salles (comme v2)
           const isBlocMatin = needM?.type === 'bloc_operatoire';
           const isBlocAM = needA?.type === 'bloc_operatoire';
@@ -511,6 +553,76 @@ export function buildWeeklyMILPModel(
           logger.info(`  🔐 Site ${siteId} (${date}): ${fullDayCombos.length} combos full-day | Contraintes 1R + 2F ajoutées`);
         } else {
           logger.info(`  ⚠️ Site ${siteId} (${date}): Seulement ${fullDayCombos.length} combos full-day disponibles`);
+        }
+      }
+      
+      // CAS: Demi-journée uniquement (matin OU après-midi)
+      if ((hasMorning && !hasAfternoon) || (!hasMorning && hasAfternoon)) {
+        const periode = hasMorning ? 'matin' : 'apres_midi';
+        
+        // Trouver tous les combos pour cette demi-journée
+        const halfDayCombos = allCombos.filter(c => 
+          c.date === date &&
+          (periode === 'matin' 
+            ? c.needMatin?.site_id === siteId && c.needMatin?.type === 'site'
+            : c.needAM?.site_id === siteId && c.needAM?.type === 'site')
+        );
+        
+        if (halfDayCombos.length >= 2) {
+          // Créer variables 1R et 2F
+          const roleVars1R: { secId: string, varName: string }[] = [];
+          const roleVars2F: { secId: string, varName: string }[] = [];
+          
+          for (const combo of halfDayCombos) {
+            const var1R = `role_1r_half_${combo.secretaire_id}_${siteId}_${date}_${periode}`;
+            const var2F = `role_2f_half_${combo.secretaire_id}_${siteId}_${date}_${periode}`;
+            
+            model.binaries[var1R] = 1;
+            model.binaries[var2F] = 1;
+            model.variables[var1R] = { score_total: 0 };
+            model.variables[var2F] = { score_total: 0 };
+            
+            // Lier rôle au combo
+            const link1R = `link_1r_${var1R}`;
+            model.constraints[link1R] = { max: 0 };
+            model.variables[var1R][link1R] = 1;
+            model.variables[combo.varName][link1R] = -1;
+            
+            const link2F = `link_2f_${var2F}`;
+            model.constraints[link2F] = { max: 0 };
+            model.variables[var2F][link2F] = 1;
+            model.variables[combo.varName][link2F] = -1;
+            
+            roleVars1R.push({ secId: combo.secretaire_id, varName: var1R });
+            roleVars2F.push({ secId: combo.secretaire_id, varName: var2F });
+          }
+          
+          // Exactement 1 personne en 1R
+          const constraint1R = `closure_1r_half_${siteId}_${date}_${periode}`;
+          model.constraints[constraint1R] = { equal: 1 };
+          for (const { varName } of roleVars1R) {
+            model.variables[varName][constraint1R] = 1;
+          }
+          
+          // Exactement 1 personne en 2F
+          const constraint2F = `closure_2f_half_${siteId}_${date}_${periode}`;
+          model.constraints[constraint2F] = { equal: 1 };
+          for (const { varName } of roleVars2F) {
+            model.variables[varName][constraint2F] = 1;
+          }
+          
+          // 1R ≠ 2F
+          for (const { secId, varName: var1R } of roleVars1R) {
+            const var2F = `role_2f_half_${secId}_${siteId}_${date}_${periode}`;
+            const exclusiveConstraint = `exclusive_half_${secId}_${siteId}_${date}_${periode}`;
+            model.constraints[exclusiveConstraint] = { max: 1 };
+            model.variables[var1R][exclusiveConstraint] = 1;
+            model.variables[var2F][exclusiveConstraint] = 1;
+          }
+          
+          logger.info(`  🔐 Site ${siteId} (${date} ${periode}): ${halfDayCombos.length} combos | Contraintes 1R + 2F demi-journée ajoutées`);
+        } else {
+          logger.info(`  ⚠️ Site ${siteId} (${date} ${periode}): Seulement ${halfDayCombos.length} combos disponibles`);
         }
       }
     }
