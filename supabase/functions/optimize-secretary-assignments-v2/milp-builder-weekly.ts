@@ -323,12 +323,12 @@ export function buildWeeklyMILPModel(
     
     for (const need of needsMatin.filter(n => n.type !== 'bloc_operatoire')) {
       const current = morningTotals.get(need.site_id) || 0;
-      morningTotals.set(need.site_id, current + need.nombre_max);
+      morningTotals.set(need.site_id, current + Math.ceil(need.nombre_suggere || 0));
     }
     
     for (const need of needsAM.filter(n => n.type !== 'bloc_operatoire')) {
       const current = afternoonTotals.get(need.site_id) || 0;
-      afternoonTotals.set(need.site_id, current + need.nombre_max);
+      afternoonTotals.set(need.site_id, current + Math.ceil(need.nombre_suggere || 0));
     }
     
     // Contraintes agrégées sites
@@ -358,7 +358,7 @@ export function buildWeeklyMILPModel(
     for (const need of needsMatin.filter(n => n.type === 'bloc_operatoire')) {
       const needId = `${need.site_id}_${date}_1_${need.bloc_operation_id}_${need.besoin_operation_id}`;
       const constraintName = `max_cap_${needId}`;
-      model.constraints[constraintName] = { max: need.nombre_max };
+      model.constraints[constraintName] = { max: Math.ceil(need.nombre_suggere || 0) };
       
       for (const combo of allCombos.filter(c => c.date === date)) {
         if (combo.needMatin?.type === 'bloc_operatoire' &&
@@ -372,7 +372,7 @@ export function buildWeeklyMILPModel(
     for (const need of needsAM.filter(n => n.type === 'bloc_operatoire')) {
       const needId = `${need.site_id}_${date}_2_${need.bloc_operation_id}_${need.besoin_operation_id}`;
       const constraintName = `max_cap_${needId}`;
-      model.constraints[constraintName] = { max: need.nombre_max };
+      model.constraints[constraintName] = { max: Math.ceil(need.nombre_suggere || 0) };
       
       for (const combo of allCombos.filter(c => c.date === date)) {
         if (combo.needAM?.type === 'bloc_operatoire' &&
@@ -387,7 +387,131 @@ export function buildWeeklyMILPModel(
   logger.info(`  ✅ Contraintes de capacité créées`);
   
   // ============================================================
-  // 4. PÉNALITÉ COMBINÉE CLOSING + PORRENTRUY (FULL MILP)
+  // 4. CONTRAINTES FERMETURE: 1R et 2F journée complète
+  // ============================================================
+  logger.info(`\n🔐 Création des contraintes fermeture 1R/2F...`);
+  
+  for (const date of weekContext.dates) {
+    // Skip samedi
+    const dateObj = new Date(date + 'T00:00:00Z');
+    if (dateObj.getUTCDay() === 6) continue;
+    
+    const needs = weekContext.needs_by_date.get(date) || [];
+    const closingSites = weekContext.closing_sites_by_date.get(date) || new Set();
+    
+    for (const siteId of closingSites) {
+      // Calculer besoins secrétaires matin/AM
+      const siteNeeds = needs.filter(n => n.site_id === siteId && n.type === 'site');
+      const besoinsM = siteNeeds
+        .filter(n => n.periode === 'matin')
+        .reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+      const besoinsAM = siteNeeds
+        .filter(n => n.periode === 'apres_midi')
+        .reduce((sum, n) => sum + (n.nombre_suggere || 0), 0);
+      
+      const hasMorning = besoinsM > 0;
+      const hasAfternoon = besoinsAM > 0;
+      
+      // CAS: Journée complète - besoin matin ET après-midi
+      if (hasMorning && hasAfternoon) {
+        // Trouver tous les combos "full day" (matin = site ET AM = site)
+        const fullDayCombos = allCombos.filter(c => 
+          c.date === date &&
+          c.needMatin?.site_id === siteId &&
+          c.needAM?.site_id === siteId
+        );
+        
+        if (fullDayCombos.length >= 2) {
+          // A. Créer variables full-day
+          const fullDayVars: { secId: string, varName: string, comboVar: string }[] = [];
+          
+          for (const combo of fullDayCombos) {
+            const fullDayVar = `fullday_${combo.secretaire_id}_${siteId}_${date}`;
+            
+            if (!model.variables[fullDayVar]) {
+              model.binaries[fullDayVar] = 1;
+              model.variables[fullDayVar] = { score_total: 0 };
+              
+              // Lier fullDayVar au combo
+              const linkConstraint = `link_fullday_${fullDayVar}`;
+              model.constraints[linkConstraint] = { equal: 0 };
+              model.variables[fullDayVar][linkConstraint] = 1;
+              model.variables[combo.varName][linkConstraint] = -1;
+              
+              fullDayVars.push({ secId: combo.secretaire_id, varName: fullDayVar, comboVar: combo.varName });
+            }
+          }
+          
+          // B. Contrainte: Minimum 2 personnes full-day sur site fermeture
+          const minConstraint = `closure_min_${siteId}_${date}`;
+          model.constraints[minConstraint] = { min: 2 };
+          for (const { varName } of fullDayVars) {
+            model.variables[varName][minConstraint] = 1;
+          }
+          
+          // C. Créer variables de rôles 1R et 2F
+          const roleVars1R: { secId: string, varName: string }[] = [];
+          const roleVars2F: { secId: string, varName: string }[] = [];
+          
+          for (const { secId, varName: fullDayVar } of fullDayVars) {
+            const var1R = `role_1r_${secId}_${siteId}_${date}`;
+            const var2F = `role_2f_${secId}_${siteId}_${date}`;
+            
+            model.binaries[var1R] = 1;
+            model.binaries[var2F] = 1;
+            model.variables[var1R] = { score_total: 0 };
+            model.variables[var2F] = { score_total: 0 };
+            
+            // Lier rôle au full-day
+            const link1R = `link_role_1r_${var1R}`;
+            model.constraints[link1R] = { max: 0 };
+            model.variables[var1R][link1R] = 1;
+            model.variables[fullDayVar][link1R] = -1;
+            
+            const link2F = `link_role_2f_${var2F}`;
+            model.constraints[link2F] = { max: 0 };
+            model.variables[var2F][link2F] = 1;
+            model.variables[fullDayVar][link2F] = -1;
+            
+            roleVars1R.push({ secId, varName: var1R });
+            roleVars2F.push({ secId, varName: var2F });
+          }
+          
+          // D. Contrainte: Exactement 1 personne en 1R
+          const constraint1R = `closure_1r_${siteId}_${date}`;
+          model.constraints[constraint1R] = { equal: 1 };
+          for (const { varName } of roleVars1R) {
+            model.variables[varName][constraint1R] = 1;
+          }
+          
+          // E. Contrainte: Exactement 1 personne en 2F
+          const constraint2F = `closure_2f_${siteId}_${date}`;
+          model.constraints[constraint2F] = { equal: 1 };
+          for (const { varName } of roleVars2F) {
+            model.variables[varName][constraint2F] = 1;
+          }
+          
+          // F. Contrainte: Une personne ne peut pas avoir les deux rôles
+          for (const { secId, varName: var1R } of roleVars1R) {
+            const var2F = `role_2f_${secId}_${siteId}_${date}`;
+            const exclusiveConstraint = `exclusive_role_${secId}_${siteId}_${date}`;
+            model.constraints[exclusiveConstraint] = { max: 1 };
+            model.variables[var1R][exclusiveConstraint] = 1;
+            model.variables[var2F][exclusiveConstraint] = 1;
+          }
+          
+          logger.info(`  🔐 Site ${siteId} (${date}): ${fullDayCombos.length} combos full-day | Contraintes 1R + 2F ajoutées`);
+        } else {
+          logger.info(`  ⚠️ Site ${siteId} (${date}): Seulement ${fullDayCombos.length} combos full-day disponibles`);
+        }
+      }
+    }
+  }
+  
+  logger.info(`  ✅ Contraintes fermeture 1R/2F créées`);
+  
+  // ============================================================
+  // 5. PÉNALITÉ COMBINÉE CLOSING + PORRENTRUY (FULL MILP)
   // ============================================================
   logger.info(`\n🔧 Création des pénalités combinées closing + Porrentruy...`);
   
@@ -645,10 +769,11 @@ export function buildWeeklyMILPModel(
   // TODO: Implémenter pénalités Porrentruy V3
   
   // ============================================================
-  // 7. CONTRAINTES FERMETURE (identiques à V2 pour l'instant)
+  // CONTRAINTES FERMETURE déjà implémentées (section 4)
   // ============================================================
-  // Garder logique V2 pour les contraintes de fermeture
-  // TODO: À porter depuis milp-builder.ts
+  // Les contraintes fermeture 1R/2F sont maintenant appliquées dans la section 4
+  // (lignes ~400-510) pour chaque site nécessitant une fermeture avec besoins
+  // matin ET après-midi.
   
   return model;
 }
