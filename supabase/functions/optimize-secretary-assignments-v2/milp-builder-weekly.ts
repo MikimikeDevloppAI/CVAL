@@ -386,22 +386,30 @@ export function buildWeeklyMILPModel(
       const constraintName = `site_cap_${site_id}_${date}_1`;
       model.constraints[constraintName] = { max: total_max };
       
+      let linkedCombos = 0;
       for (const combo of allCombos.filter(c => c.date === date)) {
         if (combo.needMatin?.site_id === site_id && combo.needMatin?.type !== 'bloc_operatoire') {
           model.variables[combo.varName][constraintName] = 1;
+          linkedCombos++;
         }
       }
+      
+      logger.info(`  📊 ${date} matin site ${site_id.slice(0, 8)}: max=${total_max}, combos liés=${linkedCombos}`);
     }
     
     for (const [site_id, total_max] of afternoonTotals) {
       const constraintName = `site_cap_${site_id}_${date}_2`;
       model.constraints[constraintName] = { max: total_max };
       
+      let linkedCombos = 0;
       for (const combo of allCombos.filter(c => c.date === date)) {
         if (combo.needAM?.site_id === site_id && combo.needAM?.type !== 'bloc_operatoire') {
           model.variables[combo.varName][constraintName] = 1;
+          linkedCombos++;
         }
       }
+      
+      logger.info(`  📊 ${date} AM site ${site_id.slice(0, 8)}: max=${total_max}, combos liés=${linkedCombos}`);
     }
     
     // Contraintes spécifiques blocs

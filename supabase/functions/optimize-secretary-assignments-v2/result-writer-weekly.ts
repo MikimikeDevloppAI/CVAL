@@ -126,8 +126,73 @@ export async function writeWeeklyAssignments(
   let assignmentCount = 0;
   
   // ============================================================
-  // PHASE 1: Parser tous les combos activés
+  // PHASE 1: Parser tous les combos activés et extraire les rôles MILP
   // ============================================================
+  
+  // Extraire les rôles 1R/2F de la solution MILP
+  const roleAssignments = new Map<string, { is_1r: boolean; is_2f: boolean; is_3f: boolean }>();
+  
+  for (const [varName, value] of Object.entries(solution)) {
+    if (Number(value) <= 0.5) continue;
+    
+    // Parser rôles full-day: role_1r_{secretaire_id}_{site_id}_{date}
+    if (varName.startsWith('role_1r_') && !varName.includes('_half_')) {
+      const parts = varName.slice(8).split('_'); // Remove "role_1r_"
+      if (parts.length >= 3) {
+        const secretaire_id = parts[0];
+        const site_id = parts[1];
+        const date = parts[2];
+        const keyMatin = `${secretaire_id}|${date}|matin`;
+        const keyAM = `${secretaire_id}|${date}|apres_midi`;
+        roleAssignments.set(keyMatin, { is_1r: true, is_2f: false, is_3f: false });
+        roleAssignments.set(keyAM, { is_1r: true, is_2f: false, is_3f: false });
+      }
+    }
+    
+    // Parser rôles full-day: role_2f_{secretaire_id}_{site_id}_{date}
+    if (varName.startsWith('role_2f_') && !varName.includes('_half_')) {
+      const parts = varName.slice(8).split('_'); // Remove "role_2f_"
+      if (parts.length >= 3) {
+        const secretaire_id = parts[0];
+        const site_id = parts[1];
+        const date = parts[2];
+        const keyMatin = `${secretaire_id}|${date}|matin`;
+        const keyAM = `${secretaire_id}|${date}|apres_midi`;
+        roleAssignments.set(keyMatin, { is_1r: false, is_2f: true, is_3f: false });
+        roleAssignments.set(keyAM, { is_1r: false, is_2f: true, is_3f: false });
+      }
+    }
+    
+    // Parser rôles half-day: role_1r_half_{secretaire_id}_{site_id}_{date}_{periode}
+    if (varName.startsWith('role_1r_half_')) {
+      const parts = varName.slice(13).split('_'); // Remove "role_1r_half_"
+      if (parts.length >= 4) {
+        const secretaire_id = parts[0];
+        const site_id = parts[1];
+        const date = parts[2];
+        const periode = parts[3];
+        const key = `${secretaire_id}|${date}|${periode}`;
+        roleAssignments.set(key, { is_1r: true, is_2f: false, is_3f: false });
+      }
+    }
+    
+    // Parser rôles half-day: role_2f_half_{secretaire_id}_{site_id}_{date}_{periode}
+    if (varName.startsWith('role_2f_half_')) {
+      const parts = varName.slice(13).split('_'); // Remove "role_2f_half_"
+      if (parts.length >= 4) {
+        const secretaire_id = parts[0];
+        const site_id = parts[1];
+        const date = parts[2];
+        const periode = parts[3];
+        const key = `${secretaire_id}|${date}|${periode}`;
+        roleAssignments.set(key, { is_1r: false, is_2f: true, is_3f: false });
+      }
+    }
+  }
+  
+  logger.info(`  🎭 ${roleAssignments.size} rôles 1R/2F extraits de la solution MILP`);
+  
+  // Traiter tous les combos activés
   for (const [varName, value] of Object.entries(solution)) {
     if (!varName.startsWith('combo_')) continue;
     if (Number(value) <= 0.5) continue;
@@ -167,21 +232,13 @@ export async function writeWeeklyAssignments(
       
       assignmentCount++;
       
-      // Déterminer rôles closing
-      const site = weekData.sites.find(s => s.id === needMatin.site_id);
-      if (site?.fermeture) {
-        const needs3F = weekContext.sites_needing_3f.get(date)?.has(needMatin.site_id);
-        
+      // Utiliser les rôles extraits de la solution MILP
+      const role = roleAssignments.get(key);
+      if (role) {
         if (!roleUpdates.has(capId)) {
           roleUpdates.set(capId, {});
         }
-        
-        const roles = roleUpdates.get(capId)!;
-        if (needs3F) {
-          roles.is_1r = true;
-        } else {
-          roles.is_2f = true;
-        }
+        Object.assign(roleUpdates.get(capId)!, role);
       }
     }
     
@@ -212,21 +269,13 @@ export async function writeWeeklyAssignments(
       
       assignmentCount++;
       
-      // Déterminer rôles closing
-      const site = weekData.sites.find(s => s.id === needAM.site_id);
-      if (site?.fermeture) {
-        const needs3F = weekContext.sites_needing_3f.get(date)?.has(needAM.site_id);
-        
+      // Utiliser les rôles extraits de la solution MILP
+      const role = roleAssignments.get(key);
+      if (role) {
         if (!roleUpdates.has(capId)) {
           roleUpdates.set(capId, {});
         }
-        
-        const roles = roleUpdates.get(capId)!;
-        if (needs3F) {
-          roles.is_1r = true;
-        } else {
-          roles.is_2f = true;
-        }
+        Object.assign(roleUpdates.get(capId)!, role);
       }
     }
   }
