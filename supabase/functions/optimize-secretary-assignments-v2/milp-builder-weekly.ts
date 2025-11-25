@@ -915,21 +915,33 @@ export function buildWeeklyMILPModel(
     model.ints[days1R_all_var] = 1;
     model.ints[days2F_all_var] = 1;
     
-    // ===== B. VARIABLES BINAIRES PAR JOUR =====
+    // ===== B. CRÉER TOUTES LES VARIABLES BINAIRES PAR JOUR =====
     for (const date of weekContext.dates) {
-      const dateCombos = secCombos.filter(c => c.date === date);
-      
       // Binaire: ce jour a un combo avec 1R
       const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
-      model.variables[has1R_all_date] = { score_total: 0 };
+      if (!model.variables[has1R_all_date]) {
+        model.variables[has1R_all_date] = {};
+      }
+      model.variables[has1R_all_date].score_total = 0;
       model.binaries[has1R_all_date] = 1;
       
       // Binaire: ce jour a un combo avec 2F/3F
       const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
-      model.variables[has2F_all_date] = { score_total: 0 };
+      if (!model.variables[has2F_all_date]) {
+        model.variables[has2F_all_date] = {};
+      }
+      model.variables[has2F_all_date].score_total = 0;
       model.binaries[has2F_all_date] = 1;
+    }
+    
+    // ===== C. LIER BINAIRES AUX COMBOS =====
+    for (const date of weekContext.dates) {
+      const dateCombos = secCombos.filter(c => c.date === date);
       
-      // ===== C. LIER BINAIRES AUX COMBOS =====
+      const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
+      const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
+      
+      // Identifier les combos 1R (une seule période avec closing)
       const combos1R = dateCombos.filter(c => {
         if (c.needMatin?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needMatin.site_id)) {
           return true;
