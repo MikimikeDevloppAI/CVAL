@@ -321,6 +321,138 @@ export async function loadWeekData(
   };
 }
 
+/**
+ * Préparer le contexte global pour optimisation hebdomadaire
+ */
+export function prepareWeekContext(
+  dates: string[],
+  weekData: WeekData
+): any {
+  console.log(`\n🔧 Préparation du contexte hebdomadaire global...`);
+  
+  const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+  
+  // Organiser besoins par date
+  const needs_by_date = new Map<string, any[]>();
+  const capacities_by_date = new Map<string, any[]>();
+  const closing_sites_by_date = new Map<string, Set<string>>();
+  const sites_needing_3f = new Map<string, Set<string>>();
+  
+  for (const date of dates) {
+    needs_by_date.set(date, []);
+    capacities_by_date.set(date, []);
+    closing_sites_by_date.set(date, new Set());
+    sites_needing_3f.set(date, new Set());
+  }
+  
+  // Charger planning blocs et créer besoins
+  for (const planningBloc of weekData.planning_bloc) {
+    if (!dates.includes(planningBloc.date)) continue;
+    
+    const needs = needs_by_date.get(planningBloc.date) || [];
+    
+    // Trouver besoins personnel pour ce type d'intervention
+    const besoinsPersonnel = weekData.types_intervention_besoins.filter(
+      tib => tib.type_intervention_id === planningBloc.type_intervention_id
+    );
+    
+    for (const bp of besoinsPersonnel) {
+      needs.push({
+        site_id: '86f1047f-c4ff-441f-a064-42ee2f8ef37a', // Bloc site
+        date: planningBloc.date,
+        periode: planningBloc.periode,
+        nombre_suggere: bp.nombre_requis,
+        nombre_max: bp.nombre_requis,
+        medecins_ids: planningBloc.medecin_id ? [planningBloc.medecin_id] : [],
+        type: 'bloc_operatoire',
+        bloc_operation_id: planningBloc.id,
+        besoin_operation_id: bp.besoin_operation_id,
+        type_intervention_id: planningBloc.type_intervention_id,
+        salle_assignee: planningBloc.salle_assignee,
+        site_fermeture: false
+      });
+    }
+  }
+  
+  // Charger besoins médecins/sites
+  for (const besoin of weekData.besoins_effectifs) {
+    if (!dates.includes(besoin.date)) continue;
+    if (besoin.type !== 'medecin') continue;
+    
+    const needs = needs_by_date.get(besoin.date) || [];
+    const site = weekData.sites.find(s => s.id === besoin.site_id);
+    
+    needs.push({
+      site_id: besoin.site_id,
+      date: besoin.date,
+      periode: besoin.demi_journee,
+      nombre_suggere: 1,
+      nombre_max: 3,
+      medecins_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
+      type: 'site',
+      site_fermeture: site?.fermeture || false
+    });
+    
+    if (site?.fermeture) {
+      closing_sites_by_date.get(besoin.date)!.add(besoin.site_id);
+    }
+  }
+  
+  // Ajouter besoins ADMIN
+  for (const date of dates) {
+    const needs = needs_by_date.get(date) || [];
+    
+    for (const periode of ['matin', 'apres_midi']) {
+      needs.push({
+        site_id: ADMIN_SITE_ID,
+        date,
+        periode,
+        nombre_suggere: 0,
+        nombre_max: 999,
+        medecins_ids: [],
+        type: 'site',
+        site_fermeture: false
+      });
+    }
+  }
+  
+  // Organiser capacités par date
+  for (const cap of weekData.capacites_effective) {
+    if (!dates.includes(cap.date)) continue;
+    
+    const capacities = capacities_by_date.get(cap.date) || [];
+    capacities.push(cap);
+  }
+  
+  // Déterminer sites needing 3F (sites fermeture avec >= 3 besoins)
+  for (const [date, closingSites] of closing_sites_by_date.entries()) {
+    const needs = needs_by_date.get(date) || [];
+    
+    for (const siteId of closingSites) {
+      const siteNeedsCount = needs.filter(
+        n => n.site_id === siteId && n.type === 'site'
+      ).length;
+      
+      if (siteNeedsCount >= 3) {
+        sites_needing_3f.get(date)!.add(siteId);
+      }
+    }
+  }
+  
+  console.log(`  ✅ Contexte préparé pour ${dates.length} jours`);
+  console.log(`  📊 Besoins: ${Array.from(needs_by_date.values()).reduce((sum, n) => sum + n.length, 0)} total`);
+  console.log(`  📊 Capacités: ${Array.from(capacities_by_date.values()).reduce((sum, c) => sum + c.length, 0)} total`);
+  console.log(`  📊 Sites fermeture: ${Array.from(closing_sites_by_date.values()).reduce((sum, s) => sum + s.size, 0)} total`);
+  
+  return {
+    dates,
+    needs_by_date,
+    capacities_by_date,
+    closing_sites_by_date,
+    sites_needing_3f
+  };
+}
+
 export async function getCurrentWeekAssignments(
   weekData: WeekData,
   optimizedDates: string[]
