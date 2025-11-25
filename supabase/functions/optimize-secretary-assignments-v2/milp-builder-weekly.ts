@@ -1046,7 +1046,7 @@ export function buildWeeklyMILPModel(
     
     const M1 = 100;
     const constraint_tier1 = `tier1_threshold_${sec.id}`;
-    model.constraints[constraint_tier1] = { min: -22 };
+    model.constraints[constraint_tier1] = { max: 22 };
     model.variables[scoreClosing_all_var][constraint_tier1] = 1;
     model.variables[ind_tier1][constraint_tier1] = -M1;
     
@@ -1056,7 +1056,7 @@ export function buildWeeklyMILPModel(
     model.binaries[ind_tier2] = 1;
     
     const constraint_tier2 = `tier2_threshold_${sec.id}`;
-    model.constraints[constraint_tier2] = { min: -29 };
+    model.constraints[constraint_tier2] = { max: 29 };
     model.variables[scoreClosing_all_var][constraint_tier2] = 1;
     model.variables[ind_tier2][constraint_tier2] = -M1;
     
@@ -1066,7 +1066,7 @@ export function buildWeeklyMILPModel(
     model.binaries[ind_tier3] = 1;
     
     const constraint_tier3 = `tier3_threshold_${sec.id}`;
-    model.constraints[constraint_tier3] = { min: -31 };
+    model.constraints[constraint_tier3] = { max: 31 };
     model.variables[scoreClosing_all_var][constraint_tier3] = 1;
     model.variables[ind_tier3][constraint_tier3] = -M1;
     
@@ -1076,7 +1076,7 @@ export function buildWeeklyMILPModel(
     model.binaries[ind_tier4] = 1;
     
     const constraint_tier4 = `tier4_threshold_${sec.id}`;
-    model.constraints[constraint_tier4] = { min: -35 };
+    model.constraints[constraint_tier4] = { max: 35 };
     model.variables[scoreClosing_all_var][constraint_tier4] = 1;
     model.variables[ind_tier4][constraint_tier4] = -M1;
     
