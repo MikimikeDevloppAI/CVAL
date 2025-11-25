@@ -981,10 +981,10 @@ export function buildWeeklyMILPModel(
         // has_1r_all_date >= (1/n) * sum(roleVars1R) pour forcer à 1 si au moins un actif
         const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
         model.constraints[constraint1R_lower] = { min: 0 };
-        model.variables[has1R_all_date][constraint1R_lower] = -roleVars1R.length;
+        model.variables[has1R_all_date][constraint1R_lower] = roleVars1R.length;
         
         for (const roleVar of roleVars1R) {
-          model.variables[roleVar][constraint1R_lower] = 1;
+          model.variables[roleVar][constraint1R_lower] = -1;
         }
       }
       
@@ -1002,10 +1002,10 @@ export function buildWeeklyMILPModel(
         // has_2f_all_date >= (1/n) * sum(roleVars2F)
         const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
         model.constraints[constraint2F_lower] = { min: 0 };
-        model.variables[has2F_all_date][constraint2F_lower] = -roleVars2F.length;
+        model.variables[has2F_all_date][constraint2F_lower] = roleVars2F.length;
         
         for (const roleVar of roleVars2F) {
-          model.variables[roleVar][constraint2F_lower] = 1;
+          model.variables[roleVar][constraint2F_lower] = -1;
         }
       }
     }
