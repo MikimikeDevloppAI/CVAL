@@ -323,12 +323,20 @@ export function buildWeeklyMILPModel(
     
     for (const need of needsMatin.filter(n => n.type !== 'bloc_operatoire')) {
       const current = morningTotals.get(need.site_id) || 0;
-      morningTotals.set(need.site_id, current + Math.ceil(need.nombre_suggere || 0));
+      morningTotals.set(need.site_id, current + (need.nombre_suggere || 0));
     }
     
     for (const need of needsAM.filter(n => n.type !== 'bloc_operatoire')) {
       const current = afternoonTotals.get(need.site_id) || 0;
-      afternoonTotals.set(need.site_id, current + Math.ceil(need.nombre_suggere || 0));
+      afternoonTotals.set(need.site_id, current + (need.nombre_suggere || 0));
+    }
+    
+    // Arrondir les totaux au supérieur
+    for (const [site_id, total] of morningTotals) {
+      morningTotals.set(site_id, Math.ceil(total));
+    }
+    for (const [site_id, total] of afternoonTotals) {
+      afternoonTotals.set(site_id, Math.ceil(total));
     }
     
     // Contraintes agrégées sites
