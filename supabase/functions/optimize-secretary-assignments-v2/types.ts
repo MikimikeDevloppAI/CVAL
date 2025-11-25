@@ -262,6 +262,19 @@ export const PORRENTRUY_SITES = [
   // Ajouter d'autres sites Porrentruy si nécessaire
 ];
 
+// 🆕 Pénalité combinée closing + Porrentruy
+export const CLOSING_PORRENTRUY_COMBO_PENALTY = -500;
+export const CLOSING_PORRENTRUY_THRESHOLD = {
+  closing_score_min: 22,  // Score closing doit être > 22
+  porrentruy_days_min: 1   // Jours Porrentruy doit être > 1
+};
+
+// 🆕 IDs spéciaux pour bonus médecin
+export const DR_FDA323F4_ID = "fda323f4-3efd-4c78-8b63-7d660fcd7eea";
+export const SARA_BORTOLON_ID = "68e74e31-12a7-4fd3-836d-41e8abf57792";
+export const MIRLINDA_HASANI_ID = "324639fa-2e3d-4903-a143-323a17b0d988";
+export const SPECIAL_DOCTOR_SECRETARY_BONUS = 3000;
+
 // 🆕 Nouveau type pour contexte global semaine
 export interface WeekContext {
   dates: string[];
