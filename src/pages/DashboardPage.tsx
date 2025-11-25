@@ -943,7 +943,7 @@ const DashboardPage = () => {
           </div>
 
         {/* Week Selector */}
-        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 mb-6">
+        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border-2 border-border rounded-xl p-4 mb-6">
           <Button
             variant="ghost"
             size="icon"
