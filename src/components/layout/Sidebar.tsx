@@ -295,28 +295,28 @@ export const Sidebar = () => {
             className="h-8 w-auto"
           />
           
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setHelpSheetOpen(true)}
-            className="ml-2 hover:bg-emerald-500/10 hover:text-emerald-600"
-            title="Aide utilisateur"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex-1" />
-          
           <UnfilledNeedsBadge
             count={unfilledNeedsCount}
             onClick={() => setUnfilledNeedsSummaryOpen(true)}
             isLoading={unfilledNeedsLoading}
           />
           
+          <div className="flex-1" />
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setHelpSheetOpen(true)}
+            className="hover:bg-emerald-500/10 hover:text-emerald-600"
+            title="Aide utilisateur"
+          >
+            <HelpCircle className="h-5 w-5" />
+          </Button>
+          
           <Button
             size="sm"
             onClick={() => setAiAssistantOpen(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 hover:from-emerald-600 hover:to-teal-700"
+            className="ml-2 flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 hover:from-emerald-600 hover:to-teal-700"
           >
             <BotMessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">ValléeBot</span>
