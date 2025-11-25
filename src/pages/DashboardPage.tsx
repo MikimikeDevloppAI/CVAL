@@ -900,12 +900,6 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* Gradient separator */}
-      <div className="my-8">
-        <div className="relative">
-          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent shadow-lg shadow-muted-foreground/10"></div>
-        </div>
-      </div>
 
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
