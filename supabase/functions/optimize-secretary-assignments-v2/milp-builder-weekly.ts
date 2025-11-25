@@ -27,7 +27,11 @@ import {
   PORRENTRUY_SITES,
   CLOSING_PENALTIES_V3,
   SITE_OVERLOAD_PENALTIES_V3,
-  FLORENCE_BRON_ID
+  FLORENCE_BRON_ID,
+  DR_FDA323F4_ID,
+  SARA_BORTOLON_ID,
+  MIRLINDA_HASANI_ID,
+  SPECIAL_DOCTOR_SECRETARY_BONUS
 } from './types.ts';
 import { calculateComboScore } from './score-calculator.ts';
 import { logger } from './index.ts';
@@ -226,9 +230,8 @@ export function buildWeeklyMILPModel(
           
           const varName = `combo_${secretaire_id}_${date}_${needMatinId}_${needAMId}`;
           
-          // Calculate score (simplifié pour version V3, sans contexte dynamique)
-          // Pour V3, on privilégie le score statique et on gère les pénalités via MILP
-          const score = calculateComboScore(
+          // Calculate base score
+          let comboScore = calculateComboScore(
             secretaire_id,
             needM ? { ...needM, date } : null,
             needA ? { ...needA, date } : null,
@@ -249,16 +252,33 @@ export function buildWeeklyMILPModel(
             secretaire
           );
           
+          // 🆕 Ajouter bonus médecin spécifique
+          let doctorBonus = 0;
+          
+          // Vérifier si Dr FDA323F4 travaille sur un des besoins
+          const drFDA323F4InMatin = needM?.medecins_ids?.includes(DR_FDA323F4_ID);
+          const drFDA323F4InAM = needA?.medecins_ids?.includes(DR_FDA323F4_ID);
+          
+          if (drFDA323F4InMatin || drFDA323F4InAM) {
+            // Vérifier si secrétaire est Sara ou Mirlinda
+            if (secretaire_id === SARA_BORTOLON_ID || secretaire_id === MIRLINDA_HASANI_ID) {
+              doctorBonus = SPECIAL_DOCTOR_SECRETARY_BONUS;
+              logger.info(`  ⭐ Bonus médecin spécial: ${secretaire.first_name} avec Dr FDA323F4 → +${doctorBonus}`);
+            }
+          }
+          
+          comboScore += doctorBonus;
+          
           allCombos.push({
             secretaire_id,
             date,
             needMatin: needM,
             needAM: needA,
-            score,
+            score: comboScore,
             varName
           });
           
-          model.variables[varName] = { score_total: score };
+          model.variables[varName] = { score_total: comboScore };
           model.binaries[varName] = 1;
         }
       }
@@ -367,7 +387,55 @@ export function buildWeeklyMILPModel(
   logger.info(`  ✅ Contraintes de capacité créées`);
   
   // ============================================================
-  // 4. CONTRAINTES SECRÉTAIRES FLEXIBLES
+  // 4. PÉNALITÉ COMBINÉE CLOSING + PORRENTRUY
+  // ============================================================
+  logger.info(`\n🔧 Création des pénalités combinées closing + Porrentruy...`);
+  
+  const secretaires = weekData.secretaires;
+  
+  for (const sec of secretaires) {
+    // Vérifier si secrétaire a Porrentruy en préférence 2, 3, ou 4
+    const hasPorrentruyPref = weekData.secretaires_sites
+      .filter(ss => ss.secretaire_id === sec.id)
+      .some(ss => 
+        PORRENTRUY_SITES.includes(ss.site_id) && 
+        ['2', '3', '4'].includes(ss.priorite)
+      );
+    
+    if (!hasPorrentruyPref) continue;
+    
+    logger.info(`  👤 ${sec.first_name} ${sec.name} - a Porrentruy en pref 2/3/4`);
+    
+    // Variables pour compter les jours 1R, 2F/3F, et Porrentruy
+    // Note: Pour V4 complet, ces variables devraient être liées aux combos
+    // Pour l'instant, on crée des variables indicatrices simples
+    
+    // Compter combien de jours avec closing et Porrentruy dans les combos
+    const secCombos = allCombos.filter(c => c.secretaire_id === sec.id);
+    
+    // Pour chaque secrétaire, créer variables de comptage
+    const closingDaysVar = `closing_days_${sec.id}`;
+    const porrentruyDaysVar = `porrentruy_days_${sec.id}`;
+    const comboActivatedVar = `combo_penalty_${sec.id}`;
+    
+    model.variables[closingDaysVar] = { score_total: 0 };
+    model.variables[porrentruyDaysVar] = { score_total: 0 };
+    model.variables[comboActivatedVar] = { score_total: -500 }; // Pénalité si activé
+    model.binaries[comboActivatedVar] = 1;
+    
+    // Note: Pour une implémentation complète, il faudrait:
+    // 1. Lier closingDaysVar aux combos assignés avec closing roles
+    // 2. Lier porrentruyDaysVar aux combos assignés à Porrentruy
+    // 3. Utiliser Big-M pour activer comboActivatedVar si les deux conditions sont remplies
+    
+    // Pour V3, on simplifie: on compte après l'optimisation et on applique la pénalité en post-traitement
+    logger.info(`    ✅ Variables de pénalité combo créées`);
+  }
+  
+  logger.info(`  ✅ Pénalités combinées configurées (application en post-traitement)`);
+  
+  // ============================================================
+  // 5. CONTRAINTES SECRÉTAIRES FLEXIBLES
   // ============================================================
   // (Pour V4 - après validation V3 de base)
   // TODO: Implémenter contraintes flexibles globales

@@ -6,7 +6,22 @@ import type {
   TodayAssignment,
   AssignmentSummary
 } from './types.ts';
-import { SCORE_WEIGHTS, PENALTIES, ADMIN_SITE_ID, FORBIDDEN_SITES, HIGH_PENALTY_SITES, GASTRO_TYPE_INTERVENTION_ID, VIEILLE_VILLE_SITE_ID, SAME_SITE_BONUS, ESPLANADE_OPHTALMOLOGIE_SITE_ID, SALLE_GASTRO_ID } from './types.ts';
+import { 
+  SCORE_WEIGHTS, 
+  PENALTIES, 
+  ADMIN_SITE_ID, 
+  FORBIDDEN_SITES, 
+  HIGH_PENALTY_SITES, 
+  GASTRO_TYPE_INTERVENTION_ID, 
+  VIEILLE_VILLE_SITE_ID, 
+  SAME_SITE_BONUS, 
+  ESPLANADE_OPHTALMOLOGIE_SITE_ID, 
+  SALLE_GASTRO_ID,
+  DR_FDA323F4_ID,
+  SARA_BORTOLON_ID,
+  MIRLINDA_HASANI_ID,
+  SPECIAL_DOCTOR_SECRETARY_BONUS
+} from './types.ts';
 import { logger } from './index.ts';
 
 function countTodayAdminAssignments(
@@ -196,13 +211,14 @@ export function calculateDynamicScore(
  * Calcule la pénalité closing V3 basée sur les jours (pas les demi-journées)
  * Score = 10 × jours_1r + 12 × jours_2f3f
  * Les pénalités se REMPLACENT (seul le palier le plus haut s'applique)
+ * Retourne { penalty, weekScore }
  */
 export function calculateClosingPenaltyV3(
   days1R: number,
   days2F3F: number,
   historicalScore: number = 0,
   porrentruyHistDays: number = 0
-): number {
+): { penalty: number; weekScore: number } {
   // Score de la semaine actuelle
   const weekScore = (days1R * 10) + (days2F3F * 12);
   
@@ -229,7 +245,7 @@ export function calculateClosingPenaltyV3(
     penalty -= 300;
   }
   
-  return penalty;
+  return { penalty, weekScore };
 }
 
 /**
@@ -248,6 +264,30 @@ export function calculatePorrentruyPenaltyV3(
   else if (daysThisWeek >= 2) penalty -= 150;
   
   return penalty;
+}
+
+/**
+ * 🆕 Calcule la pénalité combinée closing + Porrentruy
+ * Si closing score > 22 ET jours Porrentruy > 1 → -500
+ */
+export function calculateClosingPorrentruyCombo(
+  closingScore: number,
+  porrentruyDays: number,
+  hasPorrentruyPref: boolean
+): number {
+  // Appliquer uniquement aux secrétaires avec Porrentruy en pref 2, 3, ou 4
+  if (!hasPorrentruyPref) return 0;
+  
+  const { closing_score_min, porrentruy_days_min } = { closing_score_min: 22, porrentruy_days_min: 1 };
+  
+  if (closingScore > closing_score_min && porrentruyDays > porrentruy_days_min) {
+    console.log(
+      `  ⚠️ Pénalité combo: closing score ${closingScore} + ${porrentruyDays} jours Porrentruy → -500`
+    );
+    return -500;
+  }
+  
+  return 0;
 }
 
 // ============================================================
