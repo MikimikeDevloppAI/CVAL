@@ -305,13 +305,13 @@ export const Sidebar = () => {
             <HelpCircle className="h-5 w-5" />
           </Button>
           
+          <div className="flex-1" />
+          
           <UnfilledNeedsBadge
             count={unfilledNeedsCount}
             onClick={() => setUnfilledNeedsSummaryOpen(true)}
             isLoading={unfilledNeedsLoading}
           />
-          
-          <div className="flex-1" />
           
           <Button
             size="sm"
