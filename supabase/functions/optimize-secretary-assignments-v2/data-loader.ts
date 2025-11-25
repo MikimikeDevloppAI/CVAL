@@ -386,16 +386,23 @@ export function prepareWeekContext(
     const needs = needs_by_date.get(besoin.date) || [];
     const site = weekData.sites.find(s => s.id === besoin.site_id);
     
-    needs.push({
-      site_id: besoin.site_id,
-      date: besoin.date,
-      periode: besoin.demi_journee,
-      nombre_suggere: 1,
-      nombre_max: 3,
-      medecins_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
-      type: 'site',
-      site_fermeture: site?.fermeture || false
-    });
+    // Récupérer besoin_secretaires du médecin
+    const medecin = besoin.medecin_id ? weekData.medecins_map.get(besoin.medecin_id) : null;
+    const besoinSecretaire = medecin?.besoin_secretaires ?? 0;
+    
+    // Ne créer un besoin que si besoin_secretaires > 0
+    if (besoinSecretaire > 0) {
+      needs.push({
+        site_id: besoin.site_id,
+        date: besoin.date,
+        periode: besoin.demi_journee,
+        nombre_suggere: besoinSecretaire,
+        nombre_max: 3,
+        medecins_ids: besoin.medecin_id ? [besoin.medecin_id] : [],
+        type: 'site',
+        site_fermeture: site?.fermeture || false
+      });
+    }
     
     if (site?.fermeture) {
       closing_sites_by_date.get(besoin.date)!.add(besoin.site_id);
