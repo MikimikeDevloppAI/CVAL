@@ -189,6 +189,68 @@ export function calculateDynamicScore(
 }
 
 // ============================================================
+// 🆕 NOUVELLES FONCTIONS PÉNALITÉS V3 (PAR JOUR)
+// ============================================================
+
+/**
+ * Calcule la pénalité closing V3 basée sur les jours (pas les demi-journées)
+ * Score = 10 × jours_1r + 12 × jours_2f3f
+ * Les pénalités se REMPLACENT (seul le palier le plus haut s'applique)
+ */
+export function calculateClosingPenaltyV3(
+  days1R: number,
+  days2F3F: number,
+  historicalScore: number = 0,
+  porrentruyHistDays: number = 0
+): number {
+  // Score de la semaine actuelle
+  const weekScore = (days1R * 10) + (days2F3F * 12);
+  
+  // Paliers (seul le plus haut s'applique)
+  let penalty = 0;
+  
+  if (weekScore > 35) {
+    penalty = -10000; // Palier 4
+  } else if (weekScore > 31) {
+    penalty = -1100;  // Palier 3
+  } else if (weekScore > 29) {
+    penalty = -500;   // Palier 2
+  } else if (weekScore > 22) {
+    penalty = -200;   // Palier 1
+  }
+  
+  // Pénalité historique additionnelle (S-1)
+  if (historicalScore > 44) {
+    penalty -= 300;
+  }
+  
+  // Pénalité Porrentruy historique (S-2 + S-1)
+  if (porrentruyHistDays > 2) {
+    penalty -= 300;
+  }
+  
+  return penalty;
+}
+
+/**
+ * Calcule la pénalité Porrentruy V3 basée sur les jours
+ * Pénalités PROGRESSIVES (cumulatives)
+ */
+export function calculatePorrentruyPenaltyV3(
+  daysThisWeek: number
+): number {
+  let penalty = 0;
+  
+  // Pénalités progressives (cumulatives)
+  if (daysThisWeek >= 5) penalty -= 2000;
+  else if (daysThisWeek >= 4) penalty -= 1500;
+  else if (daysThisWeek >= 3) penalty -= 1000;
+  else if (daysThisWeek >= 2) penalty -= 150;
+  
+  return penalty;
+}
+
+// ============================================================
 // COMBO SCORE CALCULATION
 // ============================================================
 export function calculateComboScore(

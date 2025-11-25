@@ -218,8 +218,55 @@ export const CLOSING_PENALTIES = {
   FLORENCE_BRON_TUESDAY_2F: -500, // Très forte pénalité pour Florence Bron 2F le mardi
 };
 
+// 🆕 Nouvelles constantes pour pénalités closing V3 (PAR JOUR)
+export const CLOSING_PENALTIES_V3 = {
+  // Score = 10 × jours_1r + 12 × jours_2f3f
+  closing_role_1r_weight: 10,
+  closing_role_2f_weight: 12,
+  
+  // Paliers (seul le plus haut s'applique)
+  closing_role_threshold_1: 22,
+  closing_role_threshold_2: 29,
+  closing_role_threshold_3: 31,
+  closing_role_threshold_4: 35,
+  
+  closing_role_penalty_1: 200,
+  closing_role_penalty_2: 500,
+  closing_role_penalty_3: 1100,
+  closing_role_penalty_4: 10000,
+  
+  // Pénalités historiques additionnelles
+  closing_history_threshold: 44,
+  closing_history_penalty: 300,
+  porrentruy_history_threshold: 2,
+  porrentruy_history_penalty: 300
+};
+
+// 🆕 Pénalités progressives Porrentruy/Esplanade (PAR JOUR) - max < 2170 pour laisser place au préférences
+export const SITE_OVERLOAD_PENALTIES_V3 = {
+  site_p234_day_2: 150,   // 2ème jour aux sites éloignés
+  site_p234_day_3: 1000,  // 3ème jour aux sites éloignés
+  site_p234_day_4: 1500,  // 4ème jour aux sites éloignés
+  site_p234_day_5: 2000   // 5ème jour aux sites éloignés (max théorique)
+};
+
 // ID Florence Bron (à charger depuis la DB)
 export const FLORENCE_BRON_ID = '1e5339aa-5e82-4295-b918-e15a580b3396';
 
 // ID Paul Jacquier (pour détection 3F)
 export const PAUL_JACQUIER_ID = '121dc7d9-99dc-46bd-9b6c-d240ac6dc6c8';
+
+// Sites Porrentruy pour comptage des jours
+export const PORRENTRUY_SITES = [
+  '4a06ca9e-43ed-43f6-a42f-e9b0f95df4d0', // À vérifier avec IDs réels
+  // Ajouter d'autres sites Porrentruy si nécessaire
+];
+
+// 🆕 Nouveau type pour contexte global semaine
+export interface WeekContext {
+  dates: string[];
+  needs_by_date: Map<string, SiteNeed[]>;
+  capacities_by_date: Map<string, CapaciteEffective[]>;
+  closing_sites_by_date: Map<string, Set<string>>;
+  sites_needing_3f: Map<string, Set<string>>;
+}
