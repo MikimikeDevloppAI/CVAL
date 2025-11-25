@@ -383,6 +383,12 @@ export function buildWeeklyMILPModel(
     
     // Contraintes agrégées sites
     for (const [site_id, total_max] of morningTotals) {
+      // Skip ADMIN - pas de limite de capacité pour l'administratif
+      if (site_id === ADMIN_SITE_ID) {
+        logger.info(`  ⏭️  ${date} matin site ADMIN: skipped (no capacity limit)`);
+        continue;
+      }
+      
       const constraintName = `site_cap_${site_id}_${date}_1`;
       model.constraints[constraintName] = { max: total_max };
       
@@ -398,6 +404,12 @@ export function buildWeeklyMILPModel(
     }
     
     for (const [site_id, total_max] of afternoonTotals) {
+      // Skip ADMIN - pas de limite de capacité pour l'administratif
+      if (site_id === ADMIN_SITE_ID) {
+        logger.info(`  ⏭️  ${date} AM site ADMIN: skipped (no capacity limit)`);
+        continue;
+      }
+      
       const constraintName = `site_cap_${site_id}_${date}_2`;
       model.constraints[constraintName] = { max: total_max };
       
