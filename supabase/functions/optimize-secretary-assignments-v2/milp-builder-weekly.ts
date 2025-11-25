@@ -66,7 +66,8 @@ export function buildWeeklyMILPModel(
     opType: 'max',
     constraints: {},
     variables: {},
-    binaries: {}
+    binaries: {},
+    ints: {}
   };
   
   const allCombos: Combo[] = [];
