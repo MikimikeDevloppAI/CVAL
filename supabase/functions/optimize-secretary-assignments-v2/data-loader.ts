@@ -45,6 +45,159 @@ function generateAdminNeeds(dates: string[]): any[] {
   return adminNeeds;
 }
 
+// 🆕 Fonction pour préparer les capacités des secrétaires flexibles
+export async function prepareFlexibleCapacities(
+  weekDates: string[],
+  supabase: SupabaseClient
+): Promise<void> {
+  console.log('📦 Préparation des capacités flexibles pour optimisation globale...');
+  
+  // 1. Charger secrétaires flexibles
+  const { data: flexibles, error: flexError } = await supabase
+    .from('secretaires')
+    .select('*')
+    .eq('actif', true)
+    .eq('horaire_flexible', true);
+  
+  if (flexError) {
+    console.error('❌ Erreur chargement flexibles:', flexError);
+    return;
+  }
+  
+  if (!flexibles || flexibles.length === 0) {
+    console.log('  ℹ️ Aucune secrétaire flexible trouvée');
+    return;
+  }
+  
+  console.log(`  👥 ${flexibles.length} secrétaire(s) flexible(s) trouvée(s)`);
+  
+  // 2. Charger jours fériés
+  const { data: holidays } = await supabase
+    .from('jours_feries')
+    .select('date')
+    .in('date', weekDates)
+    .eq('actif', true);
+  
+  const holidaySet = new Set(holidays?.map(h => h.date) || []);
+  console.log(`  📅 Jours fériés: ${holidaySet.size}`);
+  
+  // 3. Charger absences
+  const { data: absences } = await supabase
+    .from('absences')
+    .select('*')
+    .in('date_debut', weekDates)
+    .or(`date_fin.in.(${weekDates.join(',')}),date_debut.lte.${weekDates[weekDates.length - 1]},date_fin.gte.${weekDates[0]}`)
+    .eq('statut', 'approuve')
+    .eq('type_personne', 'secretaire');
+  
+  // Build absence map per secretary
+  const absencesBySecretaire = new Map<string, Set<string>>();
+  for (const abs of absences || []) {
+    if (!abs.secretaire_id) continue;
+    
+    if (!absencesBySecretaire.has(abs.secretaire_id)) {
+      absencesBySecretaire.set(abs.secretaire_id, new Set());
+    }
+    
+    // Handle date ranges
+    const startDate = new Date(abs.date_debut);
+    const endDate = new Date(abs.date_fin);
+    
+    for (const date of weekDates) {
+      const currentDate = new Date(date);
+      if (currentDate >= startDate && currentDate <= endDate) {
+        if (abs.demi_journee) {
+          absencesBySecretaire.get(abs.secretaire_id)!.add(`${date}_${abs.demi_journee}`);
+        } else {
+          absencesBySecretaire.get(abs.secretaire_id)!.add(date);
+        }
+      }
+    }
+  }
+  
+  console.log(`  🚫 Absences chargées pour ${absencesBySecretaire.size} secrétaire(s)`);
+  
+  // 4. Supprimer anciennes capacités flexibles pour cette semaine
+  const flexibleIds = flexibles.map(f => f.id);
+  if (flexibleIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('capacite_effective')
+      .delete()
+      .in('secretaire_id', flexibleIds)
+      .in('date', weekDates);
+    
+    if (deleteError) {
+      console.error('❌ Erreur suppression anciennes capacités:', deleteError);
+    }
+  }
+  
+  // 5. Créer capacités pour TOUS les jours disponibles (Lun-Ven, hors absences/fériés)
+  const capacitiesToInsert = [];
+  const ADMIN_SITE_ID = '00000000-0000-0000-0000-000000000001';
+  
+  for (const flexible of flexibles) {
+    console.log(`  👤 ${flexible.first_name} ${flexible.name} (${flexible.pourcentage_temps}%)`);
+    
+    const absencesSet = absencesBySecretaire.get(flexible.id) || new Set();
+    let availableDaysCount = 0;
+    
+    for (const date of weekDates) {
+      const dateObj = new Date(date + 'T00:00:00Z');
+      const dayOfWeek = dateObj.getUTCDay();
+      
+      // Skip weekends
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+      
+      // Skip holidays
+      if (holidaySet.has(date)) continue;
+      
+      // Skip full-day absences
+      if (absencesSet.has(date)) continue;
+      
+      let addedPeriodsForDay = 0;
+      
+      // Create capacities for both periods if not absent
+      for (const periode of ['matin', 'apres_midi'] as const) {
+        if (absencesSet.has(`${date}_${periode}`)) continue;
+        
+        capacitiesToInsert.push({
+          secretaire_id: flexible.id,
+          date,
+          demi_journee: periode,
+          site_id: ADMIN_SITE_ID,
+          actif: true,
+          is_1r: false,
+          is_2f: false,
+          is_3f: false
+        });
+        addedPeriodsForDay++;
+      }
+      
+      if (addedPeriodsForDay === 2) {
+        availableDaysCount++;
+      }
+    }
+    
+    console.log(`    ✅ ${availableDaysCount} jour(s) disponible(s)`);
+  }
+  
+  console.log(`  📝 ${capacitiesToInsert.length} capacités flexibles à créer`);
+  
+  // 6. Insérer nouvelles capacités
+  if (capacitiesToInsert.length > 0) {
+    const { error: insertError } = await supabase
+      .from('capacite_effective')
+      .insert(capacitiesToInsert);
+    
+    if (insertError) {
+      console.error('❌ Erreur insertion capacités:', insertError);
+      throw insertError;
+    }
+    
+    console.log(`  ✅ Capacités flexibles créées avec succès`);
+  }
+}
+
 export async function loadWeekData(
   dates: string[],
   supabase: SupabaseClient
