@@ -930,115 +930,32 @@ export function buildWeeklyMILPModel(
     
     const secCombos = allCombos.filter(c => c.secretaire_id === sec.id);
     
-    // ===== A. VARIABLES DE COMPTAGE JOURS 1R et 2F =====
-    const days1R_all_var = `days_1r_all_${sec.id}`;
-    const days2F_all_var = `days_2f_all_${sec.id}`;
-    
-    model.variables[days1R_all_var] = { score_total: 0 };
-    model.variables[days2F_all_var] = { score_total: 0 };
-    model.ints[days1R_all_var] = 1;
-    model.ints[days2F_all_var] = 1;
-    
-    // ===== B. CRÉER TOUTES LES VARIABLES BINAIRES PAR JOUR =====
-    for (const date of weekContext.dates) {
-      // Binaire: ce jour a un combo avec 1R
-      const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
-      if (!model.variables[has1R_all_date]) {
-        model.variables[has1R_all_date] = {};
-      }
-      model.variables[has1R_all_date].score_total = 0;
-      model.binaries[has1R_all_date] = 1;
-      
-      // Binaire: ce jour a un combo avec 2F/3F
-      const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
-      if (!model.variables[has2F_all_date]) {
-        model.variables[has2F_all_date] = {};
-      }
-      model.variables[has2F_all_date].score_total = 0;
-      model.binaries[has2F_all_date] = 1;
-    }
-    
-    // ===== C. LIER BINAIRES AUX VARIABLES DE RÔLES (section 4) =====
-    for (const date of weekContext.dates) {
-      const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
-      const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
-      
-      // Récupérer les variables de rôles créées dans la section 4
-      const roleVars1R = roleVars1RBySecAndDate.get(sec.id)?.get(date) || [];
-      const roleVars2F = roleVars2FBySecAndDate.get(sec.id)?.get(date) || [];
-      
-      // 🆕 CONTRAINTE 1R: has_1r_all_date = 1 si AU MOINS une variable role_1r_* est active
-      if (roleVars1R.length > 0) {
-        // has_1r_all_date <= sum(roleVars1R)
-        const constraint1R_upper = `has1r_all_upper_${sec.id}_${date}`;
-        model.constraints[constraint1R_upper] = { max: 0 };
-        model.variables[has1R_all_date][constraint1R_upper] = 1;
-        
-        for (const roleVar of roleVars1R) {
-          model.variables[roleVar][constraint1R_upper] = -1;
-        }
-        
-        // Big-M: sum(roleVars1R) - M * has_1r <= 0 → sum(roleVars1R) <= M * has_1r
-        const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
-        const M1 = roleVars1R.length;
-        model.constraints[constraint1R_lower] = { max: 0 };
-        model.variables[has1R_all_date][constraint1R_lower] = -M1;
-        
-        for (const roleVar of roleVars1R) {
-          model.variables[roleVar][constraint1R_lower] = 1;
-        }
-      }
-      
-      // 🆕 CONTRAINTE 2F: has_2f_all_date = 1 si AU MOINS une variable role_2f_* est active
-      if (roleVars2F.length > 0) {
-        // has_2f_all_date <= sum(roleVars2F)
-        const constraint2F_upper = `has2f_all_upper_${sec.id}_${date}`;
-        model.constraints[constraint2F_upper] = { max: 0 };
-        model.variables[has2F_all_date][constraint2F_upper] = 1;
-        
-        for (const roleVar of roleVars2F) {
-          model.variables[roleVar][constraint2F_upper] = -1;
-        }
-        
-        // Big-M: sum(roleVars2F) - M * has_2f <= 0 → sum(roleVars2F) <= M * has_2f
-        const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
-        const M2 = roleVars2F.length;
-        model.constraints[constraint2F_lower] = { max: 0 };
-        model.variables[has2F_all_date][constraint2F_lower] = -M2;
-        
-        for (const roleVar of roleVars2F) {
-          model.variables[roleVar][constraint2F_lower] = 1;
-        }
-      }
-    }
-    
-    // ===== D. SOMMER LES JOURS =====
-    const constraint_sum_1r_all = `sum_days_1r_all_${sec.id}`;
-    model.constraints[constraint_sum_1r_all] = { equal: 0 };
-    model.variables[days1R_all_var][constraint_sum_1r_all] = 1;
-    
-    for (const date of weekContext.dates) {
-      model.variables[`has_1r_all_${sec.id}_${date}`][constraint_sum_1r_all] = -1;
-    }
-    
-    const constraint_sum_2f_all = `sum_days_2f_all_${sec.id}`;
-    model.constraints[constraint_sum_2f_all] = { equal: 0 };
-    model.variables[days2F_all_var][constraint_sum_2f_all] = 1;
-    
-    for (const date of weekContext.dates) {
-      model.variables[`has_2f_all_${sec.id}_${date}`][constraint_sum_2f_all] = -1;
-    }
-    
-    // ===== E. CALCULER SCORE CLOSING =====
+    // ===== A. CALCULER SCORE CLOSING DIRECTEMENT =====
+    // Score = 10 × (nombre total de 1R sur la semaine) + 12 × (nombre total de 2F sur la semaine)
     const scoreClosing_all_var = `score_closing_all_${sec.id}`;
     model.variables[scoreClosing_all_var] = { score_total: 0 };
     model.ints[scoreClosing_all_var] = 1;
     
+    // Contrainte: scoreClosing_all_var = 10 × sum(all role_1r) + 12 × sum(all role_2f)
     const constraint_closing_all = `calc_closing_all_${sec.id}`;
     model.constraints[constraint_closing_all] = { equal: 0 };
     model.variables[scoreClosing_all_var][constraint_closing_all] = 1;
-    model.variables[days1R_all_var][constraint_closing_all] = -10;
-    model.variables[days2F_all_var][constraint_closing_all] = -12;
+    
+    // Récupérer TOUTES les variables role_1r et role_2f pour cette secrétaire sur toute la semaine
+    for (const date of weekContext.dates) {
+      const roleVars1R = roleVars1RBySecAndDate.get(sec.id)?.get(date) || [];
+      const roleVars2F = roleVars2FBySecAndDate.get(sec.id)?.get(date) || [];
+      
+      // Chaque variable role_1r active ajoute 10 au score
+      for (const roleVar of roleVars1R) {
+        model.variables[roleVar][constraint_closing_all] = -10;
+      }
+      
+      // Chaque variable role_2f active ajoute 12 au score
+      for (const roleVar of roleVars2F) {
+        model.variables[roleVar][constraint_closing_all] = -12;
+      }
+    }
     
     // ===== F. INDICATEURS DE PALIERS (Big-M) =====
     // Tier 1: score > 22
