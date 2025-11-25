@@ -12,26 +12,22 @@ export const UnfilledNeedsBadge = ({ count, onClick, isLoading }: UnfilledNeedsB
   if (count === 0 && !isLoading) return null;
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
       onClick={onClick}
       disabled={isLoading}
       className={cn(
-        "mb-4 h-8 gap-2 text-xs transition-all duration-300",
-        count > 0 && "border-destructive/50 bg-gradient-to-r from-orange-500/10 to-destructive/10 hover:from-orange-500/20 hover:to-destructive/20"
+        "ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all duration-300",
+        "bg-destructive/10 hover:bg-destructive/20 border border-destructive/30",
+        "disabled:opacity-50 disabled:cursor-not-allowed"
       )}
+      title={isLoading ? "Chargement..." : `${count} besoin${count > 1 ? 's' : ''} non satisfait${count > 1 ? 's' : ''} sur 4 semaines`}
     >
-      <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-      <span className="font-medium">
-        {isLoading ? (
-          "Chargement..."
-        ) : (
-          <>
-            <span className="font-bold text-destructive">{count}</span> besoin{count > 1 ? 's' : ''} non satisfait{count > 1 ? 's' : ''} (4 semaines)
-          </>
-        )}
-      </span>
-    </Button>
+      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+      {isLoading ? (
+        <span className="text-xs font-medium text-destructive">...</span>
+      ) : (
+        <span className="text-sm font-bold text-destructive tabular-nums">{count}</span>
+      )}
+    </button>
   );
 };
