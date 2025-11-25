@@ -121,6 +121,24 @@ export async function writeWeeklyAssignments(
   
   logger.info(`  🗺️ capIdMap: ${capIdMap.size} entrées`);
   
+  // ✅ RESET des assignations et rôles pour toute la semaine avant nouvelle écriture
+  const { error: resetError } = await supabase
+    .from('capacite_effective')
+    .update({
+      site_id: ADMIN_SITE_ID,
+      planning_genere_bloc_operatoire_id: null,
+      besoin_operation_id: null,
+      is_1r: false,
+      is_2f: false,
+      is_3f: false
+    })
+    .in('date', weekContext.dates)
+    .eq('actif', true);
+  
+  if (resetError) {
+    logger.error(`  ❌ Erreur lors du reset des capacités: ${resetError.message}`);
+  }
+  
   const updates: any[] = [];
   const roleUpdates = new Map<string, { is_1r?: boolean; is_2f?: boolean; is_3f?: boolean }>();
   let assignmentCount = 0;
