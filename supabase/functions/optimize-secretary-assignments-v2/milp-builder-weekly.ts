@@ -897,16 +897,260 @@ export function buildWeeklyMILPModel(
   // TODO: Implémenter contraintes flexibles globales
   
   // ============================================================
-  // 5. PÉNALITÉS CLOSING V3 (PAR JOUR)
+  // 6. PÉNALITÉS CLOSING V3 - TOUS LES SECRÉTAIRES
   // ============================================================
-  // (Pour V4 - nécessite refonte majeure avec variables closing par jour)
-  // TODO: Implémenter pénalités closing V3
+  logger.info(`\n🔧 Création des pénalités closing V3 pour tous les secrétaires...`);
+  
+  for (const sec of secretaires) {
+    logger.info(`  👤 ${sec.first_name} ${sec.name} - calcul pénalités closing`);
+    
+    const secCombos = allCombos.filter(c => c.secretaire_id === sec.id);
+    
+    // ===== A. VARIABLES DE COMPTAGE JOURS 1R et 2F =====
+    const days1R_all_var = `days_1r_all_${sec.id}`;
+    const days2F_all_var = `days_2f_all_${sec.id}`;
+    
+    model.variables[days1R_all_var] = { score_total: 0 };
+    model.variables[days2F_all_var] = { score_total: 0 };
+    model.ints[days1R_all_var] = 1;
+    model.ints[days2F_all_var] = 1;
+    
+    // ===== B. VARIABLES BINAIRES PAR JOUR =====
+    for (const date of weekContext.dates) {
+      const dateCombos = secCombos.filter(c => c.date === date);
+      
+      // Binaire: ce jour a un combo avec 1R
+      const has1R_all_date = `has_1r_all_${sec.id}_${date}`;
+      model.variables[has1R_all_date] = { score_total: 0 };
+      model.binaries[has1R_all_date] = 1;
+      
+      // Binaire: ce jour a un combo avec 2F/3F
+      const has2F_all_date = `has_2f_all_${sec.id}_${date}`;
+      model.variables[has2F_all_date] = { score_total: 0 };
+      model.binaries[has2F_all_date] = 1;
+      
+      // ===== C. LIER BINAIRES AUX COMBOS =====
+      const combos1R = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_1r.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
+      
+      const combos2F = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_2f.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
+      
+      const combos3F = dateCombos.filter(c => {
+        if (c.needMatin?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needMatin.site_id)) {
+          return true;
+        }
+        if (c.needAM?.site_fermeture && weekContext.sites_needing_3f.get(date)?.has(c.needAM.site_id)) {
+          return true;
+        }
+        return false;
+      });
+      
+      // Contrainte 1R
+      if (combos1R.length > 0) {
+        const constraint1R_upper = `has1r_all_upper_${sec.id}_${date}`;
+        model.constraints[constraint1R_upper] = { max: 0 };
+        model.variables[has1R_all_date][constraint1R_upper] = 1;
+        
+        for (const combo of combos1R) {
+          model.variables[combo.varName][constraint1R_upper] = -1;
+        }
+        
+        const constraint1R_lower = `has1r_all_lower_${sec.id}_${date}`;
+        model.constraints[constraint1R_lower] = { min: 0 };
+        model.variables[has1R_all_date][constraint1R_lower] = -combos1R.length;
+        
+        for (const combo of combos1R) {
+          model.variables[combo.varName][constraint1R_lower] = 1;
+        }
+      }
+      
+      // Contrainte 2F/3F
+      const combos2F3F = [...combos2F, ...combos3F];
+      if (combos2F3F.length > 0) {
+        const constraint2F_upper = `has2f_all_upper_${sec.id}_${date}`;
+        model.constraints[constraint2F_upper] = { max: 0 };
+        model.variables[has2F_all_date][constraint2F_upper] = 1;
+        
+        for (const combo of combos2F3F) {
+          model.variables[combo.varName][constraint2F_upper] = -1;
+        }
+        
+        const constraint2F_lower = `has2f_all_lower_${sec.id}_${date}`;
+        model.constraints[constraint2F_lower] = { min: 0 };
+        model.variables[has2F_all_date][constraint2F_lower] = -combos2F3F.length;
+        
+        for (const combo of combos2F3F) {
+          model.variables[combo.varName][constraint2F_lower] = 1;
+        }
+      }
+    }
+    
+    // ===== D. SOMMER LES JOURS =====
+    const constraint_sum_1r_all = `sum_days_1r_all_${sec.id}`;
+    model.constraints[constraint_sum_1r_all] = { equal: 0 };
+    model.variables[days1R_all_var][constraint_sum_1r_all] = 1;
+    
+    for (const date of weekContext.dates) {
+      model.variables[`has_1r_all_${sec.id}_${date}`][constraint_sum_1r_all] = -1;
+    }
+    
+    const constraint_sum_2f_all = `sum_days_2f_all_${sec.id}`;
+    model.constraints[constraint_sum_2f_all] = { equal: 0 };
+    model.variables[days2F_all_var][constraint_sum_2f_all] = 1;
+    
+    for (const date of weekContext.dates) {
+      model.variables[`has_2f_all_${sec.id}_${date}`][constraint_sum_2f_all] = -1;
+    }
+    
+    // ===== E. CALCULER SCORE CLOSING =====
+    const scoreClosing_all_var = `score_closing_all_${sec.id}`;
+    model.variables[scoreClosing_all_var] = { score_total: 0 };
+    model.ints[scoreClosing_all_var] = 1;
+    
+    const constraint_closing_all = `calc_closing_all_${sec.id}`;
+    model.constraints[constraint_closing_all] = { equal: 0 };
+    model.variables[scoreClosing_all_var][constraint_closing_all] = 1;
+    model.variables[days1R_all_var][constraint_closing_all] = -10;
+    model.variables[days2F_all_var][constraint_closing_all] = -12;
+    
+    // ===== F. INDICATEURS DE PALIERS (Big-M) =====
+    // Tier 1: score > 22
+    const ind_tier1 = `ind_tier1_${sec.id}`;
+    model.variables[ind_tier1] = { score_total: 0 };
+    model.binaries[ind_tier1] = 1;
+    
+    const M1 = 100;
+    const constraint_tier1 = `tier1_threshold_${sec.id}`;
+    model.constraints[constraint_tier1] = { min: -22 };
+    model.variables[scoreClosing_all_var][constraint_tier1] = 1;
+    model.variables[ind_tier1][constraint_tier1] = -M1;
+    
+    // Tier 2: score > 29
+    const ind_tier2 = `ind_tier2_${sec.id}`;
+    model.variables[ind_tier2] = { score_total: 0 };
+    model.binaries[ind_tier2] = 1;
+    
+    const constraint_tier2 = `tier2_threshold_${sec.id}`;
+    model.constraints[constraint_tier2] = { min: -29 };
+    model.variables[scoreClosing_all_var][constraint_tier2] = 1;
+    model.variables[ind_tier2][constraint_tier2] = -M1;
+    
+    // Tier 3: score > 31
+    const ind_tier3 = `ind_tier3_${sec.id}`;
+    model.variables[ind_tier3] = { score_total: 0 };
+    model.binaries[ind_tier3] = 1;
+    
+    const constraint_tier3 = `tier3_threshold_${sec.id}`;
+    model.constraints[constraint_tier3] = { min: -31 };
+    model.variables[scoreClosing_all_var][constraint_tier3] = 1;
+    model.variables[ind_tier3][constraint_tier3] = -M1;
+    
+    // Tier 4: score > 35
+    const ind_tier4 = `ind_tier4_${sec.id}`;
+    model.variables[ind_tier4] = { score_total: 0 };
+    model.binaries[ind_tier4] = 1;
+    
+    const constraint_tier4 = `tier4_threshold_${sec.id}`;
+    model.constraints[constraint_tier4] = { min: -35 };
+    model.variables[scoreClosing_all_var][constraint_tier4] = 1;
+    model.variables[ind_tier4][constraint_tier4] = -M1;
+    
+    // ===== G. INDICATEURS EXCLUSIFS POUR PÉNALITÉS NON CUMULATIVES =====
+    // ind_only_tier1 = tier1 AND NOT tier2 (score ∈ (22, 29])
+    const ind_only_tier1 = `ind_only_tier1_${sec.id}`;
+    model.variables[ind_only_tier1] = { score_total: -200 }; // Pénalité -200
+    model.binaries[ind_only_tier1] = 1;
+    
+    // ind_only_tier1 <= ind_tier1
+    const c_ot1_1 = `ot1_1_${sec.id}`;
+    model.constraints[c_ot1_1] = { max: 0 };
+    model.variables[ind_only_tier1][c_ot1_1] = 1;
+    model.variables[ind_tier1][c_ot1_1] = -1;
+    
+    // ind_only_tier1 <= 1 - ind_tier2
+    const c_ot1_2 = `ot1_2_${sec.id}`;
+    model.constraints[c_ot1_2] = { max: 1 };
+    model.variables[ind_only_tier1][c_ot1_2] = 1;
+    model.variables[ind_tier2][c_ot1_2] = 1;
+    
+    // ind_only_tier1 >= ind_tier1 - ind_tier2
+    const c_ot1_3 = `ot1_3_${sec.id}`;
+    model.constraints[c_ot1_3] = { min: 0 };
+    model.variables[ind_only_tier1][c_ot1_3] = -1;
+    model.variables[ind_tier1][c_ot1_3] = 1;
+    model.variables[ind_tier2][c_ot1_3] = -1;
+    
+    // ind_only_tier2 = tier2 AND NOT tier3 (score ∈ (29, 31])
+    const ind_only_tier2 = `ind_only_tier2_${sec.id}`;
+    model.variables[ind_only_tier2] = { score_total: -500 }; // Pénalité -500
+    model.binaries[ind_only_tier2] = 1;
+    
+    const c_ot2_1 = `ot2_1_${sec.id}`;
+    model.constraints[c_ot2_1] = { max: 0 };
+    model.variables[ind_only_tier2][c_ot2_1] = 1;
+    model.variables[ind_tier2][c_ot2_1] = -1;
+    
+    const c_ot2_2 = `ot2_2_${sec.id}`;
+    model.constraints[c_ot2_2] = { max: 1 };
+    model.variables[ind_only_tier2][c_ot2_2] = 1;
+    model.variables[ind_tier3][c_ot2_2] = 1;
+    
+    const c_ot2_3 = `ot2_3_${sec.id}`;
+    model.constraints[c_ot2_3] = { min: 0 };
+    model.variables[ind_only_tier2][c_ot2_3] = -1;
+    model.variables[ind_tier2][c_ot2_3] = 1;
+    model.variables[ind_tier3][c_ot2_3] = -1;
+    
+    // ind_only_tier3 = tier3 AND NOT tier4 (score ∈ (31, 35])
+    const ind_only_tier3 = `ind_only_tier3_${sec.id}`;
+    model.variables[ind_only_tier3] = { score_total: -1100 }; // Pénalité -1100
+    model.binaries[ind_only_tier3] = 1;
+    
+    const c_ot3_1 = `ot3_1_${sec.id}`;
+    model.constraints[c_ot3_1] = { max: 0 };
+    model.variables[ind_only_tier3][c_ot3_1] = 1;
+    model.variables[ind_tier3][c_ot3_1] = -1;
+    
+    const c_ot3_2 = `ot3_2_${sec.id}`;
+    model.constraints[c_ot3_2] = { max: 1 };
+    model.variables[ind_only_tier3][c_ot3_2] = 1;
+    model.variables[ind_tier4][c_ot3_2] = 1;
+    
+    const c_ot3_3 = `ot3_3_${sec.id}`;
+    model.constraints[c_ot3_3] = { min: 0 };
+    model.variables[ind_only_tier3][c_ot3_3] = -1;
+    model.variables[ind_tier3][c_ot3_3] = 1;
+    model.variables[ind_tier4][c_ot3_3] = -1;
+    
+    // Tier 4: score > 35 (pénalité -10000)
+    // Pas besoin d'indicateur exclusif, ind_tier4 suffit
+    model.variables[ind_tier4].score_total = -10000;
+    
+    logger.info(`    ✅ Pénalités closing V3 configurées`);
+  }
+  
+  logger.info(`  ✅ Pénalités closing V3 créées pour tous les secrétaires`);
   
   // ============================================================
-  // 6. PÉNALITÉS PORRENTRUY V3 (PAR JOUR)
+  // 7. PÉNALITÉS PORRENTRUY V3 (PAR JOUR)
   // ============================================================
-  // (Pour V4)
-  // TODO: Implémenter pénalités Porrentruy V3
+  // (Pour V4 - si nécessaire)
+  // TODO: Implémenter pénalités Porrentruy progressives si demandé
   
   // ============================================================
   // CONTRAINTES FERMETURE déjà implémentées (section 4)
