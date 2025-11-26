@@ -263,23 +263,22 @@ export const MultiDateDryRunDialog = ({
               {/* Summary */}
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      Amélioration totale : <strong className={result.totalImprovements > 0 ? 'text-green-600' : 'text-red-600'}>
-                        {result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}
-                      </strong> besoin(s) satisfait(s)
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleSelectAll}
-                    >
-                       {selectedChanges.size === result.results.reduce((sum, r) => sum + ((r.individual_changes || []).filter(c => c.after).length), 0)
-                        ? 'Tout désélectionner'
-                        : 'Tout sélectionner'}
-                    </Button>
+                <AlertDescription className="flex items-center justify-between gap-4">
+                  <div>
+                    Amélioration totale : <strong className={result.totalImprovements > 0 ? 'text-green-600' : 'text-red-600'}>
+                      {result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}
+                    </strong> besoin(s) satisfait(s)
                   </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSelectAll}
+                    className="shrink-0"
+                  >
+                     {selectedChanges.size === result.results.reduce((sum, r) => sum + ((r.individual_changes || []).filter(c => c.after).length), 0)
+                      ? 'Tout désélectionner'
+                      : 'Tout sélectionner'}
+                  </Button>
                 </AlertDescription>
               </Alert>
 
