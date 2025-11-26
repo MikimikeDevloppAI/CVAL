@@ -261,9 +261,9 @@ export const MultiDateDryRunDialog = ({
           ) : result && result.results.length > 0 ? (
             <div className="space-y-6">
               {/* Summary */}
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="flex items-center justify-between gap-4">
+              <Alert className="flex items-center gap-3">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <AlertDescription className="flex-1 flex items-center justify-between gap-4">
                   <div>
                     Amélioration totale : <strong className={result.totalImprovements > 0 ? 'text-green-600' : 'text-red-600'}>
                       {result.totalImprovements > 0 ? '+' : ''}{result.totalImprovements}
