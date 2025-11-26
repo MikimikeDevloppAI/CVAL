@@ -902,7 +902,7 @@ const DashboardPage = () => {
 
 
       {/* Planning hebdomadaire container */}
-      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl p-6">
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
         {/* View Mode Tabs */}
         {/* Planning hebdomadaire Title + Color Legend */}
         <div className="flex items-center justify-between mb-6">
