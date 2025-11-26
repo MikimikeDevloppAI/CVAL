@@ -663,42 +663,40 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           </div>
           <div className="flex items-center gap-2">
             {totalCount > 0 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefreshViews}
-                  disabled={refreshingViews}
-                  className="gap-2 h-8 text-xs"
-                  title="Rafraîchir les vues matérialisées"
-                >
-                  {refreshingViews ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3" />
-                  )}
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleDryRunOptimization}
-                  disabled={dryRunLoading}
-                  className="gap-2 h-8 text-xs"
-                >
-                  {dryRunLoading ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Optimisation...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3 w-3" />
-                      Optimiser la semaine
-                    </>
-                  )}
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshViews}
+                disabled={refreshingViews}
+                className="gap-2 h-8 text-xs"
+                title="Rafraîchir les vues matérialisées"
+              >
+                {refreshingViews ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+              </Button>
             )}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleDryRunOptimization}
+              disabled={dryRunLoading}
+              className="gap-2 h-8 text-xs"
+            >
+              {dryRunLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Optimisation...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3" />
+                  Optimiser la semaine
+                </>
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
