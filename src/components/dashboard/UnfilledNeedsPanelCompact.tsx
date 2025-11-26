@@ -496,7 +496,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
       console.log('📤 Optimisation des dates avec besoins:', datesWithNeeds);
 
-      // Appel unique à l'API Python avec toutes les dates ayant des besoins
+      // 1. Call Python API
       const { data, error } = await supabase.functions.invoke('optimize-planning-python', {
         body: { 
           dates: datesWithNeeds,
@@ -506,16 +506,103 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erreur inconnue');
 
-      if (data?.success) {
-        toast.success('Optimisation terminée avec succès');
-        // Rafraîchir les vues et les données
-        await refreshBesoinsViews();
-        await fetchUnfilledNeeds();
-        onRefresh?.();
-      } else {
-        throw new Error(data?.error || 'Erreur inconnue');
-      }
+      console.log('✅ Optimisation terminée, récupération des changements...');
+
+      // 2. Fetch proposed changes from dry_run table
+      const { data: dryRunChanges, error: dryRunError } = await supabase
+        .from('capacite_effective_dry_run')
+        .select(`
+          *,
+          secretaire:secretaires(id, first_name, name),
+          site:sites(id, nom),
+          besoin_operation:besoins_operations(id, nom),
+          capacite_effective_id
+        `)
+        .in('date', datesWithNeeds);
+
+      if (dryRunError) throw dryRunError;
+
+      // 3. Fetch "before" states from capacite_effective
+      const capaciteIds = dryRunChanges
+        ?.map(c => c.capacite_effective_id)
+        .filter(Boolean) || [];
+      
+      const { data: beforeData } = await supabase
+        .from('capacite_effective')
+        .select(`
+          *,
+          site:sites(id, nom),
+          besoin_operation:besoins_operations(id, nom)
+        `)
+        .in('id', capaciteIds);
+
+      const beforeMap = new Map(beforeData?.map(b => [b.id, b]) || []);
+
+      // 4. Build IndividualChange objects by date
+      const changesByDate = new Map<string, any[]>();
+      
+      dryRunChanges?.forEach((change: any) => {
+        const before = beforeMap.get(change.capacite_effective_id);
+        
+        const individualChange = {
+          date: change.date,
+          secretaire_id: change.secretaire_id,
+          secretaire_nom: `${change.secretaire?.first_name || ''} ${change.secretaire?.name || ''}`.trim(),
+          periode: change.demi_journee,
+          before: before ? {
+            site_id: before.site_id,
+            site_nom: before.site?.nom || 'Inconnu',
+            type: before.besoin_operation_id ? 'operation' : 'site',
+            besoin_operation_id: before.besoin_operation_id,
+            besoin_operation_nom: before.besoin_operation?.nom,
+            is_1r: before.is_1r,
+            is_2f: before.is_2f,
+            is_3f: before.is_3f
+          } : null,
+          after: {
+            site_id: change.site_id,
+            site_nom: change.site?.nom || 'Inconnu',
+            type: change.besoin_operation_id ? 'operation' : 'site',
+            besoin_operation_id: change.besoin_operation_id,
+            besoin_operation_nom: change.besoin_operation?.nom,
+            is_1r: change.is_1r,
+            is_2f: change.is_2f,
+            is_3f: change.is_3f
+          }
+        };
+
+        if (!changesByDate.has(change.date)) {
+          changesByDate.set(change.date, []);
+        }
+        changesByDate.get(change.date)!.push(individualChange);
+      });
+
+      // 5. Format result for dialog
+      const results = datesWithNeeds.map(date => ({
+        success: true,
+        message: '',
+        date,
+        before: { total_unmet: 0, assignments_count: 0 },
+        after: { total_unmet: 0, assignments_count: 0 },
+        improvement: { unmet_diff: 0, assignment_changes: 0, score_improvement: 0 },
+        individual_changes: changesByDate.get(date) || []
+      }));
+
+      const combinedResult = {
+        success: true,
+        dates: datesWithNeeds,
+        results,
+        totalImprovements: dryRunChanges?.length || 0
+      };
+
+      console.log('📊 Changements préparés:', combinedResult.totalImprovements);
+
+      // 6. Open dialog with results
+      setDryRunResult(combinedResult);
+      setDryRunDialogOpen(true);
+
     } catch (error) {
       console.error('Error running dry run optimization:', error);
       toast.error("Erreur lors de l'optimisation test");
