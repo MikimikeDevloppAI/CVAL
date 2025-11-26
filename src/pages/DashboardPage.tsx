@@ -159,8 +159,8 @@ const DashboardPage = () => {
   });
 
   const calculateStatus = (besoin: number, assigne: number): 'satisfait' | 'partiel' | 'non_satisfait' => {
-    if (assigne >= besoin) return 'satisfait';
-    if (assigne >= Math.floor(besoin)) return 'partiel';
+    const besoinArrondi = Math.ceil(besoin);
+    if (assigne >= besoinArrondi) return 'satisfait';
     return 'non_satisfait';
   };
 
