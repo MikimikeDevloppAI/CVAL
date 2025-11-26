@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.invite-user]
 verify_jwt = true
+
+[functions.optimize-planning-python]
+verify_jwt = false

@@ -492,11 +492,13 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     setIsOptimizing(true);
 
     try {
+      // Filtrer pour ne garder que les jours de semaine (lundi-vendredi)
       const dates = selectedDates
+        .filter(d => d.getDay() !== 0 && d.getDay() !== 6) // Exclure samedi et dimanche
         .map(d => format(d, 'yyyy-MM-dd'))
         .sort();
 
-      // Prepare secretary assignments by combining all weeks
+      // Préparer flexible_overrides comme objet {secretaire_id: jours}
       const allAssignments = new Map<string, number>();
       
       for (const [weekIndex, weekMap] of weekAssignments.entries()) {
@@ -506,31 +508,18 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
         }
       }
 
-      const secretaryAssignmentsArray = Array.from(allAssignments.entries()).map(([id, days]) => ({
-        secretaire_id: id,
-        jours_requis: days
-      }));
-
-      const weekStart = dates[0];
-      const weekEnd = dates[dates.length - 1];
-
-      const { data: flexData, error: flexError } = await supabase.functions.invoke('optimize-planning-milp-flexible', {
-        body: { 
-          week_start: weekStart,
-          week_end: weekEnd,
-          selected_dates: dates,
-          secretary_assignments: secretaryAssignmentsArray
-        }
-      });
-
-      if (flexError) {
-        console.error('Error optimizing flexible secretaries:', flexError);
+      // Transformer Map en objet pour l'API Python
+      const flexible_overrides: Record<string, number> = {};
+      for (const [secId, days] of allAssignments.entries()) {
+        flexible_overrides[secId] = days;
       }
 
-      const { data, error } = await supabase.functions.invoke('optimize-secretary-assignments-v2', {
+      // Appel unique à l'API Python via l'edge function
+      const { data, error } = await supabase.functions.invoke('optimize-planning-python', {
         body: { 
           dates,
-          useWeeklyOptimization: true  // 🆕 Active l'optimisation hebdomadaire globale
+          minimize_changes: false,
+          flexible_overrides
         }
       });
 
