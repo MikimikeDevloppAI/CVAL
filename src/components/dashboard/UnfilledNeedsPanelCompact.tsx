@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, ChevronDown, ChevronUp, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, ChevronUp, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -640,55 +640,64 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   return (
     <>
       <Card className="rounded-xl overflow-hidden bg-card/50 backdrop-blur-xl border border-border/50 mb-6">
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-transparent border-b border-border/50">
+        <div className={`flex items-center justify-between p-4 border-b border-border/50 ${
+          totalCount > 0 
+            ? 'bg-gradient-to-r from-primary/5 to-transparent' 
+            : 'bg-gradient-to-r from-green-500/5 to-transparent'
+        }`}>
           <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-primary" />
-            <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
             {totalCount > 0 ? (
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                {totalCount}
-              </Badge>
+              <>
+                <AlertCircle className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                  {totalCount}
+                </Badge>
+              </>
             ) : (
-              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                ✓ Tous satisfaits
-              </Badge>
+              <>
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <h3 className="text-base font-semibold text-green-600">Tous les besoins sont satisfaits</h3>
+              </>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshViews}
-              disabled={refreshingViews}
-              className="gap-2 h-8 text-xs"
-              title="Rafraîchir les vues matérialisées"
-            >
-              {refreshingViews ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-            </Button>
             {totalCount > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleDryRunOptimization}
-                disabled={dryRunLoading}
-                className="gap-2 h-8 text-xs"
-              >
-                {dryRunLoading ? (
-                  <>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshViews}
+                  disabled={refreshingViews}
+                  className="gap-2 h-8 text-xs"
+                  title="Rafraîchir les vues matérialisées"
+                >
+                  {refreshingViews ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Optimisation...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3" />
-                    Optimiser la semaine
-                  </>
-                )}
-              </Button>
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleDryRunOptimization}
+                  disabled={dryRunLoading}
+                  className="gap-2 h-8 text-xs"
+                >
+                  {dryRunLoading ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Optimisation...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      Optimiser la semaine
+                    </>
+                  )}
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
