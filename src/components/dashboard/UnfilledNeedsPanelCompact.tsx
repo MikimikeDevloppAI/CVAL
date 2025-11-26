@@ -483,23 +483,31 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     setDryRunLoading(true);
     
     try {
-      // Get only dates with unfilled needs
-      const datesWithNeeds = Array.from(new Set(
-        periodNeeds.map(need => need.date)
-      )).sort();
+      // Generate full week (Monday to Saturday) from startDate to endDate
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const allDates: string[] = [];
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        // Include Monday (1) to Saturday (6), exclude Sunday (0)
+        if (dayOfWeek >= 1 && dayOfWeek <= 6) {
+          allDates.push(d.toISOString().split('T')[0]);
+        }
+      }
 
-      if (datesWithNeeds.length === 0) {
-        toast.info('Aucun besoin non satisfait à optimiser');
+      if (allDates.length === 0) {
+        toast.info('Aucune date à optimiser dans la période sélectionnée');
         setDryRunLoading(false);
         return;
       }
 
-      console.log('📤 Optimisation des dates avec besoins:', datesWithNeeds);
+      console.log('📤 Optimisation de la semaine complète:', allDates);
 
       // 1. Call Python API
       const { data, error } = await supabase.functions.invoke('optimize-planning-python', {
         body: { 
-          dates: datesWithNeeds,
+          dates: allDates,
           minimize_changes: true,
           flexible_overrides: {}
         }
@@ -514,7 +522,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       const { data: dryRunChanges, error: dryRunError } = await supabase
         .from('capacite_effective_dry_run')
         .select('*')
-        .in('date', datesWithNeeds);
+        .in('date', allDates);
 
       if (dryRunError) throw dryRunError;
 
@@ -586,7 +594,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
       });
 
       // 5. Format result for dialog
-      const results = datesWithNeeds.map(date => ({
+      const results = allDates.map(date => ({
         success: true,
         message: '',
         date,
@@ -598,7 +606,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
       const combinedResult = {
         success: true,
-        dates: datesWithNeeds,
+        dates: allDates,
         results,
         totalImprovements: dryRunChanges?.length || 0
       };
