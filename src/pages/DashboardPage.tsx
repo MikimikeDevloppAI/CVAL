@@ -910,19 +910,24 @@ const DashboardPage = () => {
             Planning hebdomadaire
           </h2>
           
-          {/* Color Legend - aligned right */}
-          <div className="inline-flex items-center gap-4 px-4 py-2 bg-gradient-to-br from-background via-card to-card/50 backdrop-blur-xl border-2 border-primary/20 rounded-lg text-xs font-medium text-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Matin</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span>Après-midi</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Journée</span>
+          <div className="flex items-center gap-3">
+            {/* Statistics Button */}
+            <SecretaireStatsDialog secretaires={dashboardSecretaires} />
+            
+            {/* Color Legend */}
+            <div className="inline-flex items-center gap-4 px-4 py-2 bg-gradient-to-br from-background via-card to-card/50 backdrop-blur-xl border-2 border-primary/20 rounded-lg text-xs font-medium text-foreground">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span>Matin</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <span>Après-midi</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span>Journée</span>
+              </div>
             </div>
           </div>
         </div>
