@@ -79,12 +79,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     fetchUnfilledNeeds();
   }, [startDate, endDate]);
 
-  useEffect(() => {
-    // Open automatically when there are unfilled needs
-    if (totalCount > 0 && !isOpen) {
-      setIsOpen(true);
-    }
-  }, [totalCount]);
+  // Panel stays collapsed by default
 
   const fetchUnfilledNeeds = async () => {
     try {
@@ -640,9 +635,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
     }
   };
 
-  // Group needs by date - no longer needed, we'll show all in one table
-  
-  if (totalCount === 0) return null;
+  // Always show the panel, even when all needs are satisfied
 
   return (
     <>
@@ -651,9 +644,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-primary" />
             <h3 className="text-base font-semibold">Besoins non satisfaits</h3>
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-              {totalCount}
-            </Badge>
+            {totalCount > 0 ? (
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                {totalCount}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                ✓ Tous satisfaits
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -670,25 +669,27 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
                 <RefreshCw className="h-3 w-3" />
               )}
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleDryRunOptimization}
-              disabled={dryRunLoading}
-              className="gap-2 h-8 text-xs"
-            >
-              {dryRunLoading ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Optimisation...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3 w-3" />
-                  Optimiser la semaine
-                </>
-              )}
-            </Button>
+            {totalCount > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleDryRunOptimization}
+                disabled={dryRunLoading}
+                className="gap-2 h-8 text-xs"
+              >
+                {dryRunLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Optimisation...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3 w-3" />
+                    Optimiser la semaine
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
