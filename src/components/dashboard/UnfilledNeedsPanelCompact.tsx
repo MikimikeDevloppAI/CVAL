@@ -494,39 +494,28 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
         return;
       }
 
-      // Run optimization for dates with needs in parallel
-      const results = await Promise.all(
-        datesWithNeeds.map(async (date) => {
-          const { data, error } = await supabase.functions.invoke('optimize-planning-dry-run', {
-            body: { date }
-          });
+      console.log('📤 Optimisation des dates avec besoins:', datesWithNeeds);
 
-          if (error) {
-            console.error(`Error for date ${date}:`, error);
-            return { date, error, success: false };
-          }
+      // Appel unique à l'API Python avec toutes les dates ayant des besoins
+      const { data, error } = await supabase.functions.invoke('optimize-planning-python', {
+        body: { 
+          dates: datesWithNeeds,
+          minimize_changes: true,
+          flexible_overrides: {}
+        }
+      });
 
-          return { date, ...data };
-        })
-      );
+      if (error) throw error;
 
-      // Filter successful results
-      const successfulResults = results.filter(r => r.success !== false);
-      
-      if (successfulResults.length === 0) {
-        throw new Error('Aucune optimisation réussie');
+      if (data?.success) {
+        toast.success('Optimisation terminée avec succès');
+        // Rafraîchir les vues et les données
+        await refreshBesoinsViews();
+        await fetchUnfilledNeeds();
+        onRefresh?.();
+      } else {
+        throw new Error(data?.error || 'Erreur inconnue');
       }
-
-      // Combine all results
-      const combinedResult = {
-        success: true,
-        dates: successfulResults.map(r => r.date),
-        results: successfulResults,
-        totalImprovements: successfulResults.reduce((sum, r) => sum + (r.improvement?.unmet_diff || 0), 0)
-      };
-
-      setDryRunResult(combinedResult);
-      setDryRunDialogOpen(true);
     } catch (error) {
       console.error('Error running dry run optimization:', error);
       toast.error("Erreur lors de l'optimisation test");
