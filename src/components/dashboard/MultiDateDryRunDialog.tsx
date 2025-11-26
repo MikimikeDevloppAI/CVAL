@@ -261,7 +261,7 @@ export const MultiDateDryRunDialog = ({
           ) : result && result.results.length > 0 ? (
             <div className="space-y-6">
               {/* Summary */}
-              <Alert className="flex items-center gap-3">
+              <Alert className="flex items-center gap-3 [&>svg]:!relative [&>svg]:!top-auto [&>svg]:!left-auto [&>svg+div]:!translate-y-0 [&>svg+div]:!pl-0">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <AlertDescription className="flex-1 flex items-center justify-between gap-4">
                   <div>
