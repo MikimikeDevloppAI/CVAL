@@ -510,21 +510,15 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
       console.log('✅ Optimisation terminée, récupération des changements...');
 
-      // 2. Fetch proposed changes from dry_run table
+      // 2. Fetch proposed changes from dry_run table (SANS jointures)
       const { data: dryRunChanges, error: dryRunError } = await supabase
         .from('capacite_effective_dry_run')
-        .select(`
-          *,
-          secretaire:secretaires(id, first_name, name),
-          site:sites(id, nom),
-          besoin_operation:besoins_operations(id, nom),
-          capacite_effective_id
-        `)
+        .select('*')
         .in('date', datesWithNeeds);
 
       if (dryRunError) throw dryRunError;
 
-      // 3. Fetch "before" states from capacite_effective
+      // 3. Fetch "before" states from capacite_effective AVEC jointures
       const capaciteIds = dryRunChanges
         ?.map(c => c.capacite_effective_id)
         .filter(Boolean) || [];
@@ -533,6 +527,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
         .from('capacite_effective')
         .select(`
           *,
+          secretaire:secretaires(id, first_name, name),
           site:sites(id, nom),
           besoin_operation:besoins_operations(id, nom)
         `)
@@ -540,16 +535,27 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
 
       const beforeMap = new Map(beforeData?.map(b => [b.id, b]) || []);
 
-      // 4. Build IndividualChange objects by date
+      // 4. Récupérer les sites pour l'état "after"
+      const afterSiteIds = [...new Set(dryRunChanges?.map(c => c.site_id).filter(Boolean))];
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, nom')
+        .in('id', afterSiteIds);
+
+      const sitesMap = new Map(sitesData?.map(s => [s.id, s]) || []);
+
+      // 5. Build IndividualChange objects by date
       const changesByDate = new Map<string, any[]>();
       
       dryRunChanges?.forEach((change: any) => {
         const before = beforeMap.get(change.capacite_effective_id);
+        const afterSite = sitesMap.get(change.site_id);
         
         const individualChange = {
           date: change.date,
           secretaire_id: change.secretaire_id,
-          secretaire_nom: `${change.secretaire?.first_name || ''} ${change.secretaire?.name || ''}`.trim(),
+          // Utiliser les infos du secrétaire depuis "before"
+          secretaire_nom: `${before?.secretaire?.first_name || ''} ${before?.secretaire?.name || ''}`.trim(),
           periode: change.demi_journee,
           before: before ? {
             site_id: before.site_id,
@@ -563,7 +569,7 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
           } : null,
           after: {
             site_id: change.site_id,
-            site_nom: change.site?.nom || 'Inconnu',
+            site_nom: afterSite?.nom || 'Inconnu',
             type: change.besoin_operation_id ? 'operation' : 'site',
             besoin_operation_id: change.besoin_operation_id,
             besoin_operation_nom: change.besoin_operation?.nom,
