@@ -152,7 +152,14 @@ export const SecretaireStatsDialog = ({
   }));
   return <Dialog>
       <DialogTrigger asChild>
-        
+        <Button 
+          variant="outline" 
+          size="icon"
+          className="h-10 w-10 hover:bg-primary/10 hover:text-primary transition-colors"
+          title="Statistiques hebdomadaires"
+        >
+          <BarChart3 className="h-5 w-5" />
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
