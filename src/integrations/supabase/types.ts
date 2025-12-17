@@ -1508,7 +1508,7 @@ export type Database = {
       should_doctor_work:
         | {
             Args: {
-              p_alternance_reference: string
+              p_alternance_modulo: number
               p_alternance_type: Database["public"]["Enums"]["type_alternance"]
               p_target_date: string
             }
@@ -1516,7 +1516,7 @@ export type Database = {
           }
         | {
             Args: {
-              p_alternance_modulo: number
+              p_alternance_reference: string
               p_alternance_type: Database["public"]["Enums"]["type_alternance"]
               p_target_date: string
             }
