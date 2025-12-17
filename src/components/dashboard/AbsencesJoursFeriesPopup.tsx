@@ -173,36 +173,39 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
 
     const grouped: Absence[] = [];
     
+    // Process each person separately with their own tracking
     byPerson.forEach(personAbsences => {
       const sorted = personAbsences.sort((a, b) => 
         new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
       );
 
+      let lastGroupForPerson: Absence | null = null;
+
       for (const absence of sorted) {
-        const lastGroup = grouped[grouped.length - 1];
-        
-        if (lastGroup && 
-            absence.type_personne === lastGroup.type_personne &&
-            absence.medecin_id === lastGroup.medecin_id &&
-            absence.secretaire_id === lastGroup.secretaire_id &&
-            absence.type === lastGroup.type &&
-            absence.statut === lastGroup.statut &&
-            absence.demi_journee === lastGroup.demi_journee) {
+        // Check if we can merge with the last group for THIS person
+        if (lastGroupForPerson && 
+            absence.type === lastGroupForPerson.type &&
+            absence.statut === lastGroupForPerson.statut &&
+            absence.demi_journee === lastGroupForPerson.demi_journee) {
           
-          const lastEndDate = new Date(lastGroup.date_fin);
+          const lastEndDate = new Date(lastGroupForPerson.date_fin);
           const currentStartDate = new Date(absence.date_debut);
           lastEndDate.setHours(0, 0, 0, 0);
           currentStartDate.setHours(0, 0, 0, 0);
           
           const dayDiff = Math.floor((currentStartDate.getTime() - lastEndDate.getTime()) / (1000 * 60 * 60 * 24));
           
-          if (dayDiff === 1) {
-            lastGroup.date_fin = absence.date_fin;
+          // Merge if consecutive (1 day diff) or same day (0 day diff)
+          if (dayDiff <= 1) {
+            lastGroupForPerson.date_fin = absence.date_fin;
             continue;
           }
         }
         
-        grouped.push({ ...absence });
+        // Add as new group
+        const newGroup = { ...absence };
+        grouped.push(newGroup);
+        lastGroupForPerson = newGroup;
       }
     });
     
