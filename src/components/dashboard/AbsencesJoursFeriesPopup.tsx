@@ -251,16 +251,35 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
     if (!absenceToDelete) return;
 
     try {
-      const { error } = await supabase
+      // Supprimer toutes les absences correspondant à cette carte groupée
+      let query = supabase
         .from('absences')
         .delete()
-        .eq('id', absenceToDelete.id);
+        .eq('type_personne', absenceToDelete.type_personne as 'medecin' | 'secretaire')
+        .eq('type', absenceToDelete.type as 'conges' | 'maladie' | 'formation' | 'autre' | 'conge_maternite')
+        .eq('statut', absenceToDelete.statut as 'en_attente' | 'approuve' | 'refuse')
+        .gte('date_debut', absenceToDelete.date_debut)
+        .lte('date_fin', absenceToDelete.date_fin);
+
+      // Ajouter le filtre personne (médecin OU secrétaire)
+      if (absenceToDelete.medecin_id) {
+        query = query.eq('medecin_id', absenceToDelete.medecin_id);
+      } else if (absenceToDelete.secretaire_id) {
+        query = query.eq('secretaire_id', absenceToDelete.secretaire_id);
+      }
+
+      // Ajouter le filtre demi_journee si présent
+      if (absenceToDelete.demi_journee) {
+        query = query.eq('demi_journee', absenceToDelete.demi_journee as 'matin' | 'apres_midi' | 'toute_journee');
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
       toast({
         title: "Succès",
-        description: "Absence supprimée avec succès",
+        description: "Absence(s) supprimée(s) avec succès",
       });
 
       setAbsenceToDelete(null);
