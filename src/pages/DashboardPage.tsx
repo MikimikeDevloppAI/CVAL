@@ -158,15 +158,36 @@ const DashboardPage = () => {
     end: parseISO(endDate)
   });
 
-  const calculateStatus = (besoin: number, assigne: number): 'satisfait' | 'partiel' | 'non_satisfait' => {
-    const besoinArrondi = Math.ceil(besoin);
-    if (assigne >= besoinArrondi) return 'satisfait';
-    return 'non_satisfait';
-  };
-
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      // Fetch unified summary for status (ensures consistency with badge)
+      const { data: unifiedSummary } = await supabase
+        .from('besoins_unified_summary')
+        .select('site_id, date, demi_journee, statut, type_besoin')
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+      // Create a lookup map for status: key = `${site_id}-${date}-${demi_journee}`
+      const statusMap = new Map<string, 'satisfait' | 'non_satisfait'>();
+      (unifiedSummary || []).forEach(row => {
+        if (row.site_id && row.date && row.demi_journee) {
+          const key = `${row.site_id}-${row.date}-${row.demi_journee}`;
+          // If any entry for this key has DEFICIT, mark as non_satisfait
+          if (row.statut === 'DEFICIT') {
+            statusMap.set(key, 'non_satisfait');
+          } else if (!statusMap.has(key)) {
+            statusMap.set(key, 'satisfait');
+          }
+        }
+      });
+
+      // Helper to get status from unified summary
+      const getStatusFromSummary = (siteId: string, date: string, periode: 'matin' | 'apres_midi'): 'satisfait' | 'non_satisfait' => {
+        const key = `${siteId}-${date}-${periode}`;
+        return statusMap.get(key) || 'satisfait';
+      };
+
       // Fetch active sites (exclude bloc opératoire)
       const { data: sitesData } = await supabase
         .from('sites')
@@ -239,6 +260,9 @@ const DashboardPage = () => {
         todayOperations: todayOps?.length || 0,
         pendingAbsences: absences?.length || 0
       });
+      
+      // Store helper in closure for use in site processing
+      const getStatus = getStatusFromSummary;
 
       // Fetch dashboard data for each site
       const dashboardData = await Promise.all(
@@ -520,15 +544,12 @@ const DashboardPage = () => {
             }
           });
 
-          // Calculate status for each day
+          // Get status from unified summary (ensures consistency with badge)
           const days = Array.from(daysMap.values()).map(day => {
-            const secretairesMatin = day.secretaires.filter(s => s.matin).length;
-            const secretairesAM = day.secretaires.filter(s => s.apres_midi).length;
-            
             return {
               ...day,
-              status_matin: calculateStatus(day.besoin_secretaires_matin, secretairesMatin),
-              status_apres_midi: calculateStatus(day.besoin_secretaires_apres_midi, secretairesAM)
+              status_matin: getStatus(site.id, day.date, 'matin'),
+              status_apres_midi: getStatus(site.id, day.date, 'apres_midi')
             };
           });
 
