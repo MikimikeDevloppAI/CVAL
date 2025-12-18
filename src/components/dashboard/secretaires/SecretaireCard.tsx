@@ -154,6 +154,28 @@ export function SecretaireCard({
     setNewHoraire(null);
   };
 
+  // Refresh local data for medecins assignés
+  const refreshMedecinsAssignes = async () => {
+    const { data } = await supabase
+      .from('secretaires_medecins')
+      .select('id, medecin_id, priorite, medecins(first_name, name)')
+      .eq('secretaire_id', secretaire.id);
+    
+    if (data) {
+      setLocalSecretaire(prev => ({
+        ...prev,
+        medecins_assignes_details: data.map(d => ({
+          id: d.id,
+          medecin_id: d.medecin_id,
+          priorite: d.priorite,
+          first_name: d.medecins?.first_name,
+          name: d.medecins?.name,
+        }))
+      }));
+    }
+    setNewMedecin(null);
+  };
+
   const handleDeleteMedecin = async (assignmentId: string) => {
     if (assignmentId === 'new') {
       setNewMedecin(null);
@@ -173,7 +195,7 @@ export function SecretaireCard({
         description: "Médecin supprimé",
       });
 
-      onSuccess();
+      await refreshMedecinsAssignes();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -191,6 +213,31 @@ export function SecretaireCard({
       priorite: '1',
       secretaire_id: secretaire.id
     });
+  };
+
+  // Refresh local data for besoins operations
+  const refreshBesoinsOperations = async () => {
+    const { data } = await supabase
+      .from('secretaires_besoins_operations')
+      .select('id, besoin_operation_id, preference, besoins_operations(nom, code, categorie)')
+      .eq('secretaire_id', secretaire.id);
+    
+    if (data) {
+      setLocalSecretaire(prev => ({
+        ...prev,
+        besoins_operations: data.map(d => ({
+          id: d.id,
+          besoin_operation_id: d.besoin_operation_id,
+          preference: d.preference ?? 1,
+          besoins_operations: {
+            nom: d.besoins_operations?.nom ?? '',
+            code: d.besoins_operations?.code ?? '',
+            categorie: d.besoins_operations?.categorie,
+          },
+        }))
+      }));
+    }
+    setNewBesoin(null);
   };
 
   const handleDeleteBesoin = async (assignmentId: string) => {
@@ -212,7 +259,7 @@ export function SecretaireCard({
         description: "Besoin supprimé",
       });
 
-      onSuccess();
+      await refreshBesoinsOperations();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -230,6 +277,27 @@ export function SecretaireCard({
       preference: 1,
       secretaire_id: secretaire.id
     });
+  };
+
+  // Refresh local data for sites préférés
+  const refreshSitesAssignes = async () => {
+    const { data } = await supabase
+      .from('secretaires_sites')
+      .select('id, site_id, priorite, sites(nom)')
+      .eq('secretaire_id', secretaire.id);
+    
+    if (data) {
+      setLocalSecretaire(prev => ({
+        ...prev,
+        sites_assignes_details: data.map(d => ({
+          id: d.id,
+          site_id: d.site_id,
+          priorite: d.priorite,
+          nom: d.sites?.nom,
+        }))
+      }));
+    }
+    setNewSite(null);
   };
 
   const handleDeleteSite = async (assignmentId: string) => {
@@ -251,7 +319,7 @@ export function SecretaireCard({
         description: "Site préféré supprimé",
       });
 
-      onSuccess();
+      await refreshSitesAssignes();
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -386,7 +454,7 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.medecins_assignes_details
+            {localSecretaire.medecins_assignes_details
               ?.sort((a, b) => {
                 const priorityOrder: Record<string, number> = { '1': 1, '2': 2 };
                 return (priorityOrder[a.priorite || '1'] || 1) - (priorityOrder[b.priorite || '1'] || 1);
@@ -396,7 +464,7 @@ export function SecretaireCard({
                   key={medecin.id}
                   assignment={medecin}
                   medecins={medecins}
-                  onUpdate={onSuccess}
+                  onUpdate={refreshMedecinsAssignes}
                   onDelete={handleDeleteMedecin}
                 />
               ))}
@@ -405,7 +473,7 @@ export function SecretaireCard({
               <MedecinAssigneLineEdit
                 assignment={newMedecin}
                 medecins={medecins}
-                onUpdate={onSuccess}
+                onUpdate={refreshMedecinsAssignes}
                 onDelete={handleDeleteMedecin}
                 isNew={true}
               />
@@ -434,7 +502,7 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.sites_assignes_details
+            {localSecretaire.sites_assignes_details
               ?.sort((a, b) => {
                 const priorityOrder: Record<string, number> = { '1': 1, '2': 2, '3': 3 };
                 return (priorityOrder[a.priorite || '1'] || 1) - (priorityOrder[b.priorite || '1'] || 1);
@@ -444,7 +512,7 @@ export function SecretaireCard({
                   key={site.id}
                   assignment={site}
                   sites={sites}
-                  onUpdate={onSuccess}
+                  onUpdate={refreshSitesAssignes}
                   onDelete={handleDeleteSite}
                 />
               ))}
@@ -453,7 +521,7 @@ export function SecretaireCard({
               <SiteAssigneLineEdit
                 assignment={newSite}
                 sites={sites}
-                onUpdate={onSuccess}
+                onUpdate={refreshSitesAssignes}
                 onDelete={handleDeleteSite}
                 isNew={true}
               />
@@ -482,14 +550,14 @@ export function SecretaireCard({
             </p>
           </div>
           <div className="space-y-1">
-            {secretaire.besoins_operations
+            {localSecretaire.besoins_operations
               ?.sort((a, b) => (a.preference || 1) - (b.preference || 1))
               .map((besoin) => (
                 <BesoinOperationnelLineEdit
                   key={besoin.id}
                   assignment={besoin}
                   besoins={besoins}
-                  onUpdate={onSuccess}
+                  onUpdate={refreshBesoinsOperations}
                   onDelete={handleDeleteBesoin}
                 />
               ))}
@@ -498,7 +566,7 @@ export function SecretaireCard({
               <BesoinOperationnelLineEdit
                 assignment={newBesoin}
                 besoins={besoins}
-                onUpdate={onSuccess}
+                onUpdate={refreshBesoinsOperations}
                 onDelete={handleDeleteBesoin}
                 isNew={true}
               />
