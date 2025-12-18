@@ -104,9 +104,8 @@ export function SecretaireCard({
 
   const handleHoraireUpdate = async () => {
     setNewHoraire(null);
-    onSuccess();
     
-    // Refresh local secretaire data
+    // Refresh local secretaire data (without calling onSuccess to avoid full reload)
     const { data: updatedSecretaire } = await supabase
       .from('secretaires')
       .select(`
