@@ -84,96 +84,67 @@ export const UnfilledNeedsPanel = ({ startDate, endDate, onRefresh, isOpen: init
   const fetchUnfilledNeeds = async () => {
     try {
       setLoading(true);
+      
+      // Une seule requête à la vue unifiée
+      const { data: unifiedNeeds, error } = await supabase
+        .from('besoins_unified_summary')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('statut', 'DEFICIT')
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+
       const needs: PeriodNeed[] = [];
 
-      // Fetch sites needs
-      const { data: siteNeeds, error: siteError } = await supabase
-        .from('besoins_sites_summary')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .gt('deficit', 0)
-        .order('date', { ascending: true });
-
-      if (siteError) throw siteError;
-
-      // Convert site needs to period needs
-      for (const need of siteNeeds || []) {
-        needs.push({
-          date: need.date!,
-          periode: need.demi_journee as 'matin' | 'apres_midi',
-          site_id: need.site_id!,
-          site_nom: need.site_nom!,
-          manque: need.deficit!,
-          suggestions_admin: [],
-          suggestions_not_working: []
-        });
-      }
-
-      // Fetch bloc operatoire needs
-      const { data: blocNeeds, error: blocError } = await supabase
-        .from('besoins_bloc_operatoire_summary')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .gt('deficit', 0)
-        .order('date', { ascending: true });
-
-      if (blocError) throw blocError;
-
-      // Convert bloc needs to period needs
-      for (const need of blocNeeds || []) {
-        needs.push({
-          date: need.date!,
-          periode: need.demi_journee as 'matin' | 'apres_midi',
-          site_id: BLOC_OPERATOIRE_SITE_ID,
-          site_nom: 'Opération',
-          besoin_operation_id: need.besoin_operation_id!,
-          besoin_operation_nom: need.besoin_operation_nom!,
-          medecin_nom: need.medecin_nom!,
-          type_intervention_nom: need.type_intervention_nom!,
-          planning_genere_bloc_operatoire_id: need.planning_genere_bloc_id!,
-          manque: need.deficit!,
-          suggestions_admin: [],
-          suggestions_not_working: []
-        });
-      }
-
-      // Fetch fermeture needs (closing sites)
-      const { data: fermetureNeeds, error: fermetureError } = await supabase
-        .from('besoins_fermeture_summary')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .or('deficit_1r.gt.0,deficit_2f3f.gt.0')
-        .order('date', { ascending: true });
-
-      if (fermetureError) throw fermetureError;
-
-      // Convert fermeture needs to period needs (fermeture is always full day)
-      for (const need of fermetureNeeds || []) {
-        if (need.deficit_1r && need.deficit_1r > 0) {
+      for (const need of unifiedNeeds || []) {
+        if (need.type_besoin === 'site') {
+          needs.push({
+            date: need.date!,
+            periode: need.demi_journee as 'matin' | 'apres_midi',
+            site_id: need.site_id!,
+            site_nom: need.site_nom!,
+            manque: Math.abs(need.balance!),
+            suggestions_admin: [],
+            suggestions_not_working: []
+          });
+        } else if (need.type_besoin === 'bloc') {
+          needs.push({
+            date: need.date!,
+            periode: need.demi_journee as 'matin' | 'apres_midi',
+            site_id: BLOC_OPERATOIRE_SITE_ID,
+            site_nom: 'Opération',
+            besoin_operation_id: need.besoin_operation_id!,
+            besoin_operation_nom: need.besoin_operation_nom!,
+            medecin_nom: need.medecin_nom!,
+            type_intervention_nom: need.type_intervention_nom!,
+            planning_genere_bloc_operatoire_id: need.planning_bloc_id!,
+            manque: Math.abs(need.balance!),
+            suggestions_admin: [],
+            suggestions_not_working: []
+          });
+        } else if (need.type_besoin === 'fermeture_1r') {
           needs.push({
             date: need.date!,
             periode: 'matin',
             site_id: need.site_id!,
-            site_nom: need.site_nom!,
-            manque: need.deficit_1r,
-            deficit_1r: need.deficit_1r,
+            site_nom: need.site_nom!.replace(' (1R)', ''),
+            manque: Math.abs(need.balance!),
+            deficit_1r: Math.abs(need.balance!),
             is_fermeture: true,
             fermeture_type: '1r',
             suggestions_admin: [],
             suggestions_not_working: []
           });
-        }
-        if (need.deficit_2f3f && need.deficit_2f3f > 0) {
+        } else if (need.type_besoin === 'fermeture_2f') {
           needs.push({
             date: need.date!,
             periode: 'apres_midi',
             site_id: need.site_id!,
-            site_nom: need.site_nom!,
-            manque: need.deficit_2f3f,
-            deficit_2f3f: need.deficit_2f3f,
+            site_nom: need.site_nom!.replace(' (2F)', ''),
+            manque: Math.abs(need.balance!),
+            deficit_2f3f: Math.abs(need.balance!),
             is_fermeture: true,
             fermeture_type: '2f',
             suggestions_admin: [],

@@ -36,45 +36,26 @@ export const UnfilledNeedsSummaryDialog = ({ open, onOpenChange, onRefresh }: Un
 
       setDateRange({ start: startDate, end: endDate });
 
-      // Créer 4 semaines à partir du 8 décembre 2025
       const weeksData: WeekData[] = [];
       const baseDate = new Date(startDate);
+      
       for (let i = 0; i < 4; i++) {
         const weekStart = startOfWeek(addWeeks(baseDate, i), { locale: fr });
         const weekEnd = endOfWeek(addWeeks(baseDate, i), { locale: fr });
         const weekStartStr = format(weekStart, 'yyyy-MM-dd');
         const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
         
-        // Sommer les déficits depuis les 3 vues séparées (comme dans DashboardPage)
-        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
-          supabase
-            .from('besoins_sites_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_bloc_operatoire_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_fermeture_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0)
-        ]);
+        // Une seule requête à la vue unifiée
+        const { data, error } = await supabase
+          .from('besoins_unified_summary')
+          .select('balance')
+          .gte('date', weekStartStr)
+          .lte('date', weekEndStr)
+          .eq('statut', 'DEFICIT');
 
-        if (sitesResult.error) throw sitesResult.error;
-        if (blocResult.error) throw blocResult.error;
-        if (fermetureResult.error) throw fermetureResult.error;
+        if (error) throw error;
 
-        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const totalManque = sitesDeficit + blocDeficit + fermetureDeficit;
+        const totalManque = data?.reduce((sum, row) => sum + Math.abs(row.balance || 0), 0) || 0;
 
         weeksData.push({
           weekStart: weekStartStr,
