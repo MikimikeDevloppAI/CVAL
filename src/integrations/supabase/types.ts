@@ -1423,6 +1423,7 @@ export type Database = {
           nombre_medecins: number | null
           nombre_requis: number | null
           planning_bloc_id: string | null
+          salle_id: string | null
           site_id: string | null
           site_nom: string | null
           statut: string | null
