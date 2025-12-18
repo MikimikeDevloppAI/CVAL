@@ -1410,6 +1410,27 @@ export type Database = {
           },
         ]
       }
+      besoins_unified_summary: {
+        Row: {
+          balance: number | null
+          besoin_operation_id: string | null
+          besoin_operation_nom: string | null
+          date: string | null
+          demi_journee: Database["public"]["Enums"]["demi_journee"] | null
+          is_fermeture_site: boolean | null
+          medecin_nom: string | null
+          nombre_assigne: number | null
+          nombre_medecins: number | null
+          nombre_requis: number | null
+          planning_bloc_id: string | null
+          site_id: string | null
+          site_nom: string | null
+          statut: string | null
+          type_besoin: string | null
+          type_intervention_nom: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       assign_room_for_operation: {

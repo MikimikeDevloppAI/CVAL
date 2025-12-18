@@ -57,45 +57,21 @@ export const Sidebar = () => {
     setUnfilledNeedsLoading(true);
     try {
       const today = new Date();
-      let total = 0;
+      const weekStart = startOfWeek(today, { locale: fr });
+      const fourWeeksEnd = endOfWeek(addWeeks(today, 3), { locale: fr });
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      const weekEndStr = format(fourWeeksEnd, 'yyyy-MM-dd');
 
-      for (let i = 0; i < 4; i++) {
-        const weekStart = startOfWeek(addWeeks(today, i), { locale: fr });
-        const weekEnd = endOfWeek(addWeeks(today, i), { locale: fr });
-        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
-        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+      const { data, error } = await supabase
+        .from('besoins_unified_summary')
+        .select('balance')
+        .gte('date', weekStartStr)
+        .lte('date', weekEndStr)
+        .eq('statut', 'DEFICIT');
 
-        const [sitesResult, blocResult, fermetureResult] = await Promise.all([
-          supabase
-            .from('besoins_sites_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_bloc_operatoire_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0),
-          supabase
-            .from('besoins_fermeture_summary')
-            .select('deficit')
-            .gte('date', weekStartStr)
-            .lte('date', weekEndStr)
-            .gt('deficit', 0)
-        ]);
+      if (error) throw error;
 
-        if (sitesResult.error) throw sitesResult.error;
-        if (blocResult.error) throw blocResult.error;
-        if (fermetureResult.error) throw fermetureResult.error;
-
-        const sitesDeficit = sitesResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const blocDeficit = blocResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        const fermetureDeficit = fermetureResult.data?.reduce((sum, row) => sum + (row.deficit || 0), 0) || 0;
-        total += sitesDeficit + blocDeficit + fermetureDeficit;
-      }
-
+      const total = data?.reduce((sum, row) => sum + Math.abs(row.balance || 0), 0) || 0;
       setUnfilledNeedsCount(total);
     } catch (error) {
       console.error('Error fetching unfilled needs count:', error);
