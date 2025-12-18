@@ -26,6 +26,13 @@ import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
 import { GlobalCalendarDialog } from '@/components/dashboard/GlobalCalendarDialog';
 import { toast } from 'sonner';
 
+export interface DeficitDetail {
+  besoin_operation_nom: string;
+  nombre_requis: number;
+  nombre_assigne: number;
+  balance: number;
+}
+
 export interface PersonnePresence {
   id: string;
   nom: string;
@@ -48,6 +55,8 @@ export interface DayData {
   besoin_secretaires_apres_midi: number;
   status_matin: 'satisfait' | 'partiel' | 'non_satisfait';
   status_apres_midi: 'satisfait' | 'partiel' | 'non_satisfait';
+  deficits_matin?: DeficitDetail[];
+  deficits_apres_midi?: DeficitDetail[];
 }
 
 export interface DashboardSite {
@@ -161,34 +170,64 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch unified summary for status (ensures consistency with badge)
+      // BATCH QUERY 1: Fetch unified summary for status + deficit details
       const { data: unifiedSummary } = await supabase
         .from('besoins_unified_summary')
-        .select('site_id, date, demi_journee, statut, type_besoin')
+        .select('*')
         .gte('date', startDate)
         .lte('date', endDate);
 
-      // Create a lookup map for status: key = `${site_id}-${date}-${demi_journee}`
+      // Create status and deficit lookup maps
+      // key for sites: `${site_id}-${date}-${periode}`
+      // key for salles: `salle-${salle_id}-${date}-${periode}`
       const statusMap = new Map<string, 'satisfait' | 'non_satisfait'>();
+      const deficitMap = new Map<string, DeficitDetail[]>();
+      
       (unifiedSummary || []).forEach(row => {
-        if (row.site_id && row.date && row.demi_journee) {
-          const key = `${row.site_id}-${row.date}-${row.demi_journee}`;
-          // If any entry for this key has DEFICIT, mark as non_satisfait
-          if (row.statut === 'DEFICIT') {
-            statusMap.set(key, 'non_satisfait');
-          } else if (!statusMap.has(key)) {
-            statusMap.set(key, 'satisfait');
-          }
+        if (!row.date || !row.demi_journee) return;
+        
+        // Determine the key based on type
+        let key: string;
+        if (row.type_besoin === 'bloc' && row.salle_id) {
+          key = `salle-${row.salle_id}-${row.date}-${row.demi_journee}`;
+        } else if (row.site_id) {
+          key = `${row.site_id}-${row.date}-${row.demi_journee}`;
+        } else {
+          return;
+        }
+        
+        // Track status
+        if (row.statut === 'DEFICIT') {
+          statusMap.set(key, 'non_satisfait');
+        } else if (!statusMap.has(key)) {
+          statusMap.set(key, 'satisfait');
+        }
+        
+        // Track deficit details for bloc operations
+        if (row.type_besoin === 'bloc' && row.statut === 'DEFICIT' && row.besoin_operation_nom) {
+          const deficits = deficitMap.get(key) || [];
+          deficits.push({
+            besoin_operation_nom: row.besoin_operation_nom,
+            nombre_requis: Number(row.nombre_requis) || 0,
+            nombre_assigne: Number(row.nombre_assigne) || 0,
+            balance: Number(row.balance) || 0
+          });
+          deficitMap.set(key, deficits);
         }
       });
 
-      // Helper to get status from unified summary
-      const getStatusFromSummary = (siteId: string, date: string, periode: 'matin' | 'apres_midi'): 'satisfait' | 'non_satisfait' => {
+      // Helper functions
+      const getStatus = (siteId: string, date: string, periode: 'matin' | 'apres_midi'): 'satisfait' | 'non_satisfait' => {
         const key = `${siteId}-${date}-${periode}`;
         return statusMap.get(key) || 'satisfait';
       };
+      
+      const getDeficits = (siteId: string, date: string, periode: 'matin' | 'apres_midi'): DeficitDetail[] => {
+        const key = `${siteId}-${date}-${periode}`;
+        return deficitMap.get(key) || [];
+      };
 
-      // Fetch active sites (exclude bloc opératoire)
+      // BATCH QUERY 2: Fetch all active sites
       const { data: sitesData } = await supabase
         .from('sites')
         .select('*')
@@ -204,7 +243,7 @@ const DashboardPage = () => {
         !site.nom.toLowerCase().includes('opératoire')
       );
 
-      // Fetch salles for bloc opératoire
+      // BATCH QUERY 3: Fetch salles
       const { data: sallesData } = await supabase
         .from('salles_operation')
         .select('*')
@@ -219,10 +258,9 @@ const DashboardPage = () => {
         adresse: '',
         created_at: salle.created_at,
         updated_at: salle.created_at,
-        salle_id: salle.id // Store original salle ID
+        salle_id: salle.id
       }));
 
-      // Add administrative site at the end
       const adminSite = {
         id: '00000000-0000-0000-0000-000000000001',
         nom: 'Administratif',
@@ -233,10 +271,83 @@ const DashboardPage = () => {
         updated_at: ''
       };
       
-      // Order: Sites normaux → Salles → Administratif
       const allSites = [...sites, ...salleSites, adminSite];
 
-      // Fetch stats
+      // BATCH QUERY 4: Fetch all besoins for the week
+      const { data: allBesoins } = await supabase
+        .from('besoin_effectif')
+        .select(`*, medecins(id, first_name, name, besoin_secretaires)`)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('type', 'medecin')
+        .eq('actif', true);
+
+      // BATCH QUERY 5: Fetch all capacites for the week
+      const { data: allCapacites } = await supabase
+        .from('capacite_effective')
+        .select(`*, secretaires(id, first_name, name)`)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('actif', true);
+
+      // BATCH QUERY 6: Fetch all bloc operations for the week
+      const { data: allOperations } = await supabase
+        .from('planning_genere_bloc_operatoire')
+        .select(`
+          *,
+          medecins(id, first_name, name, besoin_secretaires),
+          types_intervention(id, nom, code),
+          salles_operation(id, name)
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .neq('statut', 'annule');
+
+      // BATCH QUERY 7: Fetch all personnel needs
+      const { data: allPersonnelNeeds } = await supabase
+        .from('types_intervention_besoins_personnel')
+        .select(`*, besoins_operations(id, nom)`)
+        .eq('actif', true);
+
+      // Group data by site/salle
+      const besoinsBySite = new Map<string, typeof allBesoins>();
+      (allBesoins || []).forEach(b => {
+        const siteId = b.site_id;
+        if (!besoinsBySite.has(siteId)) besoinsBySite.set(siteId, []);
+        besoinsBySite.get(siteId)!.push(b);
+      });
+
+      const capacitesBySite = new Map<string, typeof allCapacites>();
+      const capacitesByBlocId = new Map<string, typeof allCapacites>();
+      (allCapacites || []).forEach(c => {
+        // Group by site (for non-bloc)
+        if (!c.planning_genere_bloc_operatoire_id) {
+          const siteId = c.site_id;
+          if (!capacitesBySite.has(siteId)) capacitesBySite.set(siteId, []);
+          capacitesBySite.get(siteId)!.push(c);
+        } else {
+          // Group by bloc operation id
+          const blocId = c.planning_genere_bloc_operatoire_id;
+          if (!capacitesByBlocId.has(blocId)) capacitesByBlocId.set(blocId, []);
+          capacitesByBlocId.get(blocId)!.push(c);
+        }
+      });
+
+      const operationsBySalle = new Map<string, typeof allOperations>();
+      (allOperations || []).forEach(op => {
+        if (op.salle_assignee) {
+          if (!operationsBySalle.has(op.salle_assignee)) operationsBySalle.set(op.salle_assignee, []);
+          operationsBySalle.get(op.salle_assignee)!.push(op);
+        }
+      });
+
+      const personnelNeedsByType = new Map<string, typeof allPersonnelNeeds>();
+      (allPersonnelNeeds || []).forEach(pn => {
+        if (!personnelNeedsByType.has(pn.type_intervention_id)) personnelNeedsByType.set(pn.type_intervention_id, []);
+        personnelNeedsByType.get(pn.type_intervention_id)!.push(pn);
+      });
+
+      // BATCH QUERY 8: Stats
       const { data: secretaires } = await supabase
         .from('secretaires')
         .select('id')
@@ -260,204 +371,92 @@ const DashboardPage = () => {
         todayOperations: todayOps?.length || 0,
         pendingAbsences: absences?.length || 0
       });
-      
-      // Store helper in closure for use in site processing
-      const getStatus = getStatusFromSummary;
 
-      // Fetch dashboard data for each site
-      const dashboardData = await Promise.all(
-        allSites.map(async (site) => {
-          const isAdminSite = site.id === '00000000-0000-0000-0000-000000000001';
-          const isSalleSite = site.id.startsWith('salle-');
+      // Build dashboard data for each site
+      const dashboardData = allSites.map((site) => {
+        const isAdminSite = site.id === '00000000-0000-0000-0000-000000000001';
+        const isSalleSite = site.id.startsWith('salle-');
+        
+        const daysMap = new Map<string, DayData>();
+        
+        if (isSalleSite) {
+          const salleId = (site as any).salle_id;
+          const operations = operationsBySalle.get(salleId) || [];
           
-          let besoins: any[] = [];
-          let capacite: any[] = [];
-          
-          if (isSalleSite) {
-            // For salle sites, fetch bloc operations
-            const salleId = (site as any).salle_id;
-            const { data: operations } = await supabase
-              .from('planning_genere_bloc_operatoire')
-              .select(`
-                *,
-                medecins(id, first_name, name, besoin_secretaires),
-                types_intervention(id, nom)
-              `)
-              .eq('salle_assignee', salleId)
-              .gte('date', startDate)
-              .lte('date', endDate)
-              .neq('statut', 'annule')
-              .order('date');
+          operations.forEach(op => {
+            const date = op.date;
+            if (!daysMap.has(date)) {
+              daysMap.set(date, {
+                date,
+                medecins: [],
+                secretaires: [],
+                besoin_secretaires_matin: 0,
+                besoin_secretaires_apres_midi: 0,
+                status_matin: 'non_satisfait',
+                status_apres_midi: 'non_satisfait',
+                deficits_matin: [],
+                deficits_apres_midi: []
+              });
+            }
+            const day = daysMap.get(date)!;
+            const periode = op.periode === 'matin' ? 'matin' : 'apres_midi';
             
-            // For each operation, get personnel needs and assignments
-            const operationsWithPersonnel = await Promise.all(
-              (operations || []).map(async (op) => {
-                // Fetch personnel needs for this intervention type
-                const { data: personnelBesoins } = await supabase
-                  .from('types_intervention_besoins_personnel')
-                  .select(`
-                    nombre_requis,
-                    besoins_operations(id, nom, code)
-                  `)
-                  .eq('type_intervention_id', op.type_intervention_id)
-                  .eq('actif', true);
-                
-                // Fetch actual assignments for this operation
-                const { data: assignments } = await supabase
-                  .from('capacite_effective')
-                  .select(`
-                    *,
-                    secretaires(id, first_name, name)
-                  `)
-                  .eq('planning_genere_bloc_operatoire_id', op.id)
-                  .eq('actif', true);
-                
-                return { ...op, personnelBesoins, assignments };
-              })
-            );
-            
-            // Transform operations into the expected format
-            // We don't populate besoins/capacite for salle sites in the traditional way
-            // Instead we'll process them directly in the daysMap
-          } else {
-            // Fetch besoins effectifs (médecins) for normal sites
-            const { data: besoinsData } = await supabase
-              .from('besoin_effectif')
-              .select(`
-                *,
-                medecins(id, first_name, name, besoin_secretaires)
-              `)
-              .eq('site_id', site.id)
-              .gte('date', startDate)
-              .lte('date', endDate)
-              .eq('type', 'medecin')
-              .order('date');
-            besoins = besoinsData || [];
-
-            // Fetch capacité effective pour les secrétaires (ONLY SOURCE)
-            // Exclure les assignations au bloc opératoire dans la vue par site
-            const { data: capaciteData } = await supabase
-              .from('capacite_effective')
-              .select(`
-                *,
-                secretaires(id, first_name, name)
-              `)
-              .eq('site_id', site.id)
-              .gte('date', startDate)
-              .lte('date', endDate)
-              .eq('actif', true)
-              .is('planning_genere_bloc_operatoire_id', null)
-              .order('date');
-            capacite = capaciteData || [];
-          }
-
-          // Group by date only (not by period)
-          const daysMap = new Map<string, DayData>();
-          
-          if (isSalleSite) {
-            // For salle sites, process bloc operations
-            const salleId = (site as any).salle_id;
-            const { data: operations } = await supabase
-              .from('planning_genere_bloc_operatoire')
-              .select(`
-                *,
-                medecins(id, first_name, name, besoin_secretaires),
-                types_intervention(id, nom)
-              `)
-              .eq('salle_assignee', salleId)
-              .gte('date', startDate)
-              .lte('date', endDate)
-              .neq('statut', 'annule')
-              .order('date');
-            
-            // Process each operation
-            for (const op of operations || []) {
-              const date = op.date;
-              if (!daysMap.has(date)) {
-                daysMap.set(date, {
-                  date,
-                  medecins: [],
-                  secretaires: [],
-                  besoin_secretaires_matin: 0,
-                  besoin_secretaires_apres_midi: 0,
-                  status_matin: 'non_satisfait',
-                  status_apres_midi: 'non_satisfait'
+            // Add medecin
+            if (op.medecins) {
+              const existingMedecin = day.medecins.find(m => m.id === (op.medecins as any).id);
+              if (existingMedecin) {
+                existingMedecin[periode] = true;
+              } else {
+                day.medecins.push({
+                  id: (op.medecins as any).id,
+                  nom: (op.medecins as any).name || '',
+                  prenom: (op.medecins as any).first_name || '',
+                  matin: periode === 'matin',
+                  apres_midi: periode === 'apres_midi'
                 });
               }
-              const day = daysMap.get(date)!;
-              const periode = op.periode === 'matin' ? 'matin' : 'apres_midi';
-              
-              // Add medecin
-              if (op.medecins) {
-                const existingMedecin = day.medecins.find(m => m.id === op.medecins.id);
-                if (existingMedecin) {
-                  existingMedecin[periode] = true;
+            }
+            
+            // Calculate total personnel needed from pre-fetched data
+            const personnelNeeds = personnelNeedsByType.get(op.type_intervention_id) || [];
+            const totalBesoin = personnelNeeds.reduce((sum, pn) => sum + pn.nombre_requis, 0);
+            if (periode === 'matin') {
+              day.besoin_secretaires_matin += totalBesoin;
+            } else {
+              day.besoin_secretaires_apres_midi += totalBesoin;
+            }
+            
+            // Add assigned secretaires from pre-fetched data
+            const assignments = capacitesByBlocId.get(op.id) || [];
+            assignments.forEach(assign => {
+              if (assign.secretaires) {
+                const existingSecretaire = day.secretaires.find(s => s.id === (assign.secretaires as any).id);
+                if (existingSecretaire) {
+                  existingSecretaire[periode] = true;
+                  if (assign.is_1r) existingSecretaire.is_1r = true;
+                  if (assign.is_2f) existingSecretaire.is_2f = true;
+                  if (assign.is_3f) existingSecretaire.is_3f = true;
                 } else {
-                  day.medecins.push({
-                    id: op.medecins.id,
-                    nom: op.medecins.name || '',
-                    prenom: op.medecins.first_name || '',
+                  day.secretaires.push({
+                    id: (assign.secretaires as any).id,
+                    nom: (assign.secretaires as any).name || '',
+                    prenom: (assign.secretaires as any).first_name || '',
                     matin: periode === 'matin',
-                    apres_midi: periode === 'apres_midi'
+                    apres_midi: periode === 'apres_midi',
+                    is_1r: assign.is_1r,
+                    is_2f: assign.is_2f,
+                    is_3f: assign.is_3f
                   });
                 }
               }
-              
-              // Fetch personnel needs and assignments
-              const { data: personnelBesoins } = await supabase
-                .from('types_intervention_besoins_personnel')
-                .select(`
-                  nombre_requis,
-                  besoins_operations(id, nom)
-                `)
-                .eq('type_intervention_id', op.type_intervention_id)
-                .eq('actif', true);
-              
-              const { data: assignments } = await supabase
-                .from('capacite_effective')
-                .select(`
-                  *,
-                  secretaires(id, first_name, name)
-                `)
-                .eq('planning_genere_bloc_operatoire_id', op.id)
-                .eq('actif', true);
-              
-              // Calculate total personnel needed
-              const totalBesoin = (personnelBesoins || []).reduce((sum, b) => sum + b.nombre_requis, 0);
-              if (periode === 'matin') {
-                day.besoin_secretaires_matin += totalBesoin;
-              } else {
-                day.besoin_secretaires_apres_midi += totalBesoin;
-              }
-              
-              // Add assigned secretaires
-              (assignments || []).forEach(assign => {
-                if (assign.secretaires) {
-                  const existingSecretaire = day.secretaires.find(s => s.id === assign.secretaires.id);
-                  if (existingSecretaire) {
-                    existingSecretaire[periode] = true;
-                    if (assign.is_1r) existingSecretaire.is_1r = true;
-                    if (assign.is_2f) existingSecretaire.is_2f = true;
-                    if (assign.is_3f) existingSecretaire.is_3f = true;
-                  } else {
-                    day.secretaires.push({
-                      id: assign.secretaires.id,
-                      nom: assign.secretaires.name || '',
-                      prenom: assign.secretaires.first_name || '',
-                      matin: periode === 'matin',
-                      apres_midi: periode === 'apres_midi',
-                      is_1r: assign.is_1r,
-                      is_2f: assign.is_2f,
-                      is_3f: assign.is_3f
-                    });
-                  }
-                }
-              });
-            }
-          }
+            });
+          });
+        } else {
+          // Regular site processing
+          const besoins = besoinsBySite.get(site.id) || [];
+          const capacite = capacitesBySite.get(site.id) || [];
           
-          // Process besoins (médecins) for regular sites
-          besoins?.forEach((besoin) => {
+          besoins.forEach((besoin) => {
             const date = besoin.date;
             if (!daysMap.has(date)) {
               daysMap.set(date, {
@@ -467,23 +466,24 @@ const DashboardPage = () => {
                 besoin_secretaires_matin: 0,
                 besoin_secretaires_apres_midi: 0,
                 status_matin: 'non_satisfait',
-                status_apres_midi: 'non_satisfait'
+                status_apres_midi: 'non_satisfait',
+                deficits_matin: [],
+                deficits_apres_midi: []
               });
             }
             const day = daysMap.get(date)!;
             
             if (besoin.medecins) {
-              const medecinNom = besoin.medecins.name || '';
-              const medecinPrenom = besoin.medecins.first_name || '';
+              const medecinNom = (besoin.medecins as any).name || '';
+              const medecinPrenom = (besoin.medecins as any).first_name || '';
               const periode = besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
-              // Check if medecin already exists
-              const existingMedecin = day.medecins.find(m => m.id === besoin.medecins.id);
+              const existingMedecin = day.medecins.find(m => m.id === (besoin.medecins as any).id);
               if (existingMedecin) {
                 existingMedecin[periode] = true;
               } else {
                 day.medecins.push({
-                  id: besoin.medecins.id,
+                  id: (besoin.medecins as any).id,
                   nom: medecinNom,
                   prenom: medecinPrenom,
                   matin: periode === 'matin',
@@ -491,8 +491,7 @@ const DashboardPage = () => {
                 });
               }
               
-              // Add to besoin count from medecin's besoin_secretaires
-              const besoinSecretaire = besoin.medecins.besoin_secretaires ?? 1.2;
+              const besoinSecretaire = (besoin.medecins as any).besoin_secretaires ?? 1.2;
               if (periode === 'matin') {
                 day.besoin_secretaires_matin += besoinSecretaire;
               } else {
@@ -501,8 +500,7 @@ const DashboardPage = () => {
             }
           });
 
-          // Process capacité effective (secrétaires)
-          capacite?.forEach((cap) => {
+          capacite.forEach((cap) => {
             const date = cap.date;
             if (!daysMap.has(date)) {
               daysMap.set(date, {
@@ -512,18 +510,19 @@ const DashboardPage = () => {
                 besoin_secretaires_matin: 0,
                 besoin_secretaires_apres_midi: 0,
                 status_matin: 'non_satisfait',
-                status_apres_midi: 'non_satisfait'
+                status_apres_midi: 'non_satisfait',
+                deficits_matin: [],
+                deficits_apres_midi: []
               });
             }
             const day = daysMap.get(date)!;
             
             if (cap.secretaires) {
-              const secretaireNom = cap.secretaires.name || '';
-              const secretairePrenom = cap.secretaires.first_name || '';
+              const secretaireNom = (cap.secretaires as any).name || '';
+              const secretairePrenom = (cap.secretaires as any).first_name || '';
               const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
               
-              // Check if secretaire already exists
-              const existingSecretaire = day.secretaires.find(s => s.id === cap.secretaires.id);
+              const existingSecretaire = day.secretaires.find(s => s.id === (cap.secretaires as any).id);
               if (existingSecretaire) {
                 existingSecretaire[periode] = true;
                 if (cap.is_1r) existingSecretaire.is_1r = true;
@@ -531,7 +530,7 @@ const DashboardPage = () => {
                 if (cap.is_3f) existingSecretaire.is_3f = true;
               } else {
                 day.secretaires.push({
-                  id: cap.secretaires.id,
+                  id: (cap.secretaires as any).id,
                   nom: secretaireNom,
                   prenom: secretairePrenom,
                   matin: periode === 'matin',
@@ -543,29 +542,34 @@ const DashboardPage = () => {
               }
             }
           });
+        }
 
-          // Get status from unified summary (ensures consistency with badge)
-          const days = Array.from(daysMap.values()).map(day => {
-            return {
-              ...day,
-              status_matin: getStatus(site.id, day.date, 'matin'),
-              status_apres_midi: getStatus(site.id, day.date, 'apres_midi')
-            };
-          });
-
+        // Apply status and deficits from unified summary
+        const days = Array.from(daysMap.values()).map(day => {
+          const salleId = isSalleSite ? (site as any).salle_id : null;
+          const statusKey = isSalleSite ? `salle-${salleId}` : site.id;
+          
           return {
-            site_id: site.id,
-            site_nom: site.nom,
-            site_fermeture: site.fermeture || false,
-            fermeture: site.fermeture || false,
-            days
+            ...day,
+            status_matin: getStatus(statusKey, day.date, 'matin'),
+            status_apres_midi: getStatus(statusKey, day.date, 'apres_midi'),
+            deficits_matin: getDeficits(statusKey, day.date, 'matin'),
+            deficits_apres_midi: getDeficits(statusKey, day.date, 'apres_midi')
           };
-        })
-      );
+        });
+
+        return {
+          site_id: site.id,
+          site_nom: site.nom,
+          site_fermeture: site.fermeture || false,
+          fermeture: site.fermeture || false,
+          days
+        };
+      });
 
       setDashboardSites(dashboardData);
 
-      // Fetch secretaires data
+      // Fetch secretaires data with pre-fetched capacites
       const { data: secretairesData } = await supabase
         .from('secretaires')
         .select('*')
@@ -574,103 +578,83 @@ const DashboardPage = () => {
 
       if (!secretairesData) return;
 
-      // Fetch secretaires week data
-      const secretairesWeekData = await Promise.all(
-        secretairesData.map(async (secretaire) => {
-          const { data: capacite } = await supabase
-            .from('capacite_effective')
-            .select(`
-              *,
-              sites(nom),
-              planning_genere_bloc_operatoire(
-                validated,
-                medecin_id,
-                medecins(first_name, name),
-                type_intervention_id,
-                types_intervention(nom),
-                salle_assignee,
-                salles_operation(name)
-              )
-            `)
-            .eq('secretaire_id', secretaire.id)
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .eq('actif', true)
-            .order('date');
+      // BATCH QUERY: All capacites with relations for secretaires
+      const { data: allSecretaireCapacites } = await supabase
+        .from('capacite_effective')
+        .select(`
+          *,
+          sites(nom),
+          besoins_operations(id, nom),
+          planning_genere_bloc_operatoire(
+            validated,
+            medecin_id,
+            medecins(first_name, name),
+            type_intervention_id,
+            types_intervention(nom),
+            salle_assignee,
+            salles_operation(name)
+          )
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('actif', true);
 
-          // Build besoins_operations map to resolve besoin_operation_nom from capacite_effective.besoin_operation_id
-          const besoinIds = Array.from(
-            new Set((capacite || []).map((c: any) => c.besoin_operation_id).filter(Boolean))
-          );
+      // Group capacites by secretaire
+      const capacitesBySecretaire = new Map<string, typeof allSecretaireCapacites>();
+      (allSecretaireCapacites || []).forEach(c => {
+        if (c.secretaire_id) {
+          if (!capacitesBySecretaire.has(c.secretaire_id)) capacitesBySecretaire.set(c.secretaire_id, []);
+          capacitesBySecretaire.get(c.secretaire_id)!.push(c);
+        }
+      });
 
-          const besoinsMap = new Map<string, string>();
-          if (besoinIds.length > 0) {
-            const { data: besoinsOps } = await supabase
-              .from('besoins_operations')
-              .select('id, nom')
-              .in('id', besoinIds as string[]);
-            besoinsOps?.forEach((b: any) => {
-              besoinsMap.set(b.id, b.nom);
-            });
+      const secretairesWeekData = secretairesData.map((secretaire) => {
+        const capacite = capacitesBySecretaire.get(secretaire.id) || [];
+        const daysMap = new Map<string, SecretaireDayData>();
+
+        capacite.forEach((cap) => {
+          const date = cap.date;
+          if (!daysMap.has(date)) {
+            daysMap.set(date, { date, matin: [], apres_midi: [] });
+          }
+          const day = daysMap.get(date)!;
+          const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
+
+          const assignment: SecretaireAssignment = {
+            site_nom: (cap.sites as any)?.nom,
+            is_1r: cap.is_1r,
+            is_2f: cap.is_2f,
+            is_3f: cap.is_3f,
+            validated: (cap.planning_genere_bloc_operatoire as any)?.validated
+          };
+
+          if ((cap.planning_genere_bloc_operatoire as any)?.medecins) {
+            assignment.medecin_nom = (cap.planning_genere_bloc_operatoire as any).medecins.name || '';
           }
 
-          const daysMap = new Map<string, SecretaireDayData>();
+          if (cap.besoin_operation_id && (cap as any).besoins_operations) {
+            assignment.besoin_operation_nom = (cap as any).besoins_operations.nom;
+          } else if ((cap.planning_genere_bloc_operatoire as any)?.types_intervention) {
+            assignment.besoin_operation_nom = (cap.planning_genere_bloc_operatoire as any).types_intervention.nom;
+          }
 
-          capacite?.forEach((cap) => {
-            const date = cap.date;
-            if (!daysMap.has(date)) {
-              daysMap.set(date, {
-                date,
-                matin: [],
-                apres_midi: []
-              });
-            }
-            const day = daysMap.get(date)!;
-            const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
+          if ((cap.planning_genere_bloc_operatoire as any)?.salles_operation) {
+            assignment.salle_nom = (cap.planning_genere_bloc_operatoire as any).salles_operation.name;
+          }
 
-            const assignment: SecretaireAssignment = {
-              site_nom: cap.sites?.nom,
-              is_1r: cap.is_1r,
-              is_2f: cap.is_2f,
-              is_3f: cap.is_3f,
-              validated: cap.planning_genere_bloc_operatoire?.validated
-            };
+          day[periode].push(assignment);
+        });
 
-            // Add medecin info if available
-            if (cap.planning_genere_bloc_operatoire?.medecins) {
-              const medecin = cap.planning_genere_bloc_operatoire.medecins;
-              assignment.medecin_nom = medecin.name || '';
-            }
-
-            // Prefer besoin operation name from besoins_operations via capacite_effective.besoin_operation_id
-            if (cap.besoin_operation_id) {
-              const nom = besoinsMap.get(cap.besoin_operation_id);
-              if (nom) assignment.besoin_operation_nom = nom;
-            }
-            // Fallback to type d'intervention if no besoin operation is linked
-            if (!assignment.besoin_operation_nom && cap.planning_genere_bloc_operatoire?.types_intervention) {
-              assignment.besoin_operation_nom = cap.planning_genere_bloc_operatoire.types_intervention.nom;
-            }
-
-            // Add salle info if available
-            if (cap.planning_genere_bloc_operatoire?.salles_operation) {
-              assignment.salle_nom = cap.planning_genere_bloc_operatoire.salles_operation.name;
-            }
-
-            day[periode].push(assignment);
-          });
-
-          return {
-            id: secretaire.id,
-            nom_complet: `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim(),
-            actif: secretaire.actif,
-            horaire_flexible: secretaire.horaire_flexible,
-            flexible_jours_supplementaires: secretaire.flexible_jours_supplementaires,
-            nombre_jours_supplementaires: secretaire.nombre_jours_supplementaires,
-            days: Array.from(daysMap.values())
-          };
-        })
-      );
+        return {
+          id: secretaire.id,
+          nom_complet: `${secretaire.first_name || ''} ${secretaire.name || ''}`.trim(),
+          actif: secretaire.actif,
+          horaire_flexible: secretaire.horaire_flexible,
+          flexible_jours_supplementaires: secretaire.flexible_jours_supplementaires,
+          nombre_jours_supplementaires: secretaire.nombre_jours_supplementaires,
+          days: Array.from(daysMap.values())
+        };
+      });
 
       setDashboardSecretaires(
         secretairesWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
@@ -679,49 +663,44 @@ const DashboardPage = () => {
       // Fetch medecins data
       const { data: medecinsData } = await supabase
         .from('medecins')
-        .select(`
-          id,
-          first_name,
-          name,
-          actif,
-          specialite_id,
-          specialites(nom)
-        `)
+        .select(`id, first_name, name, actif, specialite_id, specialites(nom)`)
         .eq('actif', true)
         .order('name');
 
       if (!medecinsData) return;
 
-      // Fetch medecins week data
+      // Group besoins by medecin
+      const { data: allMedecinBesoins } = await supabase
+        .from('besoin_effectif')
+        .select(`date, demi_journee, site_id, type, type_intervention_id, sites(nom), types_intervention(nom)`)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .eq('actif', true);
+
+      const besoinsByMedecin = new Map<string, typeof allMedecinBesoins>();
+      (allMedecinBesoins || []).forEach(b => {
+        if (b.site_id) {
+          // Get medecin_id from the original query
+        }
+      });
+
+      // For medecins, we still need individual queries due to structure
       const medecinsWeekData = await Promise.all(
         medecinsData.map(async (medecin) => {
           const { data: besoins } = await supabase
             .from('besoin_effectif')
-            .select(`
-              date,
-              demi_journee,
-              site_id,
-              type,
-              type_intervention_id,
-              sites(nom),
-              types_intervention(nom)
-            `)
+            .select(`date, demi_journee, site_id, type, type_intervention_id, sites(nom), types_intervention(nom)`)
             .eq('medecin_id', medecin.id)
             .gte('date', startDate)
             .lte('date', endDate)
             .eq('actif', true)
             .order('date');
 
-          // Group by date
           const daysMap = new Map<string, MedecinDayData>();
           
           besoins?.forEach((besoin) => {
             if (!daysMap.has(besoin.date)) {
-              daysMap.set(besoin.date, {
-                date: besoin.date,
-                matin: [],
-                apres_midi: []
-              });
+              daysMap.set(besoin.date, { date: besoin.date, matin: [], apres_midi: [] });
             }
             
             const day = daysMap.get(besoin.date)!;
@@ -752,30 +731,8 @@ const DashboardPage = () => {
         medecinsWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
       );
 
-      // Fetch bloc operatoire operations
-      const { data: operationsData } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select(`
-          id,
-          date,
-          periode,
-          salle_assignee,
-          medecin_id,
-          besoin_effectif_id,
-          type_intervention_id,
-          salles_operation(name),
-          medecins(first_name, name),
-          types_intervention(nom, code)
-        `)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .in('periode', ['matin', 'apres_midi'])
-        .neq('statut', 'annule')
-        .order('date')
-        .order('periode');
-
-      // Map operations to individual cards
-      const operations: DashboardOperation[] = (operationsData || []).map((operation) => ({
+      // Use pre-fetched operations for bloc view
+      const operations: DashboardOperation[] = (allOperations || []).map((operation) => ({
         id: operation.id,
         date: operation.date,
         periode: operation.periode as 'matin' | 'apres_midi',
@@ -809,39 +766,18 @@ const DashboardPage = () => {
       .channel('dashboard-updates')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'capacite_effective'
-        },
-        (payload) => {
-          console.log('🔄 Real-time update capacite_effective:', payload);
-          fetchDashboardData();
-        }
+        { event: '*', schema: 'public', table: 'capacite_effective' },
+        () => fetchDashboardData()
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'besoin_effectif'
-        },
-        (payload) => {
-          console.log('🔄 Real-time update besoin_effectif:', payload);
-          fetchDashboardData();
-        }
+        { event: '*', schema: 'public', table: 'besoin_effectif' },
+        () => fetchDashboardData()
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planning_genere_bloc_operatoire'
-        },
-        (payload) => {
-          console.log('🔄 Real-time update planning_genere_bloc_operatoire:', payload);
-          fetchDashboardData();
-        }
+        { event: '*', schema: 'public', table: 'planning_genere_bloc_operatoire' },
+        () => fetchDashboardData()
       )
       .subscribe();
 
@@ -850,21 +786,10 @@ const DashboardPage = () => {
     };
   }, [currentWeek]);
 
-  const handlePreviousWeek = () => {
-    setCurrentWeek(subWeeks(currentWeek, 1));
-  };
-
-  const handleNextWeek = () => {
-    setCurrentWeek(addWeeks(currentWeek, 1));
-  };
-
-  const handleToday = () => {
-    setCurrentWeek(new Date());
-  };
-
-  const handleRefreshAll = () => {
-    fetchDashboardData();
-  };
+  const handlePreviousWeek = () => setCurrentWeek(subWeeks(currentWeek, 1));
+  const handleNextWeek = () => setCurrentWeek(addWeeks(currentWeek, 1));
+  const handleToday = () => setCurrentWeek(new Date());
+  const handleRefreshAll = () => fetchDashboardData();
 
   return (
     <div className="w-full space-y-6">
@@ -921,21 +846,16 @@ const DashboardPage = () => {
         />
       </div>
 
-
       {/* Planning hebdomadaire container */}
       <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
-        {/* View Mode Tabs */}
-        {/* Planning hebdomadaire Title + Color Legend */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
             Planning hebdomadaire
           </h2>
           
           <div className="flex items-center gap-3">
-            {/* Statistics Button - hidden in secretaire view */}
             {viewMode !== 'secretaire' && <SecretaireStatsDialog secretaires={dashboardSecretaires} />}
             
-            {/* Color Legend */}
             <div className="inline-flex items-center gap-4 px-4 py-2 bg-gradient-to-br from-background via-card to-card/50 backdrop-blur-xl border-2 border-primary/20 rounded-lg text-xs font-medium text-foreground">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-blue-500"></div>
@@ -952,6 +872,7 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
+        
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
           <div className="flex justify-center mb-6">
             <TabsList>
@@ -962,223 +883,153 @@ const DashboardPage = () => {
             </TabsList>
           </div>
 
-        {/* Week Selector */}
-        <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border-2 border-border rounded-xl p-4 mb-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePreviousWeek}
-            className="hover:bg-primary/10"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          
-          <WeekSelector 
-            currentDate={currentWeek} 
-            onWeekChange={setCurrentWeek} 
-          />
+          <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border-2 border-border rounded-xl p-4 mb-6">
+            <Button variant="ghost" size="icon" onClick={handlePreviousWeek} className="hover:bg-primary/10">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            
+            <WeekSelector currentDate={currentWeek} onWeekChange={setCurrentWeek} />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleNextWeek}
-            className="hover:bg-primary/10"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
+            <Button variant="ghost" size="icon" onClick={handleNextWeek} className="hover:bg-primary/10">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
 
-
-        {/* Unfilled Needs Panel */}
-        {!loading && (
-          <UnfilledNeedsPanel
-            startDate={startDate}
-            endDate={endDate}
-            onRefresh={fetchDashboardData}
-          />
-        )}
-
-        {/* Sites Calendar Grid */}
-        <TabsContent value="site">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <SitesTableView
-              sites={dashboardSites}
-              weekDays={weekDays}
-              onDayClick={(siteId, date) => {
-                console.log('Day clicked:', siteId, date);
-              }}
-              onRefresh={fetchDashboardData}
-            />
+          {!loading && (
+            <UnfilledNeedsPanel startDate={startDate} endDate={endDate} onRefresh={fetchDashboardData} />
           )}
-        </TabsContent>
 
-        {/* Secretaires Calendar Grid */}
-        <TabsContent value="secretaire">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              <div className="flex justify-end mb-4">
-                <SecretaireStatsDialog secretaires={dashboardSecretaires} />
+          <TabsContent value="site">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
+            ) : (
+              <SitesTableView
+                sites={dashboardSites}
+                weekDays={weekDays}
+                onDayClick={(siteId, date) => console.log('Day clicked:', siteId, date)}
+                onRefresh={fetchDashboardData}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="secretaire">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-end mb-4">
+                  <SecretaireStatsDialog secretaires={dashboardSecretaires} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {dashboardSecretaires.map((secretaire, index) => (
+                    <SecretaireCalendarCard
+                      key={secretaire.id}
+                      secretaire={secretaire}
+                      days={secretaire.days}
+                      startDate={startDate}
+                      index={index}
+                      onDayClick={() => fetchDashboardData()}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="medecin">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {dashboardSecretaires.map((secretaire, index) => (
-                  <SecretaireCalendarCard
-                    key={secretaire.id}
-                    secretaire={secretaire}
-                    days={secretaire.days}
+                {dashboardMedecins.map((medecin, index) => (
+                  <MedecinCalendarCard
+                    key={medecin.id}
+                    medecin={medecin}
+                    days={medecin.days}
                     startDate={startDate}
                     index={index}
-                    onDayClick={() => fetchDashboardData()}
+                    onRefresh={fetchDashboardData}
                   />
                 ))}
               </div>
-            </>
-          )}
-        </TabsContent>
+            )}
+          </TabsContent>
 
-        {/* Medecins Calendar Grid */}
-        <TabsContent value="medecin">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {dashboardMedecins.map((medecin, index) => (
-                <MedecinCalendarCard
-                  key={medecin.id}
-                  medecin={medecin}
-                  days={medecin.days}
-                  startDate={startDate}
-                  index={index}
-                  onRefresh={fetchDashboardData}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Bloc Operatoire Calendar Grid */}
-        <TabsContent value="bloc">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              {/* Regular Operations */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {/* Add Operation Card */}
-                <div 
-                  onClick={() => setAddOperationDialogOpen(true)}
-                  className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
-                >
-                  <div className="rounded-full bg-primary/10 p-3">
-                    <Plus className="h-6 w-6 text-primary" />
+          <TabsContent value="bloc">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div 
+                    onClick={() => setAddOperationDialogOpen(true)}
+                    className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
+                  >
+                    <div className="rounded-full bg-primary/10 p-3">
+                      <Plus className="h-6 w-6 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Ajouter une opération
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Ajouter une opération
-                  </span>
+
+                  {dashboardOperations
+                    .filter(op => op.salle_nom !== "Bloc Gastroentérologie")
+                    .map((operation, index) => (
+                      <OperationCalendarCard
+                        key={operation.id}
+                        operation={operation}
+                        index={index}
+                        onRefresh={fetchDashboardData}
+                      />
+                    ))}
                 </div>
 
-                {/* Non-Gastro Operations */}
-                {dashboardOperations
-                  .filter(op => op.salle_nom !== "Bloc Gastroentérologie")
-                  .map((operation, index) => (
-                    <OperationCalendarCard
-                      key={operation.id}
-                      operation={operation}
-                      index={index}
-                      onRefresh={fetchDashboardData}
-                    />
-                  ))}
-              </div>
-
-              {/* Gastro Bloc Operations Section */}
-              {dashboardOperations.some(op => op.salle_nom === "Bloc Gastroentérologie") && (
-                <>
-                  <div className="mt-8 mb-4 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-border" />
-                    <h3 className="text-lg font-semibold text-foreground">
-                      Bloc Gastroentérologie
-                    </h3>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {dashboardOperations
-                      .filter(op => op.salle_nom === "Bloc Gastroentérologie")
-                      .map((operation, index) => (
-                        <OperationCalendarCard
-                          key={operation.id}
-                          operation={operation}
-                          index={index}
-                          onRefresh={fetchDashboardData}
-                        />
-                      ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
+                {dashboardOperations.some(op => op.salle_nom === "Bloc Gastroentérologie") && (
+                  <>
+                    <div className="mt-8 mb-4 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-border" />
+                      <h3 className="text-lg font-semibold text-foreground">Bloc Gastroentérologie</h3>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {dashboardOperations
+                        .filter(op => op.salle_nom === "Bloc Gastroentérologie")
+                        .map((operation, index) => (
+                          <OperationCalendarCard
+                            key={operation.id}
+                            operation={operation}
+                            index={index}
+                            onRefresh={fetchDashboardData}
+                          />
+                        ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
-      <MedecinsPopup
-        open={medecinsPopupOpen} 
-        onOpenChange={setMedecinsPopupOpen}
-      />
-      
-      <SecretairesPopup 
-        open={secretairesPopupOpen} 
-        onOpenChange={setSecretairesPopupOpen}
-      />
-
-      <OperationsPopup
-        open={operationsPopupOpen}
-        onOpenChange={setOperationsPopupOpen}
-      />
-
-      <AbsencesJoursFeriesPopup
-        open={absencesPopupOpen}
-        onOpenChange={setAbsencesPopupOpen}
-        onAbsenceChange={fetchDashboardData}
-      />
-
-      <SitesPopup 
-        open={sitesPopupOpen}
-        onOpenChange={setSitesPopupOpen}
-      />
-
-      <OptimizePlanningDialog
-        open={planningDialogOpen}
-        onOpenChange={setPlanningDialogOpen}
-      />
-
-      <AddOperationDialog
-        open={addOperationDialogOpen}
-        onOpenChange={setAddOperationDialogOpen}
-        currentWeekStart={currentWeek}
-        onSuccess={fetchDashboardData}
-      />
-
-      <GeneratePdfDialog
-        open={generatePdfDialogOpen}
-        onOpenChange={setGeneratePdfDialogOpen}
-      />
-
-      <GlobalCalendarDialog
-        open={globalCalendarOpen}
-        onOpenChange={setGlobalCalendarOpen}
-      />
+      <MedecinsPopup open={medecinsPopupOpen} onOpenChange={setMedecinsPopupOpen} />
+      <SecretairesPopup open={secretairesPopupOpen} onOpenChange={setSecretairesPopupOpen} />
+      <OperationsPopup open={operationsPopupOpen} onOpenChange={setOperationsPopupOpen} />
+      <AbsencesJoursFeriesPopup open={absencesPopupOpen} onOpenChange={setAbsencesPopupOpen} onAbsenceChange={fetchDashboardData} />
+      <SitesPopup open={sitesPopupOpen} onOpenChange={setSitesPopupOpen} />
+      <OptimizePlanningDialog open={planningDialogOpen} onOpenChange={setPlanningDialogOpen} />
+      <AddOperationDialog open={addOperationDialogOpen} onOpenChange={setAddOperationDialogOpen} currentWeekStart={currentWeek} onSuccess={fetchDashboardData} />
+      <GeneratePdfDialog open={generatePdfDialogOpen} onOpenChange={setGeneratePdfDialogOpen} />
+      <GlobalCalendarDialog open={globalCalendarOpen} onOpenChange={setGlobalCalendarOpen} />
     </div>
   );
 };

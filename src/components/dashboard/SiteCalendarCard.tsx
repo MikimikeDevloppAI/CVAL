@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { DayCell } from './DayCell';
 import { DayDetailDialog } from './DayDetailDialog';
 import { SecretaireActionsDialog } from './SecretaireActionsDialog';
@@ -12,6 +12,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+
+interface DeficitDetail {
+  besoin_operation_nom: string;
+  nombre_requis: number;
+  nombre_assigne: number;
+  balance: number;
+}
 
 interface PersonnePresence {
   id: string;
@@ -33,6 +41,8 @@ interface DayData {
   besoin_secretaires_apres_midi: number;
   status_matin: 'satisfait' | 'partiel' | 'non_satisfait';
   status_apres_midi: 'satisfait' | 'partiel' | 'non_satisfait';
+  deficits_matin?: DeficitDetail[];
+  deficits_apres_midi?: DeficitDetail[];
 }
 
 interface DashboardSite {
@@ -77,16 +87,15 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
     end: parseISO(endDate)
   }).filter(day => {
     const dow = day.getDay();
-    if (dow === 0) return false; // Exclure dimanche
+    if (dow === 0) return false;
     
-    // Pour samedi, vérifier s'il y a des données
     if (dow === 6) {
       const dateStr = format(day, 'yyyy-MM-dd');
       const dayData = site.days.find(d => d.date === dateStr);
       return dayData && (dayData.medecins.length > 0 || dayData.secretaires.length > 0);
     }
     
-    return true; // Garder lundi-vendredi
+    return true;
   });
 
   const getDayData = (date: Date): DayData | null => {
@@ -99,7 +108,6 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
   };
 
   const handleSecretaireClick = async (secretaireId: string, secretaireNom: string, secretairePrenom: string, periode: 'matin' | 'apres_midi' | 'journee', date: Date) => {
-    // Fetch capacite data to determine besoin
     const dateStr = format(date, 'yyyy-MM-dd');
     const { data: capacites } = await supabase
       .from('capacite_effective')
@@ -121,7 +129,6 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
   };
 
   const handleMedecinClick = (medecinId: string, medecinNom: string, medecinPrenom: string, date: Date) => {
-    // Fetch besoin_effectif data to determine periode
     const dateStr = format(date, 'yyyy-MM-dd');
     supabase
       .from('besoin_effectif')
@@ -149,7 +156,6 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
   const hasIssues = site.days.some(d => d.status_matin !== 'satisfait' || d.status_apres_midi !== 'satisfait');
 
-  // Realtime refresh for exchanges and updates affecting this site in the visible range
   useEffect(() => {
     const channel = supabase
       .channel(`site-card-${site.site_id}-${startDate}-${endDate}`)
@@ -172,6 +178,67 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
       supabase.removeChannel(channel);
     };
   }, [site.site_id, startDate, endDate, onRefresh]);
+
+  // Render deficit hover content
+  const renderDeficitHover = (
+    besoinMatin: number,
+    capaciteMatin: number,
+    besoinAM: number,
+    capaciteAM: number,
+    hasManqueMatin: boolean,
+    hasManqueAM: boolean,
+    dayData: DayData | null
+  ) => {
+    const deficitsMatin = dayData?.deficits_matin || [];
+    const deficitsAM = dayData?.deficits_apres_midi || [];
+    
+    return (
+      <div className="space-y-3">
+        {hasManqueMatin && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="font-semibold text-destructive">Matin: {capaciteMatin}/{Math.ceil(besoinMatin)}</span>
+            </div>
+            {deficitsMatin.length > 0 ? (
+              <ul className="text-sm space-y-1 pl-6">
+                {deficitsMatin.map((d, i) => (
+                  <li key={i} className="text-muted-foreground">
+                    • {d.besoin_operation_nom}: {d.nombre_assigne}/{d.nombre_requis}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground pl-6">
+                {Math.ceil(besoinMatin) - capaciteMatin} assistant(s) manquant(s)
+              </p>
+            )}
+          </div>
+        )}
+        {hasManqueAM && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="font-semibold text-destructive">Après-midi: {capaciteAM}/{Math.ceil(besoinAM)}</span>
+            </div>
+            {deficitsAM.length > 0 ? (
+              <ul className="text-sm space-y-1 pl-6">
+                {deficitsAM.map((d, i) => (
+                  <li key={i} className="text-muted-foreground">
+                    • {d.besoin_operation_nom}: {d.nombre_assigne}/{d.nombre_requis}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground pl-6">
+                {Math.ceil(besoinAM) - capaciteAM} assistant(s) manquant(s)
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -226,22 +293,18 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           {/* Day Headers */}
           {days.map((day) => {
             const dayData = getDayData(day);
+            const isSaturday = day.getDay() === 6;
             
-            // Calculate needs and capacities for morning and afternoon
             let besoinMatin = 0;
             let capaciteMatin = 0;
             let besoinAM = 0;
             let capaciteAM = 0;
             
             if (dayData) {
-              const isSaturday = day.getDay() === 6;
-              
               if (isSaturday) {
-                // For Saturday: count 1 need per doctor
                 besoinMatin = dayData.medecins.filter(m => m.matin).length;
                 besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
               } else {
-                // For other days: use calculated needs
                 besoinMatin = Math.ceil(dayData.besoin_secretaires_matin);
                 besoinAM = Math.ceil(dayData.besoin_secretaires_apres_midi);
               }
@@ -252,6 +315,7 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
             const hasManqueMatin = besoinMatin > capaciteMatin;
             const hasManqueAM = besoinAM > capaciteAM;
+            const hasAnyManque = hasManqueMatin || hasManqueAM;
 
             return (
               <div
@@ -264,19 +328,31 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
                 <p className="text-sm font-semibold text-foreground mt-1">
                   {format(day, 'd', { locale: fr })}
                 </p>
-                {dayData && (hasManqueMatin || hasManqueAM) && (
-                  <div className="mt-1 space-y-0.5">
-                    {hasManqueMatin && (
-                      <p className="text-[10px] font-semibold text-destructive">
-                        M: {capaciteMatin}/{besoinMatin}
-                      </p>
-                    )}
-                    {hasManqueAM && (
-                      <p className="text-[10px] font-semibold text-destructive">
-                        AM: {capaciteAM}/{besoinAM}
-                      </p>
-                    )}
-                  </div>
+                {dayData && hasAnyManque && (
+                  <HoverCard openDelay={200}>
+                    <HoverCardTrigger asChild>
+                      <div className="mt-1 space-y-0.5 cursor-help">
+                        {hasManqueMatin && (
+                          <p className="text-[10px] font-semibold text-destructive">
+                            M: {capaciteMatin}/{besoinMatin}
+                          </p>
+                        )}
+                        {hasManqueAM && (
+                          <p className="text-[10px] font-semibold text-destructive">
+                            AM: {capaciteAM}/{besoinAM}
+                          </p>
+                        )}
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-72" side="bottom">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">
+                          Besoins non couverts - {format(day, 'd MMMM', { locale: fr })}
+                        </h4>
+                        {renderDeficitHover(besoinMatin, capaciteMatin, besoinAM, capaciteAM, hasManqueMatin, hasManqueAM, dayData)}
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
                 )}
               </div>
             );
@@ -305,16 +381,14 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
           {(() => {
             const day = days[currentDayIndex];
             const dayData = getDayData(day);
+            const isSaturday = day.getDay() === 6;
             
-            // Calculate needs and capacities
             let besoinMatin = 0;
             let capaciteMatin = 0;
             let besoinAM = 0;
             let capaciteAM = 0;
             
             if (dayData) {
-              const isSaturday = day.getDay() === 6;
-              
               if (isSaturday) {
                 besoinMatin = dayData.medecins.filter(m => m.matin).length;
                 besoinAM = dayData.medecins.filter(m => m.apres_midi).length;
@@ -332,25 +406,35 @@ export const SiteCalendarCard = ({ site, startDate, endDate, index, onRefresh }:
 
             return (
               <div>
-                {/* Day header for mobile */}
                 <div className="text-center pb-2 mb-2 border-b border-border/30">
                   {dayData && (hasManqueMatin || hasManqueAM) && (
-                    <div className="space-y-0.5">
-                      {hasManqueMatin && (
-                        <p className="text-sm font-semibold text-destructive">
-                          Matin: {capaciteMatin}/{besoinMatin}
-                        </p>
-                      )}
-                      {hasManqueAM && (
-                        <p className="text-sm font-semibold text-destructive">
-                          Après-midi: {capaciteAM}/{besoinAM}
-                        </p>
-                      )}
-                    </div>
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <div className="space-y-0.5 cursor-help">
+                          {hasManqueMatin && (
+                            <p className="text-sm font-semibold text-destructive">
+                              Matin: {capaciteMatin}/{besoinMatin}
+                            </p>
+                          )}
+                          {hasManqueAM && (
+                            <p className="text-sm font-semibold text-destructive">
+                              Après-midi: {capaciteAM}/{besoinAM}
+                            </p>
+                          )}
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-72">
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-sm">
+                            Besoins non couverts - {format(day, 'd MMMM', { locale: fr })}
+                          </h4>
+                          {renderDeficitHover(besoinMatin, capaciteMatin, besoinAM, capaciteAM, hasManqueMatin, hasManqueAM, dayData)}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
                   )}
                 </div>
                 
-                {/* Day cell content */}
                 <DayCell
                   date={day}
                   data={dayData}
