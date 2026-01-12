@@ -10,10 +10,6 @@ import {
   HelpCircle,
   ClipboardList,
   Building,
-  CalendarDays,
-  Calendar as CalendarPlanIcon,
-  FileText,
-  BarChart3
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -157,20 +153,16 @@ export const Sidebar = () => {
 
       {/* Navigation with Accordions */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {/* Dashboard at top */}
-        {canManage && (
-          <div className="mb-4 pb-4 border-b border-border/50">
-            <NavLink to="/" icon={LayoutDashboard} label="Dashboard" onLinkClick={onLinkClick} />
-          </div>
-        )}
-
-        <Accordion type="multiple" defaultValue={['gestion', 'planification', 'actions']} className="space-y-2">
-          {/* Section Gestion */}
-          <AccordionItem value="gestion" className="border-none">
+        <Accordion type="multiple" defaultValue={['planning']} className="space-y-2">
+          {/* Section Planning - contient tout sauf Paramètres et Utilisateurs */}
+          <AccordionItem value="planning" className="border-none">
             <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
-              Gestion
+              Planning
             </AccordionTrigger>
             <AccordionContent className="pt-1 pb-2 space-y-1">
+              {canManage && (
+                <NavLink to="/" icon={LayoutDashboard} label="Dashboard" onLinkClick={onLinkClick} />
+              )}
               <NavLink to="/medecins" icon={Stethoscope} label="Médecins" onLinkClick={onLinkClick} />
               <NavLink to="/assistants" icon={Users} label="Assistants médicaux" onLinkClick={onLinkClick} />
               <NavLink to="/sites" icon={Building} label="Sites" onLinkClick={onLinkClick} />
@@ -178,41 +170,16 @@ export const Sidebar = () => {
               <NavLink to="/absences" icon={CalendarX} label="Absences" badge={pendingAbsences} onLinkClick={onLinkClick} />
             </AccordionContent>
           </AccordionItem>
-
-          {/* Section Planification */}
-          <AccordionItem value="planification" className="border-none">
-            <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
-              Planification
-            </AccordionTrigger>
-            <AccordionContent className="pt-1 pb-2 space-y-1">
-              <NavLink to="/calendrier" icon={CalendarDays} label="Calendrier global" onLinkClick={onLinkClick} />
-              <NavLink to="/statistiques" icon={BarChart3} label="Statistiques" onLinkClick={onLinkClick} />
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Section Actions */}
-          <AccordionItem value="actions" className="border-none">
-            <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
-              Actions
-            </AccordionTrigger>
-            <AccordionContent className="pt-1 pb-2 space-y-1">
-              <NavLink to="/planifier" icon={CalendarPlanIcon} label="Planifier" onLinkClick={onLinkClick} />
-              <NavLink to="/generer-pdf" icon={FileText} label="Générer PDF" onLinkClick={onLinkClick} />
-            </AccordionContent>
-          </AccordionItem>
         </Accordion>
 
-        {/* Fixed Navigation Links */}
+        {/* Fixed Navigation Links - hors section Planning */}
         <div className="mt-6 pt-6 border-t border-border/50 space-y-1">
           <NavLink to="/settings" icon={Settings} label="Paramètres" onLinkClick={onLinkClick} />
-        </div>
-
-        {/* Admin section */}
-        {isAdmin && (
-          <div className="mt-4 pt-4 border-t border-border/50">
+          {/* Admin section */}
+          {isAdmin && (
             <NavLink to="/users" icon={Users} label="Utilisateurs" onLinkClick={onLinkClick} />
-          </div>
-        )}
+          )}
+        </div>
       </nav>
 
       {/* Bottom section */}
@@ -317,16 +284,6 @@ export const Sidebar = () => {
         >
           <HelpCircle className="h-5 w-5" />
         </Button>
-
-        {/* ValléeBot hidden for now
-        <Button
-          size="sm"
-          onClick={() => setAiAssistantOpen(true)}
-          className="ml-2 flex items-center gap-2"
-        >
-          <BotMessageSquare className="h-4 w-4" />
-        </Button>
-        */}
       </div>
 
       {/* Dialogs */}

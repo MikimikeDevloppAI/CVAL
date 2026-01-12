@@ -8,8 +8,17 @@ import { AssignAssistantToBesoinDialog } from '@/components/dashboard/AssignAssi
 import { CollaborateursTableView, Collaborateur } from '@/components/dashboard/CollaborateursTableView';
 import { Button } from '@/components/ui/button';
 import { TabButton } from '@/components/ui/primary-button';
-import { ChevronLeft, ChevronRight, Loader2, Plus, Building, Users, Stethoscope, Scissors } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Plus, Building, Users, Stethoscope, Scissors, Sparkles, FileText, Calendar as CalendarPlanIcon, ChevronDown } from 'lucide-react';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Link } from 'react-router-dom';
+import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
+import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
 
 export interface DeficitDetail {
   besoin_operation_nom: string;
@@ -142,6 +151,8 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('site');
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
+  const [optimizeSummaryOpen, setOptimizeSummaryOpen] = useState(false);
+  const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
 
   // État pour le dialog d'assignation d'assistant aux besoins opératoires
   const [assignAssistantDialog, setAssignAssistantDialog] = useState<{
@@ -1071,8 +1082,34 @@ const DashboardPage = () => {
             ))}
           </div>
 
-          {/* Right side: Empty for balance or future actions */}
-          <div className="w-[100px]" />
+          {/* Right side: Actions Button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-md"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Actions
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setOptimizeSummaryOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2 text-teal-500" />
+                Optimiser la semaine
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/planifier" className="flex items-center w-full">
+                  <CalendarPlanIcon className="h-4 w-4 mr-2 text-blue-500" />
+                  Planifier
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGeneratePdfDialogOpen(true)}>
+                <FileText className="h-4 w-4 mr-2 text-purple-500" />
+                Générer PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1106,6 +1143,17 @@ const DashboardPage = () => {
         siteId={assignAssistantDialog.siteId}
         siteName={assignAssistantDialog.siteName}
         onSuccess={fetchDashboardData}
+      />
+
+      <UnfilledNeedsSummaryDialog
+        open={optimizeSummaryOpen}
+        onOpenChange={setOptimizeSummaryOpen}
+        onRefresh={fetchDashboardData}
+      />
+
+      <GeneratePdfDialog
+        open={generatePdfDialogOpen}
+        onOpenChange={setGeneratePdfDialogOpen}
       />
     </div>
   );

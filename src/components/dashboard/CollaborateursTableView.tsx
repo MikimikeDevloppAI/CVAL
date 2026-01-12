@@ -445,6 +445,9 @@ export function CollaborateursTableView({
 
   // Auto-scroll vers aujourd'hui au chargement
   useEffect(() => {
+    // Attendre que les données soient chargées
+    if (sortedCollaborateurs.length === 0) return;
+
     const timeoutId = setTimeout(() => {
       if (scrollContainerRef.current && weekdaysOnly.length > 0) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -454,16 +457,17 @@ export function CollaborateursTableView({
           const columnWidth = 100;
           const scrollPosition = todayIndex * columnWidth;
 
+          // Scroll pour que aujourd'hui soit le premier jour visible (à gauche)
           scrollContainerRef.current.scrollTo({
-            left: Math.max(0, scrollPosition - 200),
+            left: Math.max(0, scrollPosition),
             behavior: 'auto'
           });
         }
       }
-    }, 150);
+    }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [weekdaysOnly.length]);
+  }, [weekdaysOnly.length, sortedCollaborateurs.length]);
 
   // Vérifier si un collaborateur est en congé pour une date donnée
   const isCollaborateurOnLeave = (collaborateurId: string, collaborateurType: 'medecin' | 'assistant', dateStr: string): boolean => {

@@ -419,6 +419,9 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
 
   // Auto-scroll vers aujourd'hui au chargement
   useEffect(() => {
+    // Attendre que les données soient chargées
+    if (localSites.length === 0) return;
+
     const timeoutId = setTimeout(() => {
       if (scrollContainerRef.current && weekdaysOnly.length > 0) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -426,9 +429,8 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
 
         if (todayIndex >= 0) {
           const columnWidth = 180; // min-w-[180px]
-          const stickyColumnWidth = 160; // Largeur de la colonne sticky des sites
 
-          // Scroll pour que aujourd'hui soit le premier jour visible (après la colonne sticky)
+          // Scroll pour que aujourd'hui soit le premier jour visible (à gauche)
           const scrollPosition = todayIndex * columnWidth;
 
           scrollContainerRef.current.scrollTo({
@@ -437,7 +439,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
           });
         }
       }
-    }, 150);
+    }, 100);
 
     return () => clearTimeout(timeoutId);
   }, [weekdaysOnly.length, localSites.length]);

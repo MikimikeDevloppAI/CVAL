@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useMedecins, Medecin } from './useMedecins';
 import { MedecinsList } from './MedecinsList';
-import { MedecinFormDialog } from './MedecinFormDialog';
+import { MedecinFormCard } from './MedecinFormCard';
 import { MedecinDetailDialog } from './MedecinDetailDialog';
 import { MedecinCalendarDialog } from './MedecinCalendarDialog';
 import { GlobalMedecinCalendarView } from '@/components/medecins/GlobalMedecinCalendarView';
@@ -72,7 +72,7 @@ export function MedecinsPopup({ open, onOpenChange, embedded = false }: Medecins
   const content = (
     <div className={embedded ? "w-full" : "flex-1 overflow-y-auto px-6 pt-4 pb-6"}>
       {showForm ? (
-        <MedecinFormDialog
+        <MedecinFormCard
           medecin={selectedMedecin}
           onSuccess={handleFormSuccess}
           onBack={handleBack}
@@ -149,7 +149,7 @@ export function MedecinsPopup({ open, onOpenChange, embedded = false }: Medecins
 
           {showForm ? (
             <div className="flex-1 overflow-y-auto">
-              <MedecinFormDialog
+              <MedecinFormCard
                 medecin={selectedMedecin}
                 onSuccess={handleFormSuccess}
                 onBack={handleBack}

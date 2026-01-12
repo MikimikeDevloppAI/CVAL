@@ -328,6 +328,9 @@ export function BlocOperatoireTableView({
 
   // Auto-scroll vers aujourd'hui au chargement
   useEffect(() => {
+    // Attendre que les données soient chargées
+    if (filteredSalles.length === 0) return;
+
     const timeoutId = setTimeout(() => {
       if (scrollContainerRef.current && weekdaysOnly.length > 0) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -337,16 +340,17 @@ export function BlocOperatoireTableView({
           const columnWidth = 220;
           const scrollPosition = todayIndex * columnWidth;
 
+          // Scroll pour que aujourd'hui soit le premier jour visible (à gauche)
           scrollContainerRef.current.scrollTo({
             left: Math.max(0, scrollPosition),
             behavior: 'auto'
           });
         }
       }
-    }, 150);
+    }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [weekdaysOnly.length]);
+  }, [weekdaysOnly.length, filteredSalles.length]);
 
   // Trier les salles par nom
   const sortedSalles = [...filteredSalles].sort((a, b) =>

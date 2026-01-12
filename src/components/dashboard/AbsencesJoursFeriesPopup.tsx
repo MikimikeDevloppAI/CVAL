@@ -391,6 +391,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
   const AbsenceCard = ({ absence, index }: { absence: Absence; index: number }) => {
     const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
     const personName = person ? `${person.first_name} ${person.name}` : 'Inconnu';
+    const isMedecin = absence.type_personne === 'medecin';
 
     return (
       <div
@@ -403,8 +404,8 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-4 flex-1 min-w-0">
-              {/* Avatar */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20 group-hover:shadow-lg group-hover:shadow-teal-500/30 transition-shadow">
+              {/* Avatar - teal/emerald pour médecins, cyan/blue pour assistants */}
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${isMedecin ? 'from-teal-500 to-emerald-600 shadow-teal-500/20 group-hover:shadow-teal-500/30' : 'from-cyan-500 to-blue-600 shadow-cyan-500/20 group-hover:shadow-cyan-500/30'} flex items-center justify-center shrink-0 shadow-md group-hover:shadow-lg transition-shadow`}>
                 <User className="h-6 w-6 text-white" />
               </div>
 

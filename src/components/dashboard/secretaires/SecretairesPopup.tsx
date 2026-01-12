@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useSecretaires, Secretaire } from './useSecretaires';
 import { SecretairesList } from './SecretairesList';
-import { SecretaireFormDialog } from './SecretaireFormDialog';
+import { SecretaireFormCard } from './SecretaireFormCard';
 import { SecretaireDetailDialog } from './SecretaireDetailDialog';
 import { SecretaireCalendarDialog } from './SecretaireCalendarDialog';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
@@ -69,7 +69,7 @@ export function SecretairesPopup({ open, onOpenChange, embedded = false }: Secre
   const content = (
     <div className={embedded ? "w-full" : "flex-1 overflow-y-auto px-6 pt-4 pb-6"}>
       {showForm ? (
-        <SecretaireFormDialog
+        <SecretaireFormCard
           secretaire={selectedSecretaire}
           onSuccess={handleFormSuccess}
           onBack={handleBack}
@@ -140,7 +140,7 @@ export function SecretairesPopup({ open, onOpenChange, embedded = false }: Secre
 
           {showForm ? (
             <div className="flex-1 overflow-y-auto">
-              <SecretaireFormDialog
+              <SecretaireFormCard
                 secretaire={selectedSecretaire}
                 onSuccess={handleFormSuccess}
                 onBack={handleBack}
