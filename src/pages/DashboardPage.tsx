@@ -1,30 +1,15 @@
 import { useEffect, useState } from 'react';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, addMonths, subMonths, eachDayOfInterval, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
-import { QuickActionButton } from '@/components/dashboard/QuickActionButton';
-import { SiteCalendarCard } from '@/components/dashboard/SiteCalendarCard';
 import { SitesTableView } from '@/components/dashboard/SitesTableView';
-import { StatsCard } from '@/components/dashboard/StatsCard';
-import { MedecinsPopup } from '@/components/dashboard/medecins/MedecinsPopup';
-import { SecretairesPopup } from '@/components/dashboard/secretaires/SecretairesPopup';
-import { OperationsPopup } from '@/components/dashboard/operations/OperationsPopup';
-import { AbsencesJoursFeriesPopup } from '@/components/dashboard/AbsencesJoursFeriesPopup';
+import { BlocOperatoireTableView, BlocSalle, BlocOperation, BlocAssistant, BesoinPersonnel } from '@/components/dashboard/BlocOperatoireTableView';
+import { AssignAssistantToBesoinDialog } from '@/components/dashboard/AssignAssistantToBesoinDialog';
+import { CollaborateursTableView, Collaborateur } from '@/components/dashboard/CollaborateursTableView';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Stethoscope, Users, ClipboardPlus, CalendarX, Loader2, Calendar as CalendarPlanIcon, CalendarDays, BarChart3, Plus, Building, FileText } from 'lucide-react';
-import { WeekSelector } from '@/components/shared/WeekSelector';
+import { TabButton } from '@/components/ui/primary-button';
+import { ChevronLeft, ChevronRight, Loader2, Plus, Building, Users, Stethoscope, Scissors } from 'lucide-react';
 import { AddOperationDialog } from '@/components/operations/AddOperationDialog';
-import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { SecretaireCalendarCard } from '@/components/dashboard/SecretaireCalendarCard';
-import { SecretaireStatsDialog } from '@/components/dashboard/SecretaireStatsDialog';
-import { MedecinCalendarCard } from '@/components/dashboard/MedecinCalendarCard';
-import { OperationCalendarCard } from '@/components/dashboard/OperationCalendarCard';
-import { UnfilledNeedsPanel } from '@/components/dashboard/UnfilledNeedsPanelCompact';
-import { SitesPopup } from '@/components/dashboard/sites/SitesPopup';
-import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
-import { GlobalCalendarDialog } from '@/components/dashboard/GlobalCalendarDialog';
-import { toast } from 'sonner';
 
 export interface DeficitDetail {
   besoin_operation_nom: string;
@@ -128,44 +113,87 @@ interface DashboardOperation {
   salle_assignee: string | null;
 }
 
+type ViewMode = 'site' | 'collaborateur' | 'bloc';
+
+const viewModeLabels: Record<ViewMode, { label: string; icon: React.ReactNode }> = {
+  site: { label: 'Sites', icon: <Building className="h-4 w-4" /> },
+  bloc: { label: 'Bloc opératoire', icon: <Scissors className="h-4 w-4" /> },
+  collaborateur: { label: 'Collaborateurs', icon: <Users className="h-4 w-4" /> },
+};
+
 const DashboardPage = () => {
-  const [currentWeek, setCurrentWeek] = useState(() => {
-    const saved = localStorage.getItem('selectedWeek');
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const saved = localStorage.getItem('selectedMonth');
     return saved ? new Date(saved) : new Date();
   });
-  
-  // Persist selected week
+
+  // Persist selected month
   useEffect(() => {
-    localStorage.setItem('selectedWeek', currentWeek.toISOString());
-  }, [currentWeek]);
+    localStorage.setItem('selectedMonth', currentMonth.toISOString());
+  }, [currentMonth]);
+
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
   const [dashboardSecretaires, setDashboardSecretaires] = useState<DashboardSecretaire[]>([]);
   const [dashboardMedecins, setDashboardMedecins] = useState<DashboardMedecin[]>([]);
+  const [collaborateurs, setCollaborateurs] = useState<Collaborateur[]>([]);
   const [dashboardOperations, setDashboardOperations] = useState<DashboardOperation[]>([]);
+  const [blocSalles, setBlocSalles] = useState<BlocSalle[]>([]);
+  const [absencesByDate, setAbsencesByDate] = useState<Record<string, Array<{ id: string; nom: string; type: 'medecin' | 'assistant' }>>>({});
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'site' | 'secretaire' | 'medecin' | 'bloc'>('site');
-  const [medecinsPopupOpen, setMedecinsPopupOpen] = useState(false);
-  const [secretairesPopupOpen, setSecretairesPopupOpen] = useState(false);
-  const [absencesPopupOpen, setAbsencesPopupOpen] = useState(false);
-  const [operationsPopupOpen, setOperationsPopupOpen] = useState(false);
-  const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('site');
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
-  const [sitesPopupOpen, setSitesPopupOpen] = useState(false);
-  const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
-  const [globalCalendarOpen, setGlobalCalendarOpen] = useState(false);
-  const [stats, setStats] = useState({
-    activeSites: 0,
-    totalSecretary: 0,
-    todayOperations: 0,
-    pendingAbsences: 0
+
+  // État pour le dialog d'assignation d'assistant aux besoins opératoires
+  const [assignAssistantDialog, setAssignAssistantDialog] = useState<{
+    open: boolean;
+    operationId: string;
+    besoinOperationId: string;
+    besoinOperationNom: string;
+    date: string;
+    periode: 'matin' | 'apres_midi';
+    siteId: string;
+    siteName: string;
+  }>({
+    open: false,
+    operationId: '',
+    besoinOperationId: '',
+    besoinOperationNom: '',
+    date: '',
+    periode: 'matin',
+    siteId: '',
+    siteName: '',
   });
 
-  const startDate = format(startOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
-  const endDate = format(endOfWeek(currentWeek, { locale: fr }), 'yyyy-MM-dd');
-  const weekDays = eachDayOfInterval({
-    start: parseISO(startDate),
-    end: parseISO(endDate)
-  });
+  // Calculer les semaines du mois
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+
+  // Obtenir la première et dernière semaine du mois (complètes)
+  const firstWeekStart = startOfWeek(monthStart, { locale: fr });
+  const lastWeekEnd = endOfWeek(monthEnd, { locale: fr });
+
+  const startDate = format(firstWeekStart, 'yyyy-MM-dd');
+  const endDate = format(lastWeekEnd, 'yyyy-MM-dd');
+
+  // Générer toutes les semaines du mois
+  const getMonthWeeks = () => {
+    const weeks: Date[][] = [];
+    let currentWeekStart = firstWeekStart;
+
+    while (currentWeekStart <= monthEnd) {
+      const weekEnd = endOfWeek(currentWeekStart, { locale: fr });
+      const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
+      weeks.push(weekDays);
+      currentWeekStart = addWeeks(currentWeekStart, 1);
+    }
+
+    return weeks;
+  };
+
+  const monthWeeks = getMonthWeeks();
+
+  // Pour la compatibilité avec les vues existantes (on prend la première semaine)
+  const weekDays = monthWeeks[0] || [];
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -182,10 +210,10 @@ const DashboardPage = () => {
       // key for salles: `salle-${salle_id}-${date}-${periode}`
       const statusMap = new Map<string, 'satisfait' | 'non_satisfait'>();
       const deficitMap = new Map<string, DeficitDetail[]>();
-      
+
       (unifiedSummary || []).forEach(row => {
         if (!row.date || !row.demi_journee) return;
-        
+
         // Determine the key based on type
         let key: string;
         if (row.type_besoin === 'bloc' && row.salle_id) {
@@ -195,14 +223,14 @@ const DashboardPage = () => {
         } else {
           return;
         }
-        
+
         // Track status
         if (row.statut === 'DEFICIT') {
           statusMap.set(key, 'non_satisfait');
         } else if (!statusMap.has(key)) {
           statusMap.set(key, 'satisfait');
         }
-        
+
         // Track deficit details for bloc operations
         if (row.type_besoin === 'bloc' && row.statut === 'DEFICIT' && row.besoin_operation_nom) {
           const deficits = deficitMap.get(key) || [];
@@ -221,7 +249,7 @@ const DashboardPage = () => {
         const key = `${siteId}-${date}-${periode}`;
         return statusMap.get(key) || 'satisfait';
       };
-      
+
       const getDeficits = (siteId: string, date: string, periode: 'matin' | 'apres_midi'): DeficitDetail[] => {
         const key = `${siteId}-${date}-${periode}`;
         return deficitMap.get(key) || [];
@@ -237,7 +265,7 @@ const DashboardPage = () => {
       if (!sitesData) return;
 
       // Filter out bloc opératoire and administrative sites
-      const sites = sitesData.filter(site => 
+      const sites = sitesData.filter(site =>
         !site.nom.toLowerCase().includes('administratif') &&
         !site.nom.toLowerCase().includes('bloc') &&
         !site.nom.toLowerCase().includes('opératoire')
@@ -270,7 +298,7 @@ const DashboardPage = () => {
         created_at: '',
         updated_at: ''
       };
-      
+
       const allSites = [...sites, ...salleSites, adminSite];
 
       // BATCH QUERY 4: Fetch all besoins for the week
@@ -347,42 +375,16 @@ const DashboardPage = () => {
         personnelNeedsByType.get(pn.type_intervention_id)!.push(pn);
       });
 
-      // BATCH QUERY 8: Stats
-      const { data: secretaires } = await supabase
-        .from('secretaires')
-        .select('id')
-        .eq('actif', true);
-
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const { data: todayOps } = await supabase
-        .from('planning_genere_bloc_operatoire')
-        .select('id')
-        .eq('date', today)
-        .neq('statut', 'annule');
-
-      const { data: absences } = await supabase
-        .from('absences')
-        .select('id')
-        .eq('statut', 'en_attente');
-
-      setStats({
-        activeSites: sites.length,
-        totalSecretary: secretaires?.length || 0,
-        todayOperations: todayOps?.length || 0,
-        pendingAbsences: absences?.length || 0
-      });
-
       // Build dashboard data for each site
       const dashboardData = allSites.map((site) => {
-        const isAdminSite = site.id === '00000000-0000-0000-0000-000000000001';
         const isSalleSite = site.id.startsWith('salle-');
-        
+
         const daysMap = new Map<string, DayData>();
-        
+
         if (isSalleSite) {
           const salleId = (site as any).salle_id;
           const operations = operationsBySalle.get(salleId) || [];
-          
+
           operations.forEach(op => {
             const date = op.date;
             if (!daysMap.has(date)) {
@@ -400,7 +402,7 @@ const DashboardPage = () => {
             }
             const day = daysMap.get(date)!;
             const periode = op.periode === 'matin' ? 'matin' : 'apres_midi';
-            
+
             // Add medecin
             if (op.medecins) {
               const existingMedecin = day.medecins.find(m => m.id === (op.medecins as any).id);
@@ -416,7 +418,7 @@ const DashboardPage = () => {
                 });
               }
             }
-            
+
             // Calculate total personnel needed from pre-fetched data
             const personnelNeeds = personnelNeedsByType.get(op.type_intervention_id) || [];
             const totalBesoin = personnelNeeds.reduce((sum, pn) => sum + pn.nombre_requis, 0);
@@ -425,7 +427,7 @@ const DashboardPage = () => {
             } else {
               day.besoin_secretaires_apres_midi += totalBesoin;
             }
-            
+
             // Add assigned secretaires from pre-fetched data
             const assignments = capacitesByBlocId.get(op.id) || [];
             assignments.forEach(assign => {
@@ -455,7 +457,7 @@ const DashboardPage = () => {
           // Regular site processing
           const besoins = besoinsBySite.get(site.id) || [];
           const capacite = capacitesBySite.get(site.id) || [];
-          
+
           besoins.forEach((besoin) => {
             const date = besoin.date;
             if (!daysMap.has(date)) {
@@ -472,12 +474,12 @@ const DashboardPage = () => {
               });
             }
             const day = daysMap.get(date)!;
-            
+
             if (besoin.medecins) {
               const medecinNom = (besoin.medecins as any).name || '';
               const medecinPrenom = (besoin.medecins as any).first_name || '';
               const periode = besoin.demi_journee === 'matin' ? 'matin' : 'apres_midi';
-              
+
               const existingMedecin = day.medecins.find(m => m.id === (besoin.medecins as any).id);
               if (existingMedecin) {
                 existingMedecin[periode] = true;
@@ -490,7 +492,7 @@ const DashboardPage = () => {
                   apres_midi: periode === 'apres_midi'
                 });
               }
-              
+
               const besoinSecretaire = (besoin.medecins as any).besoin_secretaires ?? 1.2;
               if (periode === 'matin') {
                 day.besoin_secretaires_matin += besoinSecretaire;
@@ -516,12 +518,12 @@ const DashboardPage = () => {
               });
             }
             const day = daysMap.get(date)!;
-            
+
             if (cap.secretaires) {
               const secretaireNom = (cap.secretaires as any).name || '';
               const secretairePrenom = (cap.secretaires as any).first_name || '';
               const periode = cap.demi_journee === 'matin' ? 'matin' : 'apres_midi';
-              
+
               const existingSecretaire = day.secretaires.find(s => s.id === (cap.secretaires as any).id);
               if (existingSecretaire) {
                 existingSecretaire[periode] = true;
@@ -548,7 +550,7 @@ const DashboardPage = () => {
         const days = Array.from(daysMap.values()).map(day => {
           const salleId = isSalleSite ? (site as any).salle_id : null;
           const statusKey = isSalleSite ? `salle-${salleId}` : site.id;
-          
+
           return {
             ...day,
             status_matin: getStatus(statusKey, day.date, 'matin'),
@@ -669,21 +671,6 @@ const DashboardPage = () => {
 
       if (!medecinsData) return;
 
-      // Group besoins by medecin
-      const { data: allMedecinBesoins } = await supabase
-        .from('besoin_effectif')
-        .select(`date, demi_journee, site_id, type, type_intervention_id, sites(nom), types_intervention(nom)`)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .eq('actif', true);
-
-      const besoinsByMedecin = new Map<string, typeof allMedecinBesoins>();
-      (allMedecinBesoins || []).forEach(b => {
-        if (b.site_id) {
-          // Get medecin_id from the original query
-        }
-      });
-
       // For medecins, we still need individual queries due to structure
       const medecinsWeekData = await Promise.all(
         medecinsData.map(async (medecin) => {
@@ -697,19 +684,19 @@ const DashboardPage = () => {
             .order('date');
 
           const daysMap = new Map<string, MedecinDayData>();
-          
+
           besoins?.forEach((besoin) => {
             if (!daysMap.has(besoin.date)) {
               daysMap.set(besoin.date, { date: besoin.date, matin: [], apres_midi: [] });
             }
-            
+
             const day = daysMap.get(besoin.date)!;
             const assignment: MedecinAssignment = {
               site_nom: (besoin.sites as any)?.nom || 'Inconnu',
               site_id: besoin.site_id,
               type_intervention: (besoin.types_intervention as any)?.nom
             };
-            
+
             if (besoin.demi_journee === 'matin') {
               day.matin.push(assignment);
             } else {
@@ -731,6 +718,66 @@ const DashboardPage = () => {
         medecinsWeekData.sort((a, b) => a.nom_complet.localeCompare(b.nom_complet))
       );
 
+      // Créer la liste unifiée des collaborateurs
+      const allCollaborateurs: Collaborateur[] = [
+        // Ajouter les assistants
+        ...secretairesWeekData.map(s => ({
+          id: s.id,
+          nom_complet: s.nom_complet,
+          type: 'assistant' as const,
+          actif: s.actif,
+          horaire_flexible: s.horaire_flexible,
+          flexible_jours_supplementaires: s.flexible_jours_supplementaires,
+          nombre_jours_supplementaires: s.nombre_jours_supplementaires,
+          days: s.days.map(d => ({
+            date: d.date,
+            matin: d.matin.map(a => ({
+              site_nom: a.site_nom,
+              besoin_operation_nom: a.besoin_operation_nom,
+              type_intervention_nom: a.type_intervention_nom,
+              salle_nom: a.salle_nom,
+              is_1r: a.is_1r,
+              is_2f: a.is_2f,
+              is_3f: a.is_3f,
+              validated: a.validated,
+            })),
+            apres_midi: d.apres_midi.map(a => ({
+              site_nom: a.site_nom,
+              besoin_operation_nom: a.besoin_operation_nom,
+              type_intervention_nom: a.type_intervention_nom,
+              salle_nom: a.salle_nom,
+              is_1r: a.is_1r,
+              is_2f: a.is_2f,
+              is_3f: a.is_3f,
+              validated: a.validated,
+            })),
+          })),
+        })),
+        // Ajouter les médecins
+        ...medecinsWeekData.map(m => ({
+          id: m.id,
+          nom_complet: m.nom_complet,
+          type: 'medecin' as const,
+          actif: m.actif,
+          specialite_nom: m.specialite_nom,
+          days: m.days.map(d => ({
+            date: d.date,
+            matin: d.matin.map(a => ({
+              site_nom: a.site_nom,
+              site_id: a.site_id,
+              type_intervention: a.type_intervention,
+            })),
+            apres_midi: d.apres_midi.map(a => ({
+              site_nom: a.site_nom,
+              site_id: a.site_id,
+              type_intervention: a.type_intervention,
+            })),
+          })),
+        })),
+      ];
+
+      setCollaborateurs(allCollaborateurs);
+
       // Use pre-fetched operations for bloc view
       const operations: DashboardOperation[] = (allOperations || []).map((operation) => ({
         id: operation.id,
@@ -739,8 +786,8 @@ const DashboardPage = () => {
         type_intervention_nom: (operation.types_intervention as any)?.nom || 'Inconnu',
         type_intervention_code: (operation.types_intervention as any)?.code || '',
         type_intervention_id: operation.type_intervention_id,
-        medecin_nom: operation.medecins 
-          ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}` 
+        medecin_nom: operation.medecins
+          ? `${(operation.medecins as any).first_name} ${(operation.medecins as any).name}`
           : 'Non assigné',
         medecin_id: operation.medecin_id,
         besoin_effectif_id: operation.besoin_effectif_id,
@@ -749,6 +796,134 @@ const DashboardPage = () => {
       }));
 
       setDashboardOperations(operations);
+
+      // Construire les données pour la vue bloc opératoire en tableau
+      // Grouper les opérations par salle
+      const sallesMap = new Map<string, BlocSalle>();
+
+      // Initialiser toutes les salles
+      (sallesData || []).forEach(salle => {
+        sallesMap.set(salle.id, {
+          id: salle.id,
+          nom: salle.name || 'Salle inconnue',
+          operations: []
+        });
+      });
+
+      // Ajouter les opérations à chaque salle
+      (allOperations || []).forEach(operation => {
+        if (!operation.salle_assignee) return;
+
+        const salle = sallesMap.get(operation.salle_assignee);
+        if (!salle) return;
+
+        // Récupérer les assistants assignés à cette opération
+        const assignments = capacitesByBlocId.get(operation.id) || [];
+        const assistants: BlocAssistant[] = assignments
+          .filter(assign => assign.secretaires)
+          .map(assign => {
+            // Trouver le besoin opération si présent
+            const besoinOp = (allPersonnelNeeds || []).find(
+              pn => pn.besoin_operation_id === assign.besoin_operation_id
+            );
+
+            return {
+              id: (assign.secretaires as any).id,
+              nom: (assign.secretaires as any).name || '',
+              prenom: (assign.secretaires as any).first_name || '',
+              besoin_operation_id: assign.besoin_operation_id || undefined,
+              besoin_operation_nom: besoinOp?.besoins_operations?.nom,
+              besoin_operation_code: undefined,
+              is_1r: assign.is_1r,
+              is_2f: assign.is_2f,
+              is_3f: assign.is_3f
+            };
+          });
+
+        // Calculer les besoins de personnel pour cette opération
+        const personnelNeeds = personnelNeedsByType.get(operation.type_intervention_id) || [];
+        const besoins_personnel: BesoinPersonnel[] = personnelNeeds.map(pn => {
+          // Compter combien d'assistants sont assignés à ce besoin
+          const nombreAssigne = assistants.filter(
+            a => a.besoin_operation_id === pn.besoin_operation_id
+          ).length;
+
+          return {
+            besoin_operation_id: pn.besoin_operation_id,
+            besoin_operation_nom: (pn.besoins_operations as any)?.nom || 'Inconnu',
+            nombre_requis: pn.nombre_requis,
+            nombre_assigne: nombreAssigne
+          };
+        });
+
+        const blocOperation: BlocOperation = {
+          id: operation.id,
+          date: operation.date,
+          periode: operation.periode as 'matin' | 'apres_midi',
+          medecin_id: operation.medecin_id,
+          medecin_nom: (operation.medecins as any)?.name || '',
+          medecin_prenom: (operation.medecins as any)?.first_name || '',
+          type_intervention_id: operation.type_intervention_id,
+          type_intervention_nom: (operation.types_intervention as any)?.nom || 'Inconnu',
+          type_intervention_code: (operation.types_intervention as any)?.code || '',
+          salle_id: operation.salle_assignee,
+          salle_nom: (operation.salles_operation as any)?.name || '',
+          assistants,
+          besoins_personnel
+        };
+
+        salle.operations.push(blocOperation);
+      });
+
+      setBlocSalles(Array.from(sallesMap.values()));
+
+      // Fetch absences pour la période (statut approuve ou en_attente)
+      const { data: absencesData } = await supabase
+        .from('absences')
+        .select(`
+          id,
+          date_debut,
+          date_fin,
+          secretaire_id,
+          medecin_id,
+          secretaires:secretaire_id(first_name, name),
+          medecins:medecin_id(first_name, name)
+        `)
+        .lte('date_debut', endDate)
+        .gte('date_fin', startDate)
+        .in('statut', ['approuve', 'en_attente']);
+
+      // Construire un map des absences par date
+      const absencesMap: Record<string, Array<{ id: string; nom: string; type: 'medecin' | 'assistant' }>> = {};
+
+      (absencesData || []).forEach(absence => {
+        const start = parseISO(absence.date_debut);
+        const end = parseISO(absence.date_fin);
+        const days = eachDayOfInterval({ start, end });
+
+        days.forEach(day => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          if (!absencesMap[dateStr]) absencesMap[dateStr] = [];
+
+          if (absence.medecin_id && (absence.medecins as any)) {
+            const med = absence.medecins as any;
+            absencesMap[dateStr].push({
+              id: absence.medecin_id,
+              nom: `${med.first_name || ''} ${med.name || ''}`.trim(),
+              type: 'medecin'
+            });
+          } else if (absence.secretaire_id && (absence.secretaires as any)) {
+            const sec = absence.secretaires as any;
+            absencesMap[dateStr].push({
+              id: absence.secretaire_id,
+              nom: `${sec.first_name || ''} ${sec.name || ''}`.trim(),
+              type: 'assistant'
+            });
+          }
+        });
+      });
+
+      setAbsencesByDate(absencesMap);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -758,7 +933,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [currentWeek]);
+  }, [currentMonth]);
 
   // Real-time updates
   useEffect(() => {
@@ -784,252 +959,154 @@ const DashboardPage = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentWeek]);
+  }, [currentMonth]);
 
-  const handlePreviousWeek = () => setCurrentWeek(subWeeks(currentWeek, 1));
-  const handleNextWeek = () => setCurrentWeek(addWeeks(currentWeek, 1));
-  const handleToday = () => setCurrentWeek(new Date());
-  const handleRefreshAll = () => fetchDashboardData();
+  const handlePreviousMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+
+  // Render content based on view mode
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    // Tous les jours du mois (pour le scroll horizontal)
+    const allMonthDays = eachDayOfInterval({ start: firstWeekStart, end: lastWeekEnd });
+
+    switch (viewMode) {
+      case 'site':
+        return (
+          <div className="h-full overflow-hidden">
+            <SitesTableView
+              sites={dashboardSites}
+              weekDays={allMonthDays}
+              onDayClick={(siteId, date) => console.log('Day clicked:', siteId, date)}
+              onRefresh={fetchDashboardData}
+              absencesByDate={absencesByDate}
+            />
+          </div>
+        );
+
+      case 'collaborateur':
+        return (
+          <div className="h-full overflow-hidden">
+            <CollaborateursTableView
+              collaborateurs={collaborateurs}
+              weekDays={allMonthDays}
+              onRefresh={fetchDashboardData}
+              absencesByDate={absencesByDate}
+            />
+          </div>
+        );
+
+      case 'bloc':
+        return (
+          <div className="h-full overflow-hidden">
+            <BlocOperatoireTableView
+              salles={blocSalles}
+              weekDays={allMonthDays}
+              onRefresh={fetchDashboardData}
+              onAssignAssistant={(params) => {
+                setAssignAssistantDialog({
+                  open: true,
+                  ...params,
+                });
+              }}
+            />
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <QuickActionButton
-          label="Médecins"
-          icon={<Stethoscope className="h-6 w-6" />}
-          onClick={() => setMedecinsPopupOpen(true)}
-          gradient="from-cyan-500 to-blue-500"
-        />
-        <QuickActionButton
-          label="Assistants médicaux"
-          icon={<Users className="h-6 w-6" />}
-          onClick={() => setSecretairesPopupOpen(true)}
-          gradient="from-teal-500 to-cyan-500"
-        />
-        <QuickActionButton
-          label="Opérations"
-          icon={<ClipboardPlus className="h-6 w-6" />}
-          onClick={() => setOperationsPopupOpen(true)}
-          gradient="from-emerald-500 to-teal-500"
-        />
-        <QuickActionButton
-          label="Absences"
-          icon={<CalendarX className="h-6 w-6" />}
-          onClick={() => setAbsencesPopupOpen(true)}
-          gradient="from-green-500 to-emerald-500"
-          count={stats.pendingAbsences}
-        />
-        <QuickActionButton
-          label="Sites"
-          icon={<Building className="h-6 w-6" />}
-          onClick={() => setSitesPopupOpen(true)}
-          gradient="from-violet-500 to-purple-500"
-        />
-        <QuickActionButton
-          label="Calendrier global"
-          icon={<CalendarDays className="h-6 w-6" />}
-          onClick={() => setGlobalCalendarOpen(true)}
-          gradient="from-blue-500 to-purple-500"
-        />
-        <QuickActionButton
-          label="Planifier"
-          icon={<CalendarPlanIcon className="h-6 w-6" />}
-          onClick={() => setPlanningDialogOpen(true)}
-          gradient="from-purple-500 to-pink-500"
-        />
-        <QuickActionButton
-          label="Générer PDF"
-          icon={<FileText className="h-6 w-6" />}
-          onClick={() => setGeneratePdfDialogOpen(true)}
-          gradient="from-pink-500 to-rose-500"
-        />
-      </div>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header fixe - design épuré */}
+      <div className="shrink-0 bg-card/80 backdrop-blur-xl border-b border-border/30 px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side: Month Navigation */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePreviousMonth}
+              className="h-8 w-8 rounded-lg hover:bg-muted"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
 
-      {/* Planning hebdomadaire container */}
-      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
-            Planning hebdomadaire
-          </h2>
-          
-          <div className="flex items-center gap-3">
-            {viewMode !== 'secretaire' && <SecretaireStatsDialog secretaires={dashboardSecretaires} />}
-            
-            <div className="inline-flex items-center gap-4 px-4 py-2 bg-gradient-to-br from-background via-card to-card/50 backdrop-blur-xl border-2 border-primary/20 rounded-lg text-xs font-medium text-foreground">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span>Matin</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span>Après-midi</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span>Journée</span>
-              </div>
+            <div className="min-w-[160px] text-center">
+              <span className="text-lg font-bold text-foreground capitalize">
+                {format(currentMonth, 'MMMM yyyy', { locale: fr })}
+              </span>
             </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNextMonth}
+              className="h-8 w-8 rounded-lg hover:bg-muted"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
+
+          {/* Center: View Mode Selector */}
+          <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border border-border/30">
+            {(Object.keys(viewModeLabels) as ViewMode[]).map((mode) => (
+              <TabButton
+                key={mode}
+                active={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                icon={viewModeLabels[mode].icon}
+              >
+                {viewModeLabels[mode].label}
+              </TabButton>
+            ))}
+          </div>
+
+          {/* Right side: Empty for balance or future actions */}
+          <div className="w-[100px]" />
         </div>
-        
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'site' | 'secretaire' | 'medecin' | 'bloc')} className="w-full">
-          <div className="flex justify-center mb-6">
-            <TabsList>
-              <TabsTrigger value="site">Sites</TabsTrigger>
-              <TabsTrigger value="bloc">Bloc opératoire</TabsTrigger>
-              <TabsTrigger value="secretaire">Assistants médicaux</TabsTrigger>
-              <TabsTrigger value="medecin">Médecins</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <div className="flex items-center justify-between bg-card/50 backdrop-blur-xl border-2 border-border rounded-xl p-4 mb-6">
-            <Button variant="ghost" size="icon" onClick={handlePreviousWeek} className="hover:bg-primary/10">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            
-            <WeekSelector currentDate={currentWeek} onWeekChange={setCurrentWeek} />
-
-            <Button variant="ghost" size="icon" onClick={handleNextWeek} className="hover:bg-primary/10">
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {!loading && (
-            <UnfilledNeedsPanel startDate={startDate} endDate={endDate} onRefresh={fetchDashboardData} />
-          )}
-
-          <TabsContent value="site">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <SitesTableView
-                sites={dashboardSites}
-                weekDays={weekDays}
-                onDayClick={(siteId, date) => console.log('Day clicked:', siteId, date)}
-                onRefresh={fetchDashboardData}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="secretaire">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                <div className="flex justify-end mb-4">
-                  <SecretaireStatsDialog secretaires={dashboardSecretaires} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {dashboardSecretaires.map((secretaire, index) => (
-                    <SecretaireCalendarCard
-                      key={secretaire.id}
-                      secretaire={secretaire}
-                      days={secretaire.days}
-                      startDate={startDate}
-                      index={index}
-                      onDayClick={() => fetchDashboardData()}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </TabsContent>
-
-          <TabsContent value="medecin">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {dashboardMedecins.map((medecin, index) => (
-                  <MedecinCalendarCard
-                    key={medecin.id}
-                    medecin={medecin}
-                    days={medecin.days}
-                    startDate={startDate}
-                    index={index}
-                    onRefresh={fetchDashboardData}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="bloc">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  <div 
-                    onClick={() => setAddOperationDialogOpen(true)}
-                    className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors min-h-[200px]"
-                  >
-                    <div className="rounded-full bg-primary/10 p-3">
-                      <Plus className="h-6 w-6 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Ajouter une opération
-                    </span>
-                  </div>
-
-                  {dashboardOperations
-                    .filter(op => op.salle_nom !== "Bloc Gastroentérologie")
-                    .map((operation, index) => (
-                      <OperationCalendarCard
-                        key={operation.id}
-                        operation={operation}
-                        index={index}
-                        onRefresh={fetchDashboardData}
-                      />
-                    ))}
-                </div>
-
-                {dashboardOperations.some(op => op.salle_nom === "Bloc Gastroentérologie") && (
-                  <>
-                    <div className="mt-8 mb-4 flex items-center gap-3">
-                      <div className="h-px flex-1 bg-border" />
-                      <h3 className="text-lg font-semibold text-foreground">Bloc Gastroentérologie</h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {dashboardOperations
-                        .filter(op => op.salle_nom === "Bloc Gastroentérologie")
-                        .map((operation, index) => (
-                          <OperationCalendarCard
-                            key={operation.id}
-                            operation={operation}
-                            index={index}
-                            onRefresh={fetchDashboardData}
-                          />
-                        ))}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
       </div>
 
-      <MedecinsPopup open={medecinsPopupOpen} onOpenChange={setMedecinsPopupOpen} />
-      <SecretairesPopup open={secretairesPopupOpen} onOpenChange={setSecretairesPopupOpen} />
-      <OperationsPopup open={operationsPopupOpen} onOpenChange={setOperationsPopupOpen} />
-      <AbsencesJoursFeriesPopup open={absencesPopupOpen} onOpenChange={setAbsencesPopupOpen} onAbsenceChange={fetchDashboardData} />
-      <SitesPopup open={sitesPopupOpen} onOpenChange={setSitesPopupOpen} />
-      <OptimizePlanningDialog open={planningDialogOpen} onOpenChange={setPlanningDialogOpen} />
-      <AddOperationDialog open={addOperationDialogOpen} onOpenChange={setAddOperationDialogOpen} currentWeekStart={currentWeek} onSuccess={fetchDashboardData} />
-      <GeneratePdfDialog open={generatePdfDialogOpen} onOpenChange={setGeneratePdfDialogOpen} />
-      <GlobalCalendarDialog open={globalCalendarOpen} onOpenChange={setGlobalCalendarOpen} />
+      {/* Planning Area - prend tout l'espace restant, le scroll est géré par SitesTableView */}
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          renderContent()
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <AddOperationDialog
+        open={addOperationDialogOpen}
+        onOpenChange={setAddOperationDialogOpen}
+        currentWeekStart={currentMonth}
+        onSuccess={fetchDashboardData}
+      />
+
+      <AssignAssistantToBesoinDialog
+        open={assignAssistantDialog.open}
+        onOpenChange={(open) => setAssignAssistantDialog(prev => ({ ...prev, open }))}
+        operationId={assignAssistantDialog.operationId}
+        besoinOperationId={assignAssistantDialog.besoinOperationId}
+        besoinOperationNom={assignAssistantDialog.besoinOperationNom}
+        date={assignAssistantDialog.date}
+        periode={assignAssistantDialog.periode}
+        siteId={assignAssistantDialog.siteId}
+        siteName={assignAssistantDialog.siteName}
+        onSuccess={fetchDashboardData}
+      />
     </div>
   );
 };

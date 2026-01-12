@@ -21,6 +21,7 @@ import { ReassignSecretaireDialog } from './ReassignSecretaireDialog';
 interface GlobalCalendarDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
 interface Medecin {
@@ -87,7 +88,7 @@ interface Absence {
   statut?: string;
 }
 
-export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialogProps) {
+export function GlobalCalendarDialog({ open, onOpenChange, embedded = false }: GlobalCalendarDialogProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [medecins, setMedecins] = useState<Medecin[]>([]);
   const [secretaires, setSecretaires] = useState<Secretaire[]>([]);
@@ -156,10 +157,10 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
   };
 
   useEffect(() => {
-    if (open) {
+    if (open || embedded) {
       fetchData();
     }
-  }, [open, currentDate]);
+  }, [open, embedded, currentDate]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -552,12 +553,8 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
 
   const days = getDaysInMonth();
 
-  return (
-    <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[98vw] max-h-[95vh] flex flex-col overflow-hidden z-50">
-
-        <Tabs defaultValue="calendar" className="flex flex-col flex-1 overflow-hidden">
+  const content = (
+    <Tabs defaultValue="calendar" className="flex flex-col flex-1 overflow-hidden">
           <TabsList className="grid w-full grid-cols-3 flex-shrink-0 h-9">
             <TabsTrigger value="calendar" className="h-7 text-sm">Calendrier</TabsTrigger>
             <TabsTrigger value="sites" className="h-7 text-sm">Calendrier par site</TabsTrigger>
@@ -1380,93 +1377,116 @@ export function GlobalCalendarDialog({ open, onOpenChange }: GlobalCalendarDialo
               </div>
             )}
           </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+    </Tabs>
+  );
 
-    {/* Dialogs */}
-    <AddMedecinToDayDialog
-      open={addMedecinDialog.open}
-      onOpenChange={(open) => setAddMedecinDialog({ ...addMedecinDialog, open })}
-      date={addMedecinDialog.date}
-      siteId={addMedecinDialog.siteId}
-      onSuccess={() => {
-        setAddMedecinDialog({ open: false, date: '', siteId: '' });
-        fetchData();
-      }}
-    />
-
-    <ReassignMedecinDialog
-      open={reassignMedecinDialog.open}
-      onOpenChange={(open) => setReassignMedecinDialog({ ...reassignMedecinDialog, open })}
-      date={reassignMedecinDialog.date}
-      targetSiteId={reassignMedecinDialog.siteId}
-      targetSiteName={reassignMedecinDialog.siteName}
-      onSuccess={() => {
-        setReassignMedecinDialog({ open: false, date: '', siteId: '', siteName: '' });
-        fetchData();
-      }}
-    />
-
-    <AddSecretaireToDayDialog
-      open={addSecretaireDialog.open}
-      onOpenChange={(open) => setAddSecretaireDialog({ ...addSecretaireDialog, open })}
-      date={addSecretaireDialog.date}
-      siteId={addSecretaireDialog.siteId}
-      siteName={addSecretaireDialog.siteName}
-      onSuccess={() => {
-        setAddSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
-        fetchData();
-      }}
-    />
-
-    <ReassignSecretaireDialog
-      open={reassignSecretaireDialog.open}
-      onOpenChange={(open) => setReassignSecretaireDialog({ ...reassignSecretaireDialog, open })}
-      date={reassignSecretaireDialog.date}
-      targetSiteId={reassignSecretaireDialog.siteId}
-      targetSiteName={reassignSecretaireDialog.siteName}
-      onSuccess={() => {
-        setReassignSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
-        fetchData();
-      }}
-    />
-
-    {medecinActionsDialog && (
-      <MedecinActionsDialog
-        open={medecinActionsDialog.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setMedecinActionsDialog(null);
-          }
+  const dialogs = (
+    <>
+      <AddMedecinToDayDialog
+        open={addMedecinDialog.open}
+        onOpenChange={(open) => setAddMedecinDialog({ ...addMedecinDialog, open })}
+        date={addMedecinDialog.date}
+        siteId={addMedecinDialog.siteId}
+        onSuccess={() => {
+          setAddMedecinDialog({ open: false, date: '', siteId: '' });
+          fetchData();
         }}
-        medecinId={medecinActionsDialog.medecinId}
-        medecinNom={medecinActionsDialog.medecinNom}
-        medecinPrenom={medecinActionsDialog.medecinPrenom}
-        date={medecinActionsDialog.date}
-        siteId={medecinActionsDialog.siteId}
-        periode={medecinActionsDialog.periode}
-        onRefresh={fetchData}
       />
-    )}
 
-    {secretaireActionsDialog && (
-      <SecretaireActionsDialog
-        open={secretaireActionsDialog.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSecretaireActionsDialog(null);
-          }
+      <ReassignMedecinDialog
+        open={reassignMedecinDialog.open}
+        onOpenChange={(open) => setReassignMedecinDialog({ ...reassignMedecinDialog, open })}
+        date={reassignMedecinDialog.date}
+        targetSiteId={reassignMedecinDialog.siteId}
+        targetSiteName={reassignMedecinDialog.siteName}
+        onSuccess={() => {
+          setReassignMedecinDialog({ open: false, date: '', siteId: '', siteName: '' });
+          fetchData();
         }}
-        secretaireId={secretaireActionsDialog.secretaireId}
-        secretaireNom={`${secretaireActionsDialog.secretairePrenom} ${secretaireActionsDialog.secretaireNom}`}
-        date={secretaireActionsDialog.date}
-        siteId={secretaireActionsDialog.siteId}
-        periode={secretaireActionsDialog.periode}
-        besoinOperationId={secretaireActionsDialog.besoinOperationId}
-        onRefresh={fetchData}
       />
-    )}
-  </>
+
+      <AddSecretaireToDayDialog
+        open={addSecretaireDialog.open}
+        onOpenChange={(open) => setAddSecretaireDialog({ ...addSecretaireDialog, open })}
+        date={addSecretaireDialog.date}
+        siteId={addSecretaireDialog.siteId}
+        siteName={addSecretaireDialog.siteName}
+        onSuccess={() => {
+          setAddSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+          fetchData();
+        }}
+      />
+
+      <ReassignSecretaireDialog
+        open={reassignSecretaireDialog.open}
+        onOpenChange={(open) => setReassignSecretaireDialog({ ...reassignSecretaireDialog, open })}
+        date={reassignSecretaireDialog.date}
+        targetSiteId={reassignSecretaireDialog.siteId}
+        targetSiteName={reassignSecretaireDialog.siteName}
+        onSuccess={() => {
+          setReassignSecretaireDialog({ open: false, date: '', siteId: '', siteName: '' });
+          fetchData();
+        }}
+      />
+
+      {medecinActionsDialog && (
+        <MedecinActionsDialog
+          open={medecinActionsDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMedecinActionsDialog(null);
+            }
+          }}
+          medecinId={medecinActionsDialog.medecinId}
+          medecinNom={medecinActionsDialog.medecinNom}
+          medecinPrenom={medecinActionsDialog.medecinPrenom}
+          date={medecinActionsDialog.date}
+          siteId={medecinActionsDialog.siteId}
+          periode={medecinActionsDialog.periode}
+          onRefresh={fetchData}
+        />
+      )}
+
+      {secretaireActionsDialog && (
+        <SecretaireActionsDialog
+          open={secretaireActionsDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSecretaireActionsDialog(null);
+            }
+          }}
+          secretaireId={secretaireActionsDialog.secretaireId}
+          secretaireNom={`${secretaireActionsDialog.secretairePrenom} ${secretaireActionsDialog.secretaireNom}`}
+          date={secretaireActionsDialog.date}
+          siteId={secretaireActionsDialog.siteId}
+          periode={secretaireActionsDialog.periode}
+          besoinOperationId={secretaireActionsDialog.besoinOperationId}
+          onRefresh={fetchData}
+        />
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
+          <h1 className="text-2xl font-bold mb-6">Calendrier Global</h1>
+          {content}
+        </div>
+        {dialogs}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[98vw] max-h-[95vh] flex flex-col overflow-hidden z-50">
+          {content}
+        </DialogContent>
+      </Dialog>
+      {dialogs}
+    </>
   );
 }

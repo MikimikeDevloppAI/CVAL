@@ -19,6 +19,14 @@ import UsersPage from "./pages/UsersPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import UpdatePasswordPage from "./pages/UpdatePasswordPage";
 import SettingsPage from "./pages/SettingsPage";
+import MedecinsPage from "./pages/MedecinsPage";
+import AssistantsPage from "./pages/AssistantsPage";
+import SitesPage from "./pages/SitesPage";
+import OperationsPage from "./pages/OperationsPage";
+import AbsencesPage from "./pages/AbsencesPage";
+import CalendrierGlobalPage from "./pages/CalendrierGlobalPage";
+import PlanifierPage from "./pages/PlanifierPage";
+import GeneratePdfPage from "./pages/GeneratePdfPage";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +64,46 @@ const App = () => (
                     <Route path="/statistiques" element={
                       <PlanningProtectedRoute>
                         <StatistiquesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/medecins" element={
+                      <PlanningProtectedRoute>
+                        <MedecinsPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/assistants" element={
+                      <PlanningProtectedRoute>
+                        <AssistantsPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/sites" element={
+                      <PlanningProtectedRoute>
+                        <SitesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/operations" element={
+                      <PlanningProtectedRoute>
+                        <OperationsPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/absences" element={
+                      <PlanningProtectedRoute>
+                        <AbsencesPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/calendrier" element={
+                      <PlanningProtectedRoute>
+                        <CalendrierGlobalPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/planifier" element={
+                      <PlanningProtectedRoute>
+                        <PlanifierPage />
+                      </PlanningProtectedRoute>
+                    } />
+                    <Route path="/generer-pdf" element={
+                      <PlanningProtectedRoute>
+                        <GeneratePdfPage />
                       </PlanningProtectedRoute>
                     } />
                     <Route path="/users" element={

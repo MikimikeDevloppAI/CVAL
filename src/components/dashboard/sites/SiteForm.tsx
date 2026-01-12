@@ -21,9 +21,10 @@ type SiteFormData = z.infer<typeof siteSchema>;
 interface SiteFormProps {
   site?: any;
   onSuccess: () => void;
+  onBack?: () => void;
 }
 
-export function SiteForm({ site, onSuccess }: SiteFormProps) {
+export function SiteForm({ site, onSuccess, onBack }: SiteFormProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -147,6 +148,11 @@ export function SiteForm({ site, onSuccess }: SiteFormProps) {
         />
 
         <div className="flex justify-end space-x-2 pt-4">
+          {onBack && (
+            <Button type="button" variant="outline" onClick={onBack} disabled={loading}>
+              Retour
+            </Button>
+          )}
           <Button type="submit" disabled={loading}>
             {loading ? 'Enregistrement...' : site ? 'Modifier' : 'Ajouter'}
           </Button>

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import {
   Table,
   TableBody,
@@ -159,7 +160,7 @@ export function BesoinsOperationsManagement() {
 
   const handleSubmitDialog = async () => {
     if (!dialogData || !dialogData.secretaireId) {
-      toast.error('Veuillez sélectionner une secrétaire');
+      toast.error('Veuillez sélectionner un assistant médical');
       return;
     }
 
@@ -219,21 +220,20 @@ export function BesoinsOperationsManagement() {
                 <div>
                   <h3 className="font-semibold text-lg">{besoin.nom}</h3>
                 </div>
-                <Button
+                <PrimaryButton
                   size="sm"
                   onClick={() => handleAddAssociation(besoin.id, besoin.nom)}
-                  className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
-                  Ajouter secrétaire
-                </Button>
+                  Ajouter assistant médical
+                </PrimaryButton>
               </div>
 
               {secretairesList.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Secrétaire</TableHead>
+                      <TableHead>Assistant médical</TableHead>
                       <TableHead>Préférence</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
@@ -275,7 +275,7 @@ export function BesoinsOperationsManagement() {
                 </Table>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucune secrétaire associée
+                  Aucun assistant médical associé
                 </p>
               )}
             </div>
@@ -299,7 +299,7 @@ export function BesoinsOperationsManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="secretaire">Secrétaire</Label>
+                <Label htmlFor="secretaire">Assistant médical</Label>
                 <Select
                   value={dialogData.secretaireId}
                   onValueChange={(value) =>
@@ -308,7 +308,7 @@ export function BesoinsOperationsManagement() {
                   disabled={!!dialogData.associationId}
                 >
                   <SelectTrigger id="secretaire">
-                    <SelectValue placeholder="Sélectionner une secrétaire" />
+                    <SelectValue placeholder="Sélectionner un assistant médical" />
                   </SelectTrigger>
                   <SelectContent>
                     {secretaires.map((secretaire) => (

@@ -3,6 +3,13 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface Assignment {
   site_nom?: string;
@@ -35,6 +42,110 @@ interface SecretaireCalendarCardProps {
   startDate: string;
   index: number;
   onDayClick?: (secretaireId: string, date: string) => void;
+}
+
+// Fonction pour abréger les noms de sites
+function abbreviateSiteName(siteName: string): string {
+  if (!siteName) return '';
+
+  const lower = siteName.toLowerCase();
+  if (lower.includes('clinique la vallée') || lower.includes('clinique la vallee')) {
+    const dashIndex = siteName.indexOf('-');
+    if (dashIndex !== -1) {
+      const suffix = siteName.substring(dashIndex).trim();
+      return `Cval ${suffix}`;
+    }
+    return 'Cval';
+  }
+
+  return siteName;
+}
+
+// Composant Badge pour afficher le site
+function SiteBadge({
+  siteName,
+  period,
+  tags,
+  onClick,
+}: {
+  siteName: string;
+  period: 'matin' | 'apres_midi' | 'journee';
+  tags?: string[];
+  onClick?: () => void;
+}) {
+  const periodColors = {
+    matin: 'bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300',
+    apres_midi: 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300',
+    journee: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+  };
+
+  const periodDotColors = {
+    matin: 'bg-blue-500',
+    apres_midi: 'bg-amber-500',
+    journee: 'bg-emerald-500',
+  };
+
+  const periodLabels = {
+    matin: 'Matin',
+    apres_midi: 'Après-midi',
+    journee: 'Journée',
+  };
+
+  const hasTags = tags && tags.length > 0;
+  const displayName = abbreviateSiteName(siteName);
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClick}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded-md border",
+              "text-[11px] font-medium transition-all duration-200",
+              "hover:scale-105 hover:shadow-md",
+              "focus:outline-none",
+              periodColors[period]
+            )}
+          >
+            <div className={cn(
+              "w-2 h-2 rounded-full flex-shrink-0",
+              periodDotColors[period]
+            )} />
+            <span className="truncate max-w-[80px]">{displayName}</span>
+            {hasTags && (
+              <span className="text-[8px] font-black bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded">
+                {tags.join(' ')}
+              </span>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-xl px-3 py-2"
+        >
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-foreground">{siteName}</span>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                period === 'matin' && "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+                period === 'apres_midi' && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                period === 'journee' && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              )}>
+                {periodLabels[period]}
+              </span>
+              {hasTags && (
+                <span className="text-[10px] font-bold text-primary">
+                  {tags.join(' ')}
+                </span>
+              )}
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function SecretaireCalendarCard({
@@ -71,8 +182,8 @@ export function SecretaireCalendarCard({
 
     if (!hasMatin && !hasApresMidi) {
       return (
-        <div className="h-8 bg-muted/30 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">-</span>
+        <div className="h-8 flex items-center justify-center">
+          <span className="text-[10px] text-muted-foreground/40">—</span>
         </div>
       );
     }
@@ -80,101 +191,78 @@ export function SecretaireCalendarCard({
     // Helper function to get display info
     const getDisplayInfo = (assignments: Assignment[]) => {
       if (!assignments || assignments.length === 0) return null;
-      
+
       const assignment = assignments[0];
-      
+
+      // Déterminer les tags (rôles)
+      const tags: string[] = [];
+      if (assignment.is_1r) tags.push('1R');
+      if (assignment.is_2f) tags.push('2F');
+      if (assignment.is_3f) tags.push('3F');
+
       // Strict Bloc detection: only if besoin_operation_nom OR type_intervention_nom exists
       const isBloc = Boolean(assignment.besoin_operation_nom || assignment.type_intervention_nom);
-      
+
+      let displayText = '';
+
       if (isBloc) {
-        // BLOC OPÉRATOIRE: Display order is Salle - Type intervention - Besoin - Rôle
-        const roles = [];
-        if (assignment.is_1r) roles.push('1R');
-        if (assignment.is_2f) roles.push('2F');
-        if (assignment.is_3f) roles.push('3F');
-        
-        const salleName = assignment.salle_nom 
-          ? assignment.salle_nom.charAt(0).toUpperCase() + assignment.salle_nom.slice(1)
-          : '';
-        const typeInterventionName = assignment.type_intervention_nom || '';
-        const besoinName = assignment.besoin_operation_nom || '';
-        const roleText = roles.length > 0 ? roles.join('/') : '';
-        
-        // Build display text: Salle - Type intervention - Besoin - Rôle
-        const parts = [];
-        if (salleName) parts.push(salleName);
-        if (typeInterventionName) parts.push(typeInterventionName);
-        if (besoinName) parts.push(besoinName);
-        if (roleText) parts.push(roleText);
-        
-        // If nothing to show, fallback to "Bloc"
-        const displayText = parts.length > 0 ? parts.join(' - ') : 'Bloc';
-        
-        return {
-          text: displayText,
-          isBloc: true,
-          role: roleText
-        };
+        // BLOC OPÉRATOIRE: Display type intervention or besoin
+        if (assignment.type_intervention_nom) {
+          displayText = assignment.type_intervention_nom;
+        } else if (assignment.besoin_operation_nom) {
+          displayText = assignment.besoin_operation_nom;
+        } else {
+          displayText = 'Bloc';
+        }
+      } else {
+        // SITE: Display site name
+        displayText = assignment.site_nom || '-';
       }
-      
-      // SITE: Display order is Site - Rôle (if 1R/2F/3F present)
-      const sitesSet = new Set(assignments.map(a => a.site_nom).filter(Boolean));
-      const siteName = Array.from(sitesSet).join(', ');
-      
-      const roles = [];
-      if (assignment.is_1r) roles.push('1R');
-      if (assignment.is_2f) roles.push('2F');
-      if (assignment.is_3f) roles.push('3F');
-      const roleText = roles.length > 0 ? roles.join('/') : '';
-      
-      const parts = [];
-      if (siteName) parts.push(siteName);
-      if (roleText) parts.push(roleText);
-      
+
       return {
-        text: parts.length > 0 ? parts.join(' - ') : siteName || '-',
-        isBloc: false,
-        role: roleText || null
+        text: displayText,
+        tags: tags.length > 0 ? tags : undefined,
       };
     };
 
     const matinInfo = hasMatin ? getDisplayInfo(day.data!.matin) : null;
     const amInfo = hasApresMidi ? getDisplayInfo(day.data!.apres_midi) : null;
 
+    // Combiner les tags si journée entière
+    const combinedTags = (hasMatin && hasApresMidi)
+      ? [...new Set([...(matinInfo?.tags || []), ...(amInfo?.tags || [])])]
+      : (matinInfo?.tags || amInfo?.tags);
+
     // Both periods with SAME site/role
     if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
       return (
-        <div className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'journee')}>
-          <div className="flex items-center gap-1 w-full min-w-0">
-            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
-          </div>
+        <div className="flex items-center justify-center min-h-[32px]">
+          <SiteBadge
+            siteName={matinInfo?.text || ''}
+            period="journee"
+            tags={combinedTags}
+            onClick={() => openActions(day.date, 'journee')}
+          />
         </div>
       );
     }
 
-    // Different sites/roles OR partial presence → show two lines
+    // Different sites/roles → show two badges
     if (hasMatin && hasApresMidi) {
       return (
-        <div className="space-y-1">
-          {/* Matin */}
-          <div className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'matin')}>
-            <div className="flex items-center gap-1 w-full min-w-0">
-              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className="text-[10px] font-medium truncate">
-                {matinInfo?.text || 'Matin'}
-              </span>
-            </div>
-          </div>
-          {/* Après-midi */}
-          <div className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'apres_midi')}>
-            <div className="flex items-center gap-1 w-full min-w-0">
-              <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-              <span className="text-[10px] font-medium truncate">
-                {amInfo?.text || 'Après-midi'}
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-col items-center gap-1 py-1">
+          <SiteBadge
+            siteName={matinInfo?.text || ''}
+            period="matin"
+            tags={matinInfo?.tags}
+            onClick={() => openActions(day.date, 'matin')}
+          />
+          <SiteBadge
+            siteName={amInfo?.text || ''}
+            period="apres_midi"
+            tags={amInfo?.tags}
+            onClick={() => openActions(day.date, 'apres_midi')}
+          />
         </div>
       );
     }
@@ -182,28 +270,28 @@ export function SecretaireCalendarCard({
     // Matin only
     if (hasMatin) {
       return (
-        <div className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'matin')}>
-          <div className="flex items-center gap-1 w-full min-w-0">
-            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-            <span className="text-xs font-medium truncate">
-              {matinInfo?.text || 'Matin'}
-            </span>
-          </div>
+        <div className="flex items-center justify-center min-h-[32px]">
+          <SiteBadge
+            siteName={matinInfo?.text || ''}
+            period="matin"
+            tags={matinInfo?.tags}
+            onClick={() => openActions(day.date, 'matin')}
+          />
         </div>
       );
     }
 
     // Après-midi only
-  return (
-    <div className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all px-2" onClick={() => openActions(day.date, 'apres_midi')}>
-      <div className="flex items-center gap-1 w-full min-w-0">
-        <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-        <span className="text-xs font-medium truncate">
-          {amInfo?.text || 'Après-midi'}
-        </span>
+    return (
+      <div className="flex items-center justify-center min-h-[32px]">
+        <SiteBadge
+          siteName={amInfo?.text || ''}
+          period="apres_midi"
+          tags={amInfo?.tags}
+          onClick={() => openActions(day.date, 'apres_midi')}
+        />
       </div>
-    </div>
-  );
+    );
   };
 
   return (

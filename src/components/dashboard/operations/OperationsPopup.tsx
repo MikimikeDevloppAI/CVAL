@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
-import { Plus, ListPlus } from 'lucide-react';
+import { Plus, ListPlus, Scissors, Layers, Award } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { PrimaryButton, SecondaryButton, TabButton } from '@/components/ui/primary-button';
 import { TypesInterventionManagement, TypesInterventionManagementRef } from '@/components/blocOperatoire/TypesInterventionManagement';
 import { ConfigurationsMultiFluxManagement } from '@/components/blocOperatoire/ConfigurationsMultiFluxManagement';
 import { BesoinsOperationsManagement } from '@/components/blocOperatoire/BesoinsOperationsManagement';
@@ -11,9 +12,10 @@ import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
 interface OperationsPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
-export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
+export function OperationsPopup({ open, onOpenChange, embedded = false }: OperationsPopupProps) {
   const [activeView, setActiveView] = useState<'types' | 'flux' | 'competences'>('types');
   const [showBesoinTypeDialog, setShowBesoinTypeDialog] = useState(false);
   const typesManagementRef = useRef<TypesInterventionManagementRef>(null);
@@ -24,96 +26,101 @@ export function OperationsPopup({ open, onOpenChange }: OperationsPopupProps) {
     onOpenChange(false);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
-        {/* Header */}
-        <DialogHeader className="px-6 pt-4 pb-3 border-b border-border/50">
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">
-            Gestion des Opérations
-          </DialogTitle>
-        </DialogHeader>
+  const tabs = [
+    { id: 'types' as const, label: "Types d'intervention", icon: Scissors },
+    { id: 'flux' as const, label: 'Double / Triple Flux', icon: Layers },
+    { id: 'competences' as const, label: 'Compétences opération', icon: Award },
+  ];
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
-          <div className="space-y-6">
-            {/* Toggle between Types, Flux and Competences */}
-            <div className="flex flex-col items-center gap-4">
-              <div className="inline-flex gap-2 p-1 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm">
-                <button
-                  onClick={() => setActiveView('types')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeView === 'types'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Types d'intervention
-                </button>
-                <button
-                  onClick={() => setActiveView('flux')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeView === 'flux'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Double / Triple Flux
-                </button>
-                <button
-                  onClick={() => setActiveView('competences')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeView === 'competences'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Compétences opération
-                </button>
-              </div>
-
-              {/* Add buttons only for Types view */}
-              {activeView === 'types' && canManage && (
-                <div className="flex gap-2 flex-wrap justify-center">
-                  <Button
-                    onClick={() => setShowBesoinTypeDialog(true)}
-                    className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                  >
-                    <ListPlus className="h-4 w-4" />
-                    Ajouter besoin opération
-                  </Button>
-                  <Button
-                    onClick={() => typesManagementRef.current?.openAddDialog()}
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ajouter un type d'opération
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Content based on active view */}
-            <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-6 shadow-lg">
-              {activeView === 'types' ? (
-                <TypesInterventionManagement ref={typesManagementRef} />
-              ) : activeView === 'flux' ? (
-                <ConfigurationsMultiFluxManagement />
-              ) : (
-                <BesoinsOperationsManagement />
-              )}
-            </div>
-          </div>
+  const content = (
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Tabs + Buttons */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 mb-6 shrink-0">
+        <div className="flex gap-2 p-1 rounded-xl bg-muted/50 backdrop-blur-sm border border-border/30 flex-1 md:flex-initial">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabButton
+                key={tab.id}
+                onClick={() => setActiveView(tab.id)}
+                active={activeView === tab.id}
+                icon={<Icon className="h-4 w-4" />}
+              >
+                {tab.label}
+              </TabButton>
+            );
+          })}
         </div>
-      </DialogContent>
+
+        {/* Spacer to push buttons right */}
+        <div className="flex-1 hidden md:block" />
+
+        {/* Add buttons - Always on the right */}
+        {activeView === 'types' && canManage && (
+          <div className="flex gap-2 shrink-0">
+            <SecondaryButton onClick={() => setShowBesoinTypeDialog(true)}>
+              <ListPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Ajouter un type de besoin</span>
+            </SecondaryButton>
+            <PrimaryButton onClick={() => typesManagementRef.current?.openAddDialog()}>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Ajouter un type d'opération</span>
+            </PrimaryButton>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="bg-card/30 backdrop-blur-xl border border-border/30 rounded-xl p-5">
+          {activeView === 'types' ? (
+            <TypesInterventionManagement ref={typesManagementRef} />
+          ) : activeView === 'flux' ? (
+            <ConfigurationsMultiFluxManagement />
+          ) : (
+            <BesoinsOperationsManagement />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-2xl p-6 h-[calc(100vh-48px)] flex flex-col">
+          <h1 className="text-2xl font-bold mb-6 shrink-0">Gestion des Opérations</h1>
+          {content}
+        </div>
+
+        <AddBesoinOperationTypeDialog
+          open={showBesoinTypeDialog}
+          onOpenChange={setShowBesoinTypeDialog}
+          onSuccess={() => setShowBesoinTypeDialog(false)}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 pt-4 pb-3 border-b border-border/50">
+            <DialogTitle className="text-2xl font-bold">Gestion des Opérations</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden px-6 pt-4 pb-6 flex flex-col">
+            {content}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AddBesoinOperationTypeDialog
         open={showBesoinTypeDialog}
         onOpenChange={setShowBesoinTypeDialog}
-        onSuccess={() => {
-          setShowBesoinTypeDialog(false);
-        }}
+        onSuccess={() => setShowBesoinTypeDialog(false)}
       />
-    </Dialog>
+    </>
   );
 }

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar, Trash2, CalendarOff, X } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, Trash2, CalendarOff, CalendarX, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PrimaryButton, TabButton } from '@/components/ui/primary-button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { AbsenceForm } from '@/components/absences/AbsenceForm';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,6 +49,7 @@ interface AbsencesJoursFeriesPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAbsenceChange?: () => void;
+  embedded?: boolean;
 }
 
 const jourFerieSchema = z.object({
@@ -58,11 +59,12 @@ const jourFerieSchema = z.object({
 
 type JourFerieFormData = z.infer<typeof jourFerieSchema>;
 
-export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }: AbsencesJoursFeriesPopupProps) => {
+export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, embedded = false }: AbsencesJoursFeriesPopupProps) => {
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [joursFeries, setJoursFeries] = useState<JourFerie[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'absences' | 'jours-feries'>('absences');
   const [selectedAbsence, setSelectedAbsence] = useState<Absence | null>(null);
   const [selectedJourFerie, setSelectedJourFerie] = useState<JourFerie | null>(null);
   const [absenceToDelete, setAbsenceToDelete] = useState<Absence | null>(null);
@@ -139,11 +141,11 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
   };
 
   useEffect(() => {
-    if (open) {
+    if (open || embedded) {
       setLoading(true);
       Promise.all([fetchAbsences(), fetchJoursFeries()]).finally(() => setLoading(false));
     }
-  }, [open]);
+  }, [open, embedded]);
 
   useEffect(() => {
     if (selectedJourFerie) {
@@ -162,7 +164,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
   // Group consecutive absences
   const groupConsecutiveAbsences = (absences: Absence[]) => {
     const byPerson = new Map<string, Absence[]>();
-    
+
     absences.forEach(absence => {
       const personKey = `${absence.type_personne}_${absence.medecin_id || absence.secretaire_id}`;
       if (!byPerson.has(personKey)) {
@@ -172,44 +174,40 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
     });
 
     const grouped: Absence[] = [];
-    
-    // Process each person separately with their own tracking
+
     byPerson.forEach(personAbsences => {
-      const sorted = personAbsences.sort((a, b) => 
+      const sorted = personAbsences.sort((a, b) =>
         new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime()
       );
 
       let lastGroupForPerson: Absence | null = null;
 
       for (const absence of sorted) {
-        // Check if we can merge with the last group for THIS person
-        if (lastGroupForPerson && 
+        if (lastGroupForPerson &&
             absence.type === lastGroupForPerson.type &&
             absence.statut === lastGroupForPerson.statut &&
             absence.demi_journee === lastGroupForPerson.demi_journee) {
-          
+
           const lastEndDate = new Date(lastGroupForPerson.date_fin);
           const currentStartDate = new Date(absence.date_debut);
           lastEndDate.setHours(0, 0, 0, 0);
           currentStartDate.setHours(0, 0, 0, 0);
-          
+
           const dayDiff = Math.floor((currentStartDate.getTime() - lastEndDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          // Merge if consecutive (1 day diff) or same day (0 day diff)
+
           if (dayDiff <= 1) {
             lastGroupForPerson.date_fin = absence.date_fin;
             continue;
           }
         }
-        
-        // Add as new group
+
         const newGroup = { ...absence };
         grouped.push(newGroup);
         lastGroupForPerson = newGroup;
       }
     });
-    
-    return grouped.sort((a, b) => 
+
+    return grouped.sort((a, b) =>
       new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime()
     );
   };
@@ -217,12 +215,12 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
   const filteredAbsences = groupConsecutiveAbsences(absences).filter(absence => {
     const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
     if (!person) return false;
-    
+
     const dateFin = new Date(absence.date_fin);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (dateFin < today) return false;
-    
+
     const searchLower = searchTerm.toLowerCase();
     return (
       person.first_name?.toLowerCase().includes(searchLower) ||
@@ -251,7 +249,6 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
     if (!absenceToDelete) return;
 
     try {
-      // Supprimer toutes les absences correspondant à cette carte groupée
       let query = supabase
         .from('absences')
         .delete()
@@ -261,14 +258,12 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
         .gte('date_debut', absenceToDelete.date_debut)
         .lte('date_fin', absenceToDelete.date_fin);
 
-      // Ajouter le filtre personne (médecin OU secrétaire)
       if (absenceToDelete.medecin_id) {
         query = query.eq('medecin_id', absenceToDelete.medecin_id);
       } else if (absenceToDelete.secretaire_id) {
         query = query.eq('secretaire_id', absenceToDelete.secretaire_id);
       }
 
-      // Ajouter le filtre demi_journee si présent
       if (absenceToDelete.demi_journee) {
         query = query.eq('demi_journee', absenceToDelete.demi_journee as 'matin' | 'apres_midi' | 'toute_journee');
       }
@@ -381,258 +376,286 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
     return labels[type] || type;
   };
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col backdrop-blur-xl bg-background/95 border-border/50">
-          <DialogHeader className="border-b border-border/50 pb-4">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                <CalendarOff className="h-6 w-6 text-primary" />
-                Gestion des Absences & Jours Fériés
-              </DialogTitle>
+  const getTypeBadgeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      conges: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
+      maladie: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20',
+      formation: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
+      conge_maternite: 'bg-pink-500/10 text-pink-700 dark:text-pink-300 border-pink-500/20',
+      autre: 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20',
+    };
+    return colors[type] || 'bg-muted text-muted-foreground border-border';
+  };
+
+  // Absence Card Component
+  const AbsenceCard = ({ absence, index }: { absence: Absence; index: number }) => {
+    const person = absence.type_personne === 'medecin' ? absence.medecins : absence.secretaires;
+    const personName = person ? `${person.first_name} ${person.name}` : 'Inconnu';
+
+    return (
+      <div
+        className="backdrop-blur-xl bg-card/95 rounded-2xl border border-border/50 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:border-primary/30 group relative overflow-hidden"
+        style={{ animationDelay: `${index * 50}ms` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        <div className="relative p-5">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              {/* Avatar */}
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20 group-hover:shadow-lg group-hover:shadow-teal-500/30 transition-shadow">
+                <User className="h-6 w-6 text-white" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors leading-tight">
+                  {personName}
+                </h3>
+                <div className="flex gap-2 flex-wrap mt-2">
+                  <Badge variant="outline" className="text-xs">
+                    {absence.type_personne === 'medecin' ? 'Médecin' : 'Assistant médical'}
+                  </Badge>
+                  <Badge className={`text-xs ${getTypeBadgeColor(absence.type)}`}>
+                    {getTypeLabel(absence.type)}
+                  </Badge>
+                </div>
+              </div>
             </div>
-          </DialogHeader>
 
-          <Tabs defaultValue="absences" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="absences" className="data-[state=active]:bg-background">
-                Absences
-              </TabsTrigger>
-              <TabsTrigger value="jours-feries" className="data-[state=active]:bg-background">
-                Jours Fériés
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Absences Tab */}
-            <TabsContent value="absences" className="flex-1 flex flex-col space-y-4 overflow-hidden mt-0">
-              <div className="flex flex-col sm:flex-row gap-3 pt-1 px-1">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Rechercher une absence..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-card/50 backdrop-blur-sm border-border/50"
-                  />
-                </div>
-                {canManage && (
-                  <Button
-                    className="gap-2"
-                    onClick={() => {
-                      setSelectedAbsence(null);
-                      setIsAbsenceDialogOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Déclarer une absence
-                  </Button>
-                )}
+            {/* Actions */}
+            {canManage && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedAbsence(absence);
+                    setIsAbsenceDialogOpen(true);
+                  }}
+                  className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAbsenceToDelete(absence)}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
+            )}
+          </div>
 
-              <div className="flex-1 overflow-y-auto pr-2">
-                {loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-muted-foreground">Chargement...</div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in p-1">
-                    {filteredAbsences.map((absence, idx) => (
-                      <div
-                        key={absence.id}
-                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-primary/20 dark:border-primary/30 shadow-lg hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 dark:hover:border-primary/50 group"
-                        style={{ animationDelay: `${idx * 50}ms` }}
-                      >
-                        <div className="p-5">
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors mb-2">
-                                {absence.type_personne === 'medecin' 
-                                  ? `${absence.medecins?.first_name} ${absence.medecins?.name}`
-                                  : `${absence.secretaires?.first_name} ${absence.secretaires?.name}`
-                                }
-                              </h4>
-                              <div className="flex gap-2 flex-wrap">
-                                <Badge className="bg-muted text-muted-foreground hover:bg-muted/80 border-border text-xs">
-                                  {absence.type_personne === 'medecin' ? 'Médecin' : 'Assistant médical'}
-                                </Badge>
-                                <Badge className="bg-accent/50 text-accent-foreground hover:bg-accent/60 border-accent/30 text-xs">
-                                  {getTypeLabel(absence.type)}
-                                </Badge>
-                              </div>
-                            </div>
-                            
-                            {canManage && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedAbsence(absence);
-                                    setIsAbsenceDialogOpen(true);
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10 hover:text-primary"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setAbsenceToDelete(absence)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                                <Calendar className="w-3 h-3 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-0.5">Période</p>
-                                <p className="text-sm font-medium">
-                              {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
-                            </p>
-                          </div>
-                        </div>
-
-                        {absence.demi_journee && absence.demi_journee !== 'toute_journee' && (
-                          <Badge variant="outline" className="text-xs">
-                            {absence.demi_journee === 'matin' ? 'Matin' : 'Après-midi'}
-                          </Badge>
-                        )}
-
-                        {absence.motif && (
-                              <div className="pt-3 border-t border-border/50">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Motif
-                                </p>
-                                <p className="text-sm">{absence.motif}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {!loading && filteredAbsences.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      {searchTerm ? 'Aucune absence trouvée pour cette recherche' : 'Aucune absence enregistrée'}
-                    </p>
-                  </div>
-                )}
+          {/* Content */}
+          <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Calendar className="h-4 w-4 text-primary" />
               </div>
-            </TabsContent>
-
-            {/* Jours Fériés Tab */}
-            <TabsContent value="jours-feries" className="flex-1 flex flex-col space-y-4 overflow-hidden mt-0">
-              <div className="flex flex-col sm:flex-row gap-3 pt-1 px-1">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Rechercher un jour férié..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-card/50 backdrop-blur-sm border-border/50"
-                  />
-                </div>
-                {canManage && (
-                  <Button
-                    className="gap-2"
-                    onClick={() => {
-                      setSelectedJourFerie(null);
-                      setIsJourFerieDialogOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ajouter un jour férié
-                  </Button>
-                )}
+              <div>
+                <p className="text-xs text-muted-foreground">Période</p>
+                <p className="text-sm font-medium">
+                  {format(new Date(absence.date_debut), 'dd MMM', { locale: fr })} - {format(new Date(absence.date_fin), 'dd MMM yyyy', { locale: fr })}
+                </p>
               </div>
+            </div>
 
-              <div className="flex-1 overflow-y-auto pr-2">
-                {loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-muted-foreground">Chargement...</div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in p-1">
-                    {filteredJoursFeries.map((jourFerie, idx) => (
-                      <div
-                        key={jourFerie.id}
-                        className="backdrop-blur-xl bg-card/95 rounded-xl border-2 border-primary/20 dark:border-primary/30 shadow-lg hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 dark:hover:border-primary/50 group"
-                        style={{ animationDelay: `${idx * 50}ms` }}
-                      >
-                        <div className="p-5">
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
-                                {jourFerie.nom}
-                              </h4>
-                            </div>
-                            
-                            {canManage && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedJourFerie(jourFerie);
-                                    setIsJourFerieDialogOpen(true);
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10 hover:text-primary"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setJourFerieToDelete(jourFerie)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                              <Calendar className="w-3 h-3 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-muted-foreground mb-0.5">Date</p>
-                              <p className="text-sm font-medium">
-                                {format(new Date(jourFerie.date), 'dd MMMM yyyy', { locale: fr })}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {absence.demi_journee && absence.demi_journee !== 'toute_journee' && (
+              <Badge variant="outline" className="text-xs">
+                {absence.demi_journee === 'matin' ? 'Matin uniquement' : 'Après-midi uniquement'}
+              </Badge>
+            )}
 
-                {!loading && filteredJoursFeries.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      {searchTerm ? 'Aucun jour férié trouvé pour cette recherche' : 'Aucun jour férié enregistré'}
-                    </p>
-                  </div>
-                )}
+            {absence.motif && (
+              <div className="pt-2">
+                <p className="text-xs text-muted-foreground mb-1">Motif</p>
+                <p className="text-sm">{absence.motif}</p>
               </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
+  // Jour Férié Card Component
+  const JourFerieCard = ({ jourFerie, index }: { jourFerie: JourFerie; index: number }) => (
+    <div
+      className="backdrop-blur-xl bg-card/95 rounded-2xl border border-border/50 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:border-primary/30 group relative overflow-hidden"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+      <div className="relative p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            {/* Avatar */}
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20 group-hover:shadow-lg group-hover:shadow-teal-500/30 transition-shadow">
+              <Calendar className="h-6 w-6 text-white" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors leading-tight">
+                {jourFerie.nom}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {format(new Date(jourFerie.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          {canManage && (
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedJourFerie(jourFerie);
+                  setIsJourFerieDialogOpen(true);
+                }}
+                className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setJourFerieToDelete(jourFerie)}
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Empty State Component
+  const EmptyState = ({ type }: { type: 'absences' | 'jours-feries' }) => (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 flex items-center justify-center mb-5">
+        {type === 'absences' ? (
+          <CalendarX className="w-10 h-10 text-teal-600/60 dark:text-teal-400/60" />
+        ) : (
+          <Calendar className="w-10 h-10 text-teal-600/60 dark:text-teal-400/60" />
+        )}
+      </div>
+      <h3 className="text-lg font-semibold text-foreground mb-2">
+        {type === 'absences' ? 'Aucune absence trouvée' : 'Aucun jour férié trouvé'}
+      </h3>
+      <p className="text-sm text-muted-foreground max-w-md">
+        {searchTerm
+          ? 'Essayez de modifier vos critères de recherche'
+          : type === 'absences'
+            ? 'Aucune absence à venir enregistrée'
+            : 'Commencez par ajouter un jour férié'}
+      </p>
+    </div>
+  );
+
+  // Loading State
+  const LoadingState = () => (
+    <div className="flex items-center justify-center py-16">
+      <div className="flex items-center gap-3 text-muted-foreground">
+        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm font-medium">Chargement...</span>
+      </div>
+    </div>
+  );
+
+  const content = (
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Tabs + Search + Button Row */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 mb-6 shrink-0">
+        {/* Tabs */}
+        <div className="flex gap-2 p-1 rounded-xl bg-muted/50 backdrop-blur-sm border border-border/30 shrink-0">
+          <TabButton
+            active={activeTab === 'absences'}
+            onClick={() => setActiveTab('absences')}
+            icon={<CalendarX className="h-4 w-4" />}
+          >
+            Absences
+          </TabButton>
+          <TabButton
+            active={activeTab === 'jours-feries'}
+            onClick={() => setActiveTab('jours-feries')}
+            icon={<Calendar className="h-4 w-4" />}
+          >
+            Jours Fériés
+          </TabButton>
+        </div>
+
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={activeTab === 'absences' ? "Rechercher une absence..." : "Rechercher un jour férié..."}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
+          />
+        </div>
+
+        {/* Add Button */}
+        {canManage && (
+          <PrimaryButton
+            onClick={() => {
+              if (activeTab === 'absences') {
+                setSelectedAbsence(null);
+                setIsAbsenceDialogOpen(true);
+              } else {
+                setSelectedJourFerie(null);
+                setIsJourFerieDialogOpen(true);
+              }
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {activeTab === 'absences' ? 'Déclarer une absence' : 'Ajouter un jour férié'}
+            </span>
+          </PrimaryButton>
+        )}
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto overflow-x-visible min-h-0 -mx-2 px-2 pt-2 pb-2">
+        {loading ? (
+          <LoadingState />
+        ) : activeTab === 'absences' ? (
+          filteredAbsences.length === 0 ? (
+            <EmptyState type="absences" />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-fade-in">
+              {filteredAbsences.map((absence, index) => (
+                <AbsenceCard key={absence.id} absence={absence} index={index} />
+              ))}
+            </div>
+          )
+        ) : (
+          filteredJoursFeries.length === 0 ? (
+            <EmptyState type="jours-feries" />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-fade-in">
+              {filteredJoursFeries.map((jourFerie, index) => (
+                <JourFerieCard key={jourFerie.id} jourFerie={jourFerie} index={index} />
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+
+  // Dialogs (shared between embedded and dialog mode)
+  const dialogs = (
+    <>
       {/* Absence Form Dialog */}
       <Dialog open={isAbsenceDialogOpen} onOpenChange={setIsAbsenceDialogOpen}>
         <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -641,8 +664,8 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
               {selectedAbsence ? 'Modifier l\'absence' : 'Déclarer une absence'}
             </DialogTitle>
           </DialogHeader>
-          <AbsenceForm 
-            absence={selectedAbsence} 
+          <AbsenceForm
+            absence={selectedAbsence}
             onSuccess={handleAbsenceFormSuccess}
           />
         </DialogContent>
@@ -662,7 +685,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
               {selectedJourFerie ? 'Modifier le jour férié' : 'Ajouter un jour férié'}
             </DialogTitle>
           </DialogHeader>
-        
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onJourFerieSubmit)} className="space-y-4">
               <FormField
@@ -720,7 +743,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer cette absence ? Cette action est irréversible et les capacités/besoins seront régénérés automatiquement.
+              Êtes-vous sûr de vouloir supprimer cette absence ? Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -738,7 +761,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce jour férié ? Les besoins et capacités pour cette date seront automatiquement régénérés.
+              Êtes-vous sûr de vouloir supprimer ce jour férié ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -749,6 +772,37 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange }
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-2xl p-6 h-[calc(100vh-48px)] flex flex-col">
+          <h1 className="text-2xl font-bold mb-6 shrink-0">Gestion des Absences</h1>
+          {content}
+        </div>
+        {dialogs}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 pt-4 pb-3 border-b border-border/50">
+            <DialogTitle className="text-2xl font-bold">
+              Gestion des Absences
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden px-6 pt-4 pb-6 flex flex-col">
+            {content}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {dialogs}
     </>
   );
 };

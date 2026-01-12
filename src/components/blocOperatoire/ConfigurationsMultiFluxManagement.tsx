@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PrimaryButton } from "@/components/ui/primary-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Edit2, Trash2 } from "lucide-react";
@@ -298,10 +299,10 @@ export function ConfigurationsMultiFluxManagement() {
       <div className="space-y-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-foreground">Configurations Double Flux</h3>
-          <Button onClick={() => openAddDialog('double_flux')} className="gap-2">
+          <PrimaryButton size="sm" onClick={() => openAddDialog('double_flux')}>
             <Plus className="h-4 w-4" />
             Ajouter
-          </Button>
+          </PrimaryButton>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -357,10 +358,10 @@ export function ConfigurationsMultiFluxManagement() {
       <div className="space-y-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-foreground">Configurations Triple Flux</h3>
-          <Button onClick={() => openAddDialog('triple_flux')} className="gap-2">
+          <PrimaryButton size="sm" onClick={() => openAddDialog('triple_flux')}>
             <Plus className="h-4 w-4" />
             Ajouter
-          </Button>
+          </PrimaryButton>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -1,26 +1,26 @@
-import { 
-  Calendar, 
-  Users, 
-  UserPlus,
+import {
   Settings,
   LogOut,
   Menu,
   Stethoscope,
-  User,
-  UserCog,
+  Users,
   CalendarX,
-  CalendarX2,
-  BarChart3,
-  ChevronDown,
   LayoutDashboard,
   BotMessageSquare,
-  HelpCircle
+  HelpCircle,
+  ClipboardList,
+  Building,
+  CalendarDays,
+  Calendar as CalendarPlanIcon,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import cliniqueLogoImg from '@/assets/clinique-logo.png';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,14 +30,9 @@ import { AIAssistantDialog } from '@/components/assistant/AIAssistantDialog';
 import { UserHelpSheet } from '@/components/assistant/UserHelpSheet';
 import { UnfilledNeedsBadge } from '@/components/dashboard/UnfilledNeedsBadge';
 import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
+import { Badge } from '@/components/ui/badge';
 import { format, startOfWeek, endOfWeek, addWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
-
-const planningItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-];
-
-const settingsItem = { name: 'Paramètres', href: '/settings', icon: Settings };
 
 export const Sidebar = () => {
   const location = useLocation();
@@ -46,12 +41,12 @@ export const Sidebar = () => {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [helpSheetOpen, setHelpSheetOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [planningExpanded, setPlanningExpanded] = useState(true);
   const { canManage } = useCanManagePlanning();
   const { isAdmin } = useIsAdmin();
   const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
   const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
   const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
+  const [pendingAbsences, setPendingAbsences] = useState(0);
 
   const fetchUnfilledNeedsCount = async () => {
     setUnfilledNeedsLoading(true);
@@ -81,6 +76,18 @@ export const Sidebar = () => {
     }
   };
 
+  const fetchPendingAbsences = async () => {
+    try {
+      const { data } = await supabase
+        .from('absences')
+        .select('id')
+        .eq('statut', 'en_attente');
+      setPendingAbsences(data?.length || 0);
+    } catch (error) {
+      console.error('Error fetching pending absences:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
@@ -89,7 +96,7 @@ export const Sidebar = () => {
           .select('prenom, nom, planning')
           .eq('id', user.id)
           .single();
-        
+
         if (data) {
           setProfile(data);
         }
@@ -98,10 +105,8 @@ export const Sidebar = () => {
 
     fetchProfile();
     fetchUnfilledNeedsCount();
+    fetchPendingAbsences();
   }, [user]);
-
-  // All items visible when user has planning access
-  const visibleItems = canManage ? planningItems : [];
 
   const getInitials = () => {
     if (profile?.prenom && profile?.nom) {
@@ -110,127 +115,143 @@ export const Sidebar = () => {
     return user?.email?.[0]?.toUpperCase() || 'U';
   };
 
+  const isActive = (path: string) => location.pathname === path;
+
+  const NavLink = ({ to, icon: Icon, label, badge, onLinkClick }: {
+    to: string;
+    icon: React.ElementType;
+    label: string;
+    badge?: number;
+    onLinkClick?: () => void;
+  }) => (
+    <Link
+      to={to}
+      onClick={onLinkClick}
+      className={cn(
+        'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+        isActive(to)
+          ? 'bg-blue-500/10 text-blue-600'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0 text-blue-500" />
+      <span className="flex-1">{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
+          {badge}
+        </Badge>
+      )}
+    </Link>
+  );
+
   const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => (
-    <>
+    <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex h-16 shrink-0 items-center px-6 border-b border-sidebar-border border-opacity-30">
-        <div className="flex items-center space-x-3">
-          <img 
-            src={cliniqueLogoImg} 
-            alt="Clinique La Vallée" 
-            className="h-10 w-auto"
-          />
-        </div>
+      <div className="flex h-16 shrink-0 items-center px-6 border-b border-border/50">
+        <img
+          src={cliniqueLogoImg}
+          alt="Clinique La Vallée"
+          className="h-10 w-auto"
+        />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex flex-1 flex-col px-3 py-4">
-        <div>
-          <button
-            onClick={() => setPlanningExpanded(!planningExpanded)}
-            className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
-          >
-            <span>Planning</span>
-            <ChevronDown 
-              className={cn(
-                "h-4 w-4 transition-transform",
-                !planningExpanded && "-rotate-90"
-              )}
-            />
-          </button>
-          
-          {planningExpanded && (
-            <ul className="mt-2 space-y-1">
-              {visibleItems.map((item) => {
-                const isActive = location.pathname === item.href;
-                return (
-                  <li key={item.name}>
-                    <Link
-                      to={item.href}
-                      onClick={onLinkClick}
-                      className={cn(
-                        'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                          : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
-                      )}
-                    >
-                      <item.icon
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition-colors',
-                          isActive ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-                        )}
-                      />
-                      {item.name}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+      {/* Navigation with Accordions */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Dashboard at top */}
+        {canManage && (
+          <div className="mb-4 pb-4 border-b border-border/50">
+            <NavLink to="/" icon={LayoutDashboard} label="Dashboard" onLinkClick={onLinkClick} />
+          </div>
+        )}
 
-        {/* Settings section - visible to all users */}
-        <div className="mt-6 pt-6 border-t border-sidebar-border border-opacity-30">
-          <ul className="space-y-1">
-            <li>
-              <Link
-                to={settingsItem.href}
-                onClick={onLinkClick}
-                className={cn(
-                  'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  location.pathname === settingsItem.href
-                    ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                    : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
-                )}
-              >
-                <settingsItem.icon
-                  className={cn(
-                    'h-4 w-4 shrink-0 transition-colors',
-                    location.pathname === settingsItem.href ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-                  )}
-                />
-                {settingsItem.name}
-              </Link>
-            </li>
-          </ul>
+        <Accordion type="multiple" defaultValue={['gestion', 'planification', 'actions']} className="space-y-2">
+          {/* Section Gestion */}
+          <AccordionItem value="gestion" className="border-none">
+            <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
+              Gestion
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-2 space-y-1">
+              <NavLink to="/medecins" icon={Stethoscope} label="Médecins" onLinkClick={onLinkClick} />
+              <NavLink to="/assistants" icon={Users} label="Assistants médicaux" onLinkClick={onLinkClick} />
+              <NavLink to="/sites" icon={Building} label="Sites" onLinkClick={onLinkClick} />
+              <NavLink to="/operations" icon={ClipboardList} label="Opérations" onLinkClick={onLinkClick} />
+              <NavLink to="/absences" icon={CalendarX} label="Absences" badge={pendingAbsences} onLinkClick={onLinkClick} />
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Section Planification */}
+          <AccordionItem value="planification" className="border-none">
+            <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
+              Planification
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-2 space-y-1">
+              <NavLink to="/calendrier" icon={CalendarDays} label="Calendrier global" onLinkClick={onLinkClick} />
+              <NavLink to="/statistiques" icon={BarChart3} label="Statistiques" onLinkClick={onLinkClick} />
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Section Actions */}
+          <AccordionItem value="actions" className="border-none">
+            <AccordionTrigger className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline hover:text-foreground">
+              Actions
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-2 space-y-1">
+              <NavLink to="/planifier" icon={CalendarPlanIcon} label="Planifier" onLinkClick={onLinkClick} />
+              <NavLink to="/generer-pdf" icon={FileText} label="Générer PDF" onLinkClick={onLinkClick} />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        {/* Fixed Navigation Links */}
+        <div className="mt-6 pt-6 border-t border-border/50 space-y-1">
+          <NavLink to="/settings" icon={Settings} label="Paramètres" onLinkClick={onLinkClick} />
         </div>
 
         {/* Admin section */}
         {isAdmin && (
-          <div className="mt-6 pt-6 border-t border-sidebar-border border-opacity-30">
-            <ul className="space-y-1">
-              <li>
-                <Link
-                  to="/users"
-                  onClick={onLinkClick}
-                  className={cn(
-                    'group flex gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    location.pathname === '/users'
-                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                      : 'text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-accent'
-                  )}
-                >
-                  <Users
-                    className={cn(
-                      'h-4 w-4 shrink-0 transition-colors',
-                      location.pathname === '/users' ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground group-hover:text-sidebar-primary-foreground'
-                    )}
-                  />
-                  Utilisateurs
-                </Link>
-              </li>
-            </ul>
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <NavLink to="/users" icon={Users} label="Utilisateurs" onLinkClick={onLinkClick} />
           </div>
         )}
+      </nav>
 
-        <div className="flex-1" />
+      {/* Bottom section */}
+      <div className="shrink-0 p-4 border-t border-border/50">
+        {/* Quick actions */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <UnfilledNeedsBadge
+            count={unfilledNeedsCount}
+            onClick={() => setUnfilledNeedsSummaryOpen(true)}
+            isLoading={unfilledNeedsLoading}
+          />
 
-        {/* User Profile section */}
-        <div className="mt-6 rounded-lg bg-sidebar-accent bg-opacity-30 p-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setHelpSheetOpen(true)}
+            className="hover:bg-primary/10 hover:text-primary"
+            title="Aide utilisateur"
+          >
+            <HelpCircle className="h-5 w-5" />
+          </Button>
+
+          {/* ValléeBot hidden for now
+          <Button
+            size="sm"
+            onClick={() => setAiAssistantOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <BotMessageSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">ValléeBot</span>
+          </Button>
+          */}
+        </div>
+
+        {/* User Profile */}
+        <div className="rounded-lg bg-muted/50 p-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary shrink-0">
-              <span className="text-sm font-medium text-sidebar-primary-foreground">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary shrink-0">
+              <span className="text-sm font-medium text-primary-foreground">
                 {getInitials()}
               </span>
             </div>
@@ -243,74 +264,85 @@ export const Sidebar = () => {
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="h-8 w-8 p-0 hover:bg-sidebar-accent-foreground/10 shrink-0"
+              className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0"
             >
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </nav>
-    </>
+      </div>
+    </div>
   );
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 h-16 bg-sidebar border-b border-sidebar-border flex items-center px-4">
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="sm" className="mr-2">
-            <Menu className="h-5 w-5" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0 bg-sidebar">
-          <SidebarContent onLinkClick={() => setOpen(false)} />
-        </SheetContent>
-      </Sheet>
-          <img 
-            src={cliniqueLogoImg} 
-            alt="Clinique La Vallée" 
-            className="h-8 w-auto"
-          />
-          
-          <UnfilledNeedsBadge
-            count={unfilledNeedsCount}
-            onClick={() => setUnfilledNeedsSummaryOpen(true)}
-            isLoading={unfilledNeedsLoading}
-          />
-          
-          <div className="flex-1" />
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setHelpSheetOpen(true)}
-            className="hover:bg-emerald-500/10 hover:text-emerald-600"
-            title="Aide utilisateur"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </Button>
-          
-          <Button
-            size="sm"
-            onClick={() => setAiAssistantOpen(true)}
-            className="ml-2 flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 hover:from-emerald-600 hover:to-teal-700"
-          >
-            <BotMessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">ValléeBot</span>
-          </Button>
-      
-      <AIAssistantDialog 
-        open={aiAssistantOpen} 
-        onOpenChange={setAiAssistantOpen} 
+    <>
+      {/* Desktop Sidebar - Fixed left */}
+      <div className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-64 lg:bg-card lg:border-r lg:border-border">
+        <SidebarContent />
+      </div>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-card border-b border-border flex items-center px-4">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="sm" className="mr-2">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0 bg-card">
+            <SidebarContent onLinkClick={() => setOpen(false)} />
+          </SheetContent>
+        </Sheet>
+
+        <img
+          src={cliniqueLogoImg}
+          alt="Clinique La Vallée"
+          className="h-8 w-auto"
+        />
+
+        <div className="flex-1" />
+
+        <UnfilledNeedsBadge
+          count={unfilledNeedsCount}
+          onClick={() => setUnfilledNeedsSummaryOpen(true)}
+          isLoading={unfilledNeedsLoading}
+        />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setHelpSheetOpen(true)}
+          className="hover:bg-primary/10 hover:text-primary"
+          title="Aide utilisateur"
+        >
+          <HelpCircle className="h-5 w-5" />
+        </Button>
+
+        {/* ValléeBot hidden for now
+        <Button
+          size="sm"
+          onClick={() => setAiAssistantOpen(true)}
+          className="ml-2 flex items-center gap-2"
+        >
+          <BotMessageSquare className="h-4 w-4" />
+        </Button>
+        */}
+      </div>
+
+      {/* Dialogs */}
+      <AIAssistantDialog
+        open={aiAssistantOpen}
+        onOpenChange={setAiAssistantOpen}
       />
-      <UserHelpSheet 
-        open={helpSheetOpen} 
-        onOpenChange={setHelpSheetOpen} 
+      <UserHelpSheet
+        open={helpSheetOpen}
+        onOpenChange={setHelpSheetOpen}
       />
       <UnfilledNeedsSummaryDialog
         open={unfilledNeedsSummaryOpen}
         onOpenChange={setUnfilledNeedsSummaryOpen}
         onRefresh={fetchUnfilledNeedsCount}
       />
-    </div>
+    </>
   );
 };

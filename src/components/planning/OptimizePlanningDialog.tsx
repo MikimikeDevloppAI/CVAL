@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 interface OptimizePlanningDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
 interface FlexibleSecretary {
@@ -42,7 +43,7 @@ interface Holiday {
   date: string;
 }
 
-export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningDialogProps) {
+export function OptimizePlanningDialog({ open, onOpenChange, embedded = false }: OptimizePlanningDialogProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
@@ -84,10 +85,10 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
 
   // Load data when dialog opens
   useEffect(() => {
-    if (open) {
+    if (open || embedded) {
       loadData();
     }
-  }, [open]);
+  }, [open, embedded]);
 
   // Auto-update weekAssignments when selectedDates change
   useEffect(() => {
@@ -558,20 +559,9 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            Planifier les secrétaires
-          </DialogTitle>
-          <DialogDescription>
-            Sélectionnez une ou plusieurs semaines et configurez les assignations des secrétaires flexibles.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden">
+  const content = (
+    <>
+      <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-[600px] pr-4">
             <div className="space-y-2">
               {weeks.map((week, index) => {
@@ -751,7 +741,40 @@ export function OptimizePlanningDialog({ open, onOpenChange }: OptimizePlanningD
               )}
             </Button>
           </div>
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            Planifier les secrétaires
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sélectionnez une ou plusieurs semaines et configurez les assignations des secrétaires flexibles.
+          </p>
         </div>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            Planifier les secrétaires
+          </DialogTitle>
+          <DialogDescription>
+            Sélectionnez une ou plusieurs semaines et configurez les assignations des secrétaires flexibles.
+          </DialogDescription>
+        </DialogHeader>
+        {content}
       </DialogContent>
     </Dialog>
   );

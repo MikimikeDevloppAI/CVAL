@@ -1,25 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Building, Pencil } from 'lucide-react';
+import { Plus, Search, Building } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { ModernCard } from '@/components/ui/modern-card';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SiteCard } from './SiteCard';
 import { SiteForm } from './SiteForm';
 import { useCanManagePlanning } from '@/hooks/useCanManagePlanning';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 
 interface Site {
   id: string;
@@ -34,17 +24,15 @@ interface Site {
 interface SitesPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
-export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
+export function SitesPopup({ open, onOpenChange, embedded = false }: SitesPopupProps) {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [siteToToggle, setSiteToToggle] = useState<Site | null>(null);
-  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const { canManage } = useCanManagePlanning();
 
   const fetchSites = async () => {
@@ -66,74 +54,133 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
   };
 
   useEffect(() => {
-    if (open) {
+    if (open || embedded) {
       fetchSites();
     }
-  }, [open]);
-
-  const handleToggleActif = async (site: Site) => {
-    if (site.actif) {
-      setSiteToToggle(site);
-      setShowDeactivateDialog(true);
-    } else {
-      await performToggle(site);
-    }
-  };
-
-  const performToggle = async (site: Site) => {
-    try {
-      const { error } = await supabase
-        .from('sites')
-        .update({ actif: !site.actif })
-        .eq('id', site.id);
-
-      if (error) throw error;
-
-      toast.success(
-        site.actif 
-          ? 'Site désactivé avec succès' 
-          : 'Site activé avec succès'
-      );
-      
-      await fetchSites();
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du site:', error);
-      toast.error('Erreur lors de la mise à jour du site');
-    }
-  };
+  }, [open, embedded]);
 
   const filteredSites = sites.filter(site => {
     const matchesSearch = site.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          site.adresse?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     // Exclure les sites administratif et bloc opératoire
-    const isExcludedSite = site.nom.toLowerCase().includes('administratif') || 
+    const isExcludedSite = site.nom.toLowerCase().includes('administratif') ||
                           site.nom.toLowerCase().includes('bloc opératoire');
-    
-    // Ne montrer que les sites actifs et non exclus
-    return matchesSearch && site.actif && !isExcludedSite;
+
+    const matchesStatus = showInactive ? site.actif === false : site.actif !== false;
+
+    return matchesSearch && matchesStatus && !isExcludedSite;
   });
 
   const handleFormSuccess = () => {
-    setIsDialogOpen(false);
-    setSelectedSite(null);
+    setShowForm(false);
     fetchSites();
   };
 
   const handleCloseDialog = () => {
+    setShowForm(false);
     setSearchTerm('');
     onOpenChange(false);
   };
 
   const handleAdd = () => {
-    setSelectedSite(null);
-    setIsDialogOpen(true);
+    setShowForm(true);
   };
 
-  const handleEdit = (site: Site) => {
-    setSelectedSite(site);
-    setIsDialogOpen(true);
+  const handleBack = () => {
+    setShowForm(false);
   };
+
+  if (embedded) {
+    return (
+      <>
+        <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-2xl p-6 h-[calc(100vh-48px)] flex flex-col">
+          <h1 className="text-2xl font-bold mb-6 shrink-0">Gestion des Sites</h1>
+
+          {showForm ? (
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-xl">
+                <SiteForm site={null} onSuccess={handleFormSuccess} onBack={handleBack} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Search and Actions - Fixed */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 mb-6 shrink-0">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher un site..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
+                    <Switch
+                      checked={showInactive}
+                      onCheckedChange={setShowInactive}
+                      id="show-inactive-sites-embedded"
+                      className="scale-90"
+                    />
+                    <label htmlFor="show-inactive-sites-embedded" className="text-sm font-medium cursor-pointer whitespace-nowrap">
+                      Inactifs
+                    </label>
+                  </div>
+
+                  {canManage && (
+                    <PrimaryButton onClick={handleAdd}>
+                      <Plus className="h-4 w-4" />
+                      <span className="hidden sm:inline">Ajouter</span>
+                    </PrimaryButton>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable List */}
+              <div className="flex-1 overflow-y-auto overflow-x-visible min-h-0 -mx-2 px-2 pt-2 pb-2">
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium">Chargement...</span>
+                    </div>
+                  </div>
+                ) : filteredSites.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 flex items-center justify-center mb-5">
+                      <Building className="w-10 h-10 text-teal-600/60 dark:text-teal-400/60" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">Aucun site trouvé</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      {searchTerm
+                        ? 'Essayez de modifier vos critères de recherche'
+                        : showInactive
+                          ? 'Aucun site inactif'
+                          : 'Commencez par ajouter un site'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-fade-in">
+                    {filteredSites.map((site, index) => (
+                      <SiteCard
+                        key={site.id}
+                        site={site}
+                        index={index}
+                        onUpdate={fetchSites}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -141,158 +188,91 @@ export function SitesPopup({ open, onOpenChange }: SitesPopupProps) {
         <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
           {/* Header */}
           <DialogHeader className="px-6 pt-4 pb-3 border-b border-border/50">
-            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent">
+            <DialogTitle className="text-2xl font-bold">
               Gestion des Sites
             </DialogTitle>
           </DialogHeader>
 
-          {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
-            <div className="space-y-6">
-              {/* Search and Actions */}
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-600 dark:text-violet-400" />
-                  <Input
-                    placeholder="Rechercher un site..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 border-violet-200/50 focus:border-violet-500"
-                  />
-                </div>
-                
-                {canManage && (
-                  <Button
-                    onClick={handleAdd}
-                    size="default"
-                    className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ajouter un site
-                  </Button>
-                )}
+            {showForm ? (
+              <div className="max-w-xl mx-auto">
+                <SiteForm site={null} onSuccess={handleFormSuccess} onBack={handleBack} />
               </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Search and Actions */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher un site..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
+                    />
+                  </div>
 
-              {/* Sites Grid */}
-              {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-violet-500 border-r-transparent"></div>
-                    <p className="mt-2 text-sm text-muted-foreground">Chargement des sites...</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
+                      <Switch
+                        checked={showInactive}
+                        onCheckedChange={setShowInactive}
+                        id="show-inactive-sites-popup"
+                        className="scale-90"
+                      />
+                      <label htmlFor="show-inactive-sites-popup" className="text-sm font-medium cursor-pointer whitespace-nowrap">
+                        Inactifs
+                      </label>
+                    </div>
+
+                    {canManage && (
+                      <PrimaryButton onClick={handleAdd}>
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">Ajouter</span>
+                      </PrimaryButton>
+                    )}
                   </div>
                 </div>
-              ) : filteredSites.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {searchTerm ? 'Aucun site trouvé pour cette recherche' : 'Aucun site disponible'}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredSites.map((site) => (
-                    <ModernCard
-                      key={site.id}
-                      className="group hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 overflow-hidden"
-                    >
-                      <div className="space-y-6 p-6">
-                        {/* Site Header avec gradient background */}
-                        <div className="flex items-start gap-4">
-                          <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-lg">
-                            <Building className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="space-y-2 flex-1 min-w-0">
-                            <h3 className="font-bold text-xl group-hover:text-violet-500 transition-colors leading-tight">
-                              {site.nom}
-                            </h3>
-                            {site.adresse && (
-                              <p className="text-sm text-muted-foreground leading-relaxed">
-                                {site.adresse}
-                              </p>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Badges */}
-                        {site.fermeture && (
-                          <div className="flex flex-wrap gap-2">
-                            <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 px-3 py-1">
-                              Nécessite fermeture de site
-                            </Badge>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        {canManage && (
-                          <div className="pt-4 border-t border-border/50">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(site)}
-                              className="w-full hover:bg-violet-500/10 hover:text-violet-500 font-medium"
-                            >
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Modifier le site
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </ModernCard>
-                  ))}
-                </div>
-              )}
-            </div>
+                {/* List */}
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium">Chargement...</span>
+                    </div>
+                  </div>
+                ) : filteredSites.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 flex items-center justify-center mb-5">
+                      <Building className="w-10 h-10 text-teal-600/60 dark:text-teal-400/60" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">Aucun site trouvé</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      {searchTerm
+                        ? 'Essayez de modifier vos critères de recherche'
+                        : showInactive
+                          ? 'Aucun site inactif'
+                          : 'Commencez par ajouter un site'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-fade-in">
+                    {filteredSites.map((site, index) => (
+                      <SiteCard
+                        key={site.id}
+                        site={site}
+                        index={index}
+                        onUpdate={fetchSites}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Form Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedSite ? 'Modifier le site' : 'Ajouter un site'}
-            </DialogTitle>
-          </DialogHeader>
-          <SiteForm
-            site={selectedSite}
-            onSuccess={handleFormSuccess}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Deactivate Confirmation Dialog */}
-      <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Désactiver le site</AlertDialogTitle>
-            <AlertDialogDescription>
-              Êtes-vous sûr de vouloir désactiver le site "{siteToToggle?.nom}" ?
-              Cette action supprimera tous les plannings associés à ce site.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setSiteToToggle(null);
-              setShowDeactivateDialog(false);
-            }}>
-              Annuler
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (siteToToggle) {
-                  await performToggle(siteToToggle);
-                  setSiteToToggle(null);
-                  setShowDeactivateDialog(false);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Désactiver
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

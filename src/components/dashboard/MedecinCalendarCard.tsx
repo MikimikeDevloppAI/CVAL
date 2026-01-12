@@ -9,6 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface MedecinAssignment {
   site_nom: string;
@@ -33,6 +34,95 @@ interface MedecinCalendarCardProps {
   startDate: string;
   index: number;
   onRefresh?: () => void;
+}
+
+// Fonction pour abréger les noms de sites
+function abbreviateSiteName(siteName: string): string {
+  if (!siteName) return '';
+
+  const lower = siteName.toLowerCase();
+  if (lower.includes('clinique la vallée') || lower.includes('clinique la vallee')) {
+    const dashIndex = siteName.indexOf('-');
+    if (dashIndex !== -1) {
+      const suffix = siteName.substring(dashIndex).trim();
+      return `Cval ${suffix}`;
+    }
+    return 'Cval';
+  }
+
+  return siteName;
+}
+
+// Composant Badge pour afficher le site
+function SiteBadge({
+  siteName,
+  period,
+  onClick,
+}: {
+  siteName: string;
+  period: 'matin' | 'apres_midi' | 'journee';
+  onClick?: () => void;
+}) {
+  const periodColors = {
+    matin: 'bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300',
+    apres_midi: 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300',
+    journee: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+  };
+
+  const periodDotColors = {
+    matin: 'bg-blue-500',
+    apres_midi: 'bg-amber-500',
+    journee: 'bg-emerald-500',
+  };
+
+  const periodLabels = {
+    matin: 'Matin',
+    apres_midi: 'Après-midi',
+    journee: 'Journée',
+  };
+
+  const displayName = abbreviateSiteName(siteName);
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClick}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded-md border",
+              "text-[11px] font-medium transition-all duration-200",
+              "hover:scale-105 hover:shadow-md",
+              "focus:outline-none",
+              periodColors[period]
+            )}
+          >
+            <div className={cn(
+              "w-2 h-2 rounded-full flex-shrink-0",
+              periodDotColors[period]
+            )} />
+            <span className="truncate max-w-[100px]">{displayName}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-xl px-3 py-2"
+        >
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-foreground">{siteName}</span>
+            <span className={cn(
+              "text-[10px] px-2 py-0.5 rounded-full font-medium w-fit",
+              period === 'matin' && "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+              period === 'apres_midi' && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+              period === 'journee' && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+            )}>
+              {periodLabels[period]}
+            </span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function MedecinCalendarCard({
@@ -94,8 +184,8 @@ export function MedecinCalendarCard({
 
     if (!hasMatin && !hasApresMidi) {
       return (
-        <div className="h-8 bg-muted/30 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">-</span>
+        <div className="h-8 flex items-center justify-center">
+          <span className="text-[10px] text-muted-foreground/40">—</span>
         </div>
       );
     }
@@ -103,85 +193,52 @@ export function MedecinCalendarCard({
     // Helper function to get display info
     const getDisplayInfo = (assignments: MedecinAssignment[]) => {
       if (!assignments || assignments.length === 0) return null;
-      
+
       const assignment = assignments[0];
-      
+
       // Check if it's a bloc operatoire
       const isBloc = assignment.type_intervention !== undefined && assignment.type_intervention !== null;
-      
+
       if (isBloc) {
-        // Display type d'intervention for bloc
-        return {
-          text: assignment.type_intervention || 'Bloc',
-          isBloc: true
-        };
+        return assignment.type_intervention || 'Bloc';
       }
-      
-      // Display site name for regular sites
-      return {
-        text: assignment.site_nom || '-',
-        isBloc: false
-      };
+
+      return assignment.site_nom || '-';
     };
 
-    const matinInfo = hasMatin ? getDisplayInfo(day.data!.matin) : null;
-    const amInfo = hasApresMidi ? getDisplayInfo(day.data!.apres_midi) : null;
+    const matinText = hasMatin ? getDisplayInfo(day.data!.matin) : null;
+    const amText = hasApresMidi ? getDisplayInfo(day.data!.apres_midi) : null;
 
     // Both periods with SAME site/intervention
-    if (hasMatin && hasApresMidi && matinInfo?.text === amInfo?.text) {
+    if (hasMatin && hasApresMidi && matinText === amText) {
       const siteId = day.data!.matin[0]?.site_id || '';
       return (
-        <div 
-          className="h-8 bg-gradient-to-r from-green-500/20 to-green-500/20 border border-green-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedDay({ date: day.date, siteId, periode: 'journee' });
-          }}
-        >
-          <div className="flex items-center gap-1 w-full min-w-0">
-            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs font-medium truncate">{matinInfo?.text || 'Journée'}</span>
-          </div>
+        <div className="flex items-center justify-center min-h-[32px]">
+          <SiteBadge
+            siteName={matinText || ''}
+            period="journee"
+            onClick={() => setSelectedDay({ date: day.date, siteId, periode: 'journee' })}
+          />
         </div>
       );
     }
 
-    // Different sites/interventions OR partial presence → show two lines
+    // Different sites/interventions → show two badges
     if (hasMatin && hasApresMidi) {
       const matinSiteId = day.data!.matin[0]?.site_id || '';
       const amSiteId = day.data!.apres_midi[0]?.site_id || '';
       return (
-        <div className="space-y-1">
-          {/* Matin */}
-          <div 
-            className="h-7 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedDay({ date: day.date, siteId: matinSiteId, periode: 'matin' });
-            }}
-          >
-            <div className="flex items-center gap-1 w-full min-w-0">
-              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className="text-[10px] font-medium truncate">
-                {matinInfo?.text || 'Matin'}
-              </span>
-            </div>
-          </div>
-          {/* Après-midi */}
-          <div 
-            className="h-7 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedDay({ date: day.date, siteId: amSiteId, periode: 'apres_midi' });
-            }}
-          >
-            <div className="flex items-center gap-1 w-full min-w-0">
-              <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-              <span className="text-[10px] font-medium truncate">
-                {amInfo?.text || 'Après-midi'}
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-col items-center gap-1 py-1">
+          <SiteBadge
+            siteName={matinText || ''}
+            period="matin"
+            onClick={() => setSelectedDay({ date: day.date, siteId: matinSiteId, periode: 'matin' })}
+          />
+          <SiteBadge
+            siteName={amText || ''}
+            period="apres_midi"
+            onClick={() => setSelectedDay({ date: day.date, siteId: amSiteId, periode: 'apres_midi' })}
+          />
         </div>
       );
     }
@@ -190,19 +247,12 @@ export function MedecinCalendarCard({
     if (hasMatin) {
       const siteId = day.data!.matin[0]?.site_id || '';
       return (
-        <div 
-          className="h-8 bg-blue-500/10 border border-blue-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedDay({ date: day.date, siteId, periode: 'matin' });
-          }}
-        >
-          <div className="flex items-center gap-1 w-full min-w-0">
-            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-            <span className="text-xs font-medium truncate">
-              {matinInfo?.text || 'Matin'}
-            </span>
-          </div>
+        <div className="flex items-center justify-center min-h-[32px]">
+          <SiteBadge
+            siteName={matinText || ''}
+            period="matin"
+            onClick={() => setSelectedDay({ date: day.date, siteId, periode: 'matin' })}
+          />
         </div>
       );
     }
@@ -210,19 +260,12 @@ export function MedecinCalendarCard({
     // Après-midi only
     const siteId = day.data!.apres_midi[0]?.site_id || '';
     return (
-      <div 
-        className="h-8 bg-yellow-500/10 border border-yellow-500/30 rounded flex items-center cursor-pointer transition-all hover:shadow-md px-2"
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelectedDay({ date: day.date, siteId, periode: 'apres_midi' });
-        }}
-      >
-        <div className="flex items-center gap-1 w-full min-w-0">
-          <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
-          <span className="text-xs font-medium truncate">
-            {amInfo?.text || 'Après-midi'}
-          </span>
-        </div>
+      <div className="flex items-center justify-center min-h-[32px]">
+        <SiteBadge
+          siteName={amText || ''}
+          period="apres_midi"
+          onClick={() => setSelectedDay({ date: day.date, siteId, periode: 'apres_midi' })}
+        />
       </div>
     );
   };

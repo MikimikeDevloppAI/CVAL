@@ -13,9 +13,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 interface GeneratePdfDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
-export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps) {
+export function GeneratePdfDialog({ open, onOpenChange, embedded = false }: GeneratePdfDialogProps) {
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>([]);
   const [availableWeeks, setAvailableWeeks] = useState<{ date: Date; label: string; value: string }[]>([]);
   const { pdfs, loading, generating, generatePdf } = usePdfHistory();
@@ -81,19 +82,8 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
     window.open(pdfUrl, '_blank');
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto backdrop-blur-xl bg-card/95 border-2 border-teal-200/50 dark:border-teal-800/50">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
-            Générer un PDF Planning
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Générer et télécharger un PDF du planning des assistants médicaux
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6">
+  const content = (
+    <div className="space-y-6">
           {/* Selection Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -243,7 +233,30 @@ export function GeneratePdfDialog({ open, onOpenChange }: GeneratePdfDialogProps
               )}
             </ScrollArea>
           </div>
-        </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
+        <h1 className="text-2xl font-bold mb-6">Générer un PDF Planning</h1>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto backdrop-blur-xl bg-card/95 border-2 border-teal-200/50 dark:border-teal-800/50">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
+            Générer un PDF Planning
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Générer et télécharger un PDF du planning des assistants médicaux
+          </DialogDescription>
+        </DialogHeader>
+        {content}
       </DialogContent>
     </Dialog>
   );

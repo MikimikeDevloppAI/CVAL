@@ -361,15 +361,15 @@ export function HoraireLineEdit({ horaire, jour, sites, typesIntervention, onUpd
   }
 
   return (
-    <div 
+    <div
       className="group/line p-2 rounded-lg hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
       onClick={() => setIsEditing(true)}
     >
       {/* Première ligne: Jour, Créneau, Alternance, Site */}
       <div className="flex items-center gap-2 mb-1">
-        <Badge variant="outline" className="w-12 justify-center bg-muted/30 shrink-0">
+        <span className="text-sm font-medium w-20 shrink-0 text-foreground">
           {jour}
-        </Badge>
+        </span>
 
         <Badge 
           variant="secondary" 
