@@ -60,11 +60,11 @@ export function OperationsPopup({ open, onOpenChange, embedded = false }: Operat
           <div className="flex gap-2 shrink-0">
             <SecondaryButton onClick={() => setShowBesoinTypeDialog(true)}>
               <ListPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Ajouter un type de besoin</span>
+              <span className="hidden sm:inline">+ Ajouter</span>
             </SecondaryButton>
             <PrimaryButton onClick={() => typesManagementRef.current?.openAddDialog()}>
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Ajouter un type d'opération</span>
+              <span className="hidden sm:inline">+ Ajouter</span>
             </PrimaryButton>
           </div>
         )}

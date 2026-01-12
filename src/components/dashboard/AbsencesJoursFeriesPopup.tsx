@@ -576,7 +576,7 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
       {/* Tabs + Search + Button Row */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 mb-6 shrink-0">
         {/* Tabs */}
-        <div className="flex gap-2 p-1 rounded-xl bg-muted/50 backdrop-blur-sm border border-border/30 shrink-0">
+        <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50 shrink-0">
           <TabButton
             active={activeTab === 'absences'}
             onClick={() => setActiveTab('absences')}
