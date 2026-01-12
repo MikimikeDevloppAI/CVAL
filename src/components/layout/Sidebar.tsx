@@ -6,7 +6,6 @@ import {
   Users,
   CalendarX,
   LayoutDashboard,
-  BotMessageSquare,
   HelpCircle,
   ClipboardList,
   Building,
@@ -42,7 +41,6 @@ export const Sidebar = () => {
   const [unfilledNeedsCount, setUnfilledNeedsCount] = useState(0);
   const [unfilledNeedsSummaryOpen, setUnfilledNeedsSummaryOpen] = useState(false);
   const [unfilledNeedsLoading, setUnfilledNeedsLoading] = useState(false);
-  const [pendingAbsences, setPendingAbsences] = useState(0);
 
   const fetchUnfilledNeedsCount = async () => {
     setUnfilledNeedsLoading(true);
@@ -72,18 +70,6 @@ export const Sidebar = () => {
     }
   };
 
-  const fetchPendingAbsences = async () => {
-    try {
-      const { data } = await supabase
-        .from('absences')
-        .select('id')
-        .eq('statut', 'en_attente');
-      setPendingAbsences(data?.length || 0);
-    } catch (error) {
-      console.error('Error fetching pending absences:', error);
-    }
-  };
-
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
@@ -101,7 +87,6 @@ export const Sidebar = () => {
 
     fetchProfile();
     fetchUnfilledNeedsCount();
-    fetchPendingAbsences();
   }, [user]);
 
   const getInitials = () => {
@@ -167,7 +152,7 @@ export const Sidebar = () => {
               <NavLink to="/assistants" icon={Users} label="Assistants médicaux" onLinkClick={onLinkClick} />
               <NavLink to="/sites" icon={Building} label="Sites" onLinkClick={onLinkClick} />
               <NavLink to="/operations" icon={ClipboardList} label="Opérations" onLinkClick={onLinkClick} />
-              <NavLink to="/absences" icon={CalendarX} label="Absences" badge={pendingAbsences} onLinkClick={onLinkClick} />
+              <NavLink to="/absences" icon={CalendarX} label="Absences" onLinkClick={onLinkClick} />
             </AccordionContent>
           </AccordionItem>
         </Accordion>

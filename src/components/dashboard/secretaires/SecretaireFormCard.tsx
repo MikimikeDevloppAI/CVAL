@@ -370,7 +370,7 @@ export function SecretaireFormCard({ secretaire, onSuccess, onBack }: Secretaire
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
         >
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {saving ? 'Enregistrement...' : (

@@ -19,6 +19,7 @@ import {
 import { Link } from 'react-router-dom';
 import { UnfilledNeedsSummaryDialog } from '@/components/dashboard/UnfilledNeedsSummaryDialog';
 import { GeneratePdfDialog } from '@/components/dashboard/GeneratePdfDialog';
+import { OptimizePlanningDialog } from '@/components/planning/OptimizePlanningDialog';
 
 export interface DeficitDetail {
   besoin_operation_nom: string;
@@ -153,6 +154,7 @@ const DashboardPage = () => {
   const [addOperationDialogOpen, setAddOperationDialogOpen] = useState(false);
   const [optimizeSummaryOpen, setOptimizeSummaryOpen] = useState(false);
   const [generatePdfDialogOpen, setGeneratePdfDialogOpen] = useState(false);
+  const [planifierDialogOpen, setPlanifierDialogOpen] = useState(false);
 
   // État pour le dialog d'assignation d'assistant aux besoins opératoires
   const [assignAssistantDialog, setAssignAssistantDialog] = useState<{
@@ -1086,7 +1088,7 @@ const DashboardPage = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-md"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Actions
@@ -1095,14 +1097,12 @@ const DashboardPage = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem onClick={() => setOptimizeSummaryOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2 text-teal-500" />
+                <Sparkles className="h-4 w-4 mr-2 text-blue-500" />
                 Optimiser la semaine
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/planifier" className="flex items-center w-full">
-                  <CalendarPlanIcon className="h-4 w-4 mr-2 text-blue-500" />
-                  Planifier
-                </Link>
+              <DropdownMenuItem onClick={() => setPlanifierDialogOpen(true)}>
+                <CalendarPlanIcon className="h-4 w-4 mr-2 text-blue-500" />
+                Planifier
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setGeneratePdfDialogOpen(true)}>
                 <FileText className="h-4 w-4 mr-2 text-purple-500" />
@@ -1154,6 +1154,11 @@ const DashboardPage = () => {
       <GeneratePdfDialog
         open={generatePdfDialogOpen}
         onOpenChange={setGeneratePdfDialogOpen}
+      />
+
+      <OptimizePlanningDialog
+        open={planifierDialogOpen}
+        onOpenChange={setPlanifierDialogOpen}
       />
     </div>
   );

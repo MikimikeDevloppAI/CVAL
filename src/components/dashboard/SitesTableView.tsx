@@ -4,7 +4,7 @@ import { DashboardSite } from '@/pages/DashboardPage';
 // Table HTML native utilisée pour le sticky header
 import { User, Stethoscope, Plus, UserX } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 import { AddMedecinToDayDialog } from './AddMedecinToDayDialog';
@@ -417,32 +417,61 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
     return true;
   });
 
-  // Auto-scroll vers aujourd'hui au chargement
+  // Générer une clé unique pour la période affichée basée sur weekDays props
+  const periodKey = useMemo(() => {
+    if (weekDays.length === 0) return '';
+    const first = format(weekDays[0], 'yyyy-MM-dd');
+    const last = format(weekDays[weekDays.length - 1], 'yyyy-MM-dd');
+    return `${first}_${last}`;
+  }, [weekDays]);
+
+  // Fonction pour scroller vers la semaine contenant aujourd'hui
+  const scrollToToday = () => {
+    if (!scrollContainerRef.current || weekdaysOnly.length === 0) return;
+
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayIndex = weekdaysOnly.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
+
+    const columnWidth = 180; // min-w-[180px]
+
+    if (todayIndex >= 0) {
+      // Trouver le lundi de la semaine contenant aujourd'hui
+      const todayDayOfWeek = today.getDay(); // 0 = dimanche, 1 = lundi, etc.
+      // Calculer combien de jours depuis le lundi (lundi = 0, mardi = 1, etc.)
+      const daysSinceMonday = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
+
+      // Trouver l'index du lundi de cette semaine dans weekdaysOnly
+      // On recule de daysSinceMonday jours depuis aujourd'hui
+      const mondayIndex = Math.max(0, todayIndex - daysSinceMonday);
+
+      // Scroll pour que le lundi de la semaine soit à gauche
+      const scrollPosition = mondayIndex * columnWidth;
+
+      // Le scroll maximal possible
+      const maxScroll = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+      const finalScrollPosition = Math.min(scrollPosition, maxScroll);
+
+      scrollContainerRef.current.scrollLeft = finalScrollPosition;
+    } else {
+      // Si aujourd'hui n'est pas dans la période, scroll au début
+      scrollContainerRef.current.scrollLeft = 0;
+    }
+  };
+
+  // Auto-scroll vers aujourd'hui au chargement et à chaque changement de période
+  // Utiliser useEffect avec setTimeout pour s'assurer que tout est rendu
   useEffect(() => {
     // Attendre que les données soient chargées
-    if (localSites.length === 0) return;
+    if (localSites.length === 0 || weekdaysOnly.length === 0) return;
 
+    // Utiliser un délai plus long pour s'assurer que le DOM est complètement rendu
     const timeoutId = setTimeout(() => {
-      if (scrollContainerRef.current && weekdaysOnly.length > 0) {
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const todayIndex = weekdaysOnly.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
-
-        if (todayIndex >= 0) {
-          const columnWidth = 180; // min-w-[180px]
-
-          // Scroll pour que aujourd'hui soit le premier jour visible (à gauche)
-          const scrollPosition = todayIndex * columnWidth;
-
-          scrollContainerRef.current.scrollTo({
-            left: Math.max(0, scrollPosition),
-            behavior: 'auto'
-          });
-        }
-      }
-    }, 100);
+      scrollToToday();
+    }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [weekdaysOnly.length, localSites.length]);
+  }, [periodKey, localSites.length]);
 
   const getDayData = (site: DashboardSite, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -457,6 +486,25 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
 
   const handleDragOver = (e: React.DragEvent, siteId: string, date: string) => {
     e.preventDefault();
+
+    // Auto-scroll vers le haut ou le bas lors du drag
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const mouseY = e.clientY;
+
+      const scrollThreshold = 80; // Distance du bord pour déclencher le scroll
+      const scrollSpeed = 15; // Vitesse du scroll
+
+      // Scroll vers le haut si proche du bord supérieur
+      if (mouseY - containerRect.top < scrollThreshold) {
+        container.scrollTop -= scrollSpeed;
+      }
+      // Scroll vers le bas si proche du bord inférieur
+      else if (containerRect.bottom - mouseY < scrollThreshold) {
+        container.scrollTop += scrollSpeed;
+      }
+    }
 
     // Vérifier si on peut drop ici (même jour uniquement)
     try {

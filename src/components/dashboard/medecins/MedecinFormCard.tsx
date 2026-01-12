@@ -325,7 +325,7 @@ export function MedecinFormCard({ medecin, onSuccess, onBack }: MedecinFormCardP
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
         >
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {saving ? 'Enregistrement...' : (

@@ -561,8 +561,8 @@ export function OptimizePlanningDialog({ open, onOpenChange, embedded = false }:
 
   const content = (
     <>
-      <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-[600px] pr-4">
+      <div className="flex-1 overflow-hidden min-h-0">
+          <ScrollArea className={embedded ? "h-full pr-4" : "h-[600px] pr-4"}>
             <div className="space-y-2">
               {weeks.map((week, index) => {
                 const isExpanded = expandedWeeks.has(index);
@@ -747,8 +747,8 @@ export function OptimizePlanningDialog({ open, onOpenChange, embedded = false }:
 
   if (embedded) {
     return (
-      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-xl p-6">
-        <div className="mb-6">
+      <div className="bg-card/50 backdrop-blur-xl border border-border/50 shadow-xl rounded-2xl p-6 h-[calc(100vh-48px)] flex flex-col">
+        <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
             Planifier les secrétaires
@@ -757,7 +757,9 @@ export function OptimizePlanningDialog({ open, onOpenChange, embedded = false }:
             Sélectionnez une ou plusieurs semaines et configurez les assignations des secrétaires flexibles.
           </p>
         </div>
-        {content}
+        <div className="flex-1 min-h-0 flex flex-col">
+          {content}
+        </div>
       </div>
     );
   }

@@ -3,7 +3,7 @@ import { Button, ButtonProps } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * PrimaryButton - Bouton principal avec gradient teal/emerald
+ * PrimaryButton - Bouton principal avec couleur primary (cyan/sky)
  * Utilisé pour les actions principales (Ajouter, Créer, etc.)
  */
 export const PrimaryButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -13,10 +13,10 @@ export const PrimaryButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(
           'gap-2 h-11 rounded-xl',
-          'bg-gradient-to-r from-teal-500 to-emerald-500',
-          'hover:from-teal-600 hover:to-emerald-600',
-          'shadow-md shadow-teal-500/20',
-          'hover:shadow-lg hover:shadow-teal-500/30',
+          'bg-primary hover:bg-primary/90',
+          'text-primary-foreground',
+          'shadow-md shadow-primary/20',
+          'hover:shadow-lg hover:shadow-primary/30',
           'transition-all',
           className
         )}
@@ -74,7 +74,7 @@ export const TabButton = React.forwardRef<HTMLButtonElement, TabButtonProps>(
         className={cn(
           'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex-1 md:flex-initial justify-center',
           active
-            ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-md shadow-teal-500/20'
+            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
           className
         )}

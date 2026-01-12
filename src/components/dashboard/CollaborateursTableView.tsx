@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
@@ -443,31 +443,40 @@ export function CollaborateursTableView({
     return a.nom_complet.localeCompare(b.nom_complet, 'fr');
   });
 
-  // Auto-scroll vers aujourd'hui au chargement
+  // Générer une clé unique pour la période affichée basée sur weekDays props
+  const periodKey = useMemo(() => {
+    if (weekDays.length === 0) return '';
+    const first = format(weekDays[0], 'yyyy-MM-dd');
+    const last = format(weekDays[weekDays.length - 1], 'yyyy-MM-dd');
+    return `${first}_${last}`;
+  }, [weekDays]);
+
+  // Auto-scroll vers aujourd'hui au chargement et à chaque changement de période
   useEffect(() => {
     // Attendre que les données soient chargées
-    if (sortedCollaborateurs.length === 0) return;
+    if (sortedCollaborateurs.length === 0 || weekdaysOnly.length === 0) return;
 
+    // Délai plus long pour s'assurer que le DOM est prêt
     const timeoutId = setTimeout(() => {
-      if (scrollContainerRef.current && weekdaysOnly.length > 0) {
+      if (scrollContainerRef.current) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const todayIndex = weekdaysOnly.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
 
-        if (todayIndex >= 0) {
-          const columnWidth = 100;
-          const scrollPosition = todayIndex * columnWidth;
+        const columnWidth = 100;
 
+        if (todayIndex >= 0) {
           // Scroll pour que aujourd'hui soit le premier jour visible (à gauche)
-          scrollContainerRef.current.scrollTo({
-            left: Math.max(0, scrollPosition),
-            behavior: 'auto'
-          });
+          const scrollPosition = todayIndex * columnWidth;
+          scrollContainerRef.current.scrollLeft = Math.max(0, scrollPosition);
+        } else {
+          // Si aujourd'hui n'est pas dans la période, scroll au début
+          scrollContainerRef.current.scrollLeft = 0;
         }
       }
-    }, 100);
+    }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [weekdaysOnly.length, sortedCollaborateurs.length]);
+  }, [periodKey, sortedCollaborateurs.length, weekdaysOnly]);
 
   // Vérifier si un collaborateur est en congé pour une date donnée
   const isCollaborateurOnLeave = (collaborateurId: string, collaborateurType: 'medecin' | 'assistant', dateStr: string): boolean => {
