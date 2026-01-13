@@ -303,11 +303,6 @@ export function MedecinDetailDialog({ medecin, open, onOpenChange, onUpdate }: M
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-border/50">
           <div className="flex items-start gap-4 pr-8">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <span className="text-lg font-bold text-white">
-                {medecin.first_name?.[0]}{medecin.name?.[0]}
-              </span>
-            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1">
                 <h2 className="text-xl font-semibold text-foreground">

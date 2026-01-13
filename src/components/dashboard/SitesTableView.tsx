@@ -217,10 +217,11 @@ interface AbsenceAvatarProps {
 }
 
 function AbsenceAvatar({ initials, fullName, type }: AbsenceAvatarProps) {
-  // Même couleurs que PersonAvatar selon le type
-  const typeColors = {
-    medecin: 'from-teal-500 to-emerald-600 shadow-teal-500/25',
-    assistant: 'from-cyan-500 to-blue-600 shadow-cyan-500/25',
+  // Même style que les avatars normaux (désaturé avec bordure couleur)
+  // Médecins = teal/vert, Assistants = bleu clair (sky)
+  const typeStyles = {
+    medecin: 'bg-slate-50 border-2 border-teal-600 text-slate-700',
+    assistant: 'bg-slate-50 border-2 border-sky-500 text-slate-700',
   };
 
   return (
@@ -229,14 +230,14 @@ function AbsenceAvatar({ initials, fullName, type }: AbsenceAvatarProps) {
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "relative flex items-center justify-center text-white text-[10px] font-bold",
-              "w-8 h-8 rounded-lg shadow-md bg-gradient-to-br",
-              typeColors[type]
+              "relative flex items-center justify-center text-[11px] font-semibold",
+              "w-8 h-8 rounded-lg shadow-sm",
+              typeStyles[type]
             )}
           >
             <span>{initials}</span>
-            {/* Point rouge pour indiquer l'absence */}
-            <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background bg-red-500 ring-2 ring-red-500/40" />
+            {/* Point rouge pour indiquer l'absence - en bas à droite */}
+            <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background bg-red-500" />
           </div>
         </TooltipTrigger>
         <TooltipContent
@@ -245,7 +246,7 @@ function AbsenceAvatar({ initials, fullName, type }: AbsenceAvatarProps) {
         >
           <div className="flex flex-col gap-1">
             <span className="font-semibold text-foreground">{fullName}</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-500/15 text-red-600 dark:text-red-400">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
               {type === 'medecin' ? 'Médecin absent' : 'Assistant absent'}
             </span>
           </div>
@@ -1016,11 +1017,9 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
                   <th
                     key={format(date, 'yyyy-MM-dd')}
                     className={cn(
-                      "text-center min-w-[180px] py-2",
+                      "text-center min-w-[180px] py-2 bg-card",
                       // Séparateur de semaine (bordure épaisse à gauche du lundi)
-                      isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
-                      isToday ? "bg-primary" : "bg-card",
-                      isWeekend && !isToday && "bg-muted/50"
+                      isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30"
                     )}
                   >
                     <div className={cn(
@@ -1028,19 +1027,19 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
                     )}>
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-widest",
-                        isToday ? "text-primary-foreground" : "text-muted-foreground/70"
+                        isToday ? "text-primary" : "text-muted-foreground/70"
                       )}>
                         {format(date, 'EEE', { locale: fr })}
                       </span>
                       <span className={cn(
                         "text-xl font-black leading-none",
-                        isToday ? "text-primary-foreground" : "text-foreground"
+                        isToday ? "text-primary" : "text-foreground"
                       )}>
                         {format(date, 'd')}
                       </span>
                       <span className={cn(
                         "text-[9px] font-medium uppercase tracking-wide",
-                        isToday ? "text-primary-foreground/80" : "text-muted-foreground/60"
+                        isToday ? "text-primary/80" : "text-muted-foreground/60"
                       )}>
                         {format(date, 'MMM', { locale: fr })}
                       </span>
@@ -1131,15 +1130,11 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
                         className={cn(
                           "p-2 cursor-pointer transition-all duration-200 align-top relative group",
                           // Séparateur de semaine
-                          isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
-                          // Alternance de couleur fond (sans mise en surbrillance pour aujourd'hui)
-                          !hasDeficit && (isEvenRow
+                          isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30",
+                          // Alternance de couleur fond
+                          isEvenRow
                             ? "bg-white dark:bg-slate-900"
-                            : "bg-slate-100 dark:bg-slate-800"),
-                          isWeekend && !hasDeficit && (isEvenRow
-                            ? "bg-slate-50 dark:bg-slate-900/50"
-                            : "bg-slate-200 dark:bg-slate-700/80"),
-                          hasDeficit && "bg-red-500/10",
+                            : "bg-slate-100 dark:bg-slate-800",
                           "hover:bg-accent/30",
                           // Styles pour le drag and drop
                           isDragOver && isValidDropZone && "ring-2 ring-primary ring-offset-2 bg-primary/10",
@@ -1152,6 +1147,10 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
                         onDrop={(e) => handleDrop(e, site.site_id, site.site_nom, dateStr)}
                       >
                         <div className="flex items-start gap-2 min-h-[36px]">
+                          {/* Point rouge si déficit */}
+                          {hasDeficit && (
+                            <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+                          )}
                           {/* Contenu principal (personnes) */}
                           <div className="flex-1 flex flex-col gap-1">
                             {/* Ligne 1: Médecins (vert) */}
@@ -1295,12 +1294,12 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
               );
             })}
 
-            {/* Ligne des absences - toujours affichée */}
-            <tr className="border-b border-border/30 bg-red-500/5">
-                <td className="sticky left-0 z-10 bg-red-50 dark:bg-red-950/50 border-r border-border/30 py-3 px-4 min-w-[140px] max-w-[140px]">
+            {/* Ligne des absences - même style que les autres lignes */}
+            <tr className="border-b border-border/30">
+                <td className="sticky left-0 z-10 bg-card border-r border-border/30 py-3 px-4 min-w-[140px] max-w-[140px]">
                   <div className="flex items-center gap-2">
-                    <UserX className="h-4 w-4 text-red-500" />
-                    <span className="font-semibold text-sm text-red-600 dark:text-red-400">
+                    <UserX className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-sm text-foreground">
                       Absences
                     </span>
                   </div>
@@ -1325,8 +1324,7 @@ export function SitesTableView({ sites, weekDays, onDayClick, onRefresh, absence
                       className={cn(
                         "p-2 align-top",
                         // Séparateur de semaine
-                        isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
-                        isWeekend && "bg-muted/20"
+                        isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30"
                       )}
                     >
                       <div className="flex flex-col gap-1 min-h-[36px]">

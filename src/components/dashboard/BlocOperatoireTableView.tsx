@@ -268,14 +268,11 @@ function DayCell({
       className={cn(
         "p-1.5 align-top transition-all duration-200 min-w-[220px]",
         // Séparateur de semaine
-        isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
+        isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30",
         // Alternance de couleur fond
         isEvenRow
           ? "bg-white dark:bg-slate-900"
           : "bg-slate-100 dark:bg-slate-800",
-        isWeekend && (isEvenRow
-          ? "bg-slate-50 dark:bg-slate-900/50"
-          : "bg-slate-200 dark:bg-slate-700/80"),
         "hover:bg-accent/30"
       )}
     >
@@ -392,27 +389,26 @@ export function BlocOperatoireTableView({
                     key={format(date, 'yyyy-MM-dd')}
                     className={cn(
                       "text-center min-w-[220px] py-2",
-                      isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
-                      isToday ? "bg-primary" : "bg-card",
-                      isWeekend && !isToday && "bg-muted/50"
+                      isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30",
+                      isToday ? "bg-card ring-2 ring-inset ring-primary" : "bg-card"
                     )}
                   >
                     <div className="flex flex-col items-center gap-0 px-2 py-1 rounded-xl transition-colors">
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-widest",
-                        isToday ? "text-primary-foreground" : "text-muted-foreground/70"
+                        isToday ? "text-primary" : "text-muted-foreground/70"
                       )}>
                         {format(date, 'EEE', { locale: fr })}
                       </span>
                       <span className={cn(
                         "text-xl font-black leading-none",
-                        isToday ? "text-primary-foreground" : "text-foreground"
+                        isToday ? "text-primary" : "text-foreground"
                       )}>
                         {format(date, 'd')}
                       </span>
                       <span className={cn(
                         "text-[9px] font-medium uppercase tracking-wide",
-                        isToday ? "text-primary-foreground/80" : "text-muted-foreground/60"
+                        isToday ? "text-primary/80" : "text-muted-foreground/60"
                       )}>
                         {format(date, 'MMM', { locale: fr })}
                       </span>

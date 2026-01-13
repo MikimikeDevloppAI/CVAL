@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SecretaireDayActionsDialog } from './SecretaireDayActionsDialog';
 import { MedecinActionsDialog } from './MedecinActionsDialog';
-import { User, Stethoscope, Filter, Palmtree } from 'lucide-react';
+import { UserCircle, Stethoscope, Filter, Palmtree } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -381,14 +381,10 @@ function DayCell({
     <td
       className={cn(
         "p-2 align-middle transition-all duration-200 min-w-[100px]",
-        isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
+        isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30",
         isEvenRow
           ? "bg-white dark:bg-slate-900"
           : "bg-slate-100 dark:bg-slate-800",
-        isWeekend && (isEvenRow
-          ? "bg-slate-50 dark:bg-slate-900/50"
-          : "bg-slate-200 dark:bg-slate-700/80"),
-        isToday && "ring-2 ring-inset ring-primary/20",
         isOnLeave && "bg-orange-50/30 dark:bg-orange-950/10",
         "hover:bg-accent/30"
       )}
@@ -553,7 +549,7 @@ export function CollaborateursTableView({
                         Tous ({counts.tous})
                       </DropdownMenuRadioItem>
                       <DropdownMenuRadioItem value="assistant">
-                        <User className="h-4 w-4 mr-2 text-cyan-500" />
+                        <UserCircle className="h-4 w-4 mr-2 text-sky-500" />
                         Assistants ({counts.assistant})
                       </DropdownMenuRadioItem>
                       <DropdownMenuRadioItem value="medecin">
@@ -575,28 +571,26 @@ export function CollaborateursTableView({
                   <th
                     key={format(date, 'yyyy-MM-dd')}
                     className={cn(
-                      "text-center min-w-[100px] py-2",
-                      isMonday && !isFirstDay ? "border-l-4 border-l-primary/30" : "border-l border-border/30",
-                      isToday ? "bg-primary" : "bg-card",
-                      isWeekend && !isToday && "bg-muted/50"
+                      "text-center min-w-[100px] py-2 bg-card",
+                      isMonday && !isFirstDay ? "border-l-4 border-l-border" : "border-l border-border/30"
                     )}
                   >
                     <div className="flex flex-col items-center gap-0 px-2 py-1 rounded-xl transition-colors">
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-widest",
-                        isToday ? "text-primary-foreground" : "text-muted-foreground/70"
+                        isToday ? "text-primary" : "text-muted-foreground/70"
                       )}>
                         {format(date, 'EEE', { locale: fr })}
                       </span>
                       <span className={cn(
                         "text-xl font-black leading-none",
-                        isToday ? "text-primary-foreground" : "text-foreground"
+                        isToday ? "text-primary" : "text-foreground"
                       )}>
                         {format(date, 'd')}
                       </span>
                       <span className={cn(
                         "text-[9px] font-medium uppercase tracking-wide",
-                        isToday ? "text-primary-foreground/80" : "text-muted-foreground/60"
+                        isToday ? "text-primary/80" : "text-muted-foreground/60"
                       )}>
                         {format(date, 'MMM', { locale: fr })}
                       </span>
@@ -621,13 +615,16 @@ export function CollaborateursTableView({
                   )}>
                     <div className="flex items-center gap-2">
                       <div className={cn(
-                        "flex items-center justify-center w-8 h-8 rounded-lg text-white text-[10px] font-bold",
-                        "bg-gradient-to-br shadow-sm",
+                        "flex items-center justify-center w-8 h-8 rounded-lg",
                         collaborateur.type === 'medecin'
-                          ? "from-teal-500 to-emerald-600"
-                          : "from-cyan-500 to-blue-600"
+                          ? "bg-teal-50 border border-teal-200"
+                          : "bg-sky-50 border border-sky-200"
                       )}>
-                        {getInitials(collaborateur.nom_complet)}
+                        {collaborateur.type === 'medecin' ? (
+                          <Stethoscope className="h-4 w-4 text-teal-600" />
+                        ) : (
+                          <UserCircle className="h-4 w-4 text-sky-500" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-foreground truncate block leading-tight">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Search, Calendar, Trash2, CalendarOff, CalendarX, User } from 'lucide-react';
+import { Plus, Edit, Search, Calendar, Trash2, CalendarOff, CalendarX, Stethoscope, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PrimaryButton, TabButton } from '@/components/ui/primary-button';
 import { Input } from '@/components/ui/input';
@@ -403,10 +403,14 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
         <div className="relative p-5">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-4 flex-1 min-w-0">
-              {/* Avatar - teal/emerald pour médecins, cyan/blue pour assistants */}
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${isMedecin ? 'from-teal-500 to-emerald-600 shadow-teal-500/20 group-hover:shadow-teal-500/30' : 'from-cyan-500 to-blue-600 shadow-cyan-500/20 group-hover:shadow-cyan-500/30'} flex items-center justify-center shrink-0 shadow-md group-hover:shadow-lg transition-shadow`}>
-                <User className="h-6 w-6 text-white" />
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              {/* Icon - teal pour médecins, sky pour assistants */}
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isMedecin ? 'bg-teal-50 border border-teal-200' : 'bg-sky-50 border border-sky-200'}`}>
+                {isMedecin ? (
+                  <Stethoscope className="h-4 w-4 text-teal-600" />
+                ) : (
+                  <UserCircle className="h-4 w-4 text-sky-500" />
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -453,8 +457,8 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
           {/* Content */}
           <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <Calendar className="h-4 w-4 text-primary" />
+              <div className="w-8 h-8 rounded-lg bg-muted/50 border border-border flex items-center justify-center shrink-0">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Période</p>
@@ -493,10 +497,10 @@ export const AbsencesJoursFeriesPopup = ({ open, onOpenChange, onAbsenceChange, 
       <div className="relative p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-4 flex-1 min-w-0">
-            {/* Avatar */}
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20 group-hover:shadow-lg group-hover:shadow-teal-500/30 transition-shadow">
-              <Calendar className="h-6 w-6 text-white" />
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            {/* Icon */}
+            <div className="w-9 h-9 rounded-lg bg-muted/50 border border-border flex items-center justify-center shrink-0">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </div>
 
             <div className="flex-1 min-w-0">

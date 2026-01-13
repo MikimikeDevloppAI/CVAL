@@ -57,17 +57,11 @@ export function DraggablePersonAvatar({
 }: DraggablePersonAvatarProps) {
   const [isDragging, setIsDragging] = useState(false);
 
-  // Couleurs différentes pour médecins (vert teal) et assistants (cyan)
-  const typeColors = {
-    medecin: 'from-teal-500 to-emerald-600 shadow-teal-500/25',
-    assistant: 'from-cyan-500 to-blue-600 shadow-cyan-500/25',
-  };
-
-  // Couleurs des points pour les périodes
-  const periodDotColors = {
-    matin: 'bg-blue-500 ring-2 ring-blue-500/40',
-    apres_midi: 'bg-amber-500 ring-2 ring-amber-500/40',
-    journee: 'bg-emerald-500 ring-2 ring-emerald-500/40',
+  // Style désaturé : fond gris clair + bordure couleur distincte
+  // Médecins = teal/vert, Assistants = bleu clair (sky) pour bien différencier
+  const typeStyles = {
+    medecin: 'bg-slate-50 border-2 border-teal-600 text-slate-700',
+    assistant: 'bg-slate-50 border-2 border-sky-500 text-slate-700',
   };
 
   const periodLabels = {
@@ -122,26 +116,33 @@ export function DraggablePersonAvatar({
             onDragEnd={handleDragEnd}
             onClick={onClick}
             className={cn(
-              "relative flex items-center justify-center text-white text-[10px] font-bold",
-              "bg-gradient-to-br shadow-md transition-all duration-200",
-              "hover:scale-110 hover:shadow-lg hover:-translate-y-0.5",
+              "relative flex items-center justify-center text-[11px] font-semibold",
+              "shadow-sm transition-all duration-200",
+              "hover:shadow-md hover:bg-slate-100",
               "focus:outline-none cursor-grab active:cursor-grabbing",
-              typeColors[personType],
+              typeStyles[personType],
               hasTags ? "w-auto min-w-[32px] h-8 rounded-lg px-1.5 gap-1" : "w-8 h-8 rounded-lg",
               isDragging && "opacity-50 scale-95"
             )}
           >
             <span>{initials}</span>
             {hasTags && (
-              <span className="text-[8px] font-black text-white/90 bg-white/20 px-1 py-0.5 rounded">
+              <span className="text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 py-0.5 rounded">
                 {tags.join(' ')}
               </span>
             )}
-            {/* Point indicateur de période */}
-            <div className={cn(
-              "absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background",
-              periodDotColors[period]
-            )} />
+            {/* Indicateur de période - demi-remplissage: gauche=matin, droite=après-midi, plein=journée */}
+            <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background bg-slate-200 overflow-hidden">
+              {period === 'matin' && (
+                <div className="absolute left-0 top-0 w-1/2 h-full bg-blue-500" />
+              )}
+              {period === 'apres_midi' && (
+                <div className="absolute right-0 top-0 w-1/2 h-full bg-amber-500" />
+              )}
+              {period === 'journee' && (
+                <div className="absolute inset-0 bg-emerald-500" />
+              )}
+            </div>
           </button>
         </TooltipTrigger>
         <TooltipContent
@@ -151,16 +152,11 @@ export function DraggablePersonAvatar({
           <div className="flex flex-col gap-1">
             <span className="font-semibold text-foreground">{fullName}</span>
             <div className="flex items-center gap-2">
-              <span className={cn(
-                "text-[10px] px-2 py-0.5 rounded-full font-medium",
-                period === 'matin' && "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-                period === 'apres_midi' && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-                period === 'journee' && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-              )}>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
                 {periodLabels[period]}
               </span>
               {hasTags && (
-                <span className="text-[10px] font-bold text-primary">
+                <span className="text-[10px] font-bold text-slate-500">
                   {tags.join(' ')}
                 </span>
               )}

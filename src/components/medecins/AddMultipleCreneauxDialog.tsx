@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Calendar as CalendarIconComponent, MapPin } from 'lucide-react';
+import { Calendar as CalendarIconComponent, MapPin, Stethoscope } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -179,10 +179,13 @@ export function AddMultipleCreneauxDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl backdrop-blur-xl bg-card/95 border-2 border-cyan-200/50 dark:border-cyan-800/50">
+      <DialogContent className="max-w-4xl backdrop-blur-xl bg-card/95 border border-border/50">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent">
-            Ajouter plusieurs créneaux
+          <DialogTitle className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center">
+              <Stethoscope className="h-5 w-5 text-teal-600" />
+            </div>
+            <span className="text-xl font-bold text-foreground">Ajouter plusieurs créneaux</span>
           </DialogTitle>
           <DialogDescription className="sr-only">Sélectionnez plusieurs dates pour ajouter des créneaux</DialogDescription>
         </DialogHeader>
@@ -199,7 +202,7 @@ export function AddMultipleCreneauxDialog({
                       <FormLabel>Site</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50">
+                          <SelectTrigger>
                             <SelectValue placeholder="Sélectionner un site" />
                           </SelectTrigger>
                         </FormControl>
@@ -224,7 +227,7 @@ export function AddMultipleCreneauxDialog({
                       <FormLabel>Période</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
@@ -248,7 +251,7 @@ export function AddMultipleCreneauxDialog({
                         <FormLabel>Type d'intervention <span className="text-destructive">*</span></FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50">
+                            <SelectTrigger>
                               <SelectValue placeholder="Sélectionner un type" />
                             </SelectTrigger>
                           </FormControl>
@@ -290,7 +293,7 @@ export function AddMultipleCreneauxDialog({
 
               <div className="space-y-2">
                 <FormLabel className="flex items-center gap-2">
-                  <CalendarIconComponent className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                  <CalendarIconComponent className="h-4 w-4 text-muted-foreground" />
                   Sélectionner les dates
                 </FormLabel>
                 <Calendar
@@ -298,7 +301,7 @@ export function AddMultipleCreneauxDialog({
                   selected={selectedDates}
                   onSelect={(dates) => dates && setSelectedDates(dates)}
                   locale={fr}
-                  className="rounded-xl border-2 border-cyan-200/50 dark:border-cyan-800/50 backdrop-blur-xl bg-card/95 p-3"
+                  className="rounded-xl border border-border/50 bg-card/95 p-3"
                   modifiers={{
                     selected: selectedDates,
                   }}
@@ -317,14 +320,13 @@ export function AddMultipleCreneauxDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="backdrop-blur-xl bg-card/95 border-cyan-200/50 dark:border-cyan-800/50"
               >
                 Annuler
               </Button>
               <Button
                 type="submit"
                 disabled={loading || selectedDates.length === 0}
-                className="backdrop-blur-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white border-0 shadow-lg hover:shadow-xl hover:shadow-cyan-500/20 transition-all duration-300"
+                className="bg-primary hover:bg-primary/90"
               >
                 {loading ? 'Ajout en cours...' : `Ajouter ${selectedDates.length} date(s)`}
               </Button>

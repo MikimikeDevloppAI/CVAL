@@ -74,7 +74,7 @@ export const TabButton = React.forwardRef<HTMLButtonElement, TabButtonProps>(
         className={cn(
           'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all flex-1 md:flex-initial justify-center',
           active
-            ? 'bg-card text-foreground shadow-sm'
+            ? 'bg-card text-foreground ring-1 ring-primary shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
           className
         )}

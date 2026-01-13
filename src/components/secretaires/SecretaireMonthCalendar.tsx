@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, startOfWeek, endOfWeek, addMonths, subMonths, isWeekend, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, startOfWeek, endOfWeek, addMonths, subMonths, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalendarIcon, UserCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { checkSecretaireOverlap, getOverlapErrorMessage } from '@/lib/overlapValidation';
@@ -424,32 +424,38 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
   const calendarEnd = endOfWeek(monthEnd, { locale: fr, weekStartsOn: 1 });
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  // Filter out Sundays (getDay() === 0)
+  const calendarDaysWithoutSunday = calendarDays.filter(day => getDay(day) !== 0);
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto backdrop-blur-xl bg-card/95 border-2 border-primary/20">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto backdrop-blur-xl bg-card/95 border border-border/50">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Calendrier de {secretaireNom}
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center">
+                <UserCircle className="h-5 w-5 text-sky-500" />
+              </div>
+              <span className="text-xl font-bold text-foreground">Calendrier de {secretaireNom}</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
               Calendrier mensuel de la secrétaire {secretaireNom}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Navigation */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={handlePrevMonth}
-                className="backdrop-blur-xl bg-card/95 border-primary/30 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
+                className="h-8 w-8"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              <div className="text-xl font-bold text-foreground">
+              <div className="text-base font-semibold text-foreground capitalize">
                 {format(currentDate, 'MMMM yyyy', { locale: fr })}
               </div>
 
@@ -457,7 +463,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
                 variant="outline"
                 size="icon"
                 onClick={handleNextMonth}
-                className="backdrop-blur-xl bg-card/95 border-primary/30 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
+                className="h-8 w-8"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -465,29 +471,29 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
               <Button
                 variant="outline"
                 onClick={handleToday}
-                className="backdrop-blur-xl bg-card/95 border-primary/30 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
+                className="h-8 text-xs"
               >
-                <CalendarIcon className="h-4 w-4 mr-2" />
+                <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
                 Aujourd'hui
               </Button>
 
               <Button
                 onClick={() => setMultipleSlotsOpen(true)}
-                className="backdrop-blur-xl bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white border-0 shadow-lg hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
+                className="h-8 text-xs bg-primary hover:bg-primary/90"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter plusieurs créneaux
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Ajouter plusieurs
               </Button>
             </div>
 
-            {/* Week days header */}
-            <div className="grid grid-cols-7 gap-2">
-              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((day, idx) => (
+            {/* Week days header - 6 columns (no Sunday) */}
+            <div className="grid grid-cols-6 gap-1.5">
+              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map((day, idx) => (
                 <div
                   key={day}
                   className={cn(
-                    'text-center text-xs font-semibold uppercase tracking-wider py-2 rounded-lg',
-                    idx >= 5 ? 'text-muted-foreground bg-accent/30' : 'text-foreground bg-muted/50'
+                    'text-center text-[10px] font-semibold uppercase tracking-wider py-1.5 rounded-lg',
+                    idx === 5 ? 'text-muted-foreground bg-accent/30' : 'text-foreground bg-muted/50'
                   )}
                 >
                   {day}
@@ -495,35 +501,35 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
               ))}
             </div>
 
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day, dayIndex) => {
+            {/* Calendar Grid - 6 columns (no Sunday) */}
+            <div className="grid grid-cols-6 gap-1.5">
+              {calendarDaysWithoutSunday.map((day, dayIndex) => {
                 const dayIsToday = isToday(day);
                 const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-                const isWeekendDay = isWeekend(day);
+                const isSaturday = getDay(day) === 6;
                 const slots = getDaySlots(day);
 
                 return (
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      'min-h-[140px] rounded-xl border-2 backdrop-blur-xl transition-all duration-300 p-2 group animate-fade-in',
+                      'min-h-[90px] rounded-lg border backdrop-blur-xl transition-all duration-300 p-1.5 group',
                       dayIsToday
-                        ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
-                        : isWeekendDay
-                        ? 'border-accent/40 bg-accent/10'
+                        ? 'border-primary ring-2 ring-inset ring-primary/20 bg-primary/5'
+                        : isSaturday
+                        ? 'border-border/30 bg-muted/30'
                         : 'border-border/50 bg-card/50',
                       !isCurrentMonth && 'opacity-40'
                     )}
                     style={{ animationDelay: `${dayIndex * 10}ms` }}
                   >
                     {/* Day header */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={cn('text-sm font-bold', dayIsToday ? 'text-primary' : 'text-foreground')}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={cn('text-xs font-bold', dayIsToday ? 'text-primary' : 'text-foreground')}>
                         {format(day, 'd')}
                       </div>
                       {dayIsToday && (
-                        <Badge variant="default" className="text-xs py-0 px-2 bg-primary/20 text-primary border-primary/30">
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 border-primary/30 text-primary bg-primary/10">
                           Auj.
                         </Badge>
                       )}
@@ -531,62 +537,61 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
 
                     {/* Slots */}
                     <div className="space-y-1">
-                      {slots.map((slot, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => handleEditClick(slot)}
-                          className={cn(
-                            'relative group/item p-2 rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer',
-                            slot.periodes.length === 2
-                              ? 'border-2 bg-opacity-10'
-                              : slot.periodes.includes('matin')
-                              ? 'border-l-4 bg-opacity-10'
-                              : 'border-r-4 bg-opacity-10'
-                          )}
-                          style={{
-                            borderColor: slot.color,
-                            backgroundColor: `${slot.color}15`,
-                          }}
-                        >
-                          <div className="text-xs font-medium truncate" style={{ color: slot.color }}>
-                            {slot.site}
-                          </div>
-                          <div 
-                            className="text-[10px] font-medium mt-0.5"
-                            style={{ 
-                              color: slot.periodes.length === 2 
-                                ? slot.color
-                                : slot.periodes.includes('matin')
-                                ? 'hsl(38, 92%, 50%)'
-                                : 'hsl(221, 83%, 53%)'
-                            }}
+                      {slots.map((slot, idx) => {
+                        const period = slot.periodes.length === 2 ? 'journee' : slot.periodes[0];
+                        const periodColors = {
+                          matin: 'bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300',
+                          apres_midi: 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300',
+                          journee: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+                        };
+                        const periodDotColors = {
+                          matin: 'bg-blue-500',
+                          apres_midi: 'bg-amber-500',
+                          journee: 'bg-emerald-500',
+                        };
+                        const periodLabels = {
+                          matin: 'M',
+                          apres_midi: 'AM',
+                          journee: 'J',
+                        };
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => handleEditClick(slot)}
+                            className={cn(
+                              'relative group/item w-full flex items-center gap-1 px-1.5 py-1 rounded border',
+                              'text-[10px] font-medium transition-all duration-200',
+                              'hover:scale-[1.02] hover:shadow-md cursor-pointer text-left',
+                              periodColors[period]
+                            )}
                           >
-                            {slot.periodes.length === 2
-                              ? 'Journée complète'
-                              : slot.periodes.includes('matin')
-                              ? 'Matin'
-                              : 'Après-midi'}
+                            <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', periodDotColors[period])} />
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate font-medium">{slot.site}</div>
+                            </div>
+                            <span className="text-[8px] opacity-70 shrink-0">{periodLabels[period]}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(slot.ids);
+                              }}
+                              className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-0.5 hover:scale-110 shadow-lg"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClick(slot.ids);
-                            }}
-                            className="absolute -top-1 -right-1 opacity-0 group-hover/item:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:scale-110 shadow-lg"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Add button */}
                     {isCurrentMonth && (
                       <button
                         onClick={() => handleAddClick(day)}
-                        className="w-full mt-2 p-2 rounded-lg border-2 border-dashed border-primary/30 opacity-0 group-hover:opacity-100 hover:border-primary/60 hover:bg-primary/5 transition-all duration-200 flex items-center justify-center gap-1 text-xs font-medium text-primary"
+                        className="w-full mt-1 p-1 rounded border border-dashed border-border/50 opacity-0 group-hover:opacity-100 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 flex items-center justify-center gap-0.5 text-[10px] font-medium text-muted-foreground hover:text-primary"
                       >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="h-2.5 w-2.5" />
                         Ajouter
                       </button>
                     )}
@@ -596,18 +601,18 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-center gap-6 p-4 bg-muted/20 rounded-lg text-xs flex-wrap">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-4 border-2 border-primary rounded" style={{ backgroundColor: 'hsl(var(--primary) / 0.1)' }} />
-                <span>Journée complète</span>
+            <div className="flex items-center justify-center gap-4 p-2 bg-muted/30 rounded-lg text-[10px] flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span className="text-muted-foreground">M = Matin</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-4 border-l-4 border-primary rounded" style={{ backgroundColor: 'hsl(var(--primary) / 0.1)' }} />
-                <span>Matin uniquement</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span className="text-muted-foreground">AM = Après-midi</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-4 border-r-4 border-primary rounded" style={{ backgroundColor: 'hsl(var(--primary) / 0.1)' }} />
-                <span>Après-midi uniquement</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-muted-foreground">J = Journée</span>
               </div>
             </div>
           </div>
@@ -616,9 +621,14 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
 
       {/* Add Capacite Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-primary/20">
+        <DialogContent className="backdrop-blur-xl bg-card/95 border border-border/50">
           <DialogHeader>
-            <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center">
+                <UserCircle className="h-4 w-4 text-sky-500" />
+              </div>
+              <span>Ajouter un créneau</span>
+            </DialogTitle>
             <DialogDescription className="sr-only">Ajouter un créneau pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -662,7 +672,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
               <Button
                 onClick={handleAddCapacite}
                 disabled={loading}
-                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                className="bg-primary hover:bg-primary/90"
               >
                 Ajouter
               </Button>
@@ -673,9 +683,14 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
 
       {/* Edit Capacite Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="backdrop-blur-xl bg-card/95 border-2 border-primary/20">
+        <DialogContent className="backdrop-blur-xl bg-card/95 border border-border/50">
           <DialogHeader>
-            <DialogTitle>Modifier l&apos;assignation</DialogTitle>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center">
+                <UserCircle className="h-4 w-4 text-sky-500" />
+              </div>
+              <span>Modifier l&apos;assignation</span>
+            </DialogTitle>
             <DialogDescription className="sr-only">Modifier l&apos;assignation pour {secretaireNom}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -716,7 +731,7 @@ export function SecretaireMonthCalendar({ open, onOpenChange, secretaireId, secr
               <Button
                 onClick={handleEditSave}
                 disabled={loading}
-                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                className="bg-primary hover:bg-primary/90"
               >
                 Enregistrer
               </Button>

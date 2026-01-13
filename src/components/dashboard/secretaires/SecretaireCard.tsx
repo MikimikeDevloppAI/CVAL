@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronRight, UserCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Secretaire } from './useSecretaires';
@@ -48,14 +48,10 @@ export function SecretaireCard({ secretaire, index, onOpenDetail, onOpenCalendar
       <div className="relative p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-4 flex-1 min-w-0">
-            {/* Avatar */}
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/20 group-hover:shadow-lg group-hover:shadow-cyan-500/30 transition-shadow">
-              <span className="text-sm font-bold text-white">
-                {secretaire.first_name?.[0]}{secretaire.name?.[0]}
-              </span>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center shrink-0">
+              <UserCircle className="h-4 w-4 text-sky-500" />
             </div>
-
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2 mb-1.5 flex-wrap">
                 <div className="flex flex-col min-w-0">

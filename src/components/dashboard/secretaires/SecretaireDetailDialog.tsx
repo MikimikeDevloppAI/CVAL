@@ -398,11 +398,6 @@ export function SecretaireDetailDialog({ secretaire, open, onOpenChange, onUpdat
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-border/50">
           <div className="flex items-start gap-4 pr-8">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <span className="text-lg font-bold text-white">
-                {secretaire.first_name?.[0]}{secretaire.name?.[0]}
-              </span>
-            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h2 className="text-xl font-semibold text-foreground">

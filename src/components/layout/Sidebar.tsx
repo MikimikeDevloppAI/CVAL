@@ -111,11 +111,11 @@ export const Sidebar = () => {
       className={cn(
         'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
         isActive(to)
-          ? 'bg-blue-500/10 text-blue-600'
+          ? 'bg-primary/10 text-primary'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       )}
     >
-      <Icon className="h-4 w-4 shrink-0 text-blue-500" />
+      <Icon className="h-4 w-4 shrink-0 text-primary" />
       <span className="flex-1">{label}</span>
       {badge !== undefined && badge > 0 && (
         <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
